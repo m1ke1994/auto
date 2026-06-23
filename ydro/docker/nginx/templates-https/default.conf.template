@@ -11,10 +11,14 @@ upstream a_meditation_public {
     server public_site:3000;
 }
 
+upstream volga_public {
+    server volga_site:3000;
+}
+
 server {
     listen 80;
     listen [::]:80;
-    server_name tracknode.ru www.tracknode.ru leelabird.ru www.leelabird.ru;
+    server_name tracknode.ru www.tracknode.ru leelabird.ru www.leelabird.ru novoe-konakovo.ru www.novoe-konakovo.ru;
 
     location / {
         return 301 https://$host$request_uri;
@@ -188,6 +192,60 @@ server {
 
     location / {
         proxy_pass http://a_meditation_public;
+        include /etc/nginx/proxy_params;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name novoe-konakovo.ru www.novoe-konakovo.ru;
+
+    ssl_certificate /etc/letsencrypt/live/novoe-konakovo.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/novoe-konakovo.ru/privkey.pem;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
+    server_tokens off;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    location = /api {
+        return 404;
+    }
+
+    location /api/ {
+        return 404;
+    }
+
+    location = /admin {
+        return 404;
+    }
+
+    location /admin/ {
+        return 404;
+    }
+
+    location /static/ {
+        return 404;
+    }
+
+    location /media/ {
+        return 404;
+    }
+
+    location = /tracker.js {
+        return 404;
+    }
+
+    location / {
+        proxy_pass http://volga_public;
         include /etc/nginx/proxy_params;
     }
 }
