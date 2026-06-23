@@ -1,0 +1,18 @@
+services:
+  nginx:
+    ports: !override
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes: !override
+      - ./docker/nginx/templates-https:/etc/nginx/templates:ro
+      - ./docker/nginx/templates/proxy_params:/etc/nginx/proxy_params:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - frontend_dist:/var/www/frontend:ro
+      - static_data:/var/www/static:ro
+      - media_data:/var/www/media:ro
+    healthcheck:
+      test: ["CMD-SHELL", "nginx -t"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s

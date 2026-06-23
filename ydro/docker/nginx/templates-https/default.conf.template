@@ -1,0 +1,193 @@
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    "" close;
+}
+
+upstream yadro_backend {
+    server backend:8000;
+}
+
+upstream a_meditation_public {
+    server public_site:3000;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name tracknode.ru www.tracknode.ru leelabird.ru www.leelabird.ru;
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name tracknode.ru www.tracknode.ru;
+
+    ssl_certificate /etc/letsencrypt/live/tracknode.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/tracknode.ru/privkey.pem;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
+    server_tokens off;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    location = /api {
+        proxy_pass http://yadro_backend;
+        include /etc/nginx/proxy_params;
+    }
+
+    location /api/ {
+        proxy_pass http://yadro_backend;
+        include /etc/nginx/proxy_params;
+    }
+
+    location = /admin {
+        proxy_pass http://yadro_backend;
+        include /etc/nginx/proxy_params;
+    }
+
+    location /admin/ {
+        proxy_pass http://yadro_backend;
+        include /etc/nginx/proxy_params;
+    }
+
+    location = /tracker.js {
+        proxy_pass http://yadro_backend;
+        include /etc/nginx/proxy_params;
+    }
+
+    location = /leads {
+        proxy_pass http://yadro_backend;
+        include /etc/nginx/proxy_params;
+    }
+
+    location /leads/ {
+        proxy_pass http://yadro_backend;
+        include /etc/nginx/proxy_params;
+    }
+
+    location /static/ {
+        alias /var/www/static/;
+        access_log off;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location /media/ {
+        alias /var/www/media/;
+        access_log off;
+        expires 7d;
+        add_header Cache-Control "public";
+    }
+
+    location /assets/ {
+        root /var/www/frontend;
+        try_files $uri =404;
+        access_log off;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location = /robots.txt {
+        root /var/www/frontend;
+        try_files $uri =404;
+        access_log off;
+        expires 1h;
+    }
+
+    location = /sitemap.xml {
+        root /var/www/frontend;
+        try_files $uri =404;
+        access_log off;
+        expires 1h;
+    }
+
+    location = /favicon.svg {
+        root /var/www/frontend;
+        try_files $uri =404;
+        access_log off;
+        expires 1d;
+    }
+
+    location = /og-image.svg {
+        root /var/www/frontend;
+        try_files $uri =404;
+        access_log off;
+        expires 1d;
+    }
+
+    location = /index.html {
+        root /var/www/frontend;
+        add_header Cache-Control "no-store";
+    }
+
+    location / {
+        root /var/www/frontend;
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name leelabird.ru www.leelabird.ru;
+
+    ssl_certificate /etc/letsencrypt/live/leelabird.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/leelabird.ru/privkey.pem;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
+    server_tokens off;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    location = /api {
+        return 404;
+    }
+
+    location /api/ {
+        return 404;
+    }
+
+    location = /admin {
+        return 404;
+    }
+
+    location /admin/ {
+        return 404;
+    }
+
+    location /static/ {
+        return 404;
+    }
+
+    location /media/ {
+        return 404;
+    }
+
+    location = /tracker.js {
+        return 404;
+    }
+
+    location / {
+        proxy_pass http://a_meditation_public;
+        include /etc/nginx/proxy_params;
+    }
+}

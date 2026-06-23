@@ -1,0 +1,30 @@
+﻿# heavy folders
+node_modules/
+dist/
+build/
+.vite/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# logs/cache
+*.log
+.cache/
+.pytest_cache/
+
+# editor/os
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# archives/backups
+*.zip
+*.tar
+*.tar.gz
+*.gz
+*.bak
+
+# docker/runtime local garbage
+*.pid

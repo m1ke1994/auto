@@ -1,0 +1,38 @@
+# Video files (avoid GitHub 100MB push limit)
+
+*.mov
+*.avi
+*.mkv
+
+# Project media
+frontend/src/public/images/*.mp4
+frontend/public/images/*.mp4
+!frontend/public/images/Lila_Olga_2.2_compressed.mp4
+
+# Node
+node_modules/
+frontend/.vite/
+
+# Build output
+dist/
+frontend/dist/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+!frontend/.env.example
+
+# IDE
+.vscode/
+.idea/

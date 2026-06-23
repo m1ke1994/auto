@@ -1,0 +1,32 @@
+{% extends "admin/base_site.html" %}
+
+{% block userlinks %}
+<a href="https://tracknode.ru/" target="_blank" class="analytics-btn">
+  📊 Аналитика
+</a>
+{{ block.super }}
+{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .analytics-btn {
+    background: #ff8c42;
+    color: #ffffff !important;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-weight: 600;
+    margin-right: 15px;
+    text-decoration: none;
+    display: inline-block;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+  }
+
+  .analytics-btn:hover {
+    background: #e6762e;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  }
+</style>
+{% endblock %}

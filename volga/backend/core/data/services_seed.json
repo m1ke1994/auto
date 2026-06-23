@@ -1,0 +1,343 @@
+[
+  {
+    "id": "svc-moose-excursion",
+    "title": "Экскурсия в Братство лосей",
+    "slug": "ekskursiya-v-bratstvo-losey",
+    "description": "Авторская прогулка по природным маршрутам с погружением в локальную историю места.",
+    "is_category": false,
+    "order": 10,
+    "children": [],
+    "tariffs": [
+      {
+        "id": "tariff-moose-standard",
+        "title": "Стандарт",
+        "slug": "standart",
+        "description": "Групповой формат до 8 человек.",
+        "duration": "2.5 часа",
+        "price": 4000,
+        "order": 10
+      },
+      {
+        "id": "tariff-moose-individual",
+        "title": "Индивидуально",
+        "slug": "individualno",
+        "description": "Персональная экскурсия с индивидуальным темпом.",
+        "duration": "3 часа",
+        "price": 7000,
+        "order": 20
+      }
+    ]
+  },
+  {
+    "id": "svc-energy-practices",
+    "title": "Утренние энергетические практики",
+    "slug": "utrennie-energeticheskie-praktiki",
+    "description": "Мягкий утренний формат для включения тела, дыхания и внимания.",
+    "is_category": false,
+    "order": 20,
+    "children": [],
+    "tariffs": [
+      {
+        "id": "tariff-energy-single",
+        "title": "Разовое посещение",
+        "slug": "razovoe-poseshchenie",
+        "description": "Один полный утренний блок.",
+        "duration": "90 минут",
+        "price": 1500,
+        "order": 10
+      },
+      {
+        "id": "tariff-energy-subscription",
+        "title": "Абонемент",
+        "slug": "abonement",
+        "description": "Пакет из нескольких практик в течение месяца.",
+        "duration": "4 занятия",
+        "price": 5000,
+        "order": 20
+      }
+    ]
+  },
+  {
+    "id": "svc-tea-ceremony",
+    "title": "Чайная церемония",
+    "slug": "chaynaya-tseremoniya",
+    "description": "Сценарий замедления с чайным ритуалом и внимательным общением.",
+    "is_category": false,
+    "order": 30,
+    "children": [],
+    "tariffs": [
+      {
+        "id": "tariff-tea-classic",
+        "title": "Классическая",
+        "slug": "klassicheskaya",
+        "description": "Классическая чайная встреча.",
+        "duration": "1.5 часа",
+        "price": 3000,
+        "order": 10
+      },
+      {
+        "id": "tariff-tea-extended",
+        "title": "Расширенная",
+        "slug": "rasshirennaya",
+        "description": "Расширенный формат с дополнительным сопровождением ведущего.",
+        "duration": "2.5 часа",
+        "price": 5500,
+        "order": 20
+      }
+    ]
+  },
+  {
+    "id": "svc-master-classes",
+    "title": "Мастер-классы",
+    "slug": "master-klassy",
+    "description": "Практические форматы с ведущим и результатом за одну встречу.",
+    "is_category": true,
+    "order": 40,
+    "tariffs": [],
+    "children": [
+      {
+        "id": "svc-master-candles",
+        "title": "Мастер-класс по свечеварению",
+        "slug": "master-klass-po-svechevareniyu",
+        "description": "Практика создания свечей с подбором формы, аромата и состава.",
+        "is_category": false,
+        "order": 10,
+        "children": [],
+        "tariffs": [
+          {
+            "id": "tariff-candles-basic",
+            "title": "Базовый",
+            "slug": "bazovyy",
+            "description": "2 часа, до 5 человек.",
+            "duration": "2 часа",
+            "price": 3500,
+            "order": 10
+          },
+          {
+            "id": "tariff-candles-extended",
+            "title": "Расширенный",
+            "slug": "rasshirennyy",
+            "description": "3 часа, индивидуально.",
+            "duration": "3 часа",
+            "price": 6500,
+            "order": 20
+          }
+        ]
+      },
+      {
+        "id": "svc-master-herbs",
+        "title": "Мастер-класс по созданию травяных сборов",
+        "slug": "master-klass-po-sozdaniyu-travyanykh-sborov",
+        "description": "Сбор, баланс и составление персональных травяных миксов.",
+        "is_category": false,
+        "order": 20,
+        "children": [],
+        "tariffs": [
+          {
+            "id": "tariff-herbs-group",
+            "title": "Групповой",
+            "slug": "gruppovoy",
+            "description": "2 часа.",
+            "duration": "2 часа",
+            "price": 3000,
+            "order": 10
+          },
+          {
+            "id": "tariff-herbs-individual",
+            "title": "Индивидуальный",
+            "slug": "individualnyy",
+            "description": "2.5 часа.",
+            "duration": "2.5 часа",
+            "price": 5500,
+            "order": 20
+          }
+        ]
+      },
+      {
+        "id": "svc-master-art",
+        "title": "Мастер-класс по арт-интуитивной живописи",
+        "slug": "master-klass-po-art-intuitivnoy-zhivopisi",
+        "description": "Творческий процесс через цвет, форму и интуитивный жест.",
+        "is_category": false,
+        "order": 30,
+        "children": [],
+        "tariffs": [
+          {
+            "id": "tariff-art-group",
+            "title": "Групповой",
+            "slug": "gruppovoy-art",
+            "description": "2 часа.",
+            "duration": "2 часа",
+            "price": 3200,
+            "order": 10
+          },
+          {
+            "id": "tariff-art-individual",
+            "title": "Индивидуальный",
+            "slug": "individualnyy-art",
+            "description": "3 часа.",
+            "duration": "3 часа",
+            "price": 6000,
+            "order": 20
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "svc-wild-wellness",
+    "title": "Wild-wellness",
+    "slug": "wild-wellness",
+    "description": "Форматы восстановления в природе с телесными и дыхательными практиками.",
+    "is_category": false,
+    "order": 50,
+    "children": [],
+    "tariffs": [
+      {
+        "id": "tariff-wild-walk",
+        "title": "Прогулка",
+        "slug": "progulka",
+        "description": "Базовый формат с проводником.",
+        "duration": "2 часа",
+        "price": 3500,
+        "order": 10
+      },
+      {
+        "id": "tariff-wild-full-day",
+        "title": "Полный день",
+        "slug": "polnyy-den",
+        "description": "Расширенный дневной сценарий с несколькими блоками.",
+        "duration": "6 часов",
+        "price": 9000,
+        "order": 20
+      }
+    ]
+  },
+  {
+    "id": "svc-lila",
+    "title": "Игра Лила",
+    "slug": "igra-lila",
+    "description": "Глубинная трансформационная игра с сопровождением фасилитатора.",
+    "is_category": false,
+    "order": 60,
+    "children": [],
+    "tariffs": [
+      {
+        "id": "tariff-lila-group",
+        "title": "Групповая",
+        "slug": "gruppovaya",
+        "description": "Формат для небольшой группы.",
+        "duration": "3 часа",
+        "price": 4000,
+        "order": 10
+      },
+      {
+        "id": "tariff-lila-individual",
+        "title": "Индивидуальная",
+        "slug": "individualnaya",
+        "description": "Персональный формат 1:1.",
+        "duration": "3 часа",
+        "price": 8000,
+        "order": 20
+      }
+    ]
+  },
+  {
+    "id": "svc-author-programs",
+    "title": "Авторские программы",
+    "slug": "avtorskie-programmy",
+    "description": "Сценарные программы с глубокой настройкой под запрос группы или участника.",
+    "is_category": true,
+    "order": 70,
+    "tariffs": [],
+    "children": [
+      {
+        "id": "svc-author-reboot",
+        "title": "Программа «Перезагрузка в природе»",
+        "slug": "programma-perezagruzka-v-prirode",
+        "description": "Восстановление ресурса через ритм природы и структурные практики.",
+        "is_category": false,
+        "order": 10,
+        "children": [],
+        "tariffs": [
+          {
+            "id": "tariff-reboot-one-day",
+            "title": "Однодневная",
+            "slug": "odnodnevnaya",
+            "description": "Интенсив на один день.",
+            "duration": "1 день",
+            "price": 12000,
+            "order": 10
+          },
+          {
+            "id": "tariff-reboot-two-day",
+            "title": "Двухдневная",
+            "slug": "dvukhdnevnaya",
+            "description": "Расширенный формат с ночёвкой.",
+            "duration": "2 дня",
+            "price": 22000,
+            "order": 20
+          }
+        ]
+      },
+      {
+        "id": "svc-author-silence",
+        "title": "Программа «Глубинная тишина»",
+        "slug": "programma-glubinnaya-tishina",
+        "description": "Практики тишины, внимания и глубокой перезагрузки.",
+        "is_category": false,
+        "order": 20,
+        "children": [],
+        "tariffs": [
+          {
+            "id": "tariff-silence-individual",
+            "title": "Индивидуально",
+            "slug": "individualno-silence",
+            "description": "Персональный формат сопровождения.",
+            "duration": "1 день",
+            "price": 18000,
+            "order": 10
+          },
+          {
+            "id": "tariff-silence-mini-group",
+            "title": "Мини-группа",
+            "slug": "mini-gruppa",
+            "description": "Формат для 3-5 человек.",
+            "duration": "1 день",
+            "price": 15000,
+            "order": 20
+          }
+        ]
+      },
+      {
+        "id": "svc-author-women-circle",
+        "title": "Программа «Женский круг силы»",
+        "slug": "programma-zhenskiy-krug-sily",
+        "description": "Формат поддержки и внутренней опоры в группе.",
+        "is_category": false,
+        "order": 30,
+        "children": [],
+        "tariffs": [
+          {
+            "id": "tariff-women-evening",
+            "title": "Вечерняя встреча",
+            "slug": "vechernyaya-vstrecha",
+            "description": "Камерный вечерний формат.",
+            "duration": "3 часа",
+            "price": 5000,
+            "order": 10
+          },
+          {
+            "id": "tariff-women-full",
+            "title": "Полный формат",
+            "slug": "polnyy-format",
+            "description": "Расширенный дневной круг.",
+            "duration": "1 день",
+            "price": 9000,
+            "order": 20
+          }
+        ]
+      }
+    ]
+  }
+]

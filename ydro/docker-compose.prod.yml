@@ -1,0 +1,107 @@
+services:
+  postgres:
+    env_file: !override
+      - .env
+
+  backend:
+    env_file: !override
+      - .env
+    environment:
+      DJANGO_ENV: production
+      DJANGO_ENV_FILE: .env
+      DJANGO_SERVE_MEDIA_FILES: "0"
+      REDIS_URL: ${REDIS_URL}
+    ports: !reset []
+    restart: unless-stopped
+
+  frontend:
+    env_file: !override
+      - vue-admin/.env
+    ports: !reset []
+    volumes: !override
+      - frontend_dist:/app-dist
+    command: ["sh", "-c", "npm run build && cp -a dist/. /app-dist/ && tail -f /dev/null"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /app-dist/index.html"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  celery_worker:
+    env_file: !override
+      - .env
+    environment:
+      DJANGO_ENV: production
+      DJANGO_ENV_FILE: .env
+      REDIS_URL: ${REDIS_URL}
+    restart: unless-stopped
+
+  celery_beat:
+    env_file: !override
+      - .env
+    environment:
+      DJANGO_ENV: production
+      DJANGO_ENV_FILE: .env
+      REDIS_URL: ${REDIS_URL}
+    restart: unless-stopped
+
+  telegram_polling:
+    env_file: !override
+      - .env
+    environment:
+      DJANGO_ENV: production
+      DJANGO_ENV_FILE: .env
+      REDIS_URL: ${REDIS_URL}
+    restart: unless-stopped
+
+  public_site:
+    profiles: !reset []
+    build:
+      context: ../a-meditation/frontend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        VITE_API_URL: ${PUBLIC_SITE_VITE_API_URL:-https://tracknode.ru/api}
+        VITE_BACKEND_URL: ${PUBLIC_SITE_VITE_BACKEND_URL:-https://tracknode.ru}
+        VITE_SITE_URL: ${PUBLIC_SITE_VITE_SITE_URL:-https://leelabird.ru}
+        VITE_PUBLIC_SITE_URL: ${PUBLIC_SITE_VITE_PUBLIC_SITE_URL:-https://leelabird.ru}
+        VITE_SITE_SLUG: ${PUBLIC_SITE_VITE_SITE_SLUG:-a-meditation}
+    env_file: !reset []
+    ports: !reset []
+    volumes: !reset []
+    command: ["nginx", "-g", "daemon off;"]
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+      public_site:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - ./docker/nginx/templates:/etc/nginx/templates:ro
+      - ./docker/nginx/templates/proxy_params:/etc/nginx/proxy_params:ro
+      - frontend_dist:/var/www/frontend:ro
+      - static_data:/var/www/static:ro
+      - media_data:/var/www/media:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --header=\"Host: $${DOMAIN}\" -O /dev/null http://nginx/api/health/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - yadro_network
+
+volumes:
+  frontend_dist:

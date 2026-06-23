@@ -1,0 +1,15 @@
+:root {
+  --color-sand: #c8aa72;
+  --color-warm-yellow: #f1bf48;
+  --color-sun: #ff950c;
+  --color-orange: #e56f12;
+  --color-copper: #996d3f;
+  --color-warm-brown: #6b3a22;
+  --color-dark-deep: #171012;
+
+  --color-text-primary: #2d1d16;
+  --color-text-secondary: #6d452d;
+  --color-background-main: #ffffff;
+  --color-background-light: #fbf1de;
+  --color-border-accent: #bf8546;
+}

@@ -1,0 +1,5 @@
+src\components\Profile\ProductGrid.vue:28:         { title: 'Чайная церемония', description: 'Спокойный ритуал, вкус момента и пространство для тишины.', duration: '1,5 часа', price: 'от 2 200 ₽', image: '/card.png', href: '#' },
+src\components\Profile\ProductGrid.vue:31:         { title: 'Мастер‑классы', description: 'Разбор тем, обмен опытом и спокойная практика в группе.', duration: '2 часа', price: 'от 2 000 ₽', image: '/card.png', href: '#' },
+src\components\Profile\ProfileHero.vue:11:                 <div class="info__name">Елизавета Стручкова</div>
+src\components\Profile\ProfileHero.vue:14:                     <button class="info__btn">Связаться со мной</button>
+src\components\Profile\ProfileLayout.vue:40:         '«Расписание ежедневных практик»',

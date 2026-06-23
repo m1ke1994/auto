@@ -1,0 +1,21 @@
+services:
+  public_site:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL}
+        VITE_SITE_SLUG: ${VITE_SITE_SLUG:-a-meditation}
+        VITE_SITE_URL: ${VITE_SITE_URL}
+        VITE_PUBLIC_SITE_URL: ${VITE_PUBLIC_SITE_URL}
+    restart: unless-stopped
+    ports:
+      - "${PUBLIC_SITE_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
