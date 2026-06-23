@@ -1,9 +1,13 @@
 ﻿from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.test import override_settings
 from unittest.mock import patch
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from apps.sites.management.commands.seed_volga_site import Command as SeedVolgaSiteCommand
 from apps.sites.models import SectionSchema, Site, SiteLead, SiteSection
 from apps.sites.a_meditation import (
     A_MEDITATION_SECTION_SEEDS,
@@ -213,6 +217,29 @@ class SitesApiTests(APITestCase):
         for seed in VOLGA_SECTION_SEEDS:
             SiteSection.validate_schema(seed["schema"])
             SiteSection.validate_content(seed["content"], seed["schema"])
+
+    def test_seed_volga_site_uses_public_dir_from_env(self):
+        with TemporaryDirectory() as temp_dir:
+            public_dir = Path(temp_dir) / "public"
+            public_dir.mkdir()
+
+            with patch.dict("os.environ", {"VOLGA_PUBLIC_DIR": str(public_dir)}):
+                resolved = SeedVolgaSiteCommand()._resolve_public_dir(None)
+
+        self.assertEqual(resolved, public_dir.resolve())
+
+    def test_seed_volga_site_finds_sibling_volga_public_dir(self):
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            ydro_dir = repo_root / "ydro"
+            public_dir = repo_root / "volga" / "frontend" / "public"
+            ydro_dir.mkdir()
+            public_dir.mkdir(parents=True)
+
+            with override_settings(BASE_DIR=ydro_dir), patch.dict("os.environ", {"VOLGA_PUBLIC_DIR": ""}):
+                resolved = SeedVolgaSiteCommand()._resolve_public_dir(None)
+
+        self.assertEqual(resolved, public_dir.resolve())
 
     def test_admin_uses_site_specific_schema_template_when_available(self):
         generic_schema = SectionSchema.objects.create(

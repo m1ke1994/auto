@@ -45,6 +45,7 @@
       DJANGO_SERVE_MEDIA_FILES: "1"
       RUN_SEED_DEMO_DATA: "${RUN_SEED_DEMO_DATA:-0}"
       RUN_SEED_VOLGA_SITE: "${RUN_SEED_VOLGA_SITE:-0}"
+      VOLGA_PUBLIC_DIR: "${VOLGA_PUBLIC_DIR:-/volga-public}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,6 +56,7 @@
     volumes:
       - static_data:/app/staticfiles
       - media_data:/app/media
+      - ${VOLGA_PUBLIC_DIR_HOST:-../volga/frontend/public}:/volga-public:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS -H \"Host: $${DOMAIN}\" http://backend:8000/api/health/ || exit 1"]
       interval: 15s

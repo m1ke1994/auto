@@ -64,7 +64,10 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--public-dir",
-            help="Path to volga frontend public directory. Defaults to ../volga/frontend/public.",
+            help=(
+                "Path to volga frontend public directory. Defaults to VOLGA_PUBLIC_DIR "
+                "or ../volga/frontend/public relative to the Yadro repository."
+            ),
         )
 
     @transaction.atomic
@@ -195,15 +198,59 @@ class Command(BaseCommand):
 
     def _resolve_public_dir(self, requested):
         if requested:
-            public_dir = Path(requested)
-        else:
-            backend_root = Path(__file__).resolve().parents[4]
-            public_dir = backend_root.parent / "volga" / "frontend" / "public"
+            return self._validate_public_dir(Path(requested), "--public-dir")
 
-        public_dir = public_dir.resolve()
+        env_public_dir = os.getenv("VOLGA_PUBLIC_DIR", "").strip()
+        if env_public_dir:
+            return self._validate_public_dir(Path(env_public_dir), "VOLGA_PUBLIC_DIR")
+
+        checked_paths = []
+        for public_dir in self._default_public_dir_candidates():
+            checked_paths.append(str(public_dir))
+            if public_dir.exists() and public_dir.is_dir():
+                return public_dir.resolve()
+
+        checked = "\n".join(f"- {path}" for path in checked_paths) or "- <none>"
+        raise CommandError(
+            "Volga public directory was not found. Set VOLGA_PUBLIC_DIR or pass --public-dir.\n"
+            f"Checked paths:\n{checked}"
+        )
+
+    def _validate_public_dir(self, public_dir, source):
+        public_dir = public_dir.expanduser().resolve()
         if not public_dir.exists() or not public_dir.is_dir():
-            raise CommandError(f"Volga public directory was not found: {public_dir}")
+            raise CommandError(f"Volga public directory from {source} was not found: {public_dir}")
         return public_dir
+
+    def _default_public_dir_candidates(self):
+        candidates = []
+        seen = set()
+
+        def add(path):
+            resolved = path.expanduser().resolve()
+            key = str(resolved)
+            if key not in seen:
+                candidates.append(resolved)
+                seen.add(key)
+
+        roots = [
+            Path(settings.BASE_DIR).resolve(),
+            Path.cwd().resolve(),
+        ]
+        roots.extend(Path(__file__).resolve().parents)
+
+        for root in roots:
+            if root.parent == root:
+                continue
+
+            add(root / "volga" / "frontend" / "public")
+
+            parent = root.parent
+            is_filesystem_root = parent == root or parent == Path(parent.anchor)
+            if not is_filesystem_root:
+                add(parent / "volga" / "frontend" / "public")
+
+        return candidates
 
     def _index_existing_media(self, site):
         indexed = {}
