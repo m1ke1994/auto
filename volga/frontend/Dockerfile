@@ -15,11 +15,11 @@ CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000"]
 
 FROM deps AS build
 
-ARG VITE_API_URL=/api
-ARG VITE_BACKEND_URL=
-ARG VITE_SITE_SLUG=novoe-konakovo
-ARG VITE_SITE_URL=
-ARG VITE_PUBLIC_SITE_URL=
+ARG VITE_API_URL=https://tracknode.ru/api
+ARG VITE_BACKEND_URL=https://tracknode.ru
+ARG VITE_SITE_SLUG=novaya-konakova
+ARG VITE_SITE_URL=https://novoe-konakovo.ru
+ARG VITE_PUBLIC_SITE_URL=https://novoe-konakovo.ru
 
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_BACKEND_URL=$VITE_BACKEND_URL

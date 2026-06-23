@@ -44,6 +44,10 @@ if [ "${RUN_SEED_DEMO_DATA:-1}" = "1" ]; then
   python manage.py seed_demo_data
 fi
 
+if [ "${RUN_SEED_VOLGA_SITE:-0}" = "1" ]; then
+  python manage.py seed_volga_site
+fi
+
 if [ "$#" -gt 0 ]; then
   exec "$@"
 fi

@@ -3,9 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import AppHeader from "../components/AppHeader.vue";
 import AppFooter from "../components/AppFooter.vue";
 import { getSiteSettings } from "../api/siteSettings";
-import { buildApiUrl, siteSlug } from "../config/api";
+import { submitLead } from "../api/leads";
 
-const LEADS_ENDPOINT = buildApiUrl("leads/");
 const siteSettings = ref({
   phone: "",
   email: "",
@@ -53,46 +52,17 @@ const handleSubmit = async (event) => {
 
   const contact = String(form.contact.value || "").trim();
   const payload = {
-    site_slug: siteSlug,
     section_key: "contacts",
     form_name: "Contact form",
     name: form.name.value,
-    phone: contact,
+    contact,
     email: contact.includes("@") ? contact : "",
     message: form.message.value,
   };
 
   try {
     isSubmitting.value = true;
-
-    const response = await fetch(LEADS_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      let message = "Не удалось отправить заявку. Попробуйте снова.";
-
-      try {
-        const errorData = await response.json();
-        if (errorData && typeof errorData === "object") {
-          const firstError = Object.values(errorData).find((value) => Array.isArray(value) && value.length > 0);
-          if (Array.isArray(firstError)) {
-            message = String(firstError[0]);
-          }
-        }
-      } catch (parseError) {
-        // Ignore parsing errors and keep default message.
-      }
-
-      throw new Error(message);
-    }
-
-    await response.json();
+    await submitLead(payload);
     form.reset();
     form.classList.remove("is-submitted");
     success.value = true;

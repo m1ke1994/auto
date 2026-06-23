@@ -1,4 +1,4 @@
-const defaultSiteSlug = "novoe-konakovo"
+const defaultSiteSlug = "novaya-konakova"
 
 function normalizeUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "")

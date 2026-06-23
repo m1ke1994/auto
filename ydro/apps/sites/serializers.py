@@ -7,6 +7,7 @@ from leads.services import send_lead_telegram_notification
 
 from .models import SectionSchema, Site, SiteLead, SiteSection
 from .a_meditation import SECTION_TITLES
+from .volga_site import SECTION_TITLES as VOLGA_SECTION_TITLES
 from .tracker_utils import build_tracker_script_tag
 
 logger = logging.getLogger(__name__)
@@ -111,7 +112,11 @@ class AdminMySiteSectionSerializer(serializers.ModelSerializer):
         )
 
     def get_schema_template(self, obj):
-        schema_obj = SectionSchema.objects.filter(section_key=obj.key).first()
+        site_specific_key = f"{obj.site.slug}-{obj.key}"
+        schema_obj = (
+            SectionSchema.objects.filter(section_key=site_specific_key).first()
+            or SectionSchema.objects.filter(section_key=obj.key).first()
+        )
         if not schema_obj:
             return None
         return SectionSchemaSerializer(schema_obj).data
@@ -119,6 +124,8 @@ class AdminMySiteSectionSerializer(serializers.ModelSerializer):
     def get_display_title(self, obj):
         if obj.site.slug == "a-meditation":
             return SECTION_TITLES.get(obj.key, obj.title)
+        if obj.site.slug == "novaya-konakova":
+            return VOLGA_SECTION_TITLES.get(obj.key, obj.title)
         return obj.title
 
 

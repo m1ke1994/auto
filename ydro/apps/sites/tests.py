@@ -4,10 +4,15 @@ from unittest.mock import patch
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.sites.models import Site, SiteLead, SiteSection
+from apps.sites.models import SectionSchema, Site, SiteLead, SiteSection
 from apps.sites.a_meditation import (
     A_MEDITATION_SECTION_SEEDS,
     merge_content_defaults,
+)
+from apps.sites.volga_site import (
+    VOLGA_SECTION_SEEDS,
+    VOLGA_SITE_SLUG,
+    get_site_specific_schema_key,
 )
 from clients.models import Client
 
@@ -183,6 +188,99 @@ class SitesApiTests(APITestCase):
             merged,
             {"title": "Текст клиента", "description": "Описание"},
         )
+
+    def test_volga_contract_is_valid(self):
+        self.assertEqual(VOLGA_SITE_SLUG, "novaya-konakova")
+        self.assertEqual(len(VOLGA_SECTION_SEEDS), 10)
+
+        keys = {seed["key"] for seed in VOLGA_SECTION_SEEDS}
+        self.assertSetEqual(
+            keys,
+            {
+                "hero",
+                "site-settings",
+                "navigation",
+                "services",
+                "schedule",
+                "reviews",
+                "articles",
+                "news",
+                "pages",
+                "footer",
+            },
+        )
+
+        for seed in VOLGA_SECTION_SEEDS:
+            SiteSection.validate_schema(seed["schema"])
+            SiteSection.validate_content(seed["content"], seed["schema"])
+
+    def test_admin_uses_site_specific_schema_template_when_available(self):
+        generic_schema = SectionSchema.objects.create(
+            section_key="hero",
+            title="Generic hero",
+            schema={"fields": [{"key": "title", "type": "text"}]},
+        )
+        volga_schema, _ = SectionSchema.objects.update_or_create(
+            section_key=get_site_specific_schema_key("hero"),
+            defaults={
+                "title": "Volga hero",
+                "schema": {
+                    "fields": [
+                        {"key": "title", "type": "text"},
+                        {"key": "background_image", "type": "image"},
+                    ]
+                },
+            },
+        )
+        volga_site = Site.objects.create(
+            name="Новая Конакова",
+            slug=VOLGA_SITE_SLUG,
+            domain="novoe-konakovo.ru",
+            owner=self.user,
+            is_active=True,
+        )
+        meditation_site = Site.objects.create(
+            name="A Meditation",
+            slug="a-meditation",
+            domain="localhost:5173",
+            owner=self.user,
+            is_active=True,
+        )
+        volga_section = SiteSection.objects.create(
+            site=volga_site,
+            key="hero",
+            title="Hero",
+            section_type="hero",
+            order=1,
+            schema={"fields": [{"key": "title", "type": "text"}]},
+            content={"title": "Лиза"},
+        )
+        meditation_section = SiteSection.objects.create(
+            site=meditation_site,
+            key="hero",
+            title="Hero",
+            section_type="hero",
+            order=1,
+            schema={"fields": [{"key": "title", "type": "text"}]},
+            content={"title": "A Meditation"},
+        )
+
+        self.client.force_authenticate(user=self.user)
+
+        volga_response = self.client.get(reverse("admin-my-site-sections", kwargs={"site_id": volga_site.id}))
+        self.assertEqual(volga_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(volga_response.data[0]["id"], volga_section.id)
+        self.assertEqual(volga_response.data[0]["display_title"], "Hero-блок")
+        self.assertEqual(volga_response.data[0]["schema_template"]["id"], volga_schema.id)
+        self.assertEqual(volga_response.data[0]["schema_template"]["section_key"], "novaya-konakova-hero")
+
+        meditation_response = self.client.get(
+            reverse("admin-my-site-sections", kwargs={"site_id": meditation_site.id})
+        )
+        self.assertEqual(meditation_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(meditation_response.data[0]["id"], meditation_section.id)
+        self.assertEqual(meditation_response.data[0]["display_title"], "Hero-блок")
+        self.assertEqual(meditation_response.data[0]["schema_template"]["id"], generic_schema.id)
 
     def test_user_cannot_patch_foreign_section(self):
         foreign_section = SiteSection.objects.create(
