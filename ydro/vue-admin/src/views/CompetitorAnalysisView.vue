@@ -15,7 +15,10 @@ import { useSiteStore } from '../stores/site'
 const route = useRoute()
 const siteStore = useSiteStore()
 
-const competitors = ref(['', ''])
+const form = ref({
+  user_domain: '',
+  competitor_domain: '',
+})
 const analyses = ref([])
 const loading = ref(false)
 const starting = ref(false)
@@ -75,8 +78,23 @@ function formatDate(value) {
   }
 }
 
-function cleanCompetitors() {
-  return competitors.value.map((item) => item.trim()).filter(Boolean)
+function syncUserDomainFromSite() {
+  if (!form.value.user_domain && siteStore.currentSite?.domain) {
+    form.value.user_domain = siteStore.currentSite.domain
+  }
+}
+
+function cleanDomain(value) {
+  return String(value || '').trim()
+}
+
+function extractApiError(e, fallback) {
+  const data = e?.response?.data || {}
+  const detail = data.detail
+  if (Array.isArray(detail)) return detail[0] || fallback
+  if (typeof detail === 'string') return detail
+  if (detail && typeof detail === 'object') return Object.values(detail).flat()[0] || fallback
+  return data.user_domain?.[0] || data.competitor_domain?.[0] || data.competitors?.[0] || fallback
 }
 
 function updateAnalysisInList(nextAnalysis) {
@@ -121,6 +139,7 @@ async function loadAnalyses() {
   try {
     const data = await getCompetitorAnalyses(siteId.value)
     analyses.value = Array.isArray(data?.rows) ? data.rows : []
+    syncUserDomainFromSite()
     if (running.value) startPolling(latestAnalysis.value.id)
   } catch (e) {
     console.error('Competitor analyses load failed', e)
@@ -131,13 +150,14 @@ async function loadAnalyses() {
 }
 
 async function startAnalysis() {
-  const domains = cleanCompetitors()
-  if (!domains.length) {
-    error.value = 'Укажите хотя бы один домен конкурента.'
+  const userDomain = cleanDomain(form.value.user_domain)
+  const competitorDomain = cleanDomain(form.value.competitor_domain)
+  if (!userDomain) {
+    error.value = 'Укажите домен вашего сайта.'
     return
   }
-  if (domains.length > 2) {
-    error.value = 'Можно указать максимум 2 домена конкурентов.'
+  if (!competitorDomain) {
+    error.value = 'Укажите домен конкурента.'
     return
   }
   if (starting.value || running.value) return
@@ -146,14 +166,16 @@ async function startAnalysis() {
   error.value = ''
   success.value = ''
   try {
-    const data = await createCompetitorAnalysis(siteId.value, domains)
+    const data = await createCompetitorAnalysis(siteId.value, {
+      user_domain: userDomain,
+      competitor_domain: competitorDomain,
+    })
     updateAnalysisInList(data)
     startPolling(data.id)
     success.value = data.queued ? 'Анализ поставлен в очередь.' : 'Анализ создан, но очередь задач недоступна.'
   } catch (e) {
     console.error('Competitor analysis start failed', e)
-    const detail = e?.response?.data?.detail || e?.response?.data?.competitors?.[0] || ''
-    error.value = detail || 'Не удалось запустить анализ конкурентов.'
+    error.value = extractApiError(e, 'Не удалось запустить анализ конкурентов.')
   } finally {
     starting.value = false
   }
@@ -203,6 +225,7 @@ onMounted(async () => {
   if (siteId.value) {
     siteStore.selectSite(siteId.value)
     if (!siteStore.currentSite) await siteStore.fetchSite(siteId.value)
+    syncUserDomainFromSite()
   }
   await loadAnalyses()
 })
@@ -215,7 +238,7 @@ onUnmounted(stopPolling)
     <header class="page-heading">
       <p class="eyebrow">SEO</p>
       <h1>Анализ конкурентов</h1>
-      <p>Сравните ваш сайт с конкурентами и получите PDF-отчёт.</p>
+      <p>Сравните ваш сайт с сайтом конкурента и получите PDF-отчёт с ошибками и рекомендациями.</p>
     </header>
 
     <section class="surface">
@@ -231,14 +254,25 @@ onUnmounted(stopPolling)
       </div>
 
       <div class="grid gap-3 md:grid-cols-2">
-        <label v-for="(_, index) in competitors" :key="index" class="block">
-          <span class="text-sm font-semibold text-slate-800">Конкурент №{{ index + 1 }}</span>
+        <label class="block">
+          <span class="text-sm font-semibold text-slate-800">Ваш сайт</span>
           <input
-            v-model="competitors[index]"
+            v-model="form.user_domain"
             class="form-control mt-2"
             type="text"
             inputmode="url"
-            placeholder="competitor.ru"
+            placeholder="novoe-konakovo.ru"
+            :disabled="starting || running || Boolean(cancelingId)"
+          >
+        </label>
+        <label class="block">
+          <span class="text-sm font-semibold text-slate-800">Сайт конкурента</span>
+          <input
+            v-model="form.competitor_domain"
+            class="form-control mt-2"
+            type="text"
+            inputmode="url"
+            placeholder="leelabird.ru"
             :disabled="starting || running || Boolean(cancelingId)"
           >
         </label>
@@ -289,16 +323,14 @@ onUnmounted(stopPolling)
       </div>
 
       <div v-if="latestAnalysis" class="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
-        <div>
-          <p class="text-sm font-semibold text-slate-800">Домены конкурентов</p>
-          <div class="mt-2 flex flex-wrap gap-2">
-            <span
-              v-for="domain in latestAnalysis.competitors"
-              :key="domain"
-              class="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700"
-            >
-              {{ domain }}
-            </span>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <p class="text-sm font-semibold text-slate-800">Ваш домен</p>
+            <p class="mt-1 text-sm text-slate-700">{{ latestAnalysis.user_domain || '—' }}</p>
+          </div>
+          <div>
+            <p class="text-sm font-semibold text-slate-800">Домен конкурента</p>
+            <p class="mt-1 text-sm text-slate-700">{{ latestAnalysis.competitor_domain || '—' }}</p>
           </div>
         </div>
         <button
@@ -334,7 +366,8 @@ onUnmounted(stopPolling)
             <tr>
               <th>Дата</th>
               <th>Статус</th>
-              <th>Домены</th>
+              <th>Ваш сайт</th>
+              <th>Конкурент</th>
               <th class="text-right">PDF</th>
             </tr>
           </thead>
@@ -344,17 +377,8 @@ onUnmounted(stopPolling)
               <td>
                 <span class="status-badge" :class="statusClass(analysis.status)">{{ statusText(analysis.status) }}</span>
               </td>
-              <td>
-                <div class="flex flex-wrap gap-1.5">
-                  <span
-                    v-for="domain in analysis.competitors"
-                    :key="`${analysis.id}-${domain}`"
-                    class="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700"
-                  >
-                    {{ domain }}
-                  </span>
-                </div>
-              </td>
+              <td>{{ analysis.user_domain || '—' }}</td>
+              <td>{{ analysis.competitor_domain || analysis.competitors?.[0] || '—' }}</td>
               <td class="text-right">
                 <button
                   v-if="analysis.pdf_available"

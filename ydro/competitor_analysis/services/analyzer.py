@@ -13,6 +13,7 @@ from competitor_analysis.services.pdf_report import build_competitor_analysis_pd
 from competitor_analysis.services.snapshot import collect_domain_snapshot
 from seo_audit.models import SEOIssue, SEOPage, SiteSEOAudit
 from seo_audit.services.crawler import AuditCancelledError, crawl_site_audit
+from seo_audit.services.messages import get_issue_title
 from seo_audit.services.scoring import recalculate_audit_score
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ def _issue_rows(audit: SiteSEOAudit | None, *, limit: int = 40) -> list[dict[str
         rows.append(
             {
                 "type": issue.issue_type,
+                "title": get_issue_title(issue.issue_type),
                 "severity": issue.severity,
                 "page_url": getattr(issue.page, "url", ""),
                 "recommendation": issue.recommendation,
@@ -145,9 +147,11 @@ def _build_domain_result(
     }
 
 
-def _display_metric(value: Any) -> str:
+def _display_metric(value: Any, *, key: str = "") -> str:
     if isinstance(value, bool):
         return "Да" if value else "Нет"
+    if key in {"title", "description", "h1", "canonical"}:
+        return "Есть" if str(value or "").strip() else "Нет"
     if value in (None, ""):
         return "—"
     return str(value)
@@ -172,7 +176,7 @@ def _build_comparison(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
             {
                 "metric": title,
                 "key": key,
-                "values": [_display_metric(item.get(key)) for item in items],
+                "values": [_display_metric(item.get(key), key=key) for item in items],
             }
         )
     return rows
@@ -249,6 +253,16 @@ def _build_improvement_plan(recommendations: dict[str, list[str]]) -> list[str]:
     return plan[:6]
 
 
+def _analysis_domains(analysis: CompetitorAnalysis) -> tuple[str, str]:
+    raw_user_domain = analysis.user_domain or getattr(analysis.site, "domain", "")
+    user_domain = normalize_public_domain(raw_user_domain, resolve_dns=False)
+
+    competitors = analysis.competitors if isinstance(analysis.competitors, list) else []
+    raw_competitor_domain = analysis.competitor_domain or (competitors[0] if competitors else "")
+    competitor_domain = normalize_public_domain(raw_competitor_domain, resolve_dns=False)
+    return user_domain, competitor_domain
+
+
 def run_competitor_analysis(analysis: CompetitorAnalysis) -> CompetitorAnalysis:
     analysis = CompetitorAnalysis.objects.select_related("site", "client").get(id=analysis.id)
 
@@ -262,10 +276,11 @@ def run_competitor_analysis(analysis: CompetitorAnalysis) -> CompetitorAnalysis:
         return analysis.status == CompetitorAnalysis.Status.CANCELED
 
     _check_canceled()
-    site_domain = normalize_public_domain(analysis.site.domain, resolve_dns=False)
-    domains = [("own", "Ваш сайт", site_domain)]
-    for index, competitor_domain in enumerate(analysis.competitors or [], start=1):
-        domains.append(("competitor", f"Конкурент №{index}", competitor_domain))
+    user_domain, competitor_domain = _analysis_domains(analysis)
+    analysis.user_domain = user_domain
+    analysis.competitor_domain = competitor_domain
+    analysis.competitors = [competitor_domain]
+    domains = [("own", "Ваш сайт", user_domain), ("competitor", "Конкурент", competitor_domain)]
 
     items = []
     analysis_errors = []
@@ -315,9 +330,11 @@ def run_competitor_analysis(analysis: CompetitorAnalysis) -> CompetitorAnalysis:
     payload = {
         "site_id": analysis.site_id,
         "site_name": analysis.site.name,
-        "site_domain": site_domain,
+        "site_domain": user_domain,
+        "user_domain": user_domain,
+        "competitor_domain": competitor_domain,
         "generated_at": timezone.localtime(timezone.now()).isoformat(),
-        "competitors": list(analysis.competitors or []),
+        "competitors": [competitor_domain],
         "items": items,
         "comparison": _build_comparison(items),
         "recommendations": recommendations,
@@ -333,5 +350,17 @@ def run_competitor_analysis(analysis: CompetitorAnalysis) -> CompetitorAnalysis:
     analysis.errors = analysis_errors
     analysis.status = CompetitorAnalysis.Status.COMPLETED
     analysis.finished_at = timezone.now()
-    analysis.save(update_fields=["results", "errors", "pdf_file", "status", "finished_at", "updated_at"])
+    analysis.save(
+        update_fields=[
+            "user_domain",
+            "competitor_domain",
+            "competitors",
+            "results",
+            "errors",
+            "pdf_file",
+            "status",
+            "finished_at",
+            "updated_at",
+        ]
+    )
     return analysis

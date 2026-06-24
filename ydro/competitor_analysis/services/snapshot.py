@@ -140,8 +140,7 @@ def collect_domain_snapshot(domain: str) -> dict[str, Any]:
     final_url = str(response.url or f"https://{safe_domain}/")
     content = getattr(response, "content", b"") or b""
     html_size = len(content) if isinstance(content, (bytes, bytearray)) else len(str(content).encode("utf-8"))
-    text = response.text or ""
-    soup = BeautifulSoup(text, "lxml") if text else None
+    soup = BeautifulSoup(content, "lxml") if content else None
     title = _extract_text(soup.title.get_text(" ", strip=True)) if soup and soup.title else ""
     h1_tags = soup.find_all("h1") if soup else []
     h2_tags = soup.find_all("h2") if soup else []

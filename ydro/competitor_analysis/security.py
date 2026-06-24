@@ -122,6 +122,8 @@ def normalize_competitor_domains(values, *, max_count: int = 2) -> list[str]:
         normalized.append(domain)
 
     if len(normalized) > max_count:
+        if max_count == 1:
+            raise DomainValidationError("Можно указать только один домен конкурента.")
         raise DomainValidationError(f"Можно указать максимум {max_count} домена конкурентов.")
     if not normalized:
         raise DomainValidationError("Укажите хотя бы один домен конкурента.")

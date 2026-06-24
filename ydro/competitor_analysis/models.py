@@ -32,6 +32,8 @@ class CompetitorAnalysis(models.Model):
         verbose_name="Клиент",
     )
     competitors = models.JSONField(default=list, blank=True, verbose_name="Домены конкурентов")
+    user_domain = models.CharField(max_length=255, blank=True, default="", verbose_name="Домен пользователя")
+    competitor_domain = models.CharField(max_length=255, blank=True, default="", verbose_name="Домен конкурента")
     status = models.CharField(
         max_length=16,
         choices=Status.choices,

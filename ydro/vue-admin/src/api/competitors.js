@@ -5,8 +5,8 @@ export async function getCompetitorAnalyses(siteId) {
   return data
 }
 
-export async function createCompetitorAnalysis(siteId, competitors) {
-  const { data } = await http.post(`/api/admin/sites/${siteId}/competitors/analyze/`, { competitors })
+export async function createCompetitorAnalysis(siteId, payload) {
+  const { data } = await http.post(`/api/admin/sites/${siteId}/competitors/analyze/`, payload)
   return data
 }
 

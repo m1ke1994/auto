@@ -10,6 +10,7 @@ from rest_framework.test import APIClient
 from apps.sites.models import Site
 from clients.models import Client
 from competitor_analysis.models import CompetitorAnalysis
+from competitor_analysis.services.pdf_report import _sanitize_text, build_competitor_analysis_pdf
 from config.celery import app as celery_app
 
 
@@ -51,7 +52,10 @@ class CompetitorAnalysisApiTests(TestCase):
     def test_site_owner_can_create_analysis_with_normalized_domains(self, mocked_delay):
         response = self.http.post(
             f"/api/admin/sites/{self.site.id}/competitors/analyze/",
-            {"competitors": ["https://www.competitor-one.ru/path", "", "competitor-two.ru"]},
+            {
+                "user_domain": "https://www.example.com/",
+                "competitor_domain": "https://www.competitor-one.ru/path",
+            },
             format="json",
         )
 
@@ -60,30 +64,59 @@ class CompetitorAnalysisApiTests(TestCase):
         analysis = CompetitorAnalysis.objects.get(id=payload["id"])
         self.assertEqual(analysis.site_id, self.site.id)
         self.assertEqual(analysis.client_id, self.client_obj.id)
-        self.assertEqual(analysis.competitors, ["competitor-one.ru", "competitor-two.ru"])
+        self.assertEqual(analysis.user_domain, "example.com")
+        self.assertEqual(analysis.competitor_domain, "competitor-one.ru")
+        self.assertEqual(analysis.competitors, ["competitor-one.ru"])
+        self.assertEqual(payload["user_domain"], "example.com")
+        self.assertEqual(payload["competitor_domain"], "competitor-one.ru")
+        mocked_delay.assert_called_once_with(analysis.id)
+
+    @patch("competitor_analysis.tasks.run_competitor_analysis_task.delay")
+    def test_create_analysis_supports_legacy_single_competitor(self, mocked_delay):
+        response = self.http.post(
+            f"/api/admin/sites/{self.site.id}/competitors/analyze/",
+            {"competitors": ["https://www.competitor-one.ru/path"]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        analysis = CompetitorAnalysis.objects.get(id=response.json()["id"])
+        self.assertEqual(analysis.user_domain, "example.com")
+        self.assertEqual(analysis.competitor_domain, "competitor-one.ru")
+        self.assertEqual(analysis.competitors, ["competitor-one.ru"])
         mocked_delay.assert_called_once_with(analysis.id)
 
     def test_celery_app_registers_competitor_analysis_task(self):
         self.assertIn("competitor_analysis.run", celery_app.tasks)
 
-    def test_create_analysis_rejects_more_than_two_domains(self):
+    def test_create_analysis_rejects_more_than_one_legacy_competitor(self):
         response = self.http.post(
             f"/api/admin/sites/{self.site.id}/competitors/analyze/",
-            {"competitors": ["a.ru", "b.ru", "c.ru"]},
+            {"competitors": ["a.ru", "b.ru"]},
             format="json",
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("competitors", response.json())
+        self.assertIn("detail", response.json())
 
     def test_create_analysis_rejects_private_and_local_targets(self):
         for value in ("localhost", "127.0.0.1", "0.0.0.0", "file:///tmp/report.html", "ftp://example.com"):
             response = self.http.post(
                 f"/api/admin/sites/{self.site.id}/competitors/analyze/",
-                {"competitors": [value]},
+                {"user_domain": "example.com", "competitor_domain": value},
                 format="json",
             )
             self.assertEqual(response.status_code, 400, value)
+
+    def test_create_analysis_requires_both_new_domain_fields(self):
+        response = self.http.post(
+            f"/api/admin/sites/{self.site.id}/competitors/analyze/",
+            {"user_domain": "example.com"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("detail", response.json())
 
     def test_pdf_download_is_limited_to_site_owner(self):
         analysis = CompetitorAnalysis.objects.create(
@@ -173,3 +206,73 @@ class CompetitorAnalysisApiTests(TestCase):
         response = self.http.post(f"/api/admin/sites/{self.site.id}/competitors/{analysis.id}/cancel/")
 
         self.assertEqual(response.status_code, 404)
+
+    def test_pdf_text_sanitizer_repairs_common_mojibake(self):
+        broken_text = "\u00d0\u009d\u00d0\u00be\u00d0\u00b2\u00d0\u00be\u00d0\u00b5 \u00d0\u009a\u00d0\u00be\u00d0\u00bd\u00d0\u00b0\u00d0\u00ba\u00d0\u00be\u00d0\u00b2\u00d0\u00be"
+        self.assertEqual(_sanitize_text(broken_text), "Новое Конаково")
+
+    def test_pdf_report_builds_with_cyrillic_text(self):
+        analysis = CompetitorAnalysis.objects.create(
+            site=self.site,
+            client=self.client_obj,
+            user_domain="example.com",
+            competitor_domain="competitor.ru",
+            competitors=["competitor.ru"],
+            status=CompetitorAnalysis.Status.COMPLETED,
+        )
+        payload = {
+            "user_domain": "example.com",
+            "competitor_domain": "competitor.ru",
+            "items": [
+                {
+                    "role": "own",
+                    "domain": "example.com",
+                    "seo_score": 88,
+                    "errors_count": 1,
+                    "high_issues": 1,
+                    "medium_issues": 0,
+                    "low_issues": 0,
+                    "title": "Новое Конаково",
+                    "description": "Описание проекта",
+                    "h1": "",
+                    "h2_count": 0,
+                    "robots_txt": True,
+                    "sitemap_xml": True,
+                    "https": True,
+                    "issues": [
+                        {
+                            "type": "missing_h1",
+                            "title": "Нет главного заголовка страницы (H1).",
+                            "severity": "high",
+                            "page_url": "https://example.com/",
+                            "recommendation": "Добавьте один понятный H1 на главную страницу.",
+                        }
+                    ],
+                },
+                {
+                    "role": "competitor",
+                    "domain": "competitor.ru",
+                    "seo_score": 92,
+                    "errors_count": 0,
+                    "title": "Конкурент",
+                    "description": "Описание конкурента",
+                    "h1": "Главный заголовок",
+                    "h2_count": 2,
+                    "robots_txt": True,
+                    "sitemap_xml": True,
+                    "https": True,
+                    "issues": [],
+                },
+            ],
+            "recommendations": {
+                "critical": ["Добавьте один понятный H1 на главную страницу."],
+                "important": [],
+                "desired": [],
+            },
+            "improvement_plan": ["Добавить H1.", "Повторить анализ."],
+        }
+
+        pdf_bytes, filename = build_competitor_analysis_pdf(analysis=analysis, payload=payload)
+
+        self.assertTrue(pdf_bytes.startswith(b"%PDF"))
+        self.assertIn("competitor-analysis-example.com", filename)

@@ -16,7 +16,6 @@ from rest_framework.views import APIView
 from apps.sites.models import Site
 from clients.models import Client
 from competitor_analysis.models import CompetitorAnalysis
-from competitor_analysis.security import DomainValidationError, normalize_public_domain
 from competitor_analysis.serializers import CompetitorAnalysisCreateSerializer, CompetitorAnalysisSerializer
 
 logger = logging.getLogger(__name__)
@@ -78,7 +77,7 @@ class AdminSiteCompetitorAccessMixin:
     def get_queryset(self):
         site = self.get_site()
         client = self.get_client_for_site(site)
-        return CompetitorAnalysis.objects.filter(site=site, client=client).order_by("-created_at")
+        return CompetitorAnalysis.objects.select_related("site", "client").filter(site=site, client=client).order_by("-created_at")
 
     def get_analysis(self) -> CompetitorAnalysis:
         analysis = self.get_queryset().filter(id=self.kwargs["analysis_id"]).first()
@@ -98,17 +97,14 @@ class CompetitorAnalysisCreateView(AdminSiteCompetitorAccessMixin, APIView):
         site = self.get_site()
         client = self.get_client_for_site(site)
 
-        try:
-            normalize_public_domain(site.domain, resolve_dns=False)
-        except DomainValidationError as exc:
-            return Response({"ok": False, "detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-
-        serializer = CompetitorAnalysisCreateSerializer(data=request.data)
+        serializer = CompetitorAnalysisCreateSerializer(data=request.data, context={"site": site})
         serializer.is_valid(raise_exception=True)
 
         analysis = CompetitorAnalysis.objects.create(
             site=site,
             client=client,
+            user_domain=serializer.validated_data["user_domain"],
+            competitor_domain=serializer.validated_data["competitor_domain"],
             competitors=serializer.validated_data["competitors"],
             status=CompetitorAnalysis.Status.PENDING,
         )
