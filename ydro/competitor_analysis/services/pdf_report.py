@@ -45,7 +45,7 @@ COLOR_DANGER = colors.HexColor("#B91C1C")
 COLOR_WARNING = colors.HexColor("#B45309")
 COLOR_SUCCESS = colors.HexColor("#047857")
 
-BROKEN_ENCODING_MARKERS = ("Ð", "Ñ", "�")
+BROKEN_ENCODING_MARKERS = ("Ð", "Ñ")
 
 
 def _first_existing(paths: list[Path]) -> Path | None:
@@ -202,37 +202,21 @@ def _styles() -> dict[str, ParagraphStyle]:
     }
 
 
-def _cyrillic_score(text: str) -> int:
-    return sum(1 for ch in text if "\u0400" <= ch <= "\u04ff")
+def _normalize_pdf_text(value: Any) -> str:
+    if value is None:
+        return ""
 
-
-def _broken_marker_count(text: str) -> int:
-    return sum(text.count(marker) for marker in BROKEN_ENCODING_MARKERS)
-
-
-def _repair_mojibake_text(text: str) -> str:
-    if not any(marker in text for marker in BROKEN_ENCODING_MARKERS):
-        return text
-
-    best = text
-    best_score = (_cyrillic_score(text), -_broken_marker_count(text))
-    for source_encoding in ("latin1", "cp1252"):
+    text = str(value)
+    if any(marker in text for marker in BROKEN_ENCODING_MARKERS):
         try:
-            candidate = text.encode(source_encoding).decode("utf-8")
+            return text.encode("latin1").decode("utf-8")
         except (UnicodeEncodeError, UnicodeDecodeError):
-            continue
-        candidate_score = (_cyrillic_score(candidate), -_broken_marker_count(candidate))
-        if candidate_score > best_score:
-            best = candidate
-            best_score = candidate_score
-    return best
+            return text
+    return text
 
 
 def _sanitize_text(value: Any, fallback: str = "—") -> str:
-    text = str(value or "").replace("\r\n", "\n").replace("\r", "\n").strip()
-    text = _repair_mojibake_text(text).replace("�", "")
-    for marker in ("Ð", "Ñ"):
-        text = text.replace(marker, "")
+    text = _normalize_pdf_text(value).replace("�", "").replace("\r\n", "\n").replace("\r", "\n").strip()
     if not text:
         return fallback
     return "".join(ch for ch in text if ch == "\n" or ord(ch) >= 32)
