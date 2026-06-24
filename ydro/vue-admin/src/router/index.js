@@ -4,6 +4,7 @@ import AdminLayout from '../layouts/AdminLayout.vue'
 import DashboardView from '../views/DashboardView.vue'
 import SiteOverviewView from '../views/SiteOverviewView.vue'
 import AnalyticsView from '../views/AnalyticsView.vue'
+import CompetitorAnalysisView from '../views/CompetitorAnalysisView.vue'
 import LoginView from '../views/LoginView.vue'
 import LeadsView from '../views/LeadsView.vue'
 import SectionEditView from '../views/SectionEditView.vue'
@@ -36,6 +37,7 @@ const routes = [
       { path: 'sites/:siteId/analytics', name: 'analytics', component: AnalyticsView, props: true, meta: { title: 'Аналитика' } },
       { path: 'sites/:siteId/leads', name: 'leads', component: LeadsView, props: true, meta: { title: 'Лиды' } },
       { path: 'sites/:siteId/seo', name: 'site-seo', component: MiniSeoAuditView, props: true, meta: { title: 'SEO-аудит' } },
+      { path: 'sites/:siteId/competitors', name: 'competitor-analysis', component: CompetitorAnalysisView, props: true, meta: { title: 'Анализ конкурентов' } },
       { path: 'sites/:siteId/integration', name: 'site-integration', component: MiniIntegrationView, props: true, meta: { title: 'Интеграция' } },
       {
         path: 'mini',

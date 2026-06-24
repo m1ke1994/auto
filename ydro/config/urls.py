@@ -87,6 +87,7 @@ urlpatterns = [
     path("api/subscription/", include("subscriptions.urls")),
     path("api/settings/", ClientSettingsView.as_view(), name="settings"),
     path("api/client/settings/", ClientSettingsView.as_view(), name="client_settings"),
+    path("api/admin/sites/", include("competitor_analysis.urls")),
     # Yadro core endpoints
     path("api/yadro-track/", include("apps.analytics.public_urls")),
     path("api/public/", include("apps.sites.public_urls")),

@@ -5,6 +5,7 @@ import {
   BarChart3,
   Blocks,
   CircleGauge,
+  FileSearch,
   Globe2,
   Inbox,
   LayoutDashboard,
@@ -43,6 +44,7 @@ const navItems = computed(() => {
     { label: 'Аналитика', to: `/sites/${siteId.value}/analytics`, icon: BarChart3 },
     { label: 'Редактирование сайта', to: `/sites/${siteId.value}/sections`, icon: Blocks },
     { label: 'SEO-аудит', to: `/sites/${siteId.value}/seo`, icon: SearchCheck },
+    { label: 'Анализ конкурентов', to: `/sites/${siteId.value}/competitors`, icon: FileSearch },
     { label: 'Telegram', to: `/sites/${siteId.value}/integration`, icon: Send },
   ]
 })

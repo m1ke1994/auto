@@ -102,6 +102,7 @@ INSTALLED_APPS = [
     "analytics_app",
     "tracker",
     "seo_audit",
+    "competitor_analysis",
     "reports",
     "subscriptions",
     "telegram_logs",
