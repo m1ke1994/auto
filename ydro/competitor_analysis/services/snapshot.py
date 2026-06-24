@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from django.conf import settings
 
 from competitor_analysis.security import DomainValidationError, validate_public_analysis_domain
+from seo_audit.services.text_encoding import repair_mojibake, response_encoding
 
 REQUEST_TIMEOUT_SECONDS = 8
 MAX_REDIRECTS = 5
@@ -23,7 +24,7 @@ def _normalized_host(hostname: str) -> str:
 def _extract_text(value) -> str:
     if not value:
         return ""
-    return " ".join(str(value).split())
+    return " ".join(repair_mojibake(value).split())
 
 
 def _meta_content(soup: BeautifulSoup | None, name: str) -> str:
@@ -140,7 +141,7 @@ def collect_domain_snapshot(domain: str) -> dict[str, Any]:
     final_url = str(response.url or f"https://{safe_domain}/")
     content = getattr(response, "content", b"") or b""
     html_size = len(content) if isinstance(content, (bytes, bytearray)) else len(str(content).encode("utf-8"))
-    soup = BeautifulSoup(content, "lxml") if content else None
+    soup = BeautifulSoup(content, "lxml", from_encoding=response_encoding(response)) if content else None
     title = _extract_text(soup.title.get_text(" ", strip=True)) if soup and soup.title else ""
     h1_tags = soup.find_all("h1") if soup else []
     h2_tags = soup.find_all("h2") if soup else []

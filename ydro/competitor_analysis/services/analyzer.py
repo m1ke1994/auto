@@ -15,6 +15,7 @@ from seo_audit.models import SEOIssue, SEOPage, SiteSEOAudit
 from seo_audit.services.crawler import AuditCancelledError, crawl_site_audit
 from seo_audit.services.messages import get_issue_title
 from seo_audit.services.scoring import recalculate_audit_score
+from seo_audit.services.text_encoding import has_mojibake, repair_mojibake
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ class AnalysisCanceled(Exception):
 
 
 def _safe_short_text(value: Any, *, limit: int = 220) -> str:
-    text = " ".join(str(value or "").split())
+    text = " ".join(repair_mojibake(value).split())
     if len(text) <= limit:
         return text
     return f"{text[: limit - 1].rstrip()}…"
@@ -51,8 +52,8 @@ def _issue_rows(audit: SiteSEOAudit | None, *, limit: int = 40) -> list[dict[str
                 "type": issue.issue_type,
                 "title": get_issue_title(issue.issue_type),
                 "severity": issue.severity,
-                "page_url": getattr(issue.page, "url", ""),
-                "recommendation": issue.recommendation,
+                "page_url": repair_mojibake(getattr(issue.page, "url", "")),
+                "recommendation": repair_mojibake(issue.recommendation),
             }
         )
     return rows
@@ -253,6 +254,32 @@ def _build_improvement_plan(recommendations: dict[str, list[str]]) -> list[str]:
     return plan[:6]
 
 
+def _repair_report_payload_text(payload: dict[str, Any]) -> dict[str, Any]:
+    for item in payload.get("items") or []:
+        if not isinstance(item, dict):
+            continue
+        domain = item.get("domain") or ""
+        for key in ("title", "description", "h1", "canonical", "lang", "error"):
+            original = item.get(key)
+            fixed = repair_mojibake(original)
+            item[key] = fixed
+            if has_mojibake(fixed):
+                logger.warning("competitor_analysis mojibake remains domain=%s field=%s value=%r", domain, key, fixed[:160])
+        for issue in item.get("issues") or []:
+            if not isinstance(issue, dict):
+                continue
+            for key in ("title", "page_url", "recommendation"):
+                issue[key] = repair_mojibake(issue.get(key))
+
+    recommendations = payload.get("recommendations")
+    if isinstance(recommendations, dict):
+        for key, rows in recommendations.items():
+            if isinstance(rows, list):
+                recommendations[key] = [repair_mojibake(row) for row in rows]
+    payload["improvement_plan"] = [repair_mojibake(row) for row in payload.get("improvement_plan") or []]
+    return payload
+
+
 def _analysis_domains(analysis: CompetitorAnalysis) -> tuple[str, str]:
     raw_user_domain = analysis.user_domain or getattr(analysis.site, "domain", "")
     user_domain = normalize_public_domain(raw_user_domain, resolve_dns=False)
@@ -340,6 +367,7 @@ def run_competitor_analysis(analysis: CompetitorAnalysis) -> CompetitorAnalysis:
         "recommendations": recommendations,
         "improvement_plan": _build_improvement_plan(recommendations),
     }
+    payload = _repair_report_payload_text(payload)
 
     pdf_bytes, filename = build_competitor_analysis_pdf(analysis=analysis, payload=payload)
     _check_canceled()

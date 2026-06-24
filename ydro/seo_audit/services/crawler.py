@@ -14,6 +14,7 @@ from django.db.models import Avg
 
 from seo_audit.models import SEOIssue, SEOPage, SiteSEOAudit
 from seo_audit.services.messages import get_issue_recommendation
+from seo_audit.services.text_encoding import repair_mojibake, response_text
 
 logger = logging.getLogger(__name__)
 
@@ -290,7 +291,7 @@ def _build_start_url(domain: str) -> str:
 def _extract_text(value) -> str:
     if not value:
         return ""
-    return " ".join(str(value).split())
+    return " ".join(repair_mojibake(value).split())
 
 
 def _extract_title(soup: Optional[BeautifulSoup]) -> str:
@@ -351,22 +352,7 @@ def _response_size_bytes(response: requests.Response) -> int:
 
 
 def _prepare_response_text(response: requests.Response) -> str:
-    apparent = getattr(response, "apparent_encoding", None) or None
-    encoding = apparent or getattr(response, "encoding", None) or "utf-8"
-    try:
-        response.encoding = encoding
-    except Exception:
-        pass
-    try:
-        return response.text or ""
-    except Exception:
-        content = getattr(response, "content", b"") or b""
-        if isinstance(content, str):
-            return content
-        try:
-            return bytes(content).decode(encoding or "utf-8", errors="replace")
-        except Exception:
-            return bytes(content).decode("utf-8", errors="replace")
+    return response_text(response)
 
 
 def _extract_ttfb_ms(response: Optional[requests.Response], elapsed_seconds: float) -> int:
@@ -1908,4 +1894,3 @@ def crawl_site_audit(
     _check_cancelled(stop_check)
     recalculate_audit_score(audit)
     return audit
-
