@@ -4,7 +4,8 @@ import logging
 from urllib.parse import quote
 
 from celery import current_app
-from django.http import HttpResponse
+from django.core.files.storage import default_storage
+from django.http import FileResponse, JsonResponse
 from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.exceptions import NotFound, PermissionDenied
@@ -25,6 +26,14 @@ ACTIVE_STATUSES = {
     CompetitorAnalysis.Status.RUNNING,
     "processing",
 }
+COMPLETED_STATUSES = {
+    CompetitorAnalysis.Status.COMPLETED,
+    CompetitorAnalysis.Status.DONE,
+}
+
+
+def json_error(detail: str, http_status: int):
+    return JsonResponse({"ok": False, "detail": detail}, status=http_status, json_dumps_params={"ensure_ascii": False})
 
 
 class AnyAcceptRenderer(BaseRenderer):
@@ -168,18 +177,37 @@ class CompetitorAnalysisPdfView(AdminSiteCompetitorAccessMixin, APIView):
 
     def get(self, request, site_id: int, analysis_id: int):
         analysis = self.get_analysis()
-        if not analysis.pdf_file:
-            return Response({"ok": False, "detail": "PDF ещё не сформирован."}, status=status.HTTP_404_NOT_FOUND)
+        if analysis.status not in COMPLETED_STATUSES:
+            return json_error("PDF доступен только после завершения анализа.", status.HTTP_409_CONFLICT)
 
-        try:
-            with analysis.pdf_file.open("rb") as file_obj:
-                pdf_bytes = file_obj.read()
-        except FileNotFoundError:
-            return Response({"ok": False, "detail": "PDF-файл не найден."}, status=status.HTTP_404_NOT_FOUND)
+        pdf_name = str(getattr(analysis.pdf_file, "name", "") or "").strip()
+        if not pdf_name:
+            return json_error("PDF ещё не сформирован.", status.HTTP_404_NOT_FOUND)
 
-        filename = analysis.pdf_file.name.rsplit("/", 1)[-1] or f"competitor-analysis-{analysis.id}.pdf"
+        storage = getattr(analysis.pdf_file, "storage", None) or default_storage
+        if not storage.exists(pdf_name):
+            logger.warning(
+                "competitor_analysis.pdf missing analysis_id=%s site_id=%s pdf_name=%s",
+                analysis.id,
+                analysis.site_id,
+                pdf_name,
+            )
+            return json_error("PDF-файл отсутствует в хранилище. Запустите анализ повторно.", status.HTTP_404_NOT_FOUND)
+
+        filename = pdf_name.rsplit("/", 1)[-1] or f"competitor-analysis-{analysis.id}.pdf"
         quoted_filename = quote(filename)
-        response = HttpResponse(pdf_bytes, content_type="application/pdf")
+        try:
+            pdf_file = storage.open(pdf_name, "rb")
+        except (FileNotFoundError, OSError):
+            logger.warning(
+                "competitor_analysis.pdf open failed analysis_id=%s site_id=%s pdf_name=%s",
+                analysis.id,
+                analysis.site_id,
+                pdf_name,
+            )
+            return json_error("PDF-файл отсутствует в хранилище. Запустите анализ повторно.", status.HTTP_404_NOT_FOUND)
+
+        response = FileResponse(pdf_file, as_attachment=True, filename=filename, content_type="application/pdf")
         response["Content-Disposition"] = f"attachment; filename=\"{filename}\"; filename*=UTF-8''{quoted_filename}"
         response["Cache-Control"] = "no-store"
         return response

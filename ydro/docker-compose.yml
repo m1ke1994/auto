@@ -86,6 +86,8 @@
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - media_data:/app/media
     command: celery -A config worker -l INFO
     networks:
       - yadro_network

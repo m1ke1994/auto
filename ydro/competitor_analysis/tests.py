@@ -100,7 +100,7 @@ class CompetitorAnalysisApiTests(TestCase):
         )
         self.assertEqual(own_response.status_code, 200)
         self.assertIn("application/pdf", own_response["Content-Type"])
-        self.assertTrue(own_response.content.startswith(b"%PDF"))
+        self.assertTrue(b"".join(own_response.streaming_content).startswith(b"%PDF"))
 
         self.http.force_authenticate(user=self.other_user)
         foreign_response = self.http.get(
@@ -108,6 +108,40 @@ class CompetitorAnalysisApiTests(TestCase):
             HTTP_ACCEPT="application/pdf",
         )
         self.assertEqual(foreign_response.status_code, 404)
+
+    def test_pdf_download_returns_404_when_storage_file_is_missing(self):
+        analysis = CompetitorAnalysis.objects.create(
+            site=self.site,
+            client=self.client_obj,
+            competitors=["competitor.ru"],
+            status=CompetitorAnalysis.Status.COMPLETED,
+        )
+        analysis.pdf_file.name = "competitor-analysis/site-1/missing.pdf"
+        analysis.save(update_fields=["pdf_file"])
+
+        response = self.http.get(
+            f"/api/admin/sites/{self.site.id}/competitors/{analysis.id}/pdf/",
+            HTTP_ACCEPT="application/pdf",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("PDF", response.json()["detail"])
+
+    def test_pdf_download_waits_for_completed_status(self):
+        analysis = CompetitorAnalysis.objects.create(
+            site=self.site,
+            client=self.client_obj,
+            competitors=["competitor.ru"],
+            status=CompetitorAnalysis.Status.RUNNING,
+        )
+        analysis.pdf_file.save("competitor-analysis-running.pdf", ContentFile(b"%PDF-1.4\n%test\n"), save=True)
+
+        response = self.http.get(
+            f"/api/admin/sites/{self.site.id}/competitors/{analysis.id}/pdf/",
+            HTTP_ACCEPT="application/pdf",
+        )
+
+        self.assertEqual(response.status_code, 409)
 
     @patch("competitor_analysis.views.current_app.control.revoke")
     def test_site_owner_can_cancel_active_analysis(self, mocked_revoke):
