@@ -10,12 +10,19 @@ LATIN1_ALIASES = {"iso-8859-1", "latin-1", "latin1"}
 def repair_mojibake(value: Any) -> str:
     text = "" if value is None else str(value)
     if any(ch in text for ch in MOJIBAKE_MARKERS):
+        candidates = []
         try:
-            fixed = text.encode("latin1").decode("utf-8")
-            if fixed and fixed != text:
-                return fixed
+            candidates.append(text.encode("latin1").decode("utf-8"))
         except Exception:
             pass
+        try:
+            candidates.append(text.encode("cp1252").decode("utf-8"))
+        except Exception:
+            pass
+
+        for candidate in candidates:
+            if candidate and candidate != text and not any(marker in candidate for marker in MOJIBAKE_MARKERS):
+                return candidate
     return text
 
 

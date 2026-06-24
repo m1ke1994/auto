@@ -254,30 +254,25 @@ def _build_improvement_plan(recommendations: dict[str, list[str]]) -> list[str]:
     return plan[:6]
 
 
-def _repair_report_payload_text(payload: dict[str, Any]) -> dict[str, Any]:
-    for item in payload.get("items") or []:
-        if not isinstance(item, dict):
-            continue
-        domain = item.get("domain") or ""
-        for key in ("title", "description", "h1", "canonical", "lang", "error"):
-            original = item.get(key)
-            fixed = repair_mojibake(original)
-            item[key] = fixed
-            if has_mojibake(fixed):
-                logger.warning("competitor_analysis mojibake remains domain=%s field=%s value=%r", domain, key, fixed[:160])
-        for issue in item.get("issues") or []:
-            if not isinstance(issue, dict):
-                continue
-            for key in ("title", "page_url", "recommendation"):
-                issue[key] = repair_mojibake(issue.get(key))
+def clean_result_strings(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: clean_result_strings(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [clean_result_strings(item) for item in value]
+    if isinstance(value, str):
+        return repair_mojibake(value)
+    return value
 
-    recommendations = payload.get("recommendations")
-    if isinstance(recommendations, dict):
-        for key, rows in recommendations.items():
-            if isinstance(rows, list):
-                recommendations[key] = [repair_mojibake(row) for row in rows]
-    payload["improvement_plan"] = [repair_mojibake(row) for row in payload.get("improvement_plan") or []]
-    return payload
+
+def _warn_remaining_mojibake(value: Any, *, path: str = "results") -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            _warn_remaining_mojibake(item, path=f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            _warn_remaining_mojibake(item, path=f"{path}[{index}]")
+    elif isinstance(value, str) and has_mojibake(value):
+        logger.warning("competitor_analysis mojibake remains path=%s value=%r", path, value[:160])
 
 
 def _analysis_domains(analysis: CompetitorAnalysis) -> tuple[str, str]:
@@ -367,15 +362,17 @@ def run_competitor_analysis(analysis: CompetitorAnalysis) -> CompetitorAnalysis:
         "recommendations": recommendations,
         "improvement_plan": _build_improvement_plan(recommendations),
     }
-    payload = _repair_report_payload_text(payload)
+    payload = clean_result_strings(payload)
+    _warn_remaining_mojibake(payload)
 
     pdf_bytes, filename = build_competitor_analysis_pdf(analysis=analysis, payload=payload)
     _check_canceled()
     if analysis.pdf_file:
         analysis.pdf_file.delete(save=False)
     analysis.pdf_file.save(filename, ContentFile(pdf_bytes), save=False)
-    analysis.results = payload
-    analysis.errors = analysis_errors
+    analysis.results = clean_result_strings(payload)
+    _warn_remaining_mojibake(analysis.results)
+    analysis.errors = clean_result_strings(analysis_errors)
     analysis.status = CompetitorAnalysis.Status.COMPLETED
     analysis.finished_at = timezone.now()
     analysis.save(
