@@ -3,7 +3,9 @@ from __future__ import annotations
 import logging
 from urllib.parse import quote
 
+from celery import current_app
 from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.renderers import BaseRenderer
@@ -17,6 +19,12 @@ from competitor_analysis.security import DomainValidationError, normalize_public
 from competitor_analysis.serializers import CompetitorAnalysisCreateSerializer, CompetitorAnalysisSerializer
 
 logger = logging.getLogger(__name__)
+
+ACTIVE_STATUSES = {
+    CompetitorAnalysis.Status.PENDING,
+    CompetitorAnalysis.Status.RUNNING,
+    "processing",
+}
 
 
 class AnyAcceptRenderer(BaseRenderer):
@@ -104,8 +112,10 @@ class CompetitorAnalysisCreateView(AdminSiteCompetitorAccessMixin, APIView):
         except Exception as exc:
             queued = False
             logger.exception("Failed to enqueue competitor analysis analysis_id=%s", analysis.id)
+            analysis.status = CompetitorAnalysis.Status.FAILED
+            analysis.finished_at = timezone.now()
             analysis.errors = [{"error": str(exc) or "Не удалось поставить анализ в очередь."}]
-            analysis.save(update_fields=["errors", "updated_at"])
+            analysis.save(update_fields=["status", "finished_at", "errors", "updated_at"])
 
         data = CompetitorAnalysisSerializer(analysis).data
         data["ok"] = True
@@ -116,6 +126,41 @@ class CompetitorAnalysisCreateView(AdminSiteCompetitorAccessMixin, APIView):
 class CompetitorAnalysisDetailView(AdminSiteCompetitorAccessMixin, APIView):
     def get(self, request, site_id: int, analysis_id: int):
         return Response(CompetitorAnalysisSerializer(self.get_analysis()).data, status=status.HTTP_200_OK)
+
+
+class CompetitorAnalysisCancelView(AdminSiteCompetitorAccessMixin, APIView):
+    def post(self, request, site_id: int, analysis_id: int):
+        analysis = self.get_analysis()
+        if analysis.status not in ACTIVE_STATUSES:
+            return Response(
+                {
+                    "ok": True,
+                    "id": analysis.id,
+                    "status": analysis.status,
+                    "detail": "Анализ уже завершён.",
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        task_id = str(analysis.celery_task_id or "").strip()
+        analysis.status = CompetitorAnalysis.Status.CANCELED
+        analysis.finished_at = timezone.now()
+        analysis.errors = [{"error": "Анализ остановлен пользователем."}]
+        analysis.save(update_fields=["status", "finished_at", "errors", "updated_at"])
+
+        revoked = False
+        if task_id:
+            try:
+                current_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
+                revoked = True
+            except Exception:
+                logger.exception("Failed to revoke competitor analysis task analysis_id=%s task_id=%s", analysis.id, task_id)
+
+        data = CompetitorAnalysisSerializer(analysis).data
+        data["ok"] = True
+        data["revoked"] = revoked
+        data["detail"] = "Анализ остановлен."
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class CompetitorAnalysisPdfView(AdminSiteCompetitorAccessMixin, APIView):

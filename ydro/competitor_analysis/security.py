@@ -103,7 +103,7 @@ def normalize_public_domain(value: str, *, resolve_dns: bool = False) -> str:
     return hostname
 
 
-def normalize_competitor_domains(values, *, max_count: int = 3) -> list[str]:
+def normalize_competitor_domains(values, *, max_count: int = 2) -> list[str]:
     if values is None:
         values = []
     if not isinstance(values, list):

@@ -13,6 +13,9 @@ class CompetitorAnalysis(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Ожидает запуска"
         RUNNING = "running", "Выполняется"
+        COMPLETED = "completed", "Готово"
+        FAILED = "failed", "Ошибка"
+        CANCELED = "canceled", "Остановлен"
         DONE = "done", "Готово"
         ERROR = "error", "Ошибка"
 

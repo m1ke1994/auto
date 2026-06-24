@@ -1,9 +1,10 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Download, FileSearch, Play, RefreshCw } from '@lucide/vue'
+import { Download, FileSearch, Play, RefreshCw, StopCircle } from '@lucide/vue'
 
 import {
+  cancelCompetitorAnalysis,
   createCompetitorAnalysis,
   downloadCompetitorAnalysisPdf,
   getCompetitorAnalyses,
@@ -14,10 +15,11 @@ import { useSiteStore } from '../stores/site'
 const route = useRoute()
 const siteStore = useSiteStore()
 
-const competitors = ref(['', '', ''])
+const competitors = ref(['', ''])
 const analyses = ref([])
 const loading = ref(false)
 const starting = ref(false)
+const cancelingId = ref(null)
 const downloadingId = ref(null)
 const error = ref('')
 const success = ref('')
@@ -25,14 +27,21 @@ let timer = null
 
 const siteId = computed(() => Number(route.params.siteId || 0))
 const latestAnalysis = computed(() => analyses.value[0] || null)
-const running = computed(() => ['pending', 'running'].includes(String(latestAnalysis.value?.status || '').toLowerCase()))
+const activeStatuses = new Set(['pending', 'running', 'processing'])
+const running = computed(() => activeStatuses.has(String(latestAnalysis.value?.status || '').toLowerCase()))
 
 function statusText(status) {
   return {
     pending: 'Ожидает запуска',
     running: 'Выполняется',
+    processing: 'Выполняется',
+    completed: 'Готово',
     done: 'Готово',
+    failed: 'Ошибка',
     error: 'Ошибка',
+    canceled: 'Остановлен',
+    cancelled: 'Остановлен',
+    stopped: 'Остановлен',
   }[String(status || '').toLowerCase()] || 'Не запускался'
 }
 
@@ -40,8 +49,14 @@ function statusClass(status) {
   return {
     pending: 'status-neutral',
     running: 'status-warning',
+    processing: 'status-warning',
+    completed: 'status-success',
     done: 'status-success',
+    failed: 'status-danger',
     error: 'status-danger',
+    canceled: 'status-neutral',
+    cancelled: 'status-neutral',
+    stopped: 'status-neutral',
   }[String(status || '').toLowerCase()] || 'status-neutral'
 }
 
@@ -87,9 +102,9 @@ function startPolling(analysisId) {
     try {
       const data = await getCompetitorAnalysis(siteId.value, analysisId)
       updateAnalysisInList(data)
-      if (!['pending', 'running'].includes(String(data.status || '').toLowerCase())) {
+      if (!activeStatuses.has(String(data.status || '').toLowerCase())) {
         stopPolling()
-        if (data.status === 'done') success.value = 'PDF-отчёт сформирован.'
+        if (['completed', 'done'].includes(String(data.status || '').toLowerCase())) success.value = 'PDF-отчёт сформирован.'
       }
     } catch (e) {
       console.error('Competitor analysis polling failed', e)
@@ -121,7 +136,11 @@ async function startAnalysis() {
     error.value = 'Укажите хотя бы один домен конкурента.'
     return
   }
-  if (domains.length > 3 || starting.value || running.value) return
+  if (domains.length > 2) {
+    error.value = 'Можно указать максимум 2 домена конкурентов.'
+    return
+  }
+  if (starting.value || running.value) return
 
   starting.value = true
   error.value = ''
@@ -137,6 +156,26 @@ async function startAnalysis() {
     error.value = detail || 'Не удалось запустить анализ конкурентов.'
   } finally {
     starting.value = false
+  }
+}
+
+async function cancelAnalysis(analysis) {
+  if (!analysis?.id || !activeStatuses.has(String(analysis.status || '').toLowerCase())) return
+  if (!window.confirm('Остановить анализ конкурентов?')) return
+
+  cancelingId.value = analysis.id
+  error.value = ''
+  success.value = ''
+  try {
+    const data = await cancelCompetitorAnalysis(siteId.value, analysis.id)
+    updateAnalysisInList(data)
+    stopPolling()
+    success.value = data?.detail || 'Анализ остановлен.'
+  } catch (e) {
+    console.error('Competitor analysis cancel failed', e)
+    error.value = e?.response?.data?.detail || 'Не удалось остановить анализ.'
+  } finally {
+    cancelingId.value = null
   }
 }
 
@@ -191,7 +230,7 @@ onUnmounted(stopPolling)
         </button>
       </div>
 
-      <div class="grid gap-3 md:grid-cols-3">
+      <div class="grid gap-3 md:grid-cols-2">
         <label v-for="(_, index) in competitors" :key="index" class="block">
           <span class="text-sm font-semibold text-slate-800">Конкурент №{{ index + 1 }}</span>
           <input
@@ -200,21 +239,33 @@ onUnmounted(stopPolling)
             type="text"
             inputmode="url"
             placeholder="competitor.ru"
-            :disabled="starting || running"
+            :disabled="starting || running || Boolean(cancelingId)"
           >
         </label>
       </div>
 
       <div class="mt-4 flex flex-col gap-2 sm:flex-row">
-        <button type="button" class="action-button-primary" :disabled="starting || running" @click="startAnalysis">
+        <button type="button" class="action-button-primary" :disabled="starting || running || Boolean(cancelingId)" @click="startAnalysis">
           <span v-if="starting || running" class="button-spinner" aria-hidden="true" />
           <Play v-else :size="17" />
           {{ starting || running ? 'Анализ выполняется...' : 'Запустить анализ' }}
         </button>
         <button
+          v-if="latestAnalysis && running"
+          type="button"
+          class="action-button-danger"
+          :disabled="cancelingId === latestAnalysis.id"
+          @click="cancelAnalysis(latestAnalysis)"
+        >
+          <span v-if="cancelingId === latestAnalysis.id" class="button-spinner" aria-hidden="true" />
+          <StopCircle v-else :size="17" />
+          {{ cancelingId === latestAnalysis.id ? 'Останавливаем...' : 'Остановить анализ' }}
+        </button>
+        <button
+          v-if="latestAnalysis?.pdf_available"
           type="button"
           class="action-button-secondary"
-          :disabled="!latestAnalysis?.pdf_available || downloadingId === latestAnalysis?.id"
+          :disabled="downloadingId === latestAnalysis?.id"
           @click="downloadPdf(latestAnalysis)"
         >
           <Download :size="17" />
@@ -251,9 +302,10 @@ onUnmounted(stopPolling)
           </div>
         </div>
         <button
+          v-if="latestAnalysis.pdf_available"
           type="button"
           class="action-button-secondary"
-          :disabled="!latestAnalysis.pdf_available || downloadingId === latestAnalysis.id"
+          :disabled="downloadingId === latestAnalysis.id"
           @click="downloadPdf(latestAnalysis)"
         >
           <Download :size="17" />
@@ -305,14 +357,16 @@ onUnmounted(stopPolling)
               </td>
               <td class="text-right">
                 <button
+                  v-if="analysis.pdf_available"
                   type="button"
                   class="action-button-secondary min-h-10 px-3 py-2"
-                  :disabled="!analysis.pdf_available || downloadingId === analysis.id"
+                  :disabled="downloadingId === analysis.id"
                   @click="downloadPdf(analysis)"
                 >
                   <Download :size="16" />
                   Скачать
                 </button>
+                <span v-else class="text-sm text-slate-400">—</span>
               </td>
             </tr>
           </tbody>

@@ -102,7 +102,7 @@ INSTALLED_APPS = [
     "analytics_app",
     "tracker",
     "seo_audit",
-    "competitor_analysis",
+    "competitor_analysis.apps.CompetitorAnalysisConfig",
     "reports",
     "subscriptions",
     "telegram_logs",

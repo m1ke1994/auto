@@ -1,6 +1,7 @@
 from django.urls import path
 
 from competitor_analysis.views import (
+    CompetitorAnalysisCancelView,
     CompetitorAnalysisCreateView,
     CompetitorAnalysisDetailView,
     CompetitorAnalysisListView,
@@ -14,6 +15,11 @@ urlpatterns = [
         "<int:site_id>/competitors/<int:analysis_id>/pdf/",
         CompetitorAnalysisPdfView.as_view(),
         name="competitor-analysis-pdf",
+    ),
+    path(
+        "<int:site_id>/competitors/<int:analysis_id>/cancel/",
+        CompetitorAnalysisCancelView.as_view(),
+        name="competitor-analysis-cancel",
     ),
     path(
         "<int:site_id>/competitors/<int:analysis_id>/",

@@ -18,6 +18,10 @@ from seo_audit.services.scoring import recalculate_audit_score
 logger = logging.getLogger(__name__)
 
 
+class AnalysisCanceled(Exception):
+    pass
+
+
 def _safe_short_text(value: Any, *, limit: int = 220) -> str:
     text = " ".join(str(value or "").split())
     if len(text) <= limit:
@@ -63,7 +67,7 @@ def _home_page(audit: SiteSEOAudit | None, domain: str) -> SEOPage | None:
     return audit.pages.order_by("id").first()
 
 
-def _run_existing_seo_audit(*, client, domain: str) -> tuple[SiteSEOAudit, str]:
+def _run_existing_seo_audit(*, client, domain: str, stop_check=None) -> tuple[SiteSEOAudit, str]:
     audit = SiteSEOAudit.objects.create(
         client=client,
         domain=domain,
@@ -74,7 +78,7 @@ def _run_existing_seo_audit(*, client, domain: str) -> tuple[SiteSEOAudit, str]:
     max_pages = int(getattr(settings, "COMPETITOR_ANALYSIS_MAX_PAGES", 20) or 20)
 
     try:
-        crawl_site_audit(audit, max_pages=max_pages)
+        crawl_site_audit(audit, max_pages=max_pages, stop_check=stop_check)
         recalculate_audit_score(audit)
         audit.status = SiteSEOAudit.Status.DONE
         audit.finished_at = timezone.now()
@@ -247,6 +251,17 @@ def _build_improvement_plan(recommendations: dict[str, list[str]]) -> list[str]:
 
 def run_competitor_analysis(analysis: CompetitorAnalysis) -> CompetitorAnalysis:
     analysis = CompetitorAnalysis.objects.select_related("site", "client").get(id=analysis.id)
+
+    def _check_canceled() -> None:
+        analysis.refresh_from_db(fields=["status"])
+        if analysis.status == CompetitorAnalysis.Status.CANCELED:
+            raise AnalysisCanceled("Анализ остановлен.")
+
+    def _stop_requested() -> bool:
+        analysis.refresh_from_db(fields=["status"])
+        return analysis.status == CompetitorAnalysis.Status.CANCELED
+
+    _check_canceled()
     site_domain = normalize_public_domain(analysis.site.domain, resolve_dns=False)
     domains = [("own", "Ваш сайт", site_domain)]
     for index, competitor_domain in enumerate(analysis.competitors or [], start=1):
@@ -255,17 +270,25 @@ def run_competitor_analysis(analysis: CompetitorAnalysis) -> CompetitorAnalysis:
     items = []
     analysis_errors = []
     for role, label, domain in domains:
+        _check_canceled()
         audit = None
         audit_error = ""
         snapshot: dict[str, Any] = {"domain": domain, "error": ""}
         try:
             safe_domain = validate_public_analysis_domain(domain)
-            audit, audit_error = _run_existing_seo_audit(client=analysis.client, domain=safe_domain)
+            _check_canceled()
+            audit, audit_error = _run_existing_seo_audit(
+                client=analysis.client,
+                domain=safe_domain,
+                stop_check=_stop_requested,
+            )
+            _check_canceled()
             try:
                 snapshot = collect_domain_snapshot(safe_domain)
             except Exception as exc:
                 logger.exception("competitor_analysis snapshot failed domain=%s", safe_domain)
                 snapshot = {"domain": safe_domain, "error": str(exc)}
+            _check_canceled()
             domain = safe_domain
         except DomainValidationError as exc:
             audit_error = str(exc)
@@ -288,6 +311,7 @@ def run_competitor_analysis(analysis: CompetitorAnalysis) -> CompetitorAnalysis:
         items.append(result)
 
     recommendations = _build_recommendations(items)
+    _check_canceled()
     payload = {
         "site_id": analysis.site_id,
         "site_name": analysis.site.name,
@@ -301,12 +325,13 @@ def run_competitor_analysis(analysis: CompetitorAnalysis) -> CompetitorAnalysis:
     }
 
     pdf_bytes, filename = build_competitor_analysis_pdf(analysis=analysis, payload=payload)
+    _check_canceled()
     if analysis.pdf_file:
         analysis.pdf_file.delete(save=False)
     analysis.pdf_file.save(filename, ContentFile(pdf_bytes), save=False)
     analysis.results = payload
     analysis.errors = analysis_errors
-    analysis.status = CompetitorAnalysis.Status.DONE
+    analysis.status = CompetitorAnalysis.Status.COMPLETED
     analysis.finished_at = timezone.now()
     analysis.save(update_fields=["results", "errors", "pdf_file", "status", "finished_at", "updated_at"])
     return analysis

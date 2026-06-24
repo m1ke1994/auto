@@ -10,6 +10,7 @@ from rest_framework.test import APIClient
 from apps.sites.models import Site
 from clients.models import Client
 from competitor_analysis.models import CompetitorAnalysis
+from config.celery import app as celery_app
 
 
 class CompetitorAnalysisApiTests(TestCase):
@@ -62,10 +63,13 @@ class CompetitorAnalysisApiTests(TestCase):
         self.assertEqual(analysis.competitors, ["competitor-one.ru", "competitor-two.ru"])
         mocked_delay.assert_called_once_with(analysis.id)
 
-    def test_create_analysis_rejects_more_than_three_domains(self):
+    def test_celery_app_registers_competitor_analysis_task(self):
+        self.assertIn("competitor_analysis.run", celery_app.tasks)
+
+    def test_create_analysis_rejects_more_than_two_domains(self):
         response = self.http.post(
             f"/api/admin/sites/{self.site.id}/competitors/analyze/",
-            {"competitors": ["a.ru", "b.ru", "c.ru", "d.ru"]},
+            {"competitors": ["a.ru", "b.ru", "c.ru"]},
             format="json",
         )
 
@@ -86,7 +90,7 @@ class CompetitorAnalysisApiTests(TestCase):
             site=self.site,
             client=self.client_obj,
             competitors=["competitor.ru"],
-            status=CompetitorAnalysis.Status.DONE,
+            status=CompetitorAnalysis.Status.COMPLETED,
         )
         analysis.pdf_file.save("competitor-analysis-test.pdf", ContentFile(b"%PDF-1.4\n%test\n"), save=True)
 
@@ -104,3 +108,34 @@ class CompetitorAnalysisApiTests(TestCase):
             HTTP_ACCEPT="application/pdf",
         )
         self.assertEqual(foreign_response.status_code, 404)
+
+    @patch("competitor_analysis.views.current_app.control.revoke")
+    def test_site_owner_can_cancel_active_analysis(self, mocked_revoke):
+        analysis = CompetitorAnalysis.objects.create(
+            site=self.site,
+            client=self.client_obj,
+            competitors=["competitor.ru"],
+            status=CompetitorAnalysis.Status.RUNNING,
+            celery_task_id="task-123",
+        )
+
+        response = self.http.post(f"/api/admin/sites/{self.site.id}/competitors/{analysis.id}/cancel/")
+
+        self.assertEqual(response.status_code, 200)
+        analysis.refresh_from_db()
+        self.assertEqual(analysis.status, CompetitorAnalysis.Status.CANCELED)
+        self.assertIsNotNone(analysis.finished_at)
+        mocked_revoke.assert_called_once_with("task-123", terminate=True, signal="SIGTERM")
+
+    def test_other_user_cannot_cancel_foreign_analysis(self):
+        analysis = CompetitorAnalysis.objects.create(
+            site=self.site,
+            client=self.client_obj,
+            competitors=["competitor.ru"],
+            status=CompetitorAnalysis.Status.RUNNING,
+        )
+
+        self.http.force_authenticate(user=self.other_user)
+        response = self.http.post(f"/api/admin/sites/{self.site.id}/competitors/{analysis.id}/cancel/")
+
+        self.assertEqual(response.status_code, 404)

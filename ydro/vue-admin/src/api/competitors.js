@@ -15,6 +15,11 @@ export async function getCompetitorAnalysis(siteId, analysisId) {
   return data
 }
 
+export async function cancelCompetitorAnalysis(siteId, analysisId) {
+  const { data } = await http.post(`/api/admin/sites/${siteId}/competitors/${analysisId}/cancel/`, {})
+  return data
+}
+
 export async function downloadCompetitorAnalysisPdf(siteId, analysisId) {
   const response = await http.get(`/api/admin/sites/${siteId}/competitors/${analysisId}/pdf/`, {
     responseType: 'blob',

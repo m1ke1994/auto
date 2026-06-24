@@ -13,7 +13,7 @@ class CompetitorAnalysisCreateSerializer(serializers.Serializer):
 
     def validate_competitors(self, value):
         try:
-            return normalize_competitor_domains(value, max_count=3)
+            return normalize_competitor_domains(value, max_count=2)
         except DomainValidationError as exc:
             raise serializers.ValidationError(str(exc)) from exc
 
@@ -21,6 +21,7 @@ class CompetitorAnalysisCreateSerializer(serializers.Serializer):
 class CompetitorAnalysisSerializer(serializers.ModelSerializer):
     site_id = serializers.IntegerField(read_only=True)
     pdf_available = serializers.SerializerMethodField()
+    can_cancel = serializers.SerializerMethodField()
 
     class Meta:
         model = CompetitorAnalysis
@@ -30,6 +31,7 @@ class CompetitorAnalysisSerializer(serializers.ModelSerializer):
             "competitors",
             "status",
             "pdf_available",
+            "can_cancel",
             "errors",
             "created_at",
             "updated_at",
@@ -38,3 +40,6 @@ class CompetitorAnalysisSerializer(serializers.ModelSerializer):
 
     def get_pdf_available(self, obj):
         return bool(obj.pdf_file)
+
+    def get_can_cancel(self, obj):
+        return str(obj.status or "").lower() in {"pending", "running", "processing"}
