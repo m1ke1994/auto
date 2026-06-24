@@ -19,6 +19,10 @@ class TrackTimeOnPageEventTests(TestCase):
         self.client_obj = Client.objects.create(owner=self.user, name="Test Client")
         self.site = Site.objects.create(token=self.client_obj.api_key, domain="test.local", is_active=True)
         self.http = APIClient()
+        self.http.defaults["HTTP_USER_AGENT"] = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        )
 
     def test_time_on_page_event_is_stored_for_tracker_and_analytics(self):
         response = self.http.post(
@@ -90,6 +94,29 @@ class TrackTimeOnPageEventTests(TestCase):
         self.assertEqual(TrackerEvent.objects.filter(type="time_on_page").count(), 0)
         self.assertEqual(AnalyticsEvent.objects.filter(event_type=AnalyticsEvent.EventType.TIME_ON_PAGE).count(), 0)
 
+    def test_bot_time_on_page_is_not_mirrored_to_clean_analytics(self):
+        response = self.http.post(
+            "/api/track/event/",
+            {
+                "token": self.client_obj.api_key,
+                "session_id": "bot-time-on-page",
+                "visitor_id": "visitor-bot-time",
+                "type": "time_on_page",
+                "payload": {
+                    "page": "/pricing",
+                    "duration_seconds": 30,
+                },
+            },
+            format="json",
+            HTTP_USER_AGENT="Mozilla/5.0 HeadlessChrome/145.0.0.0 Safari/537.36",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        visit = Visit.objects.get(session_id="bot-time-on-page")
+        self.assertTrue(visit.is_bot)
+        self.assertEqual(TrackerEvent.objects.filter(type="time_on_page").count(), 1)
+        self.assertEqual(AnalyticsEvent.objects.filter(event_type=AnalyticsEvent.EventType.TIME_ON_PAGE).count(), 0)
+
     def test_visit_end_updates_duration_and_does_not_overwrite_larger_heartbeat(self):
         self.http.post(
             "/api/track/event/",
@@ -152,6 +179,7 @@ class TrackTimeOnPageEventTests(TestCase):
         self.assertEqual(response.status_code, 201)
         visit = Visit.objects.get(session_id="bot-session-1")
         self.assertTrue(visit.is_bot)
+        self.assertIn("headless", visit.bot_reason)
 
     def test_visit_is_marked_as_bot_for_empty_user_agent(self):
         response = self.http.post(
@@ -168,6 +196,31 @@ class TrackTimeOnPageEventTests(TestCase):
         self.assertEqual(response.status_code, 201)
         visit = Visit.objects.get(session_id="bot-session-empty-ua")
         self.assertTrue(visit.is_bot)
+        self.assertEqual(visit.bot_reason, "empty_user_agent")
+
+    def test_visit_is_marked_as_bot_for_common_bot_user_agents(self):
+        bot_uas = [
+            ("googlebot-session", "Googlebot/2.1 (+http://www.google.com/bot.html)", "googlebot"),
+            ("yandexbot-session", "Mozilla/5.0 (compatible; YandexBot/3.0)", "yandexbot"),
+            ("preview-session", "facebookexternalhit/1.1; preview crawler", "facebookexternalhit"),
+            ("lighthouse-session", "Mozilla/5.0 Chrome-Lighthouse", "lighthouse"),
+        ]
+
+        for session_id, ua, reason in bot_uas:
+            response = self.http.post(
+                "/api/track/visit-start/",
+                {
+                    "token": self.client_obj.api_key,
+                    "session_id": session_id,
+                    "visitor_id": f"visitor-{session_id}",
+                },
+                format="json",
+                HTTP_USER_AGENT=ua,
+            )
+            self.assertEqual(response.status_code, 201)
+            visit = Visit.objects.get(session_id=session_id)
+            self.assertTrue(visit.is_bot)
+            self.assertIn(reason, visit.bot_reason)
 
     def test_common_browser_user_agents_are_not_marked_as_bot(self):
         browser_uas = [

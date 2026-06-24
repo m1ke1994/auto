@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Inbox, RefreshCw, X } from '@lucide/vue'
+import { Inbox, RefreshCw, Trash2, X } from '@lucide/vue'
 
 import { useLeadsStore } from '../stores/leads'
 import { useSiteStore } from '../stores/site'
@@ -10,7 +10,9 @@ const route = useRoute()
 const siteStore = useSiteStore()
 const leadsStore = useLeadsStore()
 const error = ref('')
+const success = ref('')
 const updatingLeadId = ref(null)
+const deletingLeadId = ref(null)
 const selectedLead = ref(null)
 const statusFilter = ref('')
 
@@ -44,6 +46,7 @@ function pageLabel(value) {
 
 async function load() {
   error.value = ''
+  success.value = ''
   try {
     siteStore.selectSite(siteId.value)
     if (!siteStore.currentSite) await siteStore.fetchSite(siteId.value)
@@ -57,6 +60,7 @@ async function updateStatus(lead, status) {
   if (!status || status === lead.status) return
   updatingLeadId.value = lead.id
   error.value = ''
+  success.value = ''
   try {
     const updated = await leadsStore.patchLeadStatus(lead.id, status)
     if (selectedLead.value?.id === lead.id) selectedLead.value = updated
@@ -64,6 +68,24 @@ async function updateStatus(lead, status) {
     error.value = e?.response?.data?.detail || 'Не удалось изменить статус заявки.'
   } finally {
     updatingLeadId.value = null
+  }
+}
+
+async function deleteLead(lead) {
+  if (!lead?.id) return
+  const leadTitle = lead.name || lead.phone || `#${lead.id}`
+  if (!window.confirm(`Удалить заявку ${leadTitle}? Это действие нельзя отменить.`)) return
+  deletingLeadId.value = lead.id
+  error.value = ''
+  success.value = ''
+  try {
+    await leadsStore.deleteLead(lead.id)
+    if (selectedLead.value?.id === lead.id) selectedLead.value = null
+    success.value = 'Заявка удалена.'
+  } catch (e) {
+    error.value = e?.response?.data?.detail || 'Не удалось удалить заявку.'
+  } finally {
+    deletingLeadId.value = null
   }
 }
 
@@ -99,6 +121,7 @@ onMounted(load)
     </header>
 
     <p v-if="error" class="notice-error">{{ error }}</p>
+    <p v-if="success" class="notice-success">{{ success }}</p>
     <section v-if="leadsStore.loading" class="empty-state"><span class="loading-dot" /><p>Загружаем заявки...</p></section>
     <section v-else-if="leads.length === 0" class="empty-state">
       <Inbox :size="30" />
@@ -135,7 +158,20 @@ onMounted(load)
                   <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                 </select>
               </td>
-              <td><button type="button" class="action-button-secondary min-h-9 px-3 py-1.5" @click="openLead(lead.id)">Подробнее</button></td>
+              <td>
+                <div class="flex items-center justify-end gap-2">
+                  <button type="button" class="action-button-secondary min-h-9 px-3 py-1.5" @click="openLead(lead.id)">Подробнее</button>
+                  <button
+                    type="button"
+                    class="action-button-danger min-h-9 px-3 py-1.5"
+                    :disabled="deletingLeadId === lead.id"
+                    @click="deleteLead(lead)"
+                  >
+                    <Trash2 :size="16" />
+                    Удалить
+                  </button>
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -156,11 +192,15 @@ onMounted(load)
             <p>{{ lead.message || 'Без комментария' }}</p>
             <p class="text-xs text-slate-500">Страница: {{ pageLabel(lead.source_url) }}</p>
           </div>
-          <div class="mt-4 flex gap-2">
+          <div class="mt-4 flex flex-col gap-2 sm:flex-row">
             <select :value="lead.status" class="form-control flex-1" @change="updateStatus(lead, $event.target.value)">
               <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
             <button type="button" class="action-button-secondary" @click="openLead(lead.id)">Подробнее</button>
+            <button type="button" class="action-button-danger" :disabled="deletingLeadId === lead.id" @click="deleteLead(lead)">
+              <Trash2 :size="17" />
+              Удалить
+            </button>
           </div>
         </article>
       </section>
@@ -183,6 +223,17 @@ onMounted(load)
           <p><strong class="block text-slate-500">Форма</strong>{{ selectedLead.form_name || 'Не указано' }}</p>
           <p><strong class="block text-slate-500">Источник</strong>{{ pageLabel(selectedLead.source_url) }}</p>
           <p class="sm:col-span-2"><strong class="block text-slate-500">Комментарий</strong>{{ selectedLead.message || 'Не указано' }}</p>
+        </div>
+        <div class="mt-6 flex justify-end">
+          <button
+            type="button"
+            class="action-button-danger"
+            :disabled="deletingLeadId === selectedLead.id"
+            @click="deleteLead(selectedLead)"
+          >
+            <Trash2 :size="17" />
+            Удалить заявку
+          </button>
         </div>
       </section>
     </div>

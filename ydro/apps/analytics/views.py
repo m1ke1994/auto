@@ -15,6 +15,7 @@ from tracker.models import Event as TrackerEvent
 from tracker.models import PageView as TrackerPageView
 from tracker.models import Site as TrackerSite
 from tracker.models import Visit as TrackerVisit
+from tracker.services.bot_filter import detect_bot_visit
 
 from .models import PageView, TrackingEvent, Visit
 from .serializers import PageViewSerializer, TrackEventSerializer, VisitEndSerializer, VisitStartSerializer
@@ -99,6 +100,10 @@ def _distribution_dict(visits, field_name: str, *, allowed=None, unknown_label="
     return distribution
 
 
+def _truthy_query_param(value) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 class TrackBaseAPIView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
@@ -106,7 +111,22 @@ class TrackBaseAPIView(APIView):
     def get_site(self, token: str) -> Site | None:
         return Site.objects.filter(api_key=token, is_active=True).first()
 
-    def get_or_create_visit(self, site: Site, session_id: str, request, visitor_id: str = "", referrer: str = "") -> Visit:
+    def get_or_create_visit(
+        self,
+        site: Site,
+        session_id: str,
+        request,
+        visitor_id: str = "",
+        referrer: str = "",
+        tracked_url: str = "",
+    ) -> Visit:
+        user_agent = request.META.get("HTTP_USER_AGENT", "")[:1000]
+        bot_check = detect_bot_visit(
+            site_id=site.id,
+            ip_address=_client_ip(request),
+            user_agent=user_agent,
+            tracked_url=tracked_url,
+        )
         visit = (
             Visit.objects.filter(site=site, session_id=session_id)
             .order_by("-started_at")
@@ -121,6 +141,12 @@ class TrackBaseAPIView(APIView):
             if referrer and not visit.referrer:
                 visit.referrer = referrer
                 updates.append("referrer")
+            if bot_check.is_bot and not visit.is_bot:
+                visit.is_bot = True
+                updates.append("is_bot")
+            if bot_check.reason and visit.bot_reason != bot_check.reason:
+                visit.bot_reason = bot_check.reason[:255]
+                updates.append("bot_reason")
             if updates:
                 visit.save(update_fields=updates)
             return visit
@@ -130,7 +156,9 @@ class TrackBaseAPIView(APIView):
             visitor_id=visitor_id or "",
             session_id=session_id,
             ip_address=_client_ip(request),
-            user_agent=request.META.get("HTTP_USER_AGENT", "")[:1000],
+            is_bot=bot_check.is_bot,
+            bot_reason=bot_check.reason[:255],
+            user_agent=user_agent,
             referrer=referrer or "",
         )
 
@@ -150,6 +178,7 @@ class VisitStartView(TrackBaseAPIView):
             request=request,
             visitor_id=serializer.validated_data.get("visitor_id") or "",
             referrer=serializer.validated_data.get("referrer") or "",
+            tracked_url=request.data.get("url") or "",
         )
 
         if visit.started_at != serializer.get_started_at():
@@ -173,6 +202,7 @@ class PageViewCreateView(TrackBaseAPIView):
             session_id=serializer.validated_data["session_id"],
             request=request,
             visitor_id=serializer.validated_data.get("visitor_id") or "",
+            tracked_url=serializer.validated_data["url"],
         )
 
         pageview = PageView.objects.create(
@@ -194,17 +224,20 @@ class EventCreateView(TrackBaseAPIView):
         if site is None:
             return Response({"detail": "Invalid token"}, status=status.HTTP_403_FORBIDDEN)
 
+        event_payload = serializer.validated_data.get("payload") or {}
+        tracked_url = event_payload.get("url") if isinstance(event_payload, dict) else ""
         visit = self.get_or_create_visit(
             site=site,
             session_id=serializer.validated_data["session_id"],
             request=request,
             visitor_id=serializer.validated_data.get("visitor_id") or "",
+            tracked_url=tracked_url or "",
         )
 
         event = TrackingEvent.objects.create(
             visit=visit,
             type=serializer.validated_data["type"],
-            payload=serializer.validated_data.get("payload") or {},
+            payload=event_payload if isinstance(event_payload, dict) else {},
             timestamp=serializer.get_timestamp(),
         )
         return Response({"ok": True, "event_id": event.id}, status=status.HTTP_201_CREATED)
@@ -259,12 +292,19 @@ class AdminSiteAnalyticsSummaryView(APIView):
         days = int(request.query_params.get("days", 14) or 14)
         days = min(max(days, 1), 365)
         from_dt = timezone.now() - timezone.timedelta(days=days)
+        include_bots = _truthy_query_param(request.query_params.get("include_bots"))
 
         tracker_site = TrackerSite.objects.filter(token=site.api_key, is_active=True).first()
         if tracker_site is not None:
-            visits = TrackerVisit.objects.filter(site=tracker_site, started_at__gte=from_dt, is_bot=False)
+            all_visits = TrackerVisit.objects.filter(site=tracker_site, started_at__gte=from_dt)
+            real_visits = all_visits.filter(is_bot=False)
+            bot_visits = all_visits.filter(is_bot=True)
+            visits = all_visits if include_bots else real_visits
             pageviews = TrackerPageView.objects.filter(visit__site=tracker_site, timestamp__gte=from_dt)
             events = TrackerEvent.objects.filter(visit__site=tracker_site, timestamp__gte=from_dt)
+            if not include_bots:
+                pageviews = pageviews.filter(visit__is_bot=False)
+                events = events.filter(visit__is_bot=False)
             top_pages = list(
                 pageviews.values("url")
                 .annotate(count=Count("id"))
@@ -281,9 +321,15 @@ class AdminSiteAnalyticsSummaryView(APIView):
             browsers = _distribution_dict(visits, "browser_family")
             os_rows = _distribution_dict(visits, "os")
         else:
-            visits = Visit.objects.filter(site=site, started_at__gte=from_dt)
+            all_visits = Visit.objects.filter(site=site, started_at__gte=from_dt)
+            real_visits = all_visits.filter(is_bot=False)
+            bot_visits = all_visits.filter(is_bot=True)
+            visits = all_visits if include_bots else real_visits
             pageviews = PageView.objects.filter(visit__site=site, timestamp__gte=from_dt)
             events = TrackingEvent.objects.filter(visit__site=site, timestamp__gte=from_dt)
+            if not include_bots:
+                pageviews = pageviews.filter(visit__is_bot=False)
+                events = events.filter(visit__is_bot=False)
             top_pages = list(
                 pageviews.values("pathname")
                 .annotate(count=Count("id"))
@@ -299,10 +345,14 @@ class AdminSiteAnalyticsSummaryView(APIView):
             os_rows = {}
         leads = SiteLead.objects.filter(site=site, created_at__gte=from_dt)
 
+        real_visits_count = real_visits.count()
+        bot_visits_count = bot_visits.count()
+        total_visits_count = all_visits.count()
         visits_count = visits.count()
         unique_visitors = _unique_visitors_count(visits)
+        unique_real_visitors = _unique_visitors_count(real_visits)
         leads_count = leads.count()
-        conversion = round((leads_count / visits_count) * 100, 2) if visits_count else 0
+        conversion = round((leads_count / real_visits_count) * 100, 2) if real_visits_count else 0
 
         visits_daily = list(
             visits.annotate(day=TruncDate("started_at"))
@@ -321,8 +371,16 @@ class AdminSiteAnalyticsSummaryView(APIView):
         return Response(
             {
                 "period_days": days,
+                "include_bots": include_bots,
                 "visit_count": visits_count,
                 "visitors_unique": unique_visitors,
+                "unique_real_visitors": unique_real_visitors,
+                "real_visitors": real_visits_count,
+                "real_visits": real_visits_count,
+                "bot_visitors": bot_visits_count,
+                "bot_visits": bot_visits_count,
+                "total_visitors": total_visits_count,
+                "total_visits": total_visits_count,
                 "pageviews_count": pageviews.count(),
                 "events_count": events.count(),
                 "leads_count": leads_count,

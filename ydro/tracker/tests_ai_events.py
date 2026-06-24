@@ -18,6 +18,10 @@ class TrackAiEventsTests(TestCase):
         self.client_obj = Client.objects.create(owner=self.user, name="AI Analytics Client")
         self.site = Site.objects.create(token=self.client_obj.api_key, domain="test.local", is_active=True)
         self.http = APIClient()
+        self.http.defaults["HTTP_USER_AGENT"] = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        )
         self.session_id = "session-ai-1"
         self.visitor_id = "visitor-ai-1"
 

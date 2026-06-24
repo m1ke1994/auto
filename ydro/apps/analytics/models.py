@@ -9,6 +9,8 @@ class Visit(models.Model):
     visitor_id = models.CharField(max_length=64, blank=True, default="", db_index=True, verbose_name="Visitor ID")
     session_id = models.CharField(max_length=64, db_index=True, verbose_name="Session ID")
     ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name="IP")
+    is_bot = models.BooleanField(default=False, verbose_name="Bot")
+    bot_reason = models.CharField(max_length=255, blank=True, default="", verbose_name="Bot reason")
     user_agent = models.TextField(blank=True, default="", verbose_name="User-Agent")
     referrer = models.TextField(blank=True, default="", verbose_name="Referrer")
     started_at = models.DateTimeField(default=timezone.now, db_index=True, verbose_name="Начало визита")
@@ -53,4 +55,3 @@ class TrackingEvent(models.Model):
         verbose_name = "Событие"
         verbose_name_plural = "События"
         indexes = [models.Index(fields=["visit", "type", "timestamp"])]
-

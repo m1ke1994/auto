@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import { getLeadRequest, getLeadsRequest, patchLeadStatusRequest } from '../api/leads'
+import { deleteLeadRequest, getLeadRequest, getLeadsRequest, patchLeadStatusRequest } from '../api/leads'
 
 export const useLeadsStore = defineStore('leads', () => {
   const leads = ref([])
@@ -40,6 +40,14 @@ export const useLeadsStore = defineStore('leads', () => {
     return data
   }
 
+  async function deleteLead(leadId) {
+    await deleteLeadRequest(leadId)
+    leads.value = leads.value.filter((item) => item.id !== leadId)
+    if (currentLead.value?.id === leadId) {
+      currentLead.value = null
+    }
+  }
+
   function reset() {
     leads.value = []
     currentLead.value = null
@@ -52,6 +60,7 @@ export const useLeadsStore = defineStore('leads', () => {
     fetchLeads,
     fetchLead,
     patchLeadStatus,
+    deleteLead,
     reset,
   }
 })

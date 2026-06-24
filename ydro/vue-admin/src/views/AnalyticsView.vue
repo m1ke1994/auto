@@ -15,6 +15,7 @@ const error = ref('')
 const success = ref('')
 const summary = ref(null)
 const days = ref(14)
+const includeBots = ref(false)
 const action = ref('')
 const siteId = computed(() => Number(route.params.siteId))
 const trackerScript = computed(() => summary.value?.tracker?.script_tag || siteStore.currentSite?.tracker_script_tag || '')
@@ -23,9 +24,11 @@ const browserRows = computed(() => distributionRows(summary.value?.browsers))
 const osRows = computed(() => distributionRows(summary.value?.os))
 
 const stats = computed(() => [
-  { label: 'Посетители', value: summary.value?.visit_count ?? 0, sub: 'всего посещений' },
-  { label: 'Уникальные', value: summary.value?.visitors_unique ?? 0, sub: 'разные пользователи' },
-  { label: 'Просмотры', value: summary.value?.pageviews_count ?? 0, sub: 'открытые страницы' },
+  { label: 'Реальные', value: summary.value?.real_visitors ?? summary.value?.visit_count ?? 0, sub: 'посещения без ботов' },
+  { label: 'Боты', value: summary.value?.bot_visitors ?? 0, sub: 'не входят в конверсию' },
+  { label: 'Всего', value: summary.value?.total_visitors ?? summary.value?.visit_count ?? 0, sub: 'включая ботов' },
+  { label: 'Уникальные', value: summary.value?.unique_real_visitors ?? summary.value?.visitors_unique ?? 0, sub: 'реальные посетители' },
+  { label: 'Просмотры', value: summary.value?.pageviews_count ?? 0, sub: includeBots.value ? 'с ботами' : 'только реальные' },
   { label: 'Заявки', value: summary.value?.leads_count ?? 0, sub: `конверсия ${summary.value?.conversion ?? 0}%` },
 ])
 
@@ -52,7 +55,10 @@ async function load() {
   try {
     siteStore.selectSite(siteId.value)
     if (!siteStore.currentSite) await siteStore.fetchSite(siteId.value)
-    const { data } = await getSiteAnalyticsSummaryRequest(siteId.value, { days: days.value })
+    const { data } = await getSiteAnalyticsSummaryRequest(siteId.value, {
+      days: days.value,
+      include_bots: includeBots.value ? 'true' : undefined,
+    })
     summary.value = data
   } catch (e) {
     error.value = e?.response?.data?.detail || 'Не удалось загрузить аналитику.'
@@ -105,7 +111,25 @@ onMounted(load)
         <h1>Аналитика</h1>
         <p>Понятная статистика без технических данных.</p>
       </div>
-      <div class="flex gap-2">
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <div class="inline-flex rounded-lg border border-slate-300 bg-white p-1">
+          <button
+            type="button"
+            class="rounded-md px-3 py-2 text-sm font-semibold transition"
+            :class="!includeBots ? 'bg-cyan-600 text-white' : 'text-slate-600 hover:text-cyan-800'"
+            @click="includeBots = false; load()"
+          >
+            Только реальные
+          </button>
+          <button
+            type="button"
+            class="rounded-md px-3 py-2 text-sm font-semibold transition"
+            :class="includeBots ? 'bg-cyan-600 text-white' : 'text-slate-600 hover:text-cyan-800'"
+            @click="includeBots = true; load()"
+          >
+            С ботами
+          </button>
+        </div>
         <select v-model.number="days" class="form-control w-36" @change="load">
           <option :value="7">7 дней</option><option :value="14">14 дней</option><option :value="30">30 дней</option><option :value="90">90 дней</option>
         </select>

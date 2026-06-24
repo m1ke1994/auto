@@ -264,6 +264,9 @@ class TrackBaseAPIView(APIView):
             if bot_check.is_bot and not visit.is_bot:
                 visit.is_bot = True
                 updates.append("is_bot")
+            if bot_check.reason and visit.bot_reason != bot_check.reason:
+                visit.bot_reason = bot_check.reason[:255]
+                updates.append("bot_reason")
             if updates:
                 visit.save(update_fields=updates)
             return visit
@@ -273,6 +276,7 @@ class TrackBaseAPIView(APIView):
             session_id=session_id,
             ip_address=context["ip_address"],
             is_bot=bot_check.is_bot,
+            bot_reason=bot_check.reason[:255],
             user_agent=context["user_agent"],
             device_type=context["device_type"],
             os=context["os"],
@@ -313,7 +317,7 @@ class VisitStartView(TrackBaseAPIView):
         _upsert_visit_event(visit, "visit", payload=start_payload, timestamp=started_at)
         _upsert_visit_event(visit, "session_start", payload=start_payload, timestamp=started_at)
         client = _client_by_token(serializer.validated_data["token"])
-        if client:
+        if client and not visit.is_bot:
             try:
                 event_url = _safe_url(
                     request.data.get("url") or request.headers.get("Origin") or serializer.validated_data.get("referrer")
@@ -372,7 +376,7 @@ class PageViewCreateView(TrackBaseAPIView):
             timestamp=pageview_timestamp,
         )
         client = _client_by_token(serializer.validated_data["token"])
-        if client:
+        if client and not visit.is_bot:
             try:
                 safe_url = _safe_url(serializer.validated_data["url"])
                 payload = _pageview_payload_from_url(safe_url)
@@ -459,7 +463,7 @@ class EventCreateView(TrackBaseAPIView):
             timestamp=serializer.get_timestamp(),
         )
         client = _client_by_token(serializer.validated_data["token"])
-        if client:
+        if client and not visit.is_bot:
             try:
                 if event_type == "form_submit":
                     latest_page_view = (
@@ -613,8 +617,8 @@ class TrackStatsView(TrackBaseAPIView):
                 {
                     "sites_total": Site.objects.count(),
                     "visits_total": Visit.objects.filter(is_bot=False).count(),
-                    "pageviews_total": PageView.objects.count(),
-                    "events_total": Event.objects.count(),
+                    "pageviews_total": PageView.objects.filter(visit__is_bot=False).count(),
+                    "events_total": Event.objects.filter(visit__is_bot=False).count(),
                 },
                 status=status.HTTP_200_OK,
             )
@@ -626,8 +630,8 @@ class TrackStatsView(TrackBaseAPIView):
                 "site_id": site.id,
                 "site_domain": site.domain,
                 "visits_total": visits.count(),
-                "pageviews_total": PageView.objects.filter(visit__site=site).count(),
-                "events_total": Event.objects.filter(visit__site=site).count(),
+                "pageviews_total": PageView.objects.filter(visit__site=site, visit__is_bot=False).count(),
+                "events_total": Event.objects.filter(visit__site=site, visit__is_bot=False).count(),
             },
             status=status.HTTP_200_OK,
         )

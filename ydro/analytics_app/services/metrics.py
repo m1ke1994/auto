@@ -52,6 +52,7 @@ def get_metrics(client, date_from, date_to):
     )
     notified_qs = TrackerEvent.objects.filter(
         visit__site__token=client.api_key,
+        visit__is_bot=False,
         type="form_submit",
         timestamp__gte=from_dt,
         timestamp__lte=to_dt,

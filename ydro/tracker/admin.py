@@ -22,12 +22,14 @@ class VisitAdmin(admin.ModelAdmin):
         "os",
         "browser_family",
         "is_ios_browser",
+        "is_bot",
+        "bot_reason",
         "started_at",
         "ended_at",
         "duration",
     )
-    search_fields = ("visitor_id", "session_id", "ip_address", "site__domain", "os", "browser", "browser_family")
-    list_filter = ("site",)
+    search_fields = ("visitor_id", "session_id", "ip_address", "site__domain", "os", "browser", "browser_family", "bot_reason")
+    list_filter = ("site", "is_bot")
 
 
 @admin.register(PageView)

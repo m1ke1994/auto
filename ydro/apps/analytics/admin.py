@@ -5,9 +5,9 @@ from .models import PageView, TrackingEvent, Visit
 
 @admin.register(Visit)
 class VisitAdmin(admin.ModelAdmin):
-    list_display = ("id", "site", "session_id", "visitor_id", "started_at", "duration")
-    list_filter = ("site", "started_at")
-    search_fields = ("session_id", "visitor_id", "ip_address")
+    list_display = ("id", "site", "session_id", "visitor_id", "is_bot", "bot_reason", "started_at", "duration")
+    list_filter = ("site", "is_bot", "started_at")
+    search_fields = ("session_id", "visitor_id", "ip_address", "bot_reason")
 
 
 @admin.register(PageView)

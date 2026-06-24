@@ -374,10 +374,10 @@ class AdminMyLeadsListView(AdminSiteAccessMixin, generics.ListAPIView):
         return queryset
 
 
-class AdminMyLeadDetailView(AdminSiteAccessMixin, generics.RetrieveUpdateAPIView):
+class AdminMyLeadDetailView(AdminSiteAccessMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = AdminLeadSerializer
     lookup_url_kwarg = "lead_id"
-    http_method_names = ["get", "patch", "head", "options"]
+    http_method_names = ["get", "patch", "delete", "head", "options"]
 
     def get_queryset(self):
         return self.get_user_leads_queryset()

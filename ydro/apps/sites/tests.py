@@ -481,3 +481,8 @@ class SitesApiTests(APITestCase):
             format="json",
         )
         self.assertEqual(foreign_patch_response.status_code, status.HTTP_404_NOT_FOUND)
+
+        delete_response = self.client.delete(patch_url)
+        self.assertEqual(delete_response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(SiteLead.objects.filter(id=own_lead.id).exists())
+        self.assertTrue(SiteLead.objects.filter(id=foreign_lead.id).exists())

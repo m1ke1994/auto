@@ -133,31 +133,45 @@ class AnalyticsApiTests(APITestCase):
             started_at=now,
             is_bot=False,
         )
-        TrackerVisit.objects.create(
+        bot_visit = TrackerVisit.objects.create(
             site=tracker_site,
             session_id="bot-session",
             visitor_id="bot-visitor",
             started_at=now,
             is_bot=True,
+            bot_reason="user_agent:googlebot",
         )
         TrackerPageView.objects.create(visit=first_visit, url="https://example.com/", title="Home", timestamp=now)
         TrackerPageView.objects.create(visit=first_visit, url="https://example.com/prices", title="Prices", timestamp=now)
         TrackerPageView.objects.create(visit=second_visit, url="https://example.com/", title="Home", timestamp=now)
+        TrackerPageView.objects.create(visit=bot_visit, url="https://example.com/bot", title="Bot", timestamp=now)
         TrackerEvent.objects.create(
             visit=first_visit,
             type="time_on_page",
             payload={"duration_seconds": 90},
             timestamp=now,
         )
+        TrackerEvent.objects.create(
+            visit=bot_visit,
+            type="time_on_page",
+            payload={"duration_seconds": 300},
+            timestamp=now,
+        )
         SiteLead.objects.create(site=self.site, name="Lead", phone="+79990000000", created_at=now)
 
         self.client.force_authenticate(user=self.user)
-        response = self.client.get(reverse("admin-site-analytics-summary", kwargs={"site_id": self.site.id}))
+        url = reverse("admin-site-analytics-summary", kwargs={"site_id": self.site.id})
+        response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["visit_count"], 3)
+        self.assertEqual(response.data["real_visitors"], 3)
+        self.assertEqual(response.data["bot_visitors"], 1)
+        self.assertEqual(response.data["total_visitors"], 4)
         self.assertEqual(response.data["visitors_unique"], 2)
+        self.assertEqual(response.data["unique_real_visitors"], 2)
         self.assertEqual(response.data["pageviews_count"], 3)
+        self.assertEqual(response.data["events_count"], 1)
         self.assertEqual(response.data["leads_count"], 1)
         self.assertEqual(response.data["conversion"], 33.33)
         self.assertEqual(response.data["devices"]["desktop"], 2)
@@ -167,6 +181,15 @@ class AnalyticsApiTests(APITestCase):
         self.assertEqual(response.data["total_time_on_site_seconds"], 60)
         self.assertEqual(response.data["avg_duration"], 30)
         self.assertEqual(response.data["avg_time_on_site"], 30)
+
+        include_response = self.client.get(url, {"include_bots": "true"})
+        self.assertEqual(include_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(include_response.data["include_bots"], True)
+        self.assertEqual(include_response.data["visit_count"], 4)
+        self.assertEqual(include_response.data["pageviews_count"], 4)
+        self.assertEqual(include_response.data["events_count"], 2)
+        self.assertEqual(include_response.data["conversion"], 33.33)
+        self.assertEqual(include_response.data["total_time_on_site_seconds"], 360)
 
     def test_admin_summary_uses_time_on_page_fallback_when_visit_duration_is_empty(self):
         tracker_site = TrackerSite.objects.create(token=self.site.api_key, domain=self.site.domain, is_active=True)
