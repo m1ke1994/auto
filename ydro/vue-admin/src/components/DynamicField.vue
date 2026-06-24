@@ -1,8 +1,10 @@
 ﻿<script setup>
 import { computed, ref } from 'vue'
+import { ChevronDown, ChevronRight, Plus, Trash2 } from '@lucide/vue'
 
 import { uploadMediaFile } from '../api/media'
 import { BACKEND_URL } from '../config/env'
+import { elementCountLabel, fieldTypeLabel, groupFields, rowSummary } from '../utils/formPresentation'
 import MediaLibraryPicker from './MediaLibraryPicker.vue'
 
 defineOptions({ name: 'DynamicField' })
@@ -55,6 +57,7 @@ const fileInputRef = ref(null)
 const uploading = ref(false)
 const uploadError = ref('')
 const libraryOpen = ref(false)
+const expandedRows = ref(new Set([0]))
 
 const apiBaseUrl = computed(() => {
   const explicit = props.uploadContext?.apiBaseUrl
@@ -171,17 +174,48 @@ async function onFileSelected(event) {
 
 const repeaterRows = computed(() => (Array.isArray(props.modelValue) ? props.modelValue : []))
 
+function isRowExpanded(index) {
+  return expandedRows.value.has(index)
+}
+
+function toggleRow(index) {
+  const next = new Set(expandedRows.value)
+  if (next.has(index)) next.delete(index)
+  else next.add(index)
+  expandedRows.value = next
+}
+
+function expandRow(index) {
+  const next = new Set(expandedRows.value)
+  next.add(index)
+  expandedRows.value = next
+}
+
 function addRow() {
   const row = {}
   for (const nested of props.field.fields || []) {
     row[nested.key] = defaultForField(nested)
   }
+  const nextIndex = repeaterRows.value.length
   emit('update:modelValue', [...repeaterRows.value, row])
+  expandRow(nextIndex)
 }
 
 function removeRow(index) {
+  const label = rowSummary(props.field, repeaterRows.value[index], index)
+  const confirmed = window.confirm(`Удалить элемент «${label}»? Это действие нельзя отменить.`)
+  if (!confirmed) return
+
   const next = [...repeaterRows.value]
   next.splice(index, 1)
+
+  const nextExpanded = new Set()
+  for (const rowIndex of expandedRows.value) {
+    if (rowIndex < index) nextExpanded.add(rowIndex)
+    if (rowIndex > index) nextExpanded.add(rowIndex - 1)
+  }
+  expandedRows.value = nextExpanded
+
   emit('update:modelValue', next)
 }
 
@@ -190,15 +224,33 @@ function updateRepeaterCell(index, key, value) {
   next[index] = { ...(next[index] || {}), [key]: value }
   emit('update:modelValue', next)
 }
+
+function rowBadges(row = {}) {
+  const badges = []
+
+  if (row?.slug || row?.key) badges.push(`slug ${row.slug || row.key}`)
+  else if (row?.id) badges.push(`id ${row.id}`)
+
+  if (row?.order !== undefined && row?.order !== null && row?.order !== '') badges.push(`порядок ${row.order}`)
+  if (row?.month_number) badges.push(`месяц ${row.month_number}`)
+  if (typeof row?.is_active === 'boolean') badges.push(row.is_active ? 'активен' : 'скрыт')
+  if (typeof row?.active === 'boolean') badges.push(row.active ? 'активен' : 'скрыт')
+
+  return badges.slice(0, 3)
+}
 </script>
 
 <template>
   <div class="space-y-2">
-    <div class="flex items-center justify-between">
+    <div class="flex items-start justify-between gap-3">
       <label :for="inputId" class="text-sm font-medium text-slate-800">
-        {{ field.label || 'Поле' }}
+        {{ field.label || field.key || 'Поле' }}
       </label>
-      <span v-if="field.required" class="text-xs text-rose-500">обязательно</span>
+      <div class="flex flex-wrap items-center justify-end gap-1.5">
+        <span class="status-badge status-neutral">{{ fieldTypeLabel(field) }}</span>
+        <span v-if="field.key" class="status-badge status-neutral">{{ field.key }}</span>
+        <span v-if="field.required" class="status-badge status-danger">обязательно</span>
+      </div>
     </div>
 
     <p v-if="field.help_text" class="text-xs text-slate-500">{{ field.help_text }}</p>
@@ -247,39 +299,88 @@ function updateRepeaterCell(index, key, value) {
 
     <template v-else-if="fieldType === 'repeater'">
       <div class="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-sm font-semibold text-slate-900">{{ field.label || 'Список элементов' }}</p>
+            <p class="mt-1 text-xs text-slate-500">
+              {{ repeaterRows.length ? elementCountLabel(repeaterRows.length) : 'Список пока пуст' }}
+            </p>
+          </div>
+          <button
+            type="button"
+            class="action-button-secondary"
+            @click="addRow"
+          >
+            <Plus :size="16" />
+            Добавить элемент
+          </button>
+        </div>
+
         <div
           v-for="(row, index) in repeaterRows"
           :key="`${field.key}-row-${index}`"
-          class="space-y-3 rounded-lg border border-slate-200 bg-white p-3"
+          class="overflow-hidden rounded-lg border border-slate-200 bg-white"
         >
-          <div class="flex items-center justify-between">
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Элемент {{ index + 1 }}</p>
+          <div class="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"
-              class="rounded-lg border border-rose-200 px-2 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50"
+              class="flex min-w-0 flex-1 items-start gap-2 text-left"
+              @click="toggleRow(index)"
+            >
+              <component :is="isRowExpanded(index) ? ChevronDown : ChevronRight" :size="18" class="mt-0.5 shrink-0 text-slate-500" />
+              <span class="min-w-0">
+                <span class="block break-words text-sm font-semibold text-slate-950">
+                  {{ rowSummary(field, row, index) }}
+                </span>
+                <span v-if="rowBadges(row).length" class="mt-1 flex flex-wrap gap-1.5">
+                  <span v-for="badge in rowBadges(row)" :key="badge" class="status-badge status-neutral">{{ badge }}</span>
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
               @click="removeRow(index)"
             >
+              <Trash2 :size="14" />
               Удалить
             </button>
           </div>
 
-          <DynamicField
-            v-for="nested in (field.fields || []).filter((item) => !item.hidden)"
-            :key="`${field.key}-${index}-${nested.key}`"
-            :field="nested"
-            :model-value="row?.[nested.key]"
-            :upload-context="uploadContext"
-            :path-prefix="`${pathPrefix}.${index}.${nested.key}`"
-            @update:model-value="(value) => updateRepeaterCell(index, nested.key, value)"
-          />
+          <div v-if="isRowExpanded(index)" class="space-y-3 border-t border-slate-100 bg-slate-50/60 p-3">
+            <section
+              v-for="group in groupFields(field.fields || [])"
+              :key="`${field.key}-${index}-${group.id}`"
+              class="rounded-lg border border-slate-200 bg-white p-3"
+            >
+              <div class="mb-3 border-b border-slate-100 pb-2">
+                <h4 class="text-xs font-semibold uppercase text-slate-500">{{ group.title }}</h4>
+              </div>
+
+              <div class="grid gap-3" :class="group.id === 'parameters' ? 'sm:grid-cols-2 xl:grid-cols-3' : ''">
+                <DynamicField
+                  v-for="nested in group.fields"
+                  :key="`${field.key}-${index}-${nested.key}`"
+                  :field="nested"
+                  :model-value="row?.[nested.key]"
+                  :upload-context="uploadContext"
+                  :path-prefix="`${pathPrefix}.${index}.${nested.key}`"
+                  @update:model-value="(value) => updateRepeaterCell(index, nested.key, value)"
+                />
+              </div>
+            </section>
+          </div>
         </div>
 
         <button
+          v-if="repeaterRows.length"
           type="button"
           class="action-button-secondary"
           @click="addRow"
         >
-          + Добавить элемент
+          <Plus :size="16" />
+          Добавить элемент
         </button>
       </div>
     </template>

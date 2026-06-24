@@ -1,5 +1,8 @@
 <script setup>
+import { computed } from 'vue'
+
 import DynamicField from './DynamicField.vue'
+import { groupFields } from '../utils/formPresentation'
 
 const props = defineProps({
   schema: {
@@ -17,6 +20,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue'])
+const fieldGroups = computed(() => groupFields(props.schema?.fields || []))
 
 function updateField(key, value) {
   emit('update:modelValue', {
@@ -27,15 +31,28 @@ function updateField(key, value) {
 </script>
 
 <template>
-  <div class="space-y-5">
-    <DynamicField
-      v-for="field in (schema?.fields || []).filter((item) => !item.hidden)"
-      :key="field.key"
-      :field="field"
-      :model-value="modelValue?.[field.key]"
-      :upload-context="uploadContext"
-      :path-prefix="field.key"
-      @update:model-value="(value) => updateField(field.key, value)"
-    />
+  <div class="space-y-4">
+    <section
+      v-for="group in fieldGroups"
+      :key="group.id"
+      class="rounded-lg border border-slate-200 bg-white p-4"
+    >
+      <div class="mb-4 border-b border-slate-100 pb-3">
+        <h3 class="text-sm font-semibold text-slate-950">{{ group.title }}</h3>
+        <p class="mt-1 text-xs leading-5 text-slate-500">{{ group.description }}</p>
+      </div>
+
+      <div class="grid gap-4" :class="group.id === 'parameters' ? 'sm:grid-cols-2 xl:grid-cols-3' : ''">
+        <DynamicField
+          v-for="field in group.fields"
+          :key="field.key"
+          :field="field"
+          :model-value="modelValue?.[field.key]"
+          :upload-context="uploadContext"
+          :path-prefix="field.key"
+          @update:model-value="(value) => updateField(field.key, value)"
+        />
+      </div>
+    </section>
   </div>
 </template>

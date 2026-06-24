@@ -1,9 +1,10 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { LayoutTemplate } from '@lucide/vue'
+import { Circle, LayoutTemplate } from '@lucide/vue'
 
 import { getSectionLabel } from '../utils/sectionLabels'
+import { countRepeaterItems, sectionTypeLabel } from '../utils/formPresentation'
 
 const props = defineProps({
   siteId: {
@@ -18,22 +19,36 @@ const props = defineProps({
 
 const route = useRoute()
 const currentSectionId = computed(() => Number(route.params.sectionId))
-const visibleSections = computed(() => props.sections.filter((section) => section.is_active))
+const sortedSections = computed(() => [...props.sections].sort((a, b) => Number(a.order || 0) - Number(b.order || 0)))
+
+function itemCount(section) {
+  return countRepeaterItems(section?.content)
+}
 </script>
 
 <template>
   <aside class="surface h-fit p-3 lg:sticky lg:top-24">
-    <p class="px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Разделы сайта</p>
+    <p class="px-3 pb-2 text-xs font-semibold uppercase text-slate-500">Разделы сайта</p>
     <nav class="space-y-1">
       <RouterLink
-        v-for="item in visibleSections"
+        v-for="item in sortedSections"
         :key="item.id"
         :to="`/sites/${siteId}/sections/${item.id}`"
-        class="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition"
-        :class="currentSectionId === item.id ? 'bg-cyan-50 text-cyan-900' : 'text-slate-700 hover:bg-slate-50'"
+        class="flex min-w-0 items-start gap-2 rounded-lg px-3 py-2.5 text-sm transition"
+        :class="currentSectionId === item.id ? 'bg-cyan-50 text-cyan-950 ring-1 ring-cyan-100' : 'text-slate-700 hover:bg-slate-50'"
       >
-        <LayoutTemplate :size="17" />
-        <span>{{ getSectionLabel(item) }}</span>
+        <LayoutTemplate :size="17" class="mt-0.5 shrink-0" />
+        <span class="min-w-0 flex-1">
+          <span class="block truncate font-semibold">{{ getSectionLabel(item) }}</span>
+          <span class="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+            <span class="truncate">{{ sectionTypeLabel(item) }}</span>
+            <span v-if="itemCount(item)">{{ itemCount(item) }} эл.</span>
+            <span class="inline-flex items-center gap-1">
+              <Circle :size="7" :fill="item.is_active ? 'currentColor' : 'none'" />
+              {{ item.is_active ? 'активна' : 'скрыта' }}
+            </span>
+          </span>
+        </span>
       </RouterLink>
     </nav>
   </aside>

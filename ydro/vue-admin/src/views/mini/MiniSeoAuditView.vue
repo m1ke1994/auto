@@ -9,9 +9,11 @@ import { useSiteStore } from '../../stores/site'
 const route = useRoute()
 const siteStore = useSiteStore()
 const domain = ref('')
-const loading = ref(false)
+const loadingLatest = ref(false)
+const startingAudit = ref(false)
 const downloading = ref(false)
 const error = ref('')
+const success = ref('')
 const latest = ref(null)
 const detail = ref(null)
 const issues = ref([])
@@ -21,10 +23,15 @@ const siteId = computed(() => Number(route.params.siteId || 0))
 const seoParams = computed(() => (siteId.value ? { site_id: siteId.value } : {}))
 const auditId = computed(() => latest.value?.audit_id || detail.value?.audit_id)
 const running = computed(() => ['pending', 'running'].includes(String(detail.value?.status || latest.value?.status || '').toLowerCase()))
+const checking = computed(() => startingAudit.value || running.value)
 const score = computed(() => Number(detail.value?.score ?? latest.value?.score ?? 0))
 
+function auditStatus() {
+  return String(detail.value?.status || latest.value?.status || '').toLowerCase()
+}
+
 function statusText() {
-  const status = String(detail.value?.status || latest.value?.status || '').toLowerCase()
+  const status = auditStatus()
   return { pending: 'Ждет запуска', running: 'Проверяем сайт', done: 'Проверка завершена', completed: 'Проверка завершена', failed: 'Не удалось проверить сайт', error: 'Не удалось проверить сайт' }[status] || 'Проверка не запускалась'
 }
 
@@ -44,10 +51,31 @@ function errorMessage(e, fallback) {
   return detail || fallback
 }
 
+function startAuditErrorMessage(e) {
+  const detail = e?.response?.data?.detail || ''
+  if (String(detail).includes('Client dashboard access')) {
+    return 'Нет доступа к SEO-аудиту выбранного сайта.'
+  }
+  return 'Не удалось выполнить SEO-аудит. Попробуйте позже.'
+}
+
 async function loadAudit(id) {
   detail.value = await miniSeoDetail(id, seoParams.value)
   const result = await miniSeoIssues(id, seoParams.value)
   issues.value = result?.rows || []
+}
+
+function handleAuditCompletion(showMessage = false) {
+  const status = auditStatus()
+  if (!['done', 'completed', 'failed', 'error'].includes(status)) return
+
+  stopPolling()
+  if (['done', 'completed'].includes(status)) {
+    if (showMessage) success.value = 'SEO-аудит завершен.'
+    return
+  }
+
+  error.value = 'Не удалось выполнить SEO-аудит. Попробуйте позже.'
 }
 
 function stopPolling() {
@@ -60,14 +88,18 @@ function startPolling() {
   timer = setInterval(async () => {
     try {
       await loadAudit(auditId.value)
-      if (!running.value) stopPolling()
-    } catch { stopPolling() }
+      handleAuditCompletion(true)
+    } catch (e) {
+      console.error('SEO audit polling failed', e)
+      error.value = 'Не удалось выполнить SEO-аудит. Попробуйте позже.'
+      stopPolling()
+    }
   }, 4000)
 }
 
 async function findLatest() {
   if (!domain.value.trim()) { error.value = 'Введите домен сайта.'; return }
-  loading.value = true; error.value = ''
+  loadingLatest.value = true; error.value = ''; success.value = ''
   try {
     latest.value = await miniSeoLatest(domain.value.trim(), seoParams.value)
     if (latest.value?.audit_id) {
@@ -75,18 +107,22 @@ async function findLatest() {
       if (running.value) startPolling()
     }
   } catch (e) { error.value = errorMessage(e, 'Для этого домена еще нет готовой проверки.') }
-  finally { loading.value = false }
+  finally { loadingLatest.value = false }
 }
 
 async function startAudit() {
   if (!domain.value.trim()) { error.value = 'Введите домен сайта.'; return }
-  loading.value = true; error.value = ''; issues.value = []
+  if (checking.value) return
+  startingAudit.value = true; error.value = ''; success.value = ''; issues.value = []
   try {
     latest.value = await miniSeoStart(domain.value.trim(), seoParams.value)
     await loadAudit(latest.value.audit_id)
     if (running.value) startPolling()
-  } catch (e) { error.value = errorMessage(e, 'Не удалось запустить проверку сайта.') }
-  finally { loading.value = false }
+    else handleAuditCompletion(true)
+  } catch (e) {
+    console.error('SEO audit start failed', e)
+    error.value = startAuditErrorMessage(e)
+  } finally { startingAudit.value = false }
 }
 
 async function downloadPdf() {
@@ -123,14 +159,24 @@ onUnmounted(stopPolling)
     <section class="surface">
       <label class="text-sm font-semibold text-slate-800" for="seo-domain">Домен сайта</label>
       <div class="mt-2 flex flex-col gap-2 sm:flex-row">
-        <input id="seo-domain" v-model="domain" class="form-control flex-1" placeholder="example.com">
-        <button type="button" class="action-button-primary" :disabled="loading" @click="startAudit"><SearchCheck :size="18" />{{ loading ? 'Проверяем...' : 'Проверить сайт' }}</button>
-        <button type="button" class="action-button-secondary" :disabled="loading" @click="findLatest">Показать прошлую проверку</button>
+        <input id="seo-domain" v-model="domain" class="form-control flex-1" placeholder="example.com" :disabled="checking">
+        <button type="button" class="action-button-primary" :disabled="checking" @click="startAudit">
+          <span v-if="checking" class="button-spinner" aria-hidden="true" />
+          <SearchCheck v-else :size="18" />
+          {{ checking ? 'Проверяем сайт...' : 'Проверить сайт' }}
+        </button>
+        <button type="button" class="action-button-secondary" :disabled="checking || loadingLatest" @click="findLatest">
+          {{ loadingLatest ? 'Загружаем...' : 'Показать прошлую проверку' }}
+        </button>
       </div>
     </section>
 
-    <p v-if="error" class="notice-error">{{ error }}</p>
-    <section v-if="running" class="notice-info">Проверяем страницы сайта. Результаты обновятся автоматически.</section>
+    <p v-if="error" class="notice-error" role="alert">{{ error }}</p>
+    <p v-if="success" class="notice-success" role="status">{{ success }}</p>
+    <section v-if="checking" class="notice-info flex items-start gap-3" aria-live="polite" aria-busy="true">
+      <span class="button-spinner mt-0.5 text-cyan-700" aria-hidden="true" />
+      <span>Идет SEO-аудит сайта. Это может занять до 30–60 секунд. Не закрывайте страницу.</span>
+    </section>
 
     <template v-if="detail || latest">
       <section class="grid gap-4 sm:grid-cols-[220px_1fr]">
