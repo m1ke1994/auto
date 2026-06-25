@@ -264,7 +264,15 @@ class PublicLeadCreateSerializer(serializers.Serializer):
         return meta.get("REMOTE_ADDR")
 
     def _send_site_lead_telegram_notification(self, *, site: Site, lead: SiteLead) -> None:
-        delivered = send_lead_telegram_notification(lead, site=site)
+        try:
+            delivered = send_lead_telegram_notification(lead, site=site)
+        except Exception:
+            logger.exception(
+                "Site lead telegram notification crashed site_id=%s lead_id=%s",
+                site.id,
+                lead.id,
+            )
+            return
         if not delivered:
             logger.warning(
                 "Site lead telegram notification skipped or failed site_id=%s lead_id=%s",

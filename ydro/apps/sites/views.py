@@ -211,13 +211,18 @@ class AdminSiteTelegramStatusView(AdminSiteAccessMixin, APIView):
     def get(self, request, site_id: int):
         site = self.get_site()
         connected = bool(site.telegram_chat_id and site.send_to_telegram)
+        delivery_mode = str(getattr(settings, "TELEGRAM_DELIVERY_MODE", "direct") or "").strip().lower()
+        if delivery_mode == "relay":
+            bot_configured = bool(getattr(settings, "TELEGRAM_RELAY_URL", "") and getattr(settings, "TELEGRAM_RELAY_TOKEN", ""))
+        else:
+            bot_configured = bool(getattr(settings, "TELEGRAM_BOT_TOKEN", ""))
         data = {
             "connected": connected,
             "telegram_status": "connected" if connected else "disconnected",
             "send_to_telegram": bool(site.send_to_telegram),
             "chat_id": site.telegram_chat_id or "",
             "connected_at": site.telegram_connected_at,
-            "bot_configured": bool(getattr(settings, "TELEGRAM_BOT_TOKEN", "")),
+            "bot_configured": bot_configured,
         }
         data.update(_telegram_connect_data(site))
         return Response(data, status=status.HTTP_200_OK)

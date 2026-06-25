@@ -16,6 +16,7 @@ from clients.models import Client
 from clients.telegram_binding import resolve_secure_start_payload
 from subscriptions.models import Subscription, TelegramLink
 from telegram_logs.models import TelegramUpdateLog
+from telegram_logs.sender import send_telegram_message
 from telegram_logs.services import extract_message, save_telegram_update
 
 logger = logging.getLogger(__name__)
@@ -102,18 +103,9 @@ class Command(BaseCommand):
             return {}
 
     def _send_message(self, token: str, chat_id: int, text: str, reply_markup: dict | None = None) -> None:
-        endpoint = f"https://api.telegram.org/bot{token}/sendMessage"
-        payload = {"chat_id": chat_id, "text": text}
-        if reply_markup:
-            payload["reply_markup"] = reply_markup
-        try:
-            response = requests.post(endpoint, json=payload, timeout=15)
-            response.raise_for_status()
-            response_payload = response.json()
-            if not response_payload.get("ok"):
-                logger.warning("Telegram sendMessage not ok: chat_id=%s payload=%s", chat_id, response_payload)
-        except requests.RequestException:
-            logger.exception("Failed to send Telegram message to chat_id=%s", chat_id)
+        delivered = send_telegram_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
+        if not delivered:
+            logger.warning("Telegram polling reply was not delivered chat_id=%s", chat_id)
 
     def _answer_callback(self, token: str, callback_query_id: str, text: str | None = None) -> None:
         endpoint = f"https://api.telegram.org/bot{token}/answerCallbackQuery"
@@ -296,6 +288,11 @@ class Command(BaseCommand):
             return
 
     def handle(self, *args, **options):
+        delivery_mode = str(getattr(settings, "TELEGRAM_DELIVERY_MODE", "direct") or "").strip().lower()
+        if delivery_mode == "relay":
+            logger.info("Telegram polling disabled because TELEGRAM_DELIVERY_MODE=relay. pid=%s", os.getpid())
+            return
+
         mode = "webhook" if bool(getattr(settings, "TELEGRAM_USE_WEBHOOK", False)) else "polling"
         logger.info("Telegram runtime mode=%s pid=%s", mode, os.getpid())
         if mode == "webhook":
@@ -472,4 +469,3 @@ class Command(BaseCommand):
                 cache.delete(lock_key)
                 logger.info("Telegram polling redis lock released. lock_key=%s pid=%s", lock_key, os.getpid())
             self._release_file_lock(file_lock_fd)
-

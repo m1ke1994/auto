@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 
 from apps.sites.telegram_binding import resolve_site_start_payload
 from clients.telegram_binding import resolve_secure_start_payload
-from leads.services import send_telegram_message
+from telegram_logs.sender import send_telegram_message
 from telegram_logs.services import extract_message, save_telegram_update
 
 logger = logging.getLogger(__name__)

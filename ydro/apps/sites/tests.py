@@ -456,6 +456,21 @@ class SitesApiTests(APITestCase):
         self.assertEqual(SiteLead.objects.count(), 1)
         mocked_telegram.assert_called_once()
 
+    @patch("apps.sites.serializers.send_lead_telegram_notification", side_effect=RuntimeError("telegram down"))
+    def test_public_lead_is_saved_even_if_telegram_sender_crashes(self, mocked_telegram):
+        url = reverse("public-leads-create")
+        payload = {
+            "site_slug": self.site.slug,
+            "name": "Иван",
+            "phone": "+79990000000",
+            "message": "Тестовая заявка",
+        }
+        response = self.client.post(url, payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(SiteLead.objects.count(), 1)
+        mocked_telegram.assert_called_once()
+
     def test_admin_user_sees_only_own_site_leads_and_can_patch_status(self):
         own_lead = SiteLead.objects.create(site=self.site, name="Own", phone="+70000000001")
         foreign_lead = SiteLead.objects.create(site=self.other_site, name="Foreign", phone="+70000000002")
