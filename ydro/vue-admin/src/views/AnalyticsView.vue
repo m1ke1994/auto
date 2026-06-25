@@ -26,7 +26,15 @@ import {
   getSiteAnalyticsSessionRequest,
   getSiteAnalyticsSummaryRequest,
 } from '../api/analytics'
+import AnalyticsInfoBlock from '../components/AnalyticsInfoBlock.vue'
+import AnalyticsInsightBlock from '../components/AnalyticsInsightBlock.vue'
+import AnalyticsRecommendationCard from '../components/AnalyticsRecommendationCard.vue'
+import AnalyticsSummaryCard from '../components/AnalyticsSummaryCard.vue'
 import DashboardStats from '../components/DashboardStats.vue'
+import EmptyAnalyticsState from '../components/EmptyAnalyticsState.vue'
+import MetricHelpTooltip from '../components/MetricHelpTooltip.vue'
+import MetricStatusBadge from '../components/MetricStatusBadge.vue'
+import WhatToDoNextBlock from '../components/WhatToDoNextBlock.vue'
 import { refreshSiteTrackingKeyRequest } from '../api/site'
 import { useSiteStore } from '../stores/site'
 
@@ -49,7 +57,6 @@ const pageFilter = ref('')
 const deviceFilter = ref('all')
 const eventTypeFilter = ref('')
 
-const emptyText = 'Данных пока нет. Они появятся после новых посещений сайта.'
 const siteId = computed(() => Number(route.params.siteId))
 const trackerScript = computed(() => summary.value?.tracker?.script_tag || siteStore.currentSite?.tracker_script_tag || '')
 const activePayload = computed(() => sectionData.value[activeTab.value] || {})
@@ -81,20 +88,15 @@ const endpointByTab = {
   recommendations: 'recommendations',
 }
 
-const stats = computed(() => [
-  { label: 'Реальные', value: summary.value?.real_visitors ?? summary.value?.visit_count ?? 0, sub: 'посещения без ботов' },
-  { label: 'Боты', value: summary.value?.bot_visitors ?? 0, sub: 'не входят в конверсию' },
-  { label: 'Всего', value: summary.value?.total_visitors ?? summary.value?.visit_count ?? 0, sub: 'включая ботов' },
-  { label: 'Уникальные', value: summary.value?.unique_real_visitors ?? summary.value?.visitors_unique ?? 0, sub: 'реальные посетители' },
-  { label: 'Просмотры', value: summary.value?.pageviews_count ?? 0, sub: includeBots.value ? 'с ботами' : 'только реальные' },
-  { label: 'Заявки', value: summary.value?.leads_count ?? 0, sub: `конверсия ${summary.value?.conversion ?? 0}%` },
-])
-
 const deviceRows = computed(() => distributionRows(summary.value?.devices))
 const browserRows = computed(() => distributionRows(summary.value?.browsers))
 const osRows = computed(() => distributionRows(summary.value?.os))
 const heatmapCanvas = computed(() => activePayload.value?.canvas || { width: 1440, height: 1800 })
 const heatmapPoints = computed(() => activePayload.value?.points || [])
+const periodLabel = computed(() => {
+  const value = summary.value?.period_days || days.value
+  return `последние ${value} дней`
+})
 const pageOptions = computed(() => {
   const rawPages = activePayload.value?.pages?.length ? activePayload.value.pages : (summary.value?.top_pages || [])
   const seen = new Set()
@@ -107,6 +109,105 @@ const pageOptions = computed(() => {
     })
 })
 
+const overviewMetricCards = computed(() => {
+  const visits = Number(summary.value?.real_visitors ?? summary.value?.visit_count ?? 0)
+  const unique = Number(summary.value?.unique_real_visitors ?? summary.value?.visitors_unique ?? 0)
+  const pageviews = Number(summary.value?.pageviews_count ?? 0)
+  const leads = Number(summary.value?.leads_count ?? 0)
+  const conversion = Number(summary.value?.conversion ?? 0)
+  const avgDuration = Number(summary.value?.avg_duration ?? 0)
+  return [
+    {
+      label: 'Посещения',
+      value: visits,
+      description: 'Сколько раз сайт открывали за выбранный период.',
+      tooltip: 'Если один человек заходил несколько раз, каждое посещение считается отдельно.',
+      status: countStatus(visits, 20, 5),
+      recommendation: visits < 5 ? 'Проверьте рекламу, SEO, ссылки на сайт и установку трекера.' : 'Смотрите, какие страницы и источники приводят качественные визиты.',
+    },
+    {
+      label: 'Уникальные посетители',
+      value: unique,
+      description: 'Сколько разных людей посетили сайт.',
+      tooltip: 'Мы стараемся отличать реальных людей от повторных заходов и ботов.',
+      status: countStatus(unique, 15, 5),
+      recommendation: unique < 5 ? 'Сайту пока не хватает входящего трафика.' : 'Сравните уникальных посетителей с заявками и конверсией.',
+    },
+    {
+      label: 'Просмотры',
+      value: pageviews,
+      description: 'Сколько страниц открыли посетители.',
+      tooltip: 'Один посетитель может открыть несколько страниц.',
+      status: visits < 5 ? 'Недостаточно данных' : pageviews / Math.max(visits, 1) >= 1.5 ? 'Хорошо' : 'Требует внимания',
+      recommendation: pageviews <= visits ? 'Добавьте заметные переходы на услуги, контакты и форму заявки.' : 'Посмотрите, какие страницы удерживают пользователей лучше всего.',
+    },
+    {
+      label: 'Заявки',
+      value: leads,
+      description: 'Сколько людей оставили заявку через формы сайта.',
+      tooltip: 'Это ключевой показатель эффективности сайта.',
+      status: visits < 5 ? 'Недостаточно данных' : leads > 0 ? 'Хорошо' : 'Критично',
+      recommendation: leads ? 'Проверьте, какие страницы и пути чаще приводят заявки.' : 'Если трафик есть, проверьте форму, оффер, кнопки и тепловую карту.',
+    },
+    {
+      label: 'Конверсия',
+      value: `${conversion}%`,
+      description: 'Какая доля посетителей оставила заявку.',
+      tooltip: 'Конверсия показывает, насколько хорошо сайт превращает посетителей в клиентов.',
+      status: conversionStatus(conversion, visits),
+      recommendation: conversion < 2 ? 'Улучшите первый экран, кнопки и форму заявки.' : 'Усильте страницы и источники, которые уже дают заявки.',
+    },
+    {
+      label: 'Среднее время на сайте',
+      value: formatSeconds(avgDuration),
+      description: 'Сколько в среднем посетители проводят на сайте.',
+      tooltip: 'Низкое время может означать, что пользователи не находят нужную информацию.',
+      status: durationStatus(avgDuration, visits),
+      recommendation: avgDuration < 30 ? 'Проверьте скорость загрузки и понятность первого экрана.' : 'Посмотрите пути пользователей и страницы с хорошим удержанием.',
+    },
+  ]
+})
+
+const periodSummaryText = computed(() => {
+  const visits = Number(summary.value?.real_visitors ?? summary.value?.visit_count ?? 0)
+  const leads = Number(summary.value?.leads_count ?? 0)
+  const conversion = Number(summary.value?.conversion ?? 0)
+  if (!summary.value || visits < 5) {
+    return 'Данных пока недостаточно для точной оценки. Проверьте, установлен ли код трекера, открыт ли сайт публично и были ли реальные посещения.'
+  }
+  const status = conversionStatus(conversion, visits).toLowerCase()
+  if (leads === 0) {
+    return `За ${periodLabel.value} сайт посетили ${visits} человек, но заявок пока нет. Трафик есть, поэтому стоит проверить форму, кнопки и тепловую карту.`
+  }
+  if (conversion < 2) {
+    return `За ${periodLabel.value} сайт посетили ${visits} человек. Заявок — ${leads}, конверсия ${conversion}%. Это требует внимания: пользователи доходят до сайта, но не становятся клиентами.`
+  }
+  return `За ${periodLabel.value} сайт посетили ${visits} человек. Из них ${leads} оставили заявку. Конверсия составляет ${conversion}%, это ${status} показатель для текущего периода.`
+})
+
+const attentionItems = computed(() => {
+  const visits = Number(summary.value?.real_visitors ?? summary.value?.visit_count ?? 0)
+  const total = Number(summary.value?.total_visitors ?? visits)
+  const bots = Number(summary.value?.bot_visitors ?? 0)
+  const leads = Number(summary.value?.leads_count ?? 0)
+  const conversion = Number(summary.value?.conversion ?? 0)
+  const avgDuration = Number(summary.value?.avg_duration ?? 0)
+  const pageviews = Number(summary.value?.pageviews_count ?? 0)
+  const items = []
+  if (visits < 5) items.push('Пока мало данных: проверьте установку трекера и выбранный период.')
+  if (visits >= 5 && leads === 0) items.push('Трафик есть, но заявок нет: проверьте форму, оффер и кнопки.')
+  if (visits >= 5 && conversion < 2) items.push('Конверсия ниже ожидаемой: стоит посмотреть тепловую карту и записи сессий.')
+  if (total > 0 && bots / total > 0.25) items.push('Высокая доля ботов: основные выводы лучше делать по реальным посетителям.')
+  if (visits >= 5 && avgDuration < 30) items.push('Среднее время на сайте низкое: первый экран может быть непонятным или страница грузится долго.')
+  if (visits >= 5 && pageviews <= visits) items.push('Пользователи редко переходят дальше первой страницы.')
+  const mobile = Number(summary.value?.devices?.mobile || 0)
+  const deviceTotal = Object.values(summary.value?.devices || {}).reduce((sum, value) => sum + Number(value || 0), 0)
+  if (deviceTotal && mobile / deviceTotal >= 0.6) items.push('Большинство посетителей заходят с телефона: проверьте мобильную форму и кнопки.')
+  return items.slice(0, 6)
+})
+
+const sectionGuide = computed(() => buildSectionGuide(activeTab.value, activePayload.value))
+
 function distributionRows(distribution) {
   const entries = Object.entries(distribution || {})
   const total = entries.reduce((sum, [, count]) => sum + Number(count || 0), 0)
@@ -118,6 +219,233 @@ function distributionRows(distribution) {
     }))
     .filter((item) => item.count > 0)
     .sort((left, right) => right.count - left.count)
+}
+
+function countStatus(value, good, normal) {
+  const count = Number(value || 0)
+  if (count <= 0) return 'Недостаточно данных'
+  if (count >= good) return 'Хорошо'
+  if (count >= normal) return 'Нормально'
+  return 'Требует внимания'
+}
+
+function conversionStatus(value, visits) {
+  if (Number(visits || 0) < 5) return 'Недостаточно данных'
+  const conversion = Number(value || 0)
+  if (conversion > 5) return 'Хорошо'
+  if (conversion >= 2) return 'Нормально'
+  if (conversion >= 1) return 'Требует внимания'
+  return 'Критично'
+}
+
+function durationStatus(value, visits) {
+  if (Number(visits || 0) < 5) return 'Недостаточно данных'
+  const seconds = Number(value || 0)
+  if (seconds > 90) return 'Хорошо'
+  if (seconds >= 30) return 'Нормально'
+  if (seconds >= 10) return 'Требует внимания'
+  return 'Критично'
+}
+
+function scrollStatus(value, sessions) {
+  if (Number(sessions || 0) < 3) return 'Недостаточно данных'
+  const depth = Number(value || 0)
+  if (depth > 75) return 'Хорошо'
+  if (depth >= 50) return 'Нормально'
+  if (depth >= 25) return 'Требует внимания'
+  return 'Критично'
+}
+
+function buildSectionGuide(tab, payload) {
+  if (tab === 'heatmap') {
+    const clicks = Number(payload.total_clicks || 0)
+    return {
+      title: 'Тепловая карта кликов',
+      description: 'Показывает, куда посетители нажимают на страницах сайта. Красные зоны получают больше всего кликов.',
+      usage: 'Выберите страницу и устройство. Если люди кликают не туда, где есть действие, элемент может выглядеть как кнопка или отвлекать от заявки.',
+      insight: clicks ? `За период собрано ${clicks} кликов. Посмотрите, совпадают ли горячие зоны с кнопками заявки и важными ссылками.` : 'Кликов пока нет. Данные появятся после новых посещений сайта.',
+      meaning: [
+        'Если важная кнопка почти не получает кликов, её нужно сделать заметнее или поднять выше.',
+        'Если много кликов по изображению, пользователи могут считать его интерактивным.',
+        'Если клики распределены хаотично, на странице может быть слишком много отвлекающих элементов.',
+      ],
+      actions: [
+        'Поднимите ключевую кнопку ближе к первому экрану.',
+        'Сделайте кнопку заявки контрастнее и понятнее.',
+        'Добавьте ссылку на элемент, по которому часто кликают.',
+        'Уберите или ослабьте элементы, которые отвлекают от формы.',
+      ],
+    }
+  }
+  if (tab === 'scrollmap') {
+    const depth = Number(payload.average_depth || 0)
+    return {
+      title: 'Карта скроллинга',
+      description: 'Показывает, до какой части страницы реально доходят посетители.',
+      usage: 'Если форма, контакты или преимущества находятся ниже средней глубины, большинство пользователей их не увидит.',
+      insight: depth ? `Средняя глубина прокрутки ${depth}%. Статус: ${scrollStatus(depth, payload.sessions)}.` : 'Пока нет данных о прокрутке.',
+      meaning: [
+        'Если пользователи не доходят до важного блока, его лучше перенести выше.',
+        'Если до формы доходят меньше 30%, форма находится слишком низко.',
+        'Низкая глубина часто означает слабый первый экран или недостаточно понятное предложение.',
+      ],
+      actions: [
+        'Поднимите форму или кнопку заявки выше.',
+        'Сократите длинные вступительные блоки.',
+        'Добавьте переход к заявке в первой видимой области.',
+      ],
+    }
+  }
+  if (tab === 'sessions') {
+    const count = Number(payload.count || 0)
+    return {
+      title: 'Записи сессий',
+      description: 'Это timeline поведения без записи видео: переходы, клики, скроллы и отправки форм.',
+      usage: 'Откройте сессию и посмотрите, где пользователь останавливается, куда кликает и доходит ли до формы.',
+      insight: count ? `За период найдено ${count} сессий. Начните с коротких сессий без заявки и сессий с большим числом кликов.` : 'Сессий пока нет.',
+      meaning: [
+        'Повторяющиеся клики в одном месте часто означают непонятный интерфейс.',
+        'Короткие сессии без скролла могут указывать на слабый первый экран.',
+        'Если пользователь дошёл до формы и ушёл, проверьте длину и понятность формы.',
+      ],
+      actions: [
+        'Посмотрите 5-10 последних сессий без заявки.',
+        'Проверьте, не кликают ли пользователи по неактивным элементам.',
+        'Сравните поведение на мобильных и десктопе.',
+      ],
+    }
+  }
+  if (tab === 'paths') {
+    const top = payload.paths?.[0]
+    return {
+      title: 'Пути пользователей',
+      description: 'Показывает, по каким страницам люди проходят до заявки или до выхода.',
+      usage: 'Ищите пути, которые заканчиваются выходом, и страницы, после которых пользователи чаще оставляют заявку.',
+      insight: top ? `Самый популярный путь: ${top.path}. Сессий: ${top.sessions}, конверсия: ${top.conversion}%.` : 'Пути пока не сформировались.',
+      meaning: [
+        'Если путь часто заканчивается выходом, на последней странице не хватает следующего действия.',
+        'Если путь до формы длинный, часть пользователей теряется по дороге.',
+        'Пути с заявками стоит усиливать и делать более заметными.',
+      ],
+      actions: [
+        'Добавьте кнопку заявки на страницы выхода.',
+        'Сделайте путь до формы короче.',
+        'Добавьте внутренние ссылки с популярных страниц на контакты или услуги.',
+      ],
+    }
+  }
+  if (tab === 'funnels') {
+    const steps = payload.steps || []
+    const worst = steps.slice(1).sort((a, b) => Number(b.lost || 0) - Number(a.lost || 0))[0]
+    return {
+      title: 'Воронки',
+      description: 'Показывает, сколько людей проходит от посещения сайта до заявки.',
+      usage: 'Главное место потерь показывает, какой шаг мешает росту заявок.',
+      insight: worst ? `Самая большая потеря сейчас на шаге «${worst.title}»: ${worst.lost} пользователей.` : 'Воронка появится после новых посещений и событий.',
+      meaning: [
+        'Потери до формы говорят о слабых переходах или незаметных кнопках.',
+        'Потери после открытия формы могут означать длинную или непонятную форму.',
+        'Резкое падение на первом шаге часто связано с первым экраном и скоростью.',
+      ],
+      actions: [
+        'Уменьшите количество полей в форме.',
+        'Сделайте кнопку отправки заметнее.',
+        'Добавьте пояснение рядом с формой: что произойдёт после отправки.',
+      ],
+    }
+  }
+  if (tab === 'events') {
+    const total = (payload.events || []).reduce((sum, event) => sum + Number(event.count || 0), 0)
+    return {
+      title: 'События',
+      description: 'Журнал активности сайта: просмотры, клики, формы, ошибки и технические события.',
+      usage: 'Смотрите, какие действия происходят часто, а какие почти не появляются.',
+      insight: total ? `За период сгруппировано ${total} событий. Сравните клики, открытия формы и отправки заявки.` : 'Событий пока нет.',
+      meaning: [
+        'Много кликов и мало заявок означает, что пользователи взаимодействуют, но не доходят до цели.',
+        'Ошибки на важных страницах могут мешать отправке формы.',
+        'Если форму открывают часто, но не отправляют, проблема может быть в форме.',
+      ],
+      actions: [
+        'Проверьте события form_submit и error.',
+        'Сравните клики по кнопкам с фактическими заявками.',
+        'Откройте записи сессий для подозрительных событий.',
+      ],
+    }
+  }
+  if (tab === 'pages') {
+    const topLeadPage = (payload.pages || []).slice().sort((a, b) => Number(b.leads || 0) - Number(a.leads || 0))[0]
+    return {
+      title: 'Страницы',
+      description: 'Показывает, какие страницы привлекают внимание, теряют пользователей и приводят заявки.',
+      usage: 'Сравните просмотры, глубину, клики и конверсию. Страница с трафиком без заявок требует улучшения.',
+      insight: topLeadPage?.leads ? `Больше всего заявок даёт страница ${topLeadPage.path}: ${topLeadPage.leads}.` : 'Пока нет страницы, которая стабильно даёт заявки.',
+      meaning: [
+        'Страница с просмотрами и нулём заявок может не давать понятного следующего шага.',
+        'Высокие выходы показывают, где пользователь чаще заканчивает путь.',
+        'Низкая глубина и низкое время говорят, что контент не удерживает внимание.',
+      ],
+      actions: [
+        'Добавьте кнопку заявки на страницы с высоким трафиком.',
+        'Усильте страницы, которые уже дают заявки.',
+        'Улучшите страницы с высоким показателем отказов.',
+      ],
+    }
+  }
+  if (tab === 'errors') {
+    const errors = payload.errors || []
+    return {
+      title: 'Ошибки',
+      description: 'Показывает технические ошибки, которые могут мешать заявкам и нормальной работе сайта.',
+      usage: 'В первую очередь исправляйте повторяющиеся ошибки на страницах с формой и высоким трафиком.',
+      insight: errors.length ? `Найдено ${errors.length} групп ошибок. Повторяющиеся ошибки стоит исправлять первыми.` : 'Ошибок за период не найдено.',
+      meaning: [
+        'Ошибки JavaScript могут ломать кнопки, формы или интерактивные блоки.',
+        'Ошибка на странице заявки важнее, чем ошибка на второстепенной странице.',
+        'Повторяющиеся ошибки затрагивают больше пользователей и сильнее влияют на конверсию.',
+      ],
+      actions: [
+        'Сначала исправьте ошибки на страницах с формой.',
+        'Проверьте ошибки, которые повторяются чаще всего.',
+        'После исправления сравните количество заявок и ошибок за новый период.',
+      ],
+    }
+  }
+  if (tab === 'performance') {
+    const lcp = Number(payload.averages?.lcp || 0)
+    return {
+      title: 'Производительность',
+      description: 'Показывает скорость загрузки и стабильность страниц.',
+      usage: 'Медленная загрузка особенно критична на мобильных: пользователь может уйти до просмотра формы.',
+      insight: lcp ? `Средний LCP ${lcp} ms. ${lcp > 2500 ? 'Загрузка требует внимания.' : 'Скорость выглядит приемлемо.'}` : 'Данных о скорости пока нет.',
+      meaning: [
+        'Медленная загрузка снижает количество заявок.',
+        'Высокий CLS означает, что элементы прыгают и мешают нажимать.',
+        'Высокий INP означает задержки при взаимодействии с сайтом.',
+      ],
+      actions: [
+        'Проверьте тяжёлые изображения и видео.',
+        'Особенно внимательно проверьте мобильные устройства.',
+        'Оптимизируйте страницы с плохими метриками.',
+      ],
+    }
+  }
+  return {
+    title: 'AI-рекомендации',
+    description: 'Локальные правила анализируют поведение пользователей и подсказывают, что может увеличить заявки.',
+    usage: 'Начните с рекомендаций высокой важности, затем проверьте связанные разделы.',
+    insight: (payload.recommendations || []).length ? `Сформировано рекомендаций: ${payload.recommendations.length}.` : 'Рекомендации появятся после накопления данных.',
+    meaning: [
+      'Рекомендации строятся на фактах: кликах, скролле, заявках, ошибках и скорости.',
+      'Высокая важность означает, что сигнал может заметно влиять на заявки.',
+      'Связанные разделы помогают проверить причину рекомендации.',
+    ],
+    actions: [
+      'Начните с рекомендаций высокой важности.',
+      'Проверьте связанные страницы и разделы аналитики.',
+      'После изменений сравните показатели за новый период.',
+    ],
+  }
 }
 
 function deviceLabel(value) {
@@ -137,16 +465,6 @@ function formatSeconds(value) {
   const minutes = Math.floor(seconds / 60)
   const rest = seconds % 60
   return rest ? `${minutes} мин. ${rest} сек.` : `${minutes} мин.`
-}
-
-function importanceLabel(value) {
-  return { high: 'Высокая', medium: 'Средняя', low: 'Низкая' }[value] || 'Низкая'
-}
-
-function importanceClass(value) {
-  if (value === 'high') return 'status-danger'
-  if (value === 'medium') return 'status-warning'
-  return 'status-neutral'
 }
 
 function heatPointStyle(point) {
@@ -371,7 +689,37 @@ onMounted(async () => {
     </section>
 
     <template v-else>
+      <template v-if="activeTab !== 'overview'">
+        <AnalyticsInfoBlock
+          :title="sectionGuide.title"
+          :description="sectionGuide.description"
+          :usage="sectionGuide.usage"
+          :insight="sectionGuide.insight"
+        />
+        <AnalyticsInsightBlock :items="sectionGuide.meaning" />
+        <WhatToDoNextBlock :items="sectionGuide.actions" />
+      </template>
+
       <template v-if="activeTab === 'overview'">
+        <AnalyticsSummaryCard :text="periodSummaryText" :attention-items="attentionItems" />
+
+        <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <article v-for="metric in overviewMetricCards" :key="metric.label" class="surface">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="flex items-center gap-2">
+                  <h2 class="text-base font-semibold text-slate-950">{{ metric.label }}</h2>
+                  <MetricHelpTooltip :text="metric.tooltip" />
+                </div>
+                <p class="mt-1 text-sm leading-6 text-slate-500">{{ metric.description }}</p>
+              </div>
+              <MetricStatusBadge :status="metric.status" />
+            </div>
+            <p class="mt-4 text-3xl font-semibold text-slate-950">{{ metric.value }}</p>
+            <p class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-600">{{ metric.recommendation }}</p>
+          </article>
+        </section>
+
         <section class="surface">
           <div class="section-heading">
             <div>
@@ -393,8 +741,6 @@ onMounted(async () => {
           </div>
         </section>
 
-        <DashboardStats :items="stats" />
-
         <div class="grid gap-4 xl:grid-cols-2">
           <section class="surface">
             <div class="section-heading">
@@ -410,7 +756,7 @@ onMounted(async () => {
                 <span class="status-badge status-neutral">{{ page.count }} просмотров</span>
               </div>
             </div>
-            <div v-else class="empty-state min-h-32"><p>{{ emptyText }}</p></div>
+            <EmptyAnalyticsState v-else />
           </section>
 
           <section class="surface">
@@ -427,7 +773,7 @@ onMounted(async () => {
                 <strong class="text-sm text-slate-950">{{ item.percent }}%</strong>
               </div>
             </div>
-            <div v-else class="empty-state min-h-32"><p>{{ emptyText }}</p></div>
+            <EmptyAnalyticsState v-else />
           </section>
 
           <section class="surface">
@@ -438,7 +784,7 @@ onMounted(async () => {
                 <strong class="text-sm">{{ item.percent }}%</strong>
               </div>
             </div>
-            <div v-else class="empty-state min-h-32"><p>{{ emptyText }}</p></div>
+            <EmptyAnalyticsState v-else />
           </section>
 
           <section class="surface">
@@ -449,7 +795,7 @@ onMounted(async () => {
                 <strong class="text-sm">{{ item.percent }}%</strong>
               </div>
             </div>
-            <div v-else class="empty-state min-h-32"><p>{{ emptyText }}</p></div>
+            <EmptyAnalyticsState v-else />
           </section>
 
           <section class="surface">
@@ -460,7 +806,7 @@ onMounted(async () => {
                 <span class="text-xs text-slate-500">{{ item.count }} визитов</span>
               </div>
             </div>
-            <div v-else class="empty-state min-h-32"><p>{{ emptyText }}</p></div>
+            <EmptyAnalyticsState v-else />
           </section>
 
           <section class="surface">
@@ -508,7 +854,7 @@ onMounted(async () => {
                 :title="`${point.count} кликов`"
               />
             </div>
-            <div v-else class="empty-state"><p>{{ emptyText }}</p></div>
+            <EmptyAnalyticsState v-else />
           </section>
 
           <section class="surface">
@@ -522,7 +868,7 @@ onMounted(async () => {
                 <p class="mt-1 truncate text-xs text-slate-500">{{ item.path }}</p>
               </div>
             </div>
-            <div v-else class="empty-state min-h-32"><p>{{ emptyText }}</p></div>
+            <EmptyAnalyticsState v-else />
           </section>
         </div>
       </template>
@@ -573,7 +919,7 @@ onMounted(async () => {
                 </tbody>
               </table>
             </div>
-            <div v-else class="empty-state min-h-32"><p>{{ emptyText }}</p></div>
+            <EmptyAnalyticsState v-else />
           </section>
         </div>
       </template>
@@ -602,7 +948,7 @@ onMounted(async () => {
               </tbody>
             </table>
           </div>
-          <div v-else class="empty-state"><p>{{ emptyText }}</p></div>
+          <EmptyAnalyticsState v-else />
         </section>
 
         <section v-if="sessionLoading" class="empty-state"><span class="loading-dot" /><p>Загружаем сессию...</p></section>
@@ -639,7 +985,7 @@ onMounted(async () => {
               </tbody>
             </table>
           </div>
-          <div v-else class="empty-state"><p>{{ emptyText }}</p></div>
+          <EmptyAnalyticsState v-else />
         </section>
       </template>
 
@@ -653,7 +999,7 @@ onMounted(async () => {
               <p class="mt-2 text-xs text-slate-500">Переход: {{ step.rate }}%, потери: {{ step.lost }}</p>
             </article>
           </div>
-          <div v-else class="empty-state"><p>{{ emptyText }}</p></div>
+          <EmptyAnalyticsState v-else />
         </section>
       </template>
 
@@ -694,7 +1040,7 @@ onMounted(async () => {
               </tbody>
             </table>
           </div>
-          <div v-else class="empty-state"><p>{{ emptyText }}</p></div>
+          <EmptyAnalyticsState v-else />
         </section>
       </template>
 
@@ -720,7 +1066,7 @@ onMounted(async () => {
               </tbody>
             </table>
           </div>
-          <div v-else class="empty-state"><p>{{ emptyText }}</p></div>
+          <EmptyAnalyticsState v-else />
         </section>
       </template>
 
@@ -742,7 +1088,7 @@ onMounted(async () => {
               </tbody>
             </table>
           </div>
-          <div v-else class="empty-state"><p>{{ emptyText }}</p></div>
+          <EmptyAnalyticsState v-else />
         </section>
       </template>
 
@@ -764,7 +1110,7 @@ onMounted(async () => {
                 <span class="status-badge status-warning">{{ page.count }}</span>
               </div>
             </div>
-            <div v-else class="empty-state min-h-32"><p>{{ emptyText }}</p></div>
+            <EmptyAnalyticsState v-else />
           </section>
           <section class="surface">
             <div class="section-heading"><div><h2>По устройствам</h2><p>Средние значения по типу устройства.</p></div></div>
@@ -782,7 +1128,7 @@ onMounted(async () => {
                 </tbody>
               </table>
             </div>
-            <div v-else class="empty-state min-h-32"><p>{{ emptyText }}</p></div>
+            <EmptyAnalyticsState v-else />
           </section>
         </div>
       </template>
@@ -791,16 +1137,9 @@ onMounted(async () => {
         <section class="surface">
           <div class="section-heading"><div><h2>AI-рекомендации</h2><p>Правила и локальные сигналы без внешнего AI API.</p></div></div>
           <div v-if="(activePayload.recommendations || []).length" class="grid gap-3 lg:grid-cols-2">
-            <article v-for="item in activePayload.recommendations" :key="`${item.title}-${item.page}`" class="rounded-lg border border-slate-200 p-4">
-              <div class="flex items-start justify-between gap-3">
-                <h3 class="text-base font-semibold text-slate-950">{{ item.title }}</h3>
-                <span class="status-badge" :class="importanceClass(item.importance)">{{ importanceLabel(item.importance) }}</span>
-              </div>
-              <p v-if="item.page" class="mt-2 text-sm font-medium text-cyan-700">{{ item.page }}</p>
-              <p class="mt-2 text-sm leading-6 text-slate-600">{{ item.reason }}</p>
-            </article>
+            <AnalyticsRecommendationCard v-for="item in activePayload.recommendations" :key="`${item.title}-${item.page}`" :item="item" />
           </div>
-          <div v-else class="empty-state"><p>{{ emptyText }}</p></div>
+          <EmptyAnalyticsState v-else />
         </section>
       </template>
     </template>

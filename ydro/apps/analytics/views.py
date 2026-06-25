@@ -1269,19 +1269,34 @@ class AdminSiteAnalyticsRecommendationsView(AdminSiteAnalyticsBaseView):
             return self.site_not_found()
 
         recommendations = []
+
+        def add_recommendation(title, importance, reason, *, page="", description="", what_to_do="", related_sections=None):
+            recommendations.append(
+                {
+                    "title": title,
+                    "description": description,
+                    "importance": importance,
+                    "page": page,
+                    "reason": reason,
+                    "what_to_do": what_to_do,
+                    "related_sections": related_sections or [],
+                }
+            )
+
         pageviews = scope["pageviews"].select_related("visit").order_by("-timestamp")[:30000]
         page_counts = Counter(_pageview_path(pageview) for pageview in pageviews)
         leads_by_page = Counter(_pathname_from_url(getattr(lead, "source_url", "") or "") for lead in scope["leads"].only("source_url"))
 
         for path, views_count in page_counts.most_common(20):
             if views_count >= 5 and leads_by_page[path] == 0:
-                recommendations.append(
-                    {
-                        "title": f"Страница {path} получает трафик, но не даёт заявок.",
-                        "importance": "high" if views_count >= 20 else "medium",
-                        "page": path,
-                        "reason": f"{views_count} просмотров за период и 0 заявок.",
-                    }
+                add_recommendation(
+                    f"Страница {path} получает трафик, но не даёт заявок.",
+                    "high" if views_count >= 20 else "medium",
+                    f"{views_count} просмотров за период и 0 заявок.",
+                    page=path,
+                    description="Пользователи доходят до страницы, но не видят достаточно убедительного следующего шага.",
+                    what_to_do="Добавьте заметную кнопку заявки, усилите оффер и проверьте, где пользователи кликают на этой странице.",
+                    related_sections=["Страницы", "Тепловая карта", "Пути пользователей"],
                 )
 
         scroll_values = []
@@ -1305,54 +1320,54 @@ class AdminSiteAnalyticsRecommendationsView(AdminSiteAnalyticsBaseView):
 
         avg_scroll = round(sum(scroll_values) / len(scroll_values), 1) if scroll_values else 0
         if avg_scroll and avg_scroll < 45:
-            recommendations.append(
-                {
-                    "title": "Пользователи редко доходят до середины страниц.",
-                    "importance": "medium",
-                    "page": "",
-                    "reason": f"Средняя глубина прокрутки {avg_scroll}%.",
-                }
+            add_recommendation(
+                "Пользователи редко доходят до середины страниц.",
+                "medium",
+                f"Средняя глубина прокрутки {avg_scroll}%.",
+                description="Важные преимущества, контакты или форма могут находиться ниже зоны, которую видит большинство посетителей.",
+                what_to_do="Перенесите ключевую кнопку, преимущества и форму выше, ближе к первому экрану.",
+                related_sections=["Карта скроллинга", "Страницы"],
             )
         if total_clicks and noninteractive_clicks / total_clicks >= 0.25:
-            recommendations.append(
-                {
-                    "title": "Много кликов по неинтерактивным элементам.",
-                    "importance": "medium",
-                    "page": "",
-                    "reason": f"{noninteractive_clicks} из {total_clicks} кликов пришлись на элементы без явного действия.",
-                }
+            add_recommendation(
+                "Много кликов по неинтерактивным элементам.",
+                "medium",
+                f"{noninteractive_clicks} из {total_clicks} кликов пришлись на элементы без явного действия.",
+                description="Пользователи могут считать картинки, блоки или текст кнопками. Это отвлекает от заявки.",
+                what_to_do="Сделайте такие элементы ссылками или визуально уберите ощущение кликабельности.",
+                related_sections=["Тепловая карта", "Записи сессий"],
             )
         if error_count:
-            recommendations.append(
-                {
-                    "title": "Есть клиентские ошибки на сайте.",
-                    "importance": "high" if error_count >= 10 else "medium",
-                    "page": "",
-                    "reason": f"За период зафиксировано {error_count} ошибок.",
-                }
+            add_recommendation(
+                "Есть клиентские ошибки на сайте.",
+                "high" if error_count >= 10 else "medium",
+                f"За период зафиксировано {error_count} ошибок.",
+                description="Ошибки JavaScript или failed fetch могут мешать кнопкам, формам и отправке заявок.",
+                what_to_do="Сначала исправьте ошибки на страницах с формами и высоким трафиком.",
+                related_sections=["Ошибки", "Записи сессий"],
             )
 
         devices = _distribution_dict(scope["visits"], "device_type", allowed={"desktop", "mobile", "tablet", "unknown"})
         device_total = sum(devices.values())
         mobile_share = round((devices.get("mobile", 0) / device_total) * 100, 1) if device_total else 0
         if mobile_share >= 60:
-            recommendations.append(
-                {
-                    "title": "Высокая доля мобильных пользователей.",
-                    "importance": "medium",
-                    "page": "",
-                    "reason": f"Мобильный трафик составляет {mobile_share}%. Проверьте формы и ключевые кнопки на телефоне.",
-                }
+            add_recommendation(
+                "Высокая доля мобильных пользователей.",
+                "medium",
+                f"Мобильный трафик составляет {mobile_share}%. Проверьте формы и ключевые кнопки на телефоне.",
+                description="Если большинство посетителей с телефона, неудобная мобильная форма напрямую снижает заявки.",
+                what_to_do="Проверьте первый экран, размер кнопок, скорость и удобство заполнения формы на телефоне.",
+                related_sections=["Обзор", "Производительность", "Записи сессий"],
             )
 
         if not recommendations:
-            recommendations.append(
-                {
-                    "title": "Критичных сигналов пока нет.",
-                    "importance": "low",
-                    "page": "",
-                    "reason": "Данных недостаточно или показатели за выбранный период стабильны.",
-                }
+            add_recommendation(
+                "Критичных сигналов пока нет.",
+                "low",
+                "Данных недостаточно или показатели за выбранный период стабильны.",
+                description="Продолжайте собирать данные и сравните показатели после новых посещений.",
+                what_to_do="Проверьте установку трекера, выбранный период и вернитесь после накопления новых сессий.",
+                related_sections=["Обзор", "Страницы"],
             )
 
         return Response({"period": period, "recommendations": recommendations[:20]})

@@ -349,6 +349,11 @@ class AnalyticsApiTests(APITestCase):
         self.assertEqual(heatmap_response.data["points"][0]["count"], 1)
         scrollmap_response = self.client.get(reverse("admin-site-analytics-scrollmap", kwargs={"site_id": self.site.id}))
         self.assertGreaterEqual(scrollmap_response.data["thresholds"]["75"]["count"], 1)
+        recommendations_response = self.client.get(reverse("admin-site-analytics-recommendations", kwargs={"site_id": self.site.id}))
+        self.assertGreaterEqual(len(recommendations_response.data["recommendations"]), 1)
+        self.assertIn("description", recommendations_response.data["recommendations"][0])
+        self.assertIn("what_to_do", recommendations_response.data["recommendations"][0])
+        self.assertIn("related_sections", recommendations_response.data["recommendations"][0])
 
         detail_response = self.client.get(
             reverse(
