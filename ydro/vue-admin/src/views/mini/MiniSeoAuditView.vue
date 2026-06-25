@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { Download, SearchCheck } from '@lucide/vue'
@@ -174,7 +174,7 @@ onUnmounted(stopPolling)
     <p v-if="error" class="notice-error" role="alert">{{ error }}</p>
     <p v-if="success" class="notice-success" role="status">{{ success }}</p>
     <section v-if="checking" class="notice-info flex items-start gap-3" aria-live="polite" aria-busy="true">
-      <span class="button-spinner mt-0.5 text-cyan-700" aria-hidden="true" />
+      <span class="button-spinner mt-0.5 text-brand-700" aria-hidden="true" />
       <span>Идет SEO-аудит сайта. Это может занять до 30–60 секунд. Не закрывайте страницу.</span>
     </section>
 

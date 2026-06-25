@@ -3,6 +3,19 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --tn-bg: #fafbff;
+    --tn-bg-soft: #f5f7fd;
+    --tn-card: #ffffff;
+    --tn-primary: #6d5df6;
+    --tn-primary-hover: #5b49f5;
+    --tn-text: #17223b;
+    --tn-muted: #667085;
+    --tn-border: rgba(109, 93, 246, 0.12);
+    --tn-shadow: 0 10px 35px rgba(32, 40, 70, 0.08);
+    --tn-shadow-hover: 0 18px 48px rgba(32, 40, 70, 0.12);
+  }
+
   html,
   body,
   #app {
@@ -10,7 +23,11 @@
   }
 
   body {
-    @apply m-0 bg-slate-50 text-slate-900 antialiased;
+    @apply m-0 antialiased;
+    background:
+      radial-gradient(circle at 82% 0%, rgba(109, 93, 246, 0.1), transparent 34rem),
+      linear-gradient(180deg, #ffffff 0%, var(--tn-bg) 42%, var(--tn-bg-soft) 100%);
+    color: var(--tn-text);
     font-family: 'Inter', 'Segoe UI', Roboto, Arial, sans-serif;
   }
 
@@ -19,7 +36,8 @@
   input,
   select,
   textarea {
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2;
+    transition-duration: 250ms;
   }
 }
 
@@ -33,11 +51,13 @@
   }
 
   .page-heading h1 {
-    @apply mt-1 text-2xl font-semibold text-slate-950 sm:text-3xl;
+    @apply mt-1 text-2xl font-bold sm:text-3xl;
+    color: var(--tn-text);
   }
 
   .page-heading p:not(.eyebrow) {
-    @apply mt-2 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base;
+    @apply mt-2 max-w-3xl text-sm leading-6 sm:text-base;
+    color: var(--tn-muted);
   }
 
   .page-heading-actions {
@@ -45,7 +65,7 @@
   }
 
   .eyebrow {
-    @apply text-xs font-semibold uppercase text-cyan-700;
+    @apply inline-flex rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold uppercase text-brand-700;
     letter-spacing: 0;
   }
 
@@ -54,49 +74,59 @@
   }
 
   .section-heading h2 {
-    @apply text-lg font-semibold text-slate-950;
+    @apply text-lg font-bold;
+    color: var(--tn-text);
   }
 
   .section-heading p {
-    @apply mt-1 text-sm text-slate-500;
+    @apply mt-1 text-sm;
+    color: var(--tn-muted);
   }
 
   .surface {
-    @apply rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5;
+    @apply rounded-2xl border bg-white p-4 shadow-soft backdrop-blur sm:p-5;
+    background: rgba(255, 255, 255, 0.9);
+    border-color: var(--tn-border);
   }
 
   .site-card {
-    @apply rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:border-cyan-300 hover:shadow-md;
+    @apply rounded-2xl border bg-white p-5 shadow-soft transition hover:-translate-y-0.5 hover:shadow-[0_18px_48px_rgba(32,40,70,0.12)];
+    background: rgba(255, 255, 255, 0.92);
+    border-color: var(--tn-border);
   }
 
   .action-button-primary,
   .action-button-secondary,
   .action-button-danger {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .action-button-primary {
-    @apply bg-cyan-600 text-white hover:bg-cyan-700;
+    @apply bg-brand-600 text-white shadow-[0_14px_30px_rgba(109,93,246,0.24)] hover:bg-brand-700 hover:shadow-[0_18px_42px_rgba(109,93,246,0.3)];
   }
 
   .action-button-secondary {
-    @apply border border-slate-300 bg-white text-slate-700 hover:border-cyan-400 hover:text-cyan-800;
+    @apply border bg-white text-brand-700 hover:bg-brand-50 hover:text-brand-800;
+    border-color: rgba(109, 93, 246, 0.26);
   }
 
   .action-button-danger {
-    @apply border border-rose-300 bg-white text-rose-700 hover:bg-rose-50;
+    @apply border border-rose-200 bg-white text-rose-700 hover:bg-rose-50;
   }
 
   .icon-button {
-    @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:border-cyan-400 hover:text-cyan-800 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border bg-white text-slate-700 shadow-sm transition hover:bg-brand-50 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-50;
+    border-color: rgba(109, 93, 246, 0.18);
   }
 
   .quick-action {
-    @apply flex min-h-20 items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-cyan-300 hover:bg-cyan-50/40;
+    @apply flex min-h-20 items-center gap-3 rounded-2xl border bg-white p-4 text-left shadow-soft transition hover:-translate-y-0.5 hover:bg-brand-50/50 hover:shadow-[0_18px_48px_rgba(32,40,70,0.11)];
+    background: rgba(255, 255, 255, 0.92);
+    border-color: var(--tn-border);
   }
 
   .quick-action > svg {
-    @apply shrink-0 text-cyan-700;
+    @apply shrink-0 text-brand-700;
   }
 
   .quick-action strong,
@@ -105,37 +135,39 @@
   }
 
   .quick-action strong {
-    @apply text-sm font-semibold text-slate-950;
+    @apply text-sm font-semibold;
+    color: var(--tn-text);
   }
 
   .quick-action small {
-    @apply mt-1 text-xs leading-5 text-slate-500;
+    @apply mt-1 text-xs leading-5;
+    color: var(--tn-muted);
   }
 
   .status-badge {
-    @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold;
+    @apply inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold;
   }
 
   .status-success {
-    @apply bg-emerald-50 text-emerald-700;
+    @apply border-emerald-200 bg-emerald-50 text-emerald-700;
   }
 
   .status-warning {
-    @apply bg-amber-50 text-amber-800;
+    @apply border-amber-200 bg-amber-50 text-amber-800;
   }
 
   .status-danger {
-    @apply bg-rose-50 text-rose-700;
+    @apply border-rose-200 bg-rose-50 text-rose-700;
   }
 
   .status-neutral {
-    @apply bg-slate-100 text-slate-600;
+    @apply border-brand-100 bg-brand-50 text-brand-700;
   }
 
   .notice-error,
   .notice-success,
   .notice-info {
-    @apply rounded-lg border px-4 py-3 text-sm leading-6;
+    @apply rounded-2xl border px-4 py-3 text-sm leading-6 shadow-sm;
   }
 
   .notice-error {
@@ -147,15 +179,19 @@
   }
 
   .notice-info {
-    @apply border-cyan-200 bg-cyan-50 text-cyan-800;
+    @apply border-brand-200 bg-brand-50 text-brand-800;
   }
 
   .empty-state {
-    @apply flex min-h-40 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-slate-500;
+    @apply flex min-h-40 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed bg-white p-6 text-center shadow-soft;
+    background: rgba(255, 255, 255, 0.88);
+    border-color: rgba(109, 93, 246, 0.22);
+    color: var(--tn-muted);
   }
 
   .empty-state h2 {
-    @apply text-base font-semibold text-slate-900;
+    @apply text-base font-semibold;
+    color: var(--tn-text);
   }
 
   .empty-state p {
@@ -163,7 +199,7 @@
   }
 
   .loading-dot {
-    @apply h-6 w-6 animate-pulse rounded-full bg-cyan-500;
+    @apply h-6 w-6 animate-pulse rounded-full bg-brand-500;
   }
 
   .button-spinner {
@@ -172,7 +208,9 @@
   }
 
   .form-control {
-    @apply min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 transition placeholder:text-slate-400 hover:border-slate-400 focus:border-cyan-500;
+    @apply min-h-11 w-full rounded-[14px] border bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 hover:border-brand-200 focus:border-brand-500;
+    background: rgba(255, 255, 255, 0.92);
+    border-color: rgba(109, 93, 246, 0.18);
   }
 
   .data-table {
@@ -180,15 +218,25 @@
   }
 
   .data-table thead {
-    @apply text-xs font-semibold uppercase text-slate-500;
+    @apply bg-brand-50/70 text-xs font-semibold uppercase text-brand-800;
     letter-spacing: 0;
   }
 
   .data-table th {
-    @apply border-b border-slate-200 px-3 py-3;
+    @apply border-b px-3 py-3;
+    border-color: var(--tn-border);
   }
 
   .data-table td {
-    @apply border-b border-slate-100 px-3 py-3 align-top text-slate-700;
+    @apply border-b px-3 py-3 align-top text-slate-700;
+    border-color: rgba(109, 93, 246, 0.08);
+  }
+
+  .data-table tbody tr {
+    @apply transition hover:bg-brand-50/45;
+  }
+
+  .data-table tbody tr:nth-child(even) {
+    background: rgba(245, 247, 253, 0.55);
   }
 }

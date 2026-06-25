@@ -20,7 +20,7 @@ defineProps({
       </div>
     </div>
     <div v-if="items.length" class="grid gap-3 lg:grid-cols-3">
-      <article v-for="item in items" :key="item" class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+      <article v-for="item in items" :key="item" class="rounded-2xl border border-brand-100 bg-[#F5F7FD] p-4 text-sm leading-6 text-slate-700">
         {{ item }}
       </article>
     </div>

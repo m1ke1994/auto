@@ -51,20 +51,20 @@ onMounted(loadDaily)
 </script>
 
 <template>
-  <section class="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
-    <h2 class="text-base font-semibold text-slate-900">Отчёты mini</h2>
+  <section class="surface space-y-4">
+    <h2 class="text-base font-semibold text-[#17223B]">Отчёты mini</h2>
     <p v-if="loading" class="text-sm text-slate-500">Загрузка...</p>
     <p v-if="error" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{{ error }}</p>
     <p v-if="message" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{{ message }}</p>
 
     <label class="flex items-center gap-2 text-sm">
-      <input v-model="enabled" type="checkbox">
+      <input v-model="enabled" type="checkbox" class="h-4 w-4 accent-brand-600">
       Ежедневный PDF в Telegram
     </label>
 
     <div class="flex flex-wrap gap-2">
-      <button class="rounded-xl border border-slate-300 px-4 py-2 text-sm" @click="saveDaily">Сохранить</button>
-      <button class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-70" :disabled="sending" @click="sendNow">
+      <button class="action-button-secondary" @click="saveDaily">Сохранить</button>
+      <button class="action-button-primary" :disabled="sending" @click="sendNow">
         {{ sending ? 'Отправляем...' : 'Отправить сейчас' }}
       </button>
     </div>

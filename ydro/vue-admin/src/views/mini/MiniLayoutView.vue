@@ -59,12 +59,12 @@ onMounted(loadSubscription)
 
 <template>
   <section class="space-y-4">
-    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h1 class="text-xl font-semibold text-slate-900">Дополнительные инструменты</h1>
+    <div class="rounded-2xl border border-brand-100 bg-white/92 p-4 shadow-soft">
+      <h1 class="text-xl font-semibold text-[#17223B]">Дополнительные инструменты</h1>
       <p class="mt-1 text-sm text-slate-500">Отчёты, настройки и дополнительные возможности сайта.</p>
     </div>
 
-    <div v-if="loading" class="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
+    <div v-if="loading" class="rounded-2xl border border-brand-100 bg-white/92 p-4 text-sm text-slate-500 shadow-soft">
       Проверяем подписку...
     </div>
 
@@ -81,18 +81,18 @@ onMounted(loadSubscription)
       <p v-if="error" class="mt-2 text-sm text-rose-700">{{ error }}</p>
     </div>
 
-    <div v-else-if="isTrial" class="rounded-2xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-cyan-900">
+    <div v-else-if="isTrial" class="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-900">
       Демо-период активен до: {{ status?.paid_until || 'не указано' }}
     </div>
 
-    <div class="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+    <div class="rounded-2xl border border-brand-100 bg-white/92 p-2 shadow-soft">
       <nav class="flex flex-wrap gap-2">
-        <RouterLink class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100" active-class="bg-brand-50 text-brand-700" to="/mini">Статистика</RouterLink>
-        <RouterLink class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100" active-class="bg-brand-50 text-brand-700" to="/mini/leads">Заявки</RouterLink>
-        <RouterLink class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100" active-class="bg-brand-50 text-brand-700" to="/mini/seo">Проверка сайта</RouterLink>
-        <RouterLink class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100" active-class="bg-brand-50 text-brand-700" to="/mini/reports">Отчёты</RouterLink>
-        <RouterLink class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100" active-class="bg-brand-50 text-brand-700" to="/mini/settings">Настройки</RouterLink>
-        <RouterLink class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100" active-class="bg-brand-50 text-brand-700" to="/mini/integration">Telegram</RouterLink>
+        <RouterLink class="rounded-2xl px-3 py-2 text-sm font-medium text-slate-600 hover:bg-brand-50" active-class="bg-brand-50 text-brand-700" to="/mini">Статистика</RouterLink>
+        <RouterLink class="rounded-2xl px-3 py-2 text-sm font-medium text-slate-600 hover:bg-brand-50" active-class="bg-brand-50 text-brand-700" to="/mini/leads">Заявки</RouterLink>
+        <RouterLink class="rounded-2xl px-3 py-2 text-sm font-medium text-slate-600 hover:bg-brand-50" active-class="bg-brand-50 text-brand-700" to="/mini/seo">Проверка сайта</RouterLink>
+        <RouterLink class="rounded-2xl px-3 py-2 text-sm font-medium text-slate-600 hover:bg-brand-50" active-class="bg-brand-50 text-brand-700" to="/mini/reports">Отчёты</RouterLink>
+        <RouterLink class="rounded-2xl px-3 py-2 text-sm font-medium text-slate-600 hover:bg-brand-50" active-class="bg-brand-50 text-brand-700" to="/mini/settings">Настройки</RouterLink>
+        <RouterLink class="rounded-2xl px-3 py-2 text-sm font-medium text-slate-600 hover:bg-brand-50" active-class="bg-brand-50 text-brand-700" to="/mini/integration">Telegram</RouterLink>
       </nav>
     </div>
 

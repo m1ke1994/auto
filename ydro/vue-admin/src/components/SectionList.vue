@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, ref } from 'vue'
 import { ChevronDown, ChevronRight, ChevronUp, Image, LayoutTemplate, MessageSquareText, Pencil, Rows3 } from '@lucide/vue'
 import { getSectionLabel } from '../utils/sectionLabels'
@@ -35,16 +35,16 @@ function toggleSection(sectionId) {
       v-for="section in sortedSections"
       :key="section.id"
       class="surface overflow-hidden p-0"
-      :class="section.is_active ? 'border-slate-200' : 'border-slate-200 bg-slate-50'"
+      :class="section.is_active ? 'border-brand-100' : 'border-brand-100 bg-[#F5F7FD]'"
     >
       <div class="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div class="flex min-w-0 items-start gap-3">
-          <span class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700">
+          <span class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-700">
             <component :is="sectionIcon(section)" :size="21" />
           </span>
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
-              <p class="truncate font-semibold text-slate-950">{{ getSectionLabel(section) }}</p>
+              <p class="truncate font-semibold text-[#17223B]">{{ getSectionLabel(section) }}</p>
               <span class="status-badge" :class="section.is_active ? 'status-success' : 'status-neutral'">
                 {{ section.is_active ? 'Активна' : 'Неактивна' }}
               </span>
@@ -67,7 +67,7 @@ function toggleSection(sectionId) {
         </div>
       </div>
 
-      <div v-if="isExpanded(section.id)" class="grid gap-3 border-t border-slate-100 bg-slate-50/80 p-4 text-sm sm:grid-cols-4 sm:p-5">
+      <div v-if="isExpanded(section.id)" class="grid gap-3 border-t border-brand-100 bg-[#F5F7FD]/80 p-4 text-sm sm:grid-cols-4 sm:p-5">
         <div>
           <p class="text-xs font-semibold uppercase text-slate-400">Название</p>
           <p class="mt-1 font-medium text-slate-800">{{ section.title || getSectionLabel(section) }}</p>

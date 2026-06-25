@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { Inbox, RefreshCw, Trash2, X } from '@lucide/vue'
@@ -148,7 +148,7 @@ onMounted(load)
               <td class="whitespace-nowrap">{{ formatDate(lead.created_at) }}</td>
               <td class="font-semibold text-slate-950">{{ lead.name || 'Имя не указано' }}</td>
               <td>
-                <a v-if="lead.phone" :href="`tel:${lead.phone}`" class="block font-medium text-cyan-800">{{ lead.phone }}</a>
+                <a v-if="lead.phone" :href="`tel:${lead.phone}`" class="block font-medium text-brand-800">{{ lead.phone }}</a>
                 <a v-if="lead.email" :href="`mailto:${lead.email}`" class="mt-1 block text-xs text-slate-500">{{ lead.email }}</a>
               </td>
               <td class="max-w-64"><p class="line-clamp-2">{{ lead.message || 'Без комментария' }}</p></td>
@@ -187,7 +187,7 @@ onMounted(load)
             <span class="status-badge" :class="statusOption(lead.status).class">{{ statusOption(lead.status).label }}</span>
           </div>
           <div class="mt-4 grid gap-2 text-sm text-slate-600">
-            <a v-if="lead.phone" :href="`tel:${lead.phone}`" class="font-medium text-cyan-800">{{ lead.phone }}</a>
+            <a v-if="lead.phone" :href="`tel:${lead.phone}`" class="font-medium text-brand-800">{{ lead.phone }}</a>
             <a v-if="lead.email" :href="`mailto:${lead.email}`">{{ lead.email }}</a>
             <p>{{ lead.message || 'Без комментария' }}</p>
             <p class="text-xs text-slate-500">Страница: {{ pageLabel(lead.source_url) }}</p>
@@ -206,12 +206,12 @@ onMounted(load)
       </section>
     </template>
 
-    <div v-if="selectedLead" class="fixed inset-0 z-50 flex items-end bg-slate-950/45 sm:items-center sm:justify-center sm:p-5" @click.self="selectedLead = null">
-      <section class="max-h-[92vh] w-full overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-w-2xl sm:rounded-lg">
+    <div v-if="selectedLead" class="fixed inset-0 z-50 flex items-end bg-slate-950/35 backdrop-blur-sm sm:items-center sm:justify-center sm:p-5" @click.self="selectedLead = null">
+      <section class="max-h-[92vh] w-full overflow-y-auto rounded-t-[24px] border border-brand-100 bg-white/94 p-5 shadow-[0_24px_70px_rgba(32,40,70,0.16)] backdrop-blur-xl sm:max-w-2xl sm:rounded-[24px]">
         <div class="flex items-start justify-between gap-3">
           <div>
             <p class="eyebrow">Карточка заявки</p>
-            <h2 class="mt-1 text-xl font-semibold text-slate-950">{{ selectedLead.name || 'Имя не указано' }}</h2>
+            <h2 class="mt-1 text-xl font-semibold text-[#17223B]">{{ selectedLead.name || 'Имя не указано' }}</h2>
           </div>
           <button type="button" class="icon-button" aria-label="Закрыть" @click="selectedLead = null"><X :size="19" /></button>
         </div>

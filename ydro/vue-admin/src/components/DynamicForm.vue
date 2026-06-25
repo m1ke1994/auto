@@ -35,10 +35,10 @@ function updateField(key, value) {
     <section
       v-for="group in fieldGroups"
       :key="group.id"
-      class="rounded-lg border border-slate-200 bg-white p-4"
+      class="rounded-2xl border border-brand-100 bg-white/92 p-4 shadow-soft"
     >
-      <div class="mb-4 border-b border-slate-100 pb-3">
-        <h3 class="text-sm font-semibold text-slate-950">{{ group.title }}</h3>
+      <div class="mb-4 border-b border-brand-100 pb-3">
+        <h3 class="text-sm font-semibold text-[#17223B]">{{ group.title }}</h3>
         <p class="mt-1 text-xs leading-5 text-slate-500">{{ group.description }}</p>
       </div>
 

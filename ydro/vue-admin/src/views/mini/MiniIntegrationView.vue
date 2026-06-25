@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { CheckCircle2, MessageCircle, Send, Unplug } from '@lucide/vue'
@@ -92,11 +92,11 @@ onMounted(load)
       <section class="surface">
         <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex items-start gap-3">
-            <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-lg" :class="connected ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
+            <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl" :class="connected ? 'bg-emerald-50 text-emerald-700' : 'bg-brand-50 text-brand-700'">
               <CheckCircle2 v-if="connected" :size="24" /><MessageCircle v-else :size="24" />
             </span>
             <div>
-              <h2 class="text-lg font-semibold text-slate-950">{{ connected ? 'Telegram подключен' : 'Telegram не подключен' }}</h2>
+              <h2 class="text-lg font-semibold text-[#17223B]">{{ connected ? 'Telegram подключен' : 'Telegram не подключен' }}</h2>
               <p class="mt-1 text-sm leading-6 text-slate-600">{{ connected ? 'Новые заявки будут приходить в ваш чат.' : 'Подключите чат, чтобы сразу узнавать о новых заявках.' }}</p>
             </div>
           </div>
@@ -109,13 +109,13 @@ onMounted(load)
       <section class="surface">
         <div class="section-heading"><div><h2>Как это работает</h2><p>Подключение занимает меньше минуты.</p></div></div>
         <ol class="grid gap-3 sm:grid-cols-3">
-          <li v-for="(text, index) in ['Откройте бота', 'Отправьте команду /start с токеном', 'Вернитесь сюда и отправьте тест']" :key="text" class="rounded-lg bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-            <strong class="mb-2 block text-cyan-800">Шаг {{ index + 1 }}</strong>{{ text }}
+          <li v-for="(text, index) in ['Откройте бота', 'Отправьте команду /start с токеном', 'Вернитесь сюда и отправьте тест']" :key="text" class="rounded-2xl bg-[#F5F7FD] p-4 text-sm leading-6 text-slate-700">
+            <strong class="mb-2 block text-brand-800">Шаг {{ index + 1 }}</strong>{{ text }}
           </li>
         </ol>
-        <div v-if="!connected && telegram?.start_command" class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <div v-if="!connected && telegram?.start_command" class="mt-4 rounded-2xl border border-brand-100 bg-[#F5F7FD] p-4">
           <p class="text-sm font-semibold text-slate-800">Команда для подключения</p>
-          <code class="mt-2 block overflow-x-auto rounded-lg bg-white px-3 py-2 text-sm text-slate-800">{{ telegram.start_command }}</code>
+          <code class="mt-2 block overflow-x-auto rounded-2xl bg-white px-3 py-2 text-sm text-slate-800">{{ telegram.start_command }}</code>
           <div class="mt-3 flex flex-col gap-2 sm:flex-row">
             <button v-if="telegram?.telegram_connect_url" type="button" class="action-button-primary" @click="connect"><MessageCircle :size="17" />Открыть бота</button>
             <button type="button" class="action-button-secondary" :disabled="Boolean(action)" @click="copyCommand">Скопировать команду</button>

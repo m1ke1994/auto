@@ -45,31 +45,31 @@ onMounted(loadSettings)
 </script>
 
 <template>
-  <section class="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
-    <h2 class="text-base font-semibold text-slate-900">Настройки уведомлений</h2>
+  <section class="surface space-y-4">
+    <h2 class="text-base font-semibold text-[#17223B]">Настройки уведомлений</h2>
 
     <p v-if="error" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{{ error }}</p>
     <p v-if="loading" class="text-sm text-slate-500">Загрузка...</p>
 
     <label class="flex items-center gap-2 text-sm">
-      <input v-model="form.send_to_telegram" type="checkbox">
+      <input v-model="form.send_to_telegram" type="checkbox" class="h-4 w-4 accent-brand-600">
       Отправлять заявки в Telegram
     </label>
 
     <label class="flex items-center gap-2 text-sm">
-      <input v-model="form.daily_pdf_enabled" type="checkbox">
+      <input v-model="form.daily_pdf_enabled" type="checkbox" class="h-4 w-4 accent-brand-600">
       Ежедневный PDF-отчёт
     </label>
 
     <button
-      class="inline-flex rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-70"
+      class="action-button-primary"
       :disabled="saving"
       @click="saveSettings"
     >
       {{ saving ? 'Сохраняем...' : 'Сохранить' }}
     </button>
 
-    <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+    <div class="rounded-2xl border border-brand-100 bg-brand-50/50 p-3 text-sm">
       <p><strong>Telegram:</strong> {{ data?.telegram_status === 'connected' ? 'подключен' : 'не подключен' }}</p>
       <p class="mt-1 text-slate-500">Технические параметры подключения скрыты и управляются автоматически.</p>
     </div>

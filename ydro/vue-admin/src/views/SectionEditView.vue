@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ArrowLeft, ExternalLink, RotateCcw, Save } from '@lucide/vue'
@@ -114,7 +114,7 @@ watch(content, () => {
   <div class="page-stack">
     <header class="page-heading page-heading-actions">
       <div>
-        <RouterLink :to="`/sites/${siteId}/sections`" class="inline-flex items-center gap-2 text-sm font-medium text-cyan-800">
+        <RouterLink :to="`/sites/${siteId}/sections`" class="inline-flex items-center gap-2 text-sm font-medium text-brand-800">
           <ArrowLeft :size="16" />К разделам
         </RouterLink>
         <h1>{{ sectionTitle }}</h1>
@@ -141,11 +141,11 @@ watch(content, () => {
     <div v-else class="grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
       <SectionSidebar :site-id="siteId" :sections="sectionsStore.sections" />
       <section class="surface overflow-visible p-0">
-        <header class="sticky top-20 z-10 rounded-t-lg border-b border-slate-200 bg-white/95 p-4 backdrop-blur sm:p-5">
+        <header class="sticky top-20 z-10 rounded-t-2xl border-b border-brand-100 bg-white/90 p-4 backdrop-blur-xl sm:p-5">
           <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div class="min-w-0">
               <div class="flex flex-wrap items-center gap-2">
-                <h2 class="break-words text-lg font-semibold text-slate-950">{{ sectionTitle }}</h2>
+                <h2 class="break-words text-lg font-semibold text-[#17223B]">{{ sectionTitle }}</h2>
                 <span class="status-badge" :class="hasUnsavedChanges ? 'status-warning' : 'status-success'">
                   {{ hasUnsavedChanges ? 'Есть несохраненные изменения' : 'Сохранено' }}
                 </span>
@@ -154,8 +154,8 @@ watch(content, () => {
                 </span>
               </div>
               <div class="mt-2 flex flex-wrap gap-1.5 text-xs text-slate-500">
-                <span v-for="meta in sectionMeta" :key="meta" class="rounded-full bg-slate-100 px-2.5 py-1">{{ meta }}</span>
-                <span class="rounded-full bg-slate-100 px-2.5 py-1">
+                <span v-for="meta in sectionMeta" :key="meta" class="rounded-full bg-brand-50 px-2.5 py-1 text-brand-700">{{ meta }}</span>
+                <span class="rounded-full bg-brand-50 px-2.5 py-1 text-brand-700">
                   {{ sectionItemsCount ? elementCountLabel(sectionItemsCount) : 'без элементов' }}
                 </span>
               </div>

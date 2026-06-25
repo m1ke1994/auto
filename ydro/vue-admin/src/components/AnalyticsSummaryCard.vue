@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 defineProps({
   title: {
     type: String,
@@ -16,17 +16,17 @@ defineProps({
 </script>
 
 <template>
-  <section class="surface border-cyan-200 bg-cyan-50/50">
+  <section class="surface border-brand-100 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(244,241,255,0.78))]">
     <div class="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
       <div>
         <p class="eyebrow">{{ title }}</p>
         <p class="mt-3 text-lg leading-8 text-slate-900">{{ text }}</p>
       </div>
-      <div class="rounded-lg border border-cyan-200 bg-white p-4">
-        <h2 class="text-base font-semibold text-slate-950">На что обратить внимание</h2>
+      <div class="rounded-2xl border border-brand-100 bg-white/86 p-4 shadow-sm">
+        <h2 class="text-base font-semibold text-[#17223B]">На что обратить внимание</h2>
         <ul v-if="attentionItems.length" class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
           <li v-for="item in attentionItems" :key="item" class="flex gap-2">
-            <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-600" />
+            <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-600" />
             <span>{{ item }}</span>
           </li>
         </ul>

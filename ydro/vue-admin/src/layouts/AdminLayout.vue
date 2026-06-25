@@ -35,7 +35,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-100">
+  <div class="min-h-screen bg-[#FAFBFF]">
     <div class="flex min-h-screen">
       <Sidebar :open="sidebarOpen" @close="closeSidebar" />
 

@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { Circle, LayoutTemplate } from '@lucide/vue'
@@ -34,8 +34,8 @@ function itemCount(section) {
         v-for="item in sortedSections"
         :key="item.id"
         :to="`/sites/${siteId}/sections/${item.id}`"
-        class="flex min-w-0 items-start gap-2 rounded-lg px-3 py-2.5 text-sm transition"
-        :class="currentSectionId === item.id ? 'bg-cyan-50 text-cyan-950 ring-1 ring-cyan-100' : 'text-slate-700 hover:bg-slate-50'"
+        class="flex min-w-0 items-start gap-2 rounded-2xl px-3 py-2.5 text-sm transition duration-300"
+        :class="currentSectionId === item.id ? 'bg-brand-50 text-brand-950 ring-1 ring-brand-100' : 'text-slate-700 hover:bg-brand-50/70 hover:text-brand-800'"
       >
         <LayoutTemplate :size="17" class="mt-0.5 shrink-0" />
         <span class="min-w-0 flex-1">

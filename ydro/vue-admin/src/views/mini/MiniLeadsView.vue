@@ -33,17 +33,17 @@ onMounted(loadLeads)
 </script>
 
 <template>
-  <section class="rounded-2xl border border-slate-200 bg-white p-4">
+  <section class="surface">
     <div class="mb-3 flex items-center justify-between">
-      <h2 class="text-base font-semibold text-slate-900">Заявки mini</h2>
-      <button class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm" @click="loadLeads">Обновить</button>
+      <h2 class="text-base font-semibold text-[#17223B]">Заявки mini</h2>
+      <button class="action-button-secondary min-h-9 px-3 py-1.5" @click="loadLeads">Обновить</button>
     </div>
 
     <p v-if="error" class="mb-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{{ error }}</p>
     <p v-if="loading" class="text-sm text-slate-500">Загрузка...</p>
 
     <div class="overflow-x-auto">
-      <table class="min-w-full text-sm">
+      <table class="data-table">
         <thead>
           <tr class="border-b border-slate-100 text-left text-slate-500">
             <th class="px-2 py-2">Дата</th>
@@ -61,7 +61,7 @@ onMounted(loadLeads)
             <td class="px-2 py-2">{{ lead.source_url || '—' }}</td>
             <td class="px-2 py-2">
               <select
-                class="rounded border border-slate-300 px-2 py-1"
+                class="form-control min-h-9 px-2 py-1"
                 :value="lead.status"
                 @change="updateStatus(lead, $event.target.value)"
               >

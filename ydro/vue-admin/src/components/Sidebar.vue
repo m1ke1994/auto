@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import {
@@ -6,12 +6,12 @@ import {
   Blocks,
   CircleGauge,
   FileSearch,
-  Globe2,
   Inbox,
   LayoutDashboard,
   SearchCheck,
   Send,
   X,
+  Zap,
 } from '@lucide/vue'
 
 import { useAuthStore } from '../stores/auth'
@@ -60,33 +60,33 @@ function isActive(item) {
     <button
       v-if="open"
       type="button"
-      class="fixed inset-0 z-30 bg-slate-950/45 lg:hidden"
+      class="fixed inset-0 z-30 bg-slate-950/25 backdrop-blur-sm lg:hidden"
       aria-label="Закрыть меню"
       @click="emit('close')"
     />
 
     <aside
-      class="fixed inset-y-0 left-0 z-40 flex w-[min(19rem,88vw)] flex-col border-r border-slate-800 bg-slate-950 px-4 py-5 text-slate-200 shadow-2xl transition-transform duration-200 lg:w-64"
+      class="fixed inset-y-0 left-0 z-40 flex w-[min(19rem,88vw)] flex-col border-r border-brand-100 bg-white/88 px-4 py-5 text-slate-700 shadow-[0_10px_35px_rgba(32,40,70,0.08)] backdrop-blur-xl transition-transform duration-300 lg:w-64"
       :class="open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
     >
       <div class="flex items-center justify-between gap-3 px-2">
         <div class="flex items-center gap-3">
-          <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500 text-slate-950">
-            <Globe2 :size="21" stroke-width="2.2" />
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-[0_14px_30px_rgba(109,93,246,0.28)]">
+            <Zap :size="21" fill="currentColor" stroke-width="2.2" />
           </span>
           <div>
-            <p class="text-lg font-semibold text-white">Yadro</p>
-            <p class="text-xs text-slate-400">Управление сайтом</p>
+            <p class="text-lg font-semibold text-[#17223B]">TrackNode</p>
+            <p class="text-xs text-slate-500">Платформа аналитики</p>
           </div>
         </div>
-        <button type="button" class="icon-button border-slate-700 text-slate-300 lg:hidden" aria-label="Закрыть меню" @click="emit('close')">
+        <button type="button" class="icon-button lg:hidden" aria-label="Закрыть меню" @click="emit('close')">
           <X :size="20" />
         </button>
       </div>
 
-      <div class="mt-6 rounded-lg border border-slate-800 bg-slate-900 p-3">
-        <p class="text-xs text-slate-400">Выбранный сайт</p>
-        <p class="mt-1 truncate text-sm font-semibold text-white">{{ siteLabel }}</p>
+      <div class="mt-6 rounded-2xl border border-brand-100 bg-brand-50/70 p-3">
+        <p class="text-xs text-slate-500">Выбранный сайт</p>
+        <p class="mt-1 truncate text-sm font-semibold text-[#17223B]">{{ siteLabel }}</p>
       </div>
 
       <nav class="mt-5 flex-1 space-y-1 overflow-y-auto">
@@ -94,18 +94,18 @@ function isActive(item) {
           v-for="item in navItems"
           :key="item.to"
           :to="item.to"
-          class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition"
-          :class="isActive(item) ? 'bg-cyan-500 text-slate-950' : 'text-slate-300 hover:bg-slate-900 hover:text-white'"
+          class="flex min-h-11 items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition duration-300"
+          :class="isActive(item) ? 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-[0_12px_28px_rgba(109,93,246,0.22)]' : 'text-slate-600 hover:bg-brand-50 hover:text-brand-800'"
           @click="emit('close')"
         >
-          <component :is="item.icon" :size="19" />
+          <component :is="item.icon" :size="19" class="shrink-0" />
           <span>{{ item.label }}</span>
         </RouterLink>
       </nav>
 
-      <div class="border-t border-slate-800 pt-4">
-        <p class="truncate text-sm font-medium text-white">{{ userLabel }}</p>
-        <p class="mt-1 truncate text-xs text-slate-400">{{ authStore.user?.email || '' }}</p>
+      <div class="rounded-2xl border border-brand-100 bg-white/72 p-3">
+        <p class="truncate text-sm font-semibold text-[#17223B]">{{ userLabel }}</p>
+        <p class="mt-1 truncate text-xs text-slate-500">{{ authStore.user?.email || '' }}</p>
       </div>
     </aside>
   </div>

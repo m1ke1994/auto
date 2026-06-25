@@ -277,8 +277,8 @@ function rowBadges(row = {}) {
     </template>
 
     <template v-else-if="fieldType === 'boolean'">
-      <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-        <input type="checkbox" class="h-4 w-4" :checked="Boolean(modelValue)" @change="updateBoolean" />
+      <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-[14px] border border-brand-100 bg-brand-50/50 px-3 py-2 shadow-sm">
+        <input type="checkbox" class="h-4 w-4 accent-brand-600" :checked="Boolean(modelValue)" @change="updateBoolean" />
         <span class="text-sm text-slate-700">{{ Boolean(modelValue) ? 'Включено' : 'Выключено' }}</span>
       </label>
     </template>
@@ -298,7 +298,7 @@ function rowBadges(row = {}) {
     </template>
 
     <template v-else-if="fieldType === 'repeater'">
-      <div class="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div class="space-y-3 rounded-2xl border border-brand-100 bg-[#F5F7FD] p-3">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p class="text-sm font-semibold text-slate-900">{{ field.label || 'Список элементов' }}</p>
@@ -319,7 +319,7 @@ function rowBadges(row = {}) {
         <div
           v-for="(row, index) in repeaterRows"
           :key="`${field.key}-row-${index}`"
-          class="overflow-hidden rounded-lg border border-slate-200 bg-white"
+          class="overflow-hidden rounded-2xl border border-brand-100 bg-white"
         >
           <div class="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
             <button
@@ -329,7 +329,7 @@ function rowBadges(row = {}) {
             >
               <component :is="isRowExpanded(index) ? ChevronDown : ChevronRight" :size="18" class="mt-0.5 shrink-0 text-slate-500" />
               <span class="min-w-0">
-                <span class="block break-words text-sm font-semibold text-slate-950">
+                <span class="block break-words text-sm font-semibold text-[#17223B]">
                   {{ rowSummary(field, row, index) }}
                 </span>
                 <span v-if="rowBadges(row).length" class="mt-1 flex flex-wrap gap-1.5">
@@ -340,7 +340,7 @@ function rowBadges(row = {}) {
 
             <button
               type="button"
-              class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+              class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
               @click="removeRow(index)"
             >
               <Trash2 :size="14" />
@@ -348,13 +348,13 @@ function rowBadges(row = {}) {
             </button>
           </div>
 
-          <div v-if="isRowExpanded(index)" class="space-y-3 border-t border-slate-100 bg-slate-50/60 p-3">
+          <div v-if="isRowExpanded(index)" class="space-y-3 border-t border-brand-100 bg-[#F5F7FD]/70 p-3">
             <section
               v-for="group in groupFields(field.fields || [])"
               :key="`${field.key}-${index}-${group.id}`"
-              class="rounded-lg border border-slate-200 bg-white p-3"
+              class="rounded-2xl border border-brand-100 bg-white p-3"
             >
-              <div class="mb-3 border-b border-slate-100 pb-2">
+              <div class="mb-3 border-b border-brand-100 pb-2">
                 <h4 class="text-xs font-semibold uppercase text-slate-500">{{ group.title }}</h4>
               </div>
 
@@ -386,7 +386,7 @@ function rowBadges(row = {}) {
     </template>
 
     <template v-else-if="isMediaField">
-      <div class="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div class="space-y-3 rounded-2xl border border-brand-100 bg-[#F5F7FD] p-3">
         <input
           :id="inputId"
           ref="fileInputRef"
@@ -397,7 +397,7 @@ function rowBadges(row = {}) {
         >
 
         <div v-if="mediaValue" class="flex items-start gap-3">
-          <div class="h-16 w-16 overflow-hidden rounded-lg border border-slate-200 bg-white">
+          <div class="h-16 w-16 overflow-hidden rounded-2xl border border-brand-100 bg-white">
             <img v-if="mediaType === 'image'" :src="mediaPreviewUrl" alt="preview" class="h-full w-full object-cover" />
             <video v-else :src="mediaPreviewUrl" class="h-full w-full object-cover" muted playsinline controls />
           </div>
@@ -407,7 +407,7 @@ function rowBadges(row = {}) {
             <div class="mt-2 flex flex-wrap gap-2">
               <button
                 type="button"
-                class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                class="rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
                 :disabled="uploading"
                 @click="libraryOpen = true"
               >
@@ -415,7 +415,7 @@ function rowBadges(row = {}) {
               </button>
               <button
                 type="button"
-                class="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                class="rounded-xl border border-brand-200 bg-white px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
                 :disabled="uploading"
                 @click="openUploadDialog"
               >
@@ -423,7 +423,7 @@ function rowBadges(row = {}) {
               </button>
               <button
                 type="button"
-                class="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                class="rounded-xl border border-rose-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50"
                 :disabled="uploading"
                 @click="clearMedia"
               >

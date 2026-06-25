@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
@@ -58,7 +58,7 @@ const metricCards = [
 
 const trafficSources = [
   ['Прямые', '40%', 'w-[78%]', 'bg-sky-500'],
-  ['Поиск', '30%', 'w-[62%]', 'bg-cyan-500'],
+  ['Поиск', '30%', 'w-[62%]', 'bg-brand-500'],
   ['Социальные сети', '20%', 'w-[44%]', 'bg-indigo-500'],
   ['Рефералы', '10%', 'w-[26%]', 'bg-violet-500'],
 ]
@@ -317,7 +317,7 @@ function closeMobileMenu() {
                       <h3 class="text-xs font-semibold text-slate-950">Тепловая карта кликов</h3>
                       <div class="relative mt-4 h-40 overflow-hidden rounded-lg border border-indigo-100 bg-[linear-gradient(135deg,#eef4ff,#ffffff)]">
                         <div class="absolute inset-4 rounded-lg bg-white/60" />
-                        <span class="absolute left-[18%] top-[22%] h-12 w-12 rounded-full bg-cyan-300/65 blur-md" />
+                        <span class="absolute left-[18%] top-[22%] h-12 w-12 rounded-full bg-brand-300/65 blur-md" />
                         <span class="absolute left-[50%] top-[30%] h-16 w-16 rounded-full bg-emerald-300/70 blur-md" />
                         <span class="absolute left-[66%] top-[48%] h-20 w-20 rounded-full bg-rose-400/70 blur-md" />
                         <span class="absolute left-[33%] top-[58%] h-16 w-16 rounded-full bg-amber-300/70 blur-md" />

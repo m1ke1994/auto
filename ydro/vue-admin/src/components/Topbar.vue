@@ -32,15 +32,15 @@ function logout() {
 </script>
 
 <template>
-  <header class="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+  <header class="sticky top-0 z-20 border-b border-brand-100 bg-white/82 shadow-[0_8px_28px_rgba(32,40,70,0.05)] backdrop-blur-xl">
     <div class="flex min-h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
       <div class="flex min-w-0 items-center gap-3">
         <button type="button" class="icon-button lg:hidden" aria-label="Открыть меню" @click="emit('toggle-sidebar')">
           <Menu :size="21" />
         </button>
         <div class="min-w-0">
-          <p class="text-xs text-slate-500">Текущий сайт</p>
-          <p class="truncate text-base font-semibold text-slate-900">{{ siteTitle }}</p>
+          <p class="text-xs font-medium text-slate-500">Текущий сайт</p>
+          <p class="truncate text-base font-semibold text-[#17223B]">{{ siteTitle }}</p>
         </div>
       </div>
 

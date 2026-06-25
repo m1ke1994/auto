@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRight, ExternalLink, Globe2 } from '@lucide/vue'
@@ -53,13 +53,13 @@ onMounted(async () => {
     <section v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       <article v-for="site in siteStore.sites" :key="site.id" class="site-card">
         <div class="flex items-start justify-between gap-3">
-          <span class="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700">
+          <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-50 text-brand-700">
             <Globe2 :size="22" />
           </span>
           <span class="status-badge status-success">{{ site.is_active ? 'Сайт работает' : 'Сайт выключен' }}</span>
         </div>
         <div class="mt-5 min-w-0">
-          <h2 class="truncate text-lg font-semibold text-slate-950">{{ site.name }}</h2>
+          <h2 class="truncate text-lg font-semibold text-[#17223B]">{{ site.name }}</h2>
           <p class="mt-1 truncate text-sm text-slate-500">{{ site.domain || 'Домен пока не указан' }}</p>
           <p class="mt-3 text-sm text-slate-600">Разделов на сайте: {{ site.sections_count || 0 }}</p>
         </div>

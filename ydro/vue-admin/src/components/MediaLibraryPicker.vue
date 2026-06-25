@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref } from 'vue'
 import { Image, Search, Trash2, X } from '@lucide/vue'
 
@@ -90,11 +90,11 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4" @click.self="emit('close')">
-    <section class="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-      <header class="flex items-center justify-between border-b border-slate-200 px-4 py-3 sm:px-5">
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm" @click.self="emit('close')">
+    <section class="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-[24px] border border-brand-100 bg-white/94 shadow-[0_24px_70px_rgba(32,40,70,0.16)] backdrop-blur-xl">
+      <header class="flex items-center justify-between border-b border-brand-100 px-4 py-3 sm:px-5">
         <div>
-          <h2 class="text-lg font-semibold text-slate-950">Медиатека</h2>
+          <h2 class="text-lg font-semibold text-[#17223B]">Медиатека</h2>
           <p class="text-sm text-slate-500">Выберите существующий файл или управляйте его описанием.</p>
         </div>
         <button type="button" class="icon-button" aria-label="Закрыть" @click="emit('close')">
@@ -102,7 +102,7 @@ onMounted(load)
         </button>
       </header>
 
-      <div class="flex gap-2 border-b border-slate-200 p-4">
+      <div class="flex gap-2 border-b border-brand-100 bg-[#F5F7FD]/60 p-4">
         <div class="relative flex-1">
           <Search class="pointer-events-none absolute left-3 top-3 text-slate-400" :size="17" />
           <input
@@ -127,9 +127,9 @@ onMounted(load)
         <p>{{ emptyMessage }}</p>
       </div>
       <div v-else class="grid overflow-y-auto p-4 sm:grid-cols-2 lg:grid-cols-3">
-        <article v-for="item in items" :key="item.id" class="m-1 rounded-lg border border-slate-200 p-3">
+        <article v-for="item in items" :key="item.id" class="m-1 rounded-2xl border border-brand-100 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft">
           <button type="button" class="block w-full text-left" @click="selectItem(item)">
-            <div class="aspect-video overflow-hidden rounded-lg bg-slate-100">
+            <div class="aspect-video overflow-hidden rounded-2xl bg-slate-100">
               <img
                 v-if="item.file_type === 'image'"
                 :src="previewUrl(item)"
@@ -151,7 +151,7 @@ onMounted(load)
             </div>
           </div>
           <div v-else class="mt-3 flex justify-between gap-2">
-            <button type="button" class="text-xs font-medium text-cyan-800" @click="startEditing(item)">
+            <button type="button" class="text-xs font-medium text-brand-800" @click="startEditing(item)">
               Изменить описание
             </button>
             <button
