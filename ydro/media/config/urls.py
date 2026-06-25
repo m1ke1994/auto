@@ -96,6 +96,7 @@ urlpatterns = [
     path("leads", PublicLeadCreateView.as_view(), name="public-leads-create-legacy-no-slash"),
     path("api/admin/", include("apps.sites.admin_urls")),
     path("api/admin/", include("apps.analytics.admin_urls")),
+    path("api/client/sites/", include("apps.analytics.client_urls")),
     path("api/uploads/", UploadFileView.as_view(), name="upload-file"),
     path("api/client/media/", include("apps.mediafiles.client_urls")),
 ]

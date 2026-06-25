@@ -259,3 +259,108 @@ class AnalyticsApiTests(APITestCase):
         summary_response = self.client.get(reverse("admin-site-analytics-summary", kwargs={"site_id": self.site.id}))
         self.assertEqual(summary_response.status_code, status.HTTP_200_OK)
         self.assertEqual(summary_response.data["visit_count"], 1)
+
+    def test_behavior_analytics_endpoints_use_tracker_events(self):
+        tracker_site = TrackerSite.objects.create(token=self.site.api_key, domain=self.site.domain, is_active=True)
+        now = timezone.now()
+        visit = TrackerVisit.objects.create(
+            site=tracker_site,
+            session_id="session-behavior",
+            visitor_id="visitor-behavior",
+            device_type="desktop",
+            browser_family="Chrome",
+            os="Windows",
+            started_at=now,
+            duration=75,
+            is_bot=False,
+        )
+        TrackerPageView.objects.create(visit=visit, url="https://example.com/", title="Home", timestamp=now)
+        TrackerPageView.objects.create(visit=visit, url="https://example.com/contacts", title="Contacts", timestamp=now)
+        TrackerEvent.objects.create(
+            visit=visit,
+            type="click",
+            payload={
+                "path": "/contacts",
+                "x": 320,
+                "y": 640,
+                "document_width": 1280,
+                "document_height": 2200,
+                "viewport_width": 1280,
+                "viewport_height": 800,
+                "element_text": "Send",
+                "element_tag": "button",
+                "device_type": "desktop",
+            },
+            timestamp=now,
+        )
+        TrackerEvent.objects.create(
+            visit=visit,
+            type="scroll_depth",
+            payload={"path": "/contacts", "depth": 75, "current_depth": 78, "document_height": 2200},
+            timestamp=now,
+        )
+        TrackerEvent.objects.create(
+            visit=visit,
+            type="time_on_page",
+            payload={"path": "/contacts", "duration_seconds": 45},
+            timestamp=now,
+        )
+        TrackerEvent.objects.create(
+            visit=visit,
+            type="form_submit",
+            payload={"path": "/contacts", "id": "contact-form"},
+            timestamp=now,
+        )
+        TrackerEvent.objects.create(
+            visit=visit,
+            type="error",
+            payload={"path": "/contacts", "message": "Boom", "stack": "trace"},
+            timestamp=now,
+        )
+        TrackerEvent.objects.create(
+            visit=visit,
+            type="performance",
+            payload={"path": "/contacts", "lcp": 2800, "cls": 0.12, "inp": 210, "ttfb": 120, "page_load_time": 4200},
+            timestamp=now,
+        )
+        SiteLead.objects.create(site=self.site, name="Lead", phone="+79990000000", source_url="https://example.com/contacts")
+
+        self.client.force_authenticate(user=self.user)
+
+        checks = [
+            ("admin-site-analytics-heatmap", "total_clicks"),
+            ("admin-site-analytics-scrollmap", "average_depth"),
+            ("admin-site-analytics-sessions", "results"),
+            ("admin-site-analytics-paths", "paths"),
+            ("admin-site-analytics-funnels", "steps"),
+            ("admin-site-analytics-events", "events"),
+            ("admin-site-analytics-pages", "pages"),
+            ("admin-site-analytics-errors", "errors"),
+            ("admin-site-analytics-performance", "averages"),
+            ("admin-site-analytics-recommendations", "recommendations"),
+        ]
+        for route_name, payload_key in checks:
+            with self.subTest(route_name=route_name):
+                response = self.client.get(reverse(route_name, kwargs={"site_id": self.site.id}))
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertIn(payload_key, response.data)
+
+        heatmap_response = self.client.get(reverse("admin-site-analytics-heatmap", kwargs={"site_id": self.site.id}))
+        self.assertEqual(heatmap_response.data["points"][0]["count"], 1)
+        scrollmap_response = self.client.get(reverse("admin-site-analytics-scrollmap", kwargs={"site_id": self.site.id}))
+        self.assertGreaterEqual(scrollmap_response.data["thresholds"]["75"]["count"], 1)
+
+        detail_response = self.client.get(
+            reverse(
+                "admin-site-analytics-session-detail",
+                kwargs={"site_id": self.site.id, "session_id": "session-behavior"},
+            )
+        )
+        self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(detail_response.data["session"]["session_id"], "session-behavior")
+        self.assertGreaterEqual(len(detail_response.data["events"]), 1)
+
+    def test_behavior_analytics_endpoints_do_not_expose_foreign_sites(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(reverse("admin-site-analytics-heatmap", kwargs={"site_id": self.other_site.id}))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

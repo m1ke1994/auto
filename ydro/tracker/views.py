@@ -1,6 +1,7 @@
 import logging
 from urllib.parse import parse_qs, urljoin, urlparse
 
+from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.exceptions import PermissionDenied
@@ -171,6 +172,17 @@ def _duration_seconds_from_payload(payload, second_keys, millisecond_keys=()) ->
         if milliseconds > 0:
             return max(1, round(milliseconds / 1000))
     return 0
+
+
+def _timestamp_from_payload(value, fallback):
+    if not value:
+        return fallback
+    parsed = parse_datetime(str(value))
+    if parsed is None:
+        return fallback
+    if timezone.is_naive(parsed):
+        parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+    return parsed
 
 
 def _update_visit_duration(visit, duration_seconds: int, *, ended_at=None):
@@ -427,6 +439,38 @@ class EventCreateView(TrackBaseAPIView):
             bot_source="event",
         )
         event_type = serializer.validated_data["type"]
+        if event_type == "batch":
+            batch_items = payload.get("events") if isinstance(payload, dict) else []
+            if not isinstance(batch_items, list):
+                batch_items = []
+            timestamp_fallback = serializer.get_timestamp()
+            event_objects = []
+            for item in batch_items[:50]:
+                if not isinstance(item, dict):
+                    continue
+                item_type = str(item.get("type") or "").strip()[:64]
+                item_payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+                if not item_type or item_type == "batch":
+                    continue
+                event_objects.append(
+                    Event(
+                        visit=visit,
+                        type=item_type,
+                        payload=item_payload,
+                        timestamp=_timestamp_from_payload(item.get("timestamp"), timestamp_fallback),
+                    )
+                )
+            if event_objects:
+                Event.objects.bulk_create(event_objects)
+            logger.info(
+                "track.event batch created count=%s visit_id=%s visitor_id=%s session_id=%s",
+                len(event_objects),
+                visit.id,
+                visit.visitor_id,
+                visit.session_id,
+            )
+            return Response({"ok": True, "event_count": len(event_objects)}, status=status.HTTP_201_CREATED)
+
         page_duration_seconds = 0
         visit_duration_seconds = 0
         if event_type in {"time_on_page", "session_end"}:

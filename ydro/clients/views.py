@@ -271,6 +271,19 @@ def tracker_js_view(request):
   var scrollThresholdState = {};
   var maxScrollDepth = 0;
   var scrollEvaluationScheduled = false;
+  var lastScrollEventDepth = 0;
+  var lastMouseMoveSentAt = 0;
+  var MOUSEMOVE_INTERVAL_MS = 500;
+  var BEHAVIOR_BATCH_SIZE = 20;
+  var BEHAVIOR_BATCH_INTERVAL_MS = 2000;
+  var behaviorEventQueue = [];
+  var behaviorFlushTimer = null;
+  var performanceMetricsSent = false;
+  var performanceState = {
+    lcp: 0,
+    cls: 0,
+    inp: 0
+  };
   var formVisibilityObserver = null;
   var sectionVisibilityObserver = null;
   var ctaVisibilityObserver = null;
@@ -1728,6 +1741,99 @@ def tracker_js_view(request):
     return depth;
   }
 
+  function getDocumentMetrics() {
+    var doc = document.documentElement || {};
+    var body = document.body || {};
+    var scrollX = window.pageXOffset || doc.scrollLeft || body.scrollLeft || 0;
+    var scrollY = window.pageYOffset || doc.scrollTop || body.scrollTop || 0;
+    var viewportWidth = window.innerWidth || doc.clientWidth || 0;
+    var viewportHeight = window.innerHeight || doc.clientHeight || 0;
+    var documentWidth = Math.max(
+      doc.scrollWidth || 0,
+      body.scrollWidth || 0,
+      doc.offsetWidth || 0,
+      body.offsetWidth || 0,
+      viewportWidth
+    );
+    var documentHeight = Math.max(
+      doc.scrollHeight || 0,
+      body.scrollHeight || 0,
+      doc.offsetHeight || 0,
+      body.offsetHeight || 0,
+      viewportHeight
+    );
+    return {
+      scroll_x: Math.max(0, Math.round(scrollX)),
+      scroll_y: Math.max(0, Math.round(scrollY)),
+      viewport_width: Math.max(0, Math.round(viewportWidth)),
+      viewport_height: Math.max(0, Math.round(viewportHeight)),
+      document_width: Math.max(0, Math.round(documentWidth)),
+      document_height: Math.max(0, Math.round(documentHeight))
+    };
+  }
+
+  function getPointerCoordinates(event) {
+    var metrics = getDocumentMetrics();
+    var clientX = typeof event.clientX === 'number' ? event.clientX : 0;
+    var clientY = typeof event.clientY === 'number' ? event.clientY : 0;
+    return mergeObjects(metrics, {
+      client_x: Math.round(clientX),
+      client_y: Math.round(clientY),
+      x: Math.round(clientX + metrics.scroll_x),
+      y: Math.round(clientY + metrics.scroll_y)
+    });
+  }
+
+  function isSensitiveElement(node) {
+    if (!node || !node.tagName) {
+      return false;
+    }
+    var tag = String(node.tagName || '').toLowerCase();
+    if (tag === 'textarea' || tag === 'select') {
+      return true;
+    }
+    if (tag !== 'input') {
+      return false;
+    }
+    var type = String(node.getAttribute('type') || '').toLowerCase();
+    return type === '' || /^(text|email|tel|phone|password|search|url|number|hidden|file)$/i.test(type);
+  }
+
+  function getSafeElementText(node) {
+    if (!node || isSensitiveElement(node)) {
+      return '';
+    }
+    return normalizeText(node.innerText || node.textContent || '', 100);
+  }
+
+  function getElementAnalyticsPayload(node, event) {
+    var safeNode = node || {};
+    var tag = normalizeString(safeNode.tagName || '', 40).toLowerCase();
+    var className = '';
+    try {
+      className = typeof safeNode.className === 'string' ? safeNode.className : '';
+    } catch (_) {
+      className = '';
+    }
+    return mergeObjects(getPointerCoordinates(event || {}), {
+      page_url: normalizeString(window.location.href, 1000),
+      path: getCurrentPathname(),
+      element_tag: tag,
+      tag: tag,
+      element_text: getSafeElementText(safeNode),
+      text: getSafeElementText(safeNode),
+      element_id: normalizeString(safeNode.id || '', 255),
+      id: normalizeString(safeNode.id || '', 255),
+      element_class: normalizeString(className, 255),
+      class: normalizeString(className, 255),
+      element_href: normalizeString(safeNode.getAttribute ? (safeNode.getAttribute('href') || '') : '', 1000),
+      href: normalizeString(safeNode.getAttribute ? (safeNode.getAttribute('href') || '') : '', 1000),
+      device_type: normalizeDeviceType(detectDeviceTypeHint()),
+      browser: normalizeString((navigator.userAgent || '').split(' ')[0] || '', 80),
+      os: normalizeString((navigator.platform || ''), 80)
+    });
+  }
+
   function evaluateScrollDepth() {
     var depth = getScrollDepthPercent();
     if (depth > maxScrollDepth) {
@@ -1740,11 +1846,26 @@ def tracker_js_view(request):
         continue;
       }
       scrollThresholdState[threshold] = true;
-      trackAiEvent('scroll_depth', 'page_scroll', {
+      var metrics = getDocumentMetrics();
+      trackAiEvent('scroll_depth', 'page_scroll', mergeObjects(metrics, {
+        page_url: normalizeString(window.location.href, 1000),
+        path: getCurrentPathname(),
         depth: threshold,
         current_depth: depth,
-        max_depth: maxScrollDepth
-      });
+        max_depth: maxScrollDepth,
+        max_scroll_y: metrics.scroll_y,
+        device_type: normalizeDeviceType(detectDeviceTypeHint())
+      }));
+    }
+    if (depth >= lastScrollEventDepth + 10 || (depth === 100 && lastScrollEventDepth !== 100)) {
+      lastScrollEventDepth = depth;
+      trackEvent('scroll', mergeObjects(getDocumentMetrics(), {
+        page_url: normalizeString(window.location.href, 1000),
+        path: getCurrentPathname(),
+        depth: depth,
+        max_depth: maxScrollDepth,
+        device_type: normalizeDeviceType(detectDeviceTypeHint())
+      }));
     }
   }
 
@@ -1765,6 +1886,7 @@ def tracker_js_view(request):
   function resetPageAnalyticsSignals() {
     scrollThresholdState = {};
     maxScrollDepth = 0;
+    lastScrollEventDepth = 0;
     sectionSeenState = {};
     sectionRuntimeState = {};
     sectionObservedState = {};
@@ -2071,6 +2193,47 @@ def tracker_js_view(request):
     });
   }
 
+  function flushBehaviorEvents(preferBeacon) {
+    if (!behaviorEventQueue.length) {
+      return;
+    }
+    var events = behaviorEventQueue.slice(0, 50);
+    behaviorEventQueue = behaviorEventQueue.slice(events.length);
+    if (behaviorFlushTimer) {
+      try {
+        clearTimeout(behaviorFlushTimer);
+      } catch (_) {}
+      behaviorFlushTimer = null;
+    }
+    sendEventPayload(buildEventPayload('batch', { events: events }), !!preferBeacon);
+    if (behaviorEventQueue.length) {
+      scheduleBehaviorFlush();
+    }
+  }
+
+  function scheduleBehaviorFlush() {
+    if (behaviorFlushTimer) {
+      return;
+    }
+    behaviorFlushTimer = setTimeout(function () {
+      behaviorFlushTimer = null;
+      flushBehaviorEvents(false);
+    }, BEHAVIOR_BATCH_INTERVAL_MS);
+  }
+
+  function queueBehaviorEvent(type, payload) {
+    behaviorEventQueue.push({
+      type: normalizeString(type || '', 64),
+      payload: payload || {},
+      timestamp: nowIso()
+    });
+    if (behaviorEventQueue.length >= BEHAVIOR_BATCH_SIZE) {
+      flushBehaviorEvents(false);
+      return;
+    }
+    scheduleBehaviorFlush();
+  }
+
   function sendEventPayload(payload, preferBeacon) {
     if (preferBeacon && navigator.sendBeacon) {
       try {
@@ -2232,23 +2395,18 @@ def tracker_js_view(request):
   function onPageClose() {
     flushTimeOnPage('page_close', { preferBeacon: true });
     flushSectionSignals('page_close');
+    flushBehaviorEvents(true);
+    sendPerformanceMetrics('page_close');
     trackVisitEnd();
   }
 
   function onClick(event) {
     try {
-      var node = event.target && event.target.closest ? event.target.closest('button, a, [role="button"], [data-track]') : null;
+      var node = event.target && event.target.closest ? (event.target.closest('button, a, input, select, textarea, label, [role="button"], [data-track], [data-track-click]') || event.target) : event.target;
       if (!node) {
         return;
       }
-      var clickPayload = {
-        tag: node.tagName || '',
-        id: node.id || '',
-        class: normalizeString(typeof node.className === 'string' ? node.className : '', 255),
-        text: ((node.innerText || node.textContent || '') + '').trim().slice(0, 120),
-        href: normalizeString(node.getAttribute ? (node.getAttribute('href') || '') : '', 1000),
-        path: window.location.pathname
-      };
+      var clickPayload = getElementAnalyticsPayload(node, event);
       trackEvent('click', clickPayload);
 
       var ctaMeta = getCtaMeta(node);
@@ -2269,6 +2427,163 @@ def tracker_js_view(request):
       }
     } catch (err) {
       logError('click tracking failed', err);
+    }
+  }
+
+  function onMouseMove(event) {
+    try {
+      var nowMs = Date.now();
+      if (nowMs - lastMouseMoveSentAt < MOUSEMOVE_INTERVAL_MS) {
+        return;
+      }
+      lastMouseMoveSentAt = nowMs;
+      queueBehaviorEvent('mousemove', mergeObjects(getPointerCoordinates(event || {}), {
+        page_url: normalizeString(window.location.href, 1000),
+        path: getCurrentPathname(),
+        device_type: normalizeDeviceType(detectDeviceTypeHint())
+      }));
+    } catch (err) {
+      logError('mousemove tracking failed', err);
+    }
+  }
+
+  function trackClientError(kind, payload) {
+    try {
+      var safePayload = payload || {};
+      trackEvent('error', {
+        kind: normalizeString(kind || 'error', 64),
+        message: normalizeString(safePayload.message || '', 300),
+        name: normalizeString(safePayload.name || '', 120),
+        source: normalizeString(safePayload.source || '', 1000),
+        lineno: safePayload.lineno || 0,
+        colno: safePayload.colno || 0,
+        stack: normalizeString(safePayload.stack || '', 1000),
+        page_url: normalizeString(window.location.href, 1000),
+        path: getCurrentPathname(),
+        device_type: normalizeDeviceType(detectDeviceTypeHint())
+      });
+    } catch (err) {
+      logError('client error tracking failed', err);
+    }
+  }
+
+  function onWindowError(event) {
+    try {
+      var error = event && event.error ? event.error : null;
+      trackClientError('js_error', {
+        message: (event && event.message) || (error && error.message) || '',
+        name: error && error.name ? error.name : 'Error',
+        source: event && event.filename ? event.filename : '',
+        lineno: event && event.lineno ? event.lineno : 0,
+        colno: event && event.colno ? event.colno : 0,
+        stack: error && error.stack ? error.stack : ''
+      });
+    } catch (err) {
+      logError('window error handler failed', err);
+    }
+  }
+
+  function onUnhandledRejection(event) {
+    try {
+      var reason = event ? event.reason : null;
+      var message = '';
+      var stack = '';
+      var name = 'UnhandledRejection';
+      if (reason && typeof reason === 'object') {
+        message = reason.message || String(reason);
+        stack = reason.stack || '';
+        name = reason.name || name;
+      } else {
+        message = String(reason || '');
+      }
+      trackClientError('unhandled_rejection', {
+        message: message,
+        name: name,
+        stack: stack
+      });
+    } catch (err) {
+      logError('unhandled rejection handler failed', err);
+    }
+  }
+
+  function observePerformanceMetrics() {
+    try {
+      if (!window.PerformanceObserver) {
+        return;
+      }
+      try {
+        var lcpObserver = new PerformanceObserver(function (list) {
+          var entries = list.getEntries ? list.getEntries() : [];
+          for (var i = 0; i < entries.length; i++) {
+            performanceState.lcp = Math.max(performanceState.lcp || 0, Math.round(entries[i].startTime || 0));
+          }
+        });
+        lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true });
+      } catch (_) {}
+      try {
+        var clsObserver = new PerformanceObserver(function (list) {
+          var entries = list.getEntries ? list.getEntries() : [];
+          for (var i = 0; i < entries.length; i++) {
+            if (!entries[i].hadRecentInput) {
+              performanceState.cls += Number(entries[i].value || 0);
+            }
+          }
+        });
+        clsObserver.observe({ type: 'layout-shift', buffered: true });
+      } catch (_) {}
+      try {
+        var inpObserver = new PerformanceObserver(function (list) {
+          var entries = list.getEntries ? list.getEntries() : [];
+          for (var i = 0; i < entries.length; i++) {
+            var duration = Math.round(entries[i].duration || 0);
+            if (duration > performanceState.inp) {
+              performanceState.inp = duration;
+            }
+          }
+        });
+        inpObserver.observe({ type: 'event', buffered: true, durationThreshold: 40 });
+      } catch (_) {}
+    } catch (err) {
+      logError('performance observer init failed', err);
+    }
+  }
+
+  function sendPerformanceMetrics(reason) {
+    try {
+      if (performanceMetricsSent) {
+        return;
+      }
+      performanceMetricsSent = true;
+      var nav = null;
+      try {
+        var navEntries = performance && performance.getEntriesByType ? performance.getEntriesByType('navigation') : [];
+        nav = navEntries && navEntries.length ? navEntries[0] : null;
+      } catch (_) {
+        nav = null;
+      }
+      var metrics = {
+        lcp: Math.round(performanceState.lcp || 0),
+        cls: Math.round((performanceState.cls || 0) * 1000) / 1000,
+        inp: Math.round(performanceState.inp || 0),
+        ttfb: nav ? Math.round(nav.responseStart || 0) : 0,
+        page_load_time: nav ? Math.round((nav.loadEventEnd || nav.loadEventStart || 0) - (nav.startTime || 0)) : 0,
+        dom_content_loaded: nav ? Math.round((nav.domContentLoadedEventEnd || 0) - (nav.startTime || 0)) : 0
+      };
+      trackEvent('performance', {
+        metrics: metrics,
+        lcp: metrics.lcp,
+        cls: metrics.cls,
+        inp: metrics.inp,
+        ttfb: metrics.ttfb,
+        page_load_time: metrics.page_load_time,
+        dom_content_loaded: metrics.dom_content_loaded,
+        reason: normalizeString(reason || '', 64),
+        page_url: normalizeString(window.location.href, 1000),
+        path: getCurrentPathname(),
+        device_type: normalizeDeviceType(detectDeviceTypeHint())
+      });
+    } catch (err) {
+      logError('performance metrics send failed', err);
     }
   }
 
@@ -2431,6 +2746,14 @@ def tracker_js_view(request):
             status: 0,
             transport: 'fetch'
           });
+          if (shouldTrackApiRequest(requestUrl, requestMethod)) {
+            trackClientError('fetch_error', {
+              message: error && error.message ? error.message : 'Fetch failed',
+              name: error && error.name ? error.name : 'FetchError',
+              source: requestUrl,
+              stack: error && error.stack ? error.stack : ''
+            });
+          }
           finalizePendingFormSubmission(
             requestUrl,
             requestMethod,
@@ -2523,6 +2846,7 @@ def tracker_js_view(request):
     logDebug('init handlers');
     resetPageTimer(window.location.pathname || '/');
     resetPageAnalyticsSignals();
+    observePerformanceMetrics();
     startDurationHeartbeat();
     trackVisitStart()
       .then(function () {
@@ -2534,6 +2858,7 @@ def tracker_js_view(request):
     installFetchInterceptor();
     installXhrInterceptor();
     document.addEventListener('click', onClick, true);
+    document.addEventListener('mousemove', onMouseMove, true);
     document.addEventListener('submit', onSubmit, true);
     document.addEventListener('focusin', onFormFocusIn, true);
     document.addEventListener('focusout', onFormFocusOut, true);
@@ -2541,6 +2866,16 @@ def tracker_js_view(request):
     document.addEventListener('change', onFormInputOrChange, true);
     document.addEventListener('copy', onCopy, true);
     document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('error', onWindowError, true);
+    window.addEventListener('unhandledrejection', onUnhandledRejection);
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        sendPerformanceMetrics('load');
+      }, 2500);
+    });
+    setTimeout(function () {
+      sendPerformanceMetrics('timeout');
+    }, 6000);
     window.addEventListener('scroll', scheduleScrollDepthEvaluation, { passive: true });
     window.addEventListener('resize', scheduleScrollDepthEvaluation);
     window.addEventListener('beforeunload', onPageClose);
@@ -2558,4 +2893,3 @@ def tracker_js_view(request):
 })();
 """
     return HttpResponse(script, content_type="application/javascript; charset=utf-8")
-

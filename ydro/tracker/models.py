@@ -79,6 +79,9 @@ class PageView(models.Model):
         ordering = ("-timestamp",)
         verbose_name = "Просмотр страницы трекера"
         verbose_name_plural = "Просмотры страниц трекера"
+        indexes = [
+            models.Index(fields=["visit", "timestamp"]),
+        ]
 
 
 class Event(models.Model):
@@ -91,3 +94,7 @@ class Event(models.Model):
         ordering = ("-timestamp",)
         verbose_name = "Событие трекера"
         verbose_name_plural = "События трекера"
+        indexes = [
+            models.Index(fields=["visit", "type", "timestamp"]),
+            models.Index(fields=["type", "timestamp"]),
+        ]

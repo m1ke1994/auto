@@ -50,6 +50,29 @@ class TrackTimeOnPageEventTests(TestCase):
         self.assertEqual(analytics_event.element_id, "/pricing")
         self.assertEqual(analytics_event.page_url, "https://tracker.local/pricing")
 
+    def test_batch_event_expands_behavior_events(self):
+        response = self.http.post(
+            "/api/track/event/",
+            {
+                "token": self.client_obj.api_key,
+                "session_id": "session-batch",
+                "visitor_id": "visitor-batch",
+                "type": "batch",
+                "payload": {
+                    "events": [
+                        {"type": "mousemove", "payload": {"path": "/", "x": 10, "y": 20}},
+                        {"type": "mousemove", "payload": {"path": "/", "x": 20, "y": 30}},
+                    ]
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["event_count"], 2)
+        self.assertEqual(TrackerEvent.objects.filter(type="mousemove").count(), 2)
+        self.assertFalse(TrackerEvent.objects.filter(type="batch").exists())
+
     def test_time_on_page_uses_visit_duration_when_payload_has_page_and_visit_duration(self):
         response = self.http.post(
             "/api/track/event/",
