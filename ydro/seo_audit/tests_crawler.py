@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from unittest.mock import patch
 
+import requests
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
@@ -8,6 +9,7 @@ from clients.models import Client
 from seo_audit.models import SEOIssue, SEOPage, SiteSEOAudit
 from seo_audit.services.crawler import _collect_commercial_signals, _score_commercial_signals, crawl_site_audit
 from seo_audit.services.messages import get_commercial_recommendations
+from seo_audit.services.text_encoding import has_mojibake, response_encoding, response_text
 
 from bs4 import BeautifulSoup
 
@@ -29,6 +31,50 @@ class SEOCrawlerServiceTests(TestCase):
         user_model = get_user_model()
         self.user = user_model.objects.create_user(username="seo-owner", email="seo-owner@example.com", password="pass12345")
         self.client_obj = Client.objects.create(owner=self.user, name="SEO Client")
+
+    def test_response_text_decodes_utf8_content_when_http_charset_is_missing(self):
+        response = requests.Response()
+        response.url = "https://novoe-konakovo.ru/"
+        response.status_code = 200
+        response.headers["Content-Type"] = "text/html"
+        response.encoding = "ISO-8859-1"
+        response._content = """
+        <!doctype html>
+        <html lang="ru">
+          <head>
+            <meta charset="UTF-8">
+            <title>Новое Конаково — отдых на природе</title>
+            <meta name="description" content="Новое Конаково — экскурсии и мероприятия.">
+          </head>
+        </html>
+        """.encode("utf-8")
+
+        decoded = response_text(response)
+
+        self.assertEqual(response_encoding(response), "utf-8")
+        self.assertIn("Новое Конаково", decoded)
+        self.assertIn("мероприятия", decoded)
+        self.assertFalse(has_mojibake(decoded))
+
+    def test_response_text_uses_explicit_windows_1251_charset(self):
+        response = requests.Response()
+        response.url = "https://example.ru/"
+        response.status_code = 200
+        response.headers["Content-Type"] = "text/html; charset=windows-1251"
+        response.encoding = "windows-1251"
+        response._content = """
+        <html>
+          <head><title>Афиша и мероприятия</title></head>
+          <body><h1>сайт</h1></body>
+        </html>
+        """.encode("cp1251")
+
+        decoded = response_text(response)
+
+        self.assertEqual(response_encoding(response), "cp1251")
+        self.assertIn("Афиша и мероприятия", decoded)
+        self.assertIn("сайт", decoded)
+        self.assertFalse(has_mojibake(decoded))
 
     def test_crawler_creates_pages_and_issues(self):
         audit = SiteSEOAudit.objects.create(client=self.client_obj, domain="example.com")

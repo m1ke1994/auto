@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
@@ -8,10 +9,12 @@ from bs4 import BeautifulSoup
 from django.conf import settings
 
 from competitor_analysis.security import DomainValidationError, validate_public_analysis_domain
-from seo_audit.services.text_encoding import repair_mojibake, response_encoding
+from seo_audit.services.text_encoding import has_mojibake, log_text_diagnostics, response_text
 
 REQUEST_TIMEOUT_SECONDS = 8
 MAX_REDIRECTS = 5
+
+logger = logging.getLogger(__name__)
 
 
 def _normalized_host(hostname: str) -> str:
@@ -24,7 +27,18 @@ def _normalized_host(hostname: str) -> str:
 def _extract_text(value) -> str:
     if not value:
         return ""
-    return " ".join(repair_mojibake(value).split())
+    return " ".join(str(value).split())
+
+
+def _log_parsed_field(domain: str, field: str, value: Any) -> None:
+    log_text_diagnostics(logger, f"competitor_analysis.snapshot.parsed.{field}", value, domain=domain)
+    if has_mojibake(value):
+        logger.warning(
+            "competitor_analysis snapshot mojibake after parse domain=%s field=%s sample=%r",
+            domain,
+            field,
+            str(value)[:180],
+        )
 
 
 def _meta_content(soup: BeautifulSoup | None, name: str) -> str:
@@ -141,12 +155,22 @@ def collect_domain_snapshot(domain: str) -> dict[str, Any]:
     final_url = str(response.url or f"https://{safe_domain}/")
     content = getattr(response, "content", b"") or b""
     html_size = len(content) if isinstance(content, (bytes, bytearray)) else len(str(content).encode("utf-8"))
-    soup = BeautifulSoup(content, "lxml", from_encoding=response_encoding(response)) if content else None
+    html_text = response_text(
+        response,
+        diagnostics_logger=logger,
+        stage="competitor_analysis.snapshot.fetch",
+    )
+    soup = BeautifulSoup(html_text, "lxml") if html_text else None
     title = _extract_text(soup.title.get_text(" ", strip=True)) if soup and soup.title else ""
     h1_tags = soup.find_all("h1") if soup else []
     h2_tags = soup.find_all("h2") if soup else []
     html_tag = soup.find("html") if soup else None
     internal_links, external_links = _count_links(soup, page_url=final_url, root_host=safe_domain)
+    description = _meta_content(soup, "description")
+    h1 = _extract_text(h1_tags[0].get_text(" ", strip=True)) if h1_tags else ""
+    _log_parsed_field(safe_domain, "title", title)
+    _log_parsed_field(safe_domain, "description", description)
+    _log_parsed_field(safe_domain, "h1", h1)
 
     return {
         "domain": safe_domain,
@@ -154,8 +178,8 @@ def collect_domain_snapshot(domain: str) -> dict[str, Any]:
         "final_url": final_url,
         "https": urlparse(final_url).scheme == "https",
         "title": title,
-        "description": _meta_content(soup, "description"),
-        "h1": _extract_text(h1_tags[0].get_text(" ", strip=True)) if h1_tags else "",
+        "description": description,
+        "h1": h1,
         "h1_count": len(h1_tags),
         "h2_count": len(h2_tags),
         "canonical": _canonical_url(soup, final_url),

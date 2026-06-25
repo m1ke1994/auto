@@ -14,7 +14,7 @@ from django.db.models import Avg
 
 from seo_audit.models import SEOIssue, SEOPage, SiteSEOAudit
 from seo_audit.services.messages import get_issue_recommendation
-from seo_audit.services.text_encoding import repair_mojibake, response_text
+from seo_audit.services.text_encoding import has_mojibake, log_text_diagnostics, response_text
 
 logger = logging.getLogger(__name__)
 
@@ -291,7 +291,7 @@ def _build_start_url(domain: str) -> str:
 def _extract_text(value) -> str:
     if not value:
         return ""
-    return " ".join(repair_mojibake(value).split())
+    return " ".join(str(value).split())
 
 
 def _extract_title(soup: Optional[BeautifulSoup]) -> str:
@@ -352,7 +352,18 @@ def _response_size_bytes(response: requests.Response) -> int:
 
 
 def _prepare_response_text(response: requests.Response) -> str:
-    return response_text(response)
+    return response_text(response, diagnostics_logger=logger, stage="seo_audit.fetch")
+
+
+def _log_parsed_text_field(page_url: str, field: str, value: str) -> None:
+    log_text_diagnostics(logger, f"seo_audit.parsed.{field}", value, url=page_url)
+    if has_mojibake(value):
+        logger.warning(
+            "seo_audit mojibake after parse url=%s field=%s sample=%r",
+            page_url,
+            field,
+            str(value)[:180],
+        )
 
 
 def _extract_ttfb_ms(response: Optional[requests.Response], elapsed_seconds: float) -> int:
@@ -1815,6 +1826,9 @@ def crawl_site_audit(
             canonical_url, canonical_valid = _extract_canonical_url(soup, target_url)
             if canonical_url and not canonical_valid:
                 canonical_url = _extract_text(canonical_url)
+            _log_parsed_text_field(target_url, "title", title)
+            _log_parsed_text_field(target_url, "description", description)
+            _log_parsed_text_field(target_url, "h1", h1_values[0] if h1_values else "")
 
         resource_metrics = _collect_resource_metrics(
             local_session,

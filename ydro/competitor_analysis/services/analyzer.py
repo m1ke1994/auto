@@ -15,7 +15,7 @@ from seo_audit.models import SEOIssue, SEOPage, SiteSEOAudit
 from seo_audit.services.crawler import AuditCancelledError, crawl_site_audit
 from seo_audit.services.messages import get_issue_title
 from seo_audit.services.scoring import recalculate_audit_score
-from seo_audit.services.text_encoding import has_mojibake, repair_mojibake
+from seo_audit.services.text_encoding import has_mojibake, log_text_diagnostics
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +25,16 @@ class AnalysisCanceled(Exception):
 
 
 def _safe_short_text(value: Any, *, limit: int = 220) -> str:
-    text = " ".join(repair_mojibake(value).split())
+    text = " ".join(str(value or "").split())
     if len(text) <= limit:
         return text
     return f"{text[: limit - 1].rstrip()}…"
+
+
+def _clean_string(value: Any) -> str:
+    text = "" if value is None else str(value)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    return "".join(ch for ch in text if ch == "\n" or ch == "\t" or ord(ch) >= 32)
 
 
 def _issue_counts(audit: SiteSEOAudit | None) -> dict[str, int]:
@@ -52,8 +58,8 @@ def _issue_rows(audit: SiteSEOAudit | None, *, limit: int = 40) -> list[dict[str
                 "type": issue.issue_type,
                 "title": get_issue_title(issue.issue_type),
                 "severity": issue.severity,
-                "page_url": repair_mojibake(getattr(issue.page, "url", "")),
-                "recommendation": repair_mojibake(issue.recommendation),
+                "page_url": _clean_string(getattr(issue.page, "url", "")),
+                "recommendation": _clean_string(issue.recommendation),
             }
         )
     return rows
@@ -260,7 +266,7 @@ def clean_result_strings(value: Any) -> Any:
     if isinstance(value, list):
         return [clean_result_strings(item) for item in value]
     if isinstance(value, str):
-        return repair_mojibake(value)
+        return _clean_string(value)
     return value
 
 
@@ -273,6 +279,35 @@ def _warn_remaining_mojibake(value: Any, *, path: str = "results") -> None:
             _warn_remaining_mojibake(item, path=f"{path}[{index}]")
     elif isinstance(value, str) and has_mojibake(value):
         logger.warning("competitor_analysis mojibake remains path=%s value=%r", path, value[:160])
+
+
+def _log_results_diagnostics(payload: dict[str, Any], *, stage: str) -> None:
+    for index, item in enumerate(payload.get("items") or []):
+        if not isinstance(item, dict):
+            continue
+        context = {
+            "index": index,
+            "role": item.get("role"),
+            "domain": item.get("domain"),
+        }
+        for field in ("title", "description", "h1", "canonical", "error"):
+            log_text_diagnostics(logger, f"{stage}.{field}", item.get(field), **context)
+        for issue_index, issue in enumerate((item.get("issues") or [])[:5]):
+            if not isinstance(issue, dict):
+                continue
+            issue_context = {**context, "issue_index": issue_index}
+            log_text_diagnostics(logger, f"{stage}.issue.title", issue.get("title"), **issue_context)
+            log_text_diagnostics(
+                logger,
+                f"{stage}.issue.recommendation",
+                issue.get("recommendation"),
+                **issue_context,
+            )
+
+    recommendations = payload.get("recommendations") if isinstance(payload.get("recommendations"), dict) else {}
+    for group, rows in recommendations.items():
+        for index, row in enumerate((rows or [])[:5]):
+            log_text_diagnostics(logger, f"{stage}.recommendation", row, group=group, index=index)
 
 
 def _analysis_domains(analysis: CompetitorAnalysis) -> tuple[str, str]:
@@ -363,6 +398,7 @@ def run_competitor_analysis(analysis: CompetitorAnalysis) -> CompetitorAnalysis:
         "improvement_plan": _build_improvement_plan(recommendations),
     }
     payload = clean_result_strings(payload)
+    _log_results_diagnostics(payload, stage="competitor_analysis.before_pdf")
     _warn_remaining_mojibake(payload)
 
     pdf_bytes, filename = build_competitor_analysis_pdf(analysis=analysis, payload=payload)
@@ -371,6 +407,7 @@ def run_competitor_analysis(analysis: CompetitorAnalysis) -> CompetitorAnalysis:
         analysis.pdf_file.delete(save=False)
     analysis.pdf_file.save(filename, ContentFile(pdf_bytes), save=False)
     analysis.results = clean_result_strings(payload)
+    _log_results_diagnostics(analysis.results, stage="competitor_analysis.before_save")
     _warn_remaining_mojibake(analysis.results)
     analysis.errors = clean_result_strings(analysis_errors)
     analysis.status = CompetitorAnalysis.Status.COMPLETED

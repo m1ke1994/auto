@@ -207,9 +207,9 @@ class CompetitorAnalysisApiTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
-    def test_pdf_text_sanitizer_repairs_common_mojibake(self):
+    def test_pdf_text_sanitizer_does_not_transcode_mojibake(self):
         broken_text = "\u00d0\u009d\u00d0\u00be\u00d0\u00b2\u00d0\u00be\u00d0\u00b5 \u00d0\u009a\u00d0\u00be\u00d0\u00bd\u00d0\u00b0\u00d0\u00ba\u00d0\u00be\u00d0\u00b2\u00d0\u00be"
-        self.assertEqual(_sanitize_text(broken_text), "Новое Конаково")
+        self.assertEqual(_sanitize_text(broken_text), broken_text)
 
     def test_pdf_report_builds_with_cyrillic_text(self):
         analysis = CompetitorAnalysis.objects.create(

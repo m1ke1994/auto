@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,8 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+from seo_audit.services.text_encoding import has_mojibake, log_text_diagnostics
 
 FONT_REGULAR = "CompetitorAnalysisRegular"
 FONT_BOLD = "CompetitorAnalysisBold"
@@ -45,7 +48,7 @@ COLOR_DANGER = colors.HexColor("#B91C1C")
 COLOR_WARNING = colors.HexColor("#B45309")
 COLOR_SUCCESS = colors.HexColor("#047857")
 
-BROKEN_ENCODING_MARKERS = ("Ð", "Ñ")
+logger = logging.getLogger(__name__)
 
 
 def _first_existing(paths: list[Path]) -> Path | None:
@@ -202,23 +205,12 @@ def _styles() -> dict[str, ParagraphStyle]:
     }
 
 
-def _normalize_pdf_text(value: Any) -> str:
-    if value is None:
-        return ""
-
-    text = str(value)
-    if any(marker in text for marker in BROKEN_ENCODING_MARKERS):
-        try:
-            return text.encode("latin1").decode("utf-8")
-        except (UnicodeEncodeError, UnicodeDecodeError):
-            return text
-    return text
-
-
 def _sanitize_text(value: Any, fallback: str = "—") -> str:
-    text = _normalize_pdf_text(value).replace("�", "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    text = ("" if value is None else str(value)).replace("�", "").replace("\r\n", "\n").replace("\r", "\n").strip()
     if not text:
         return fallback
+    if has_mojibake(text):
+        logger.warning("competitor_analysis.pdf mojibake before paragraph sample=%r", text[:180])
     return "".join(ch for ch in text if ch == "\n" or ord(ch) >= 32)
 
 
@@ -264,6 +256,43 @@ def _first_item(items: list[dict[str, Any]], role: str) -> dict[str, Any]:
 def _safe_filename(value: str) -> str:
     safe = "".join(ch if ch.isalnum() or ch in ("-", ".") else "-" for ch in str(value or "").lower())
     return safe.strip("-.") or "site"
+
+
+def _log_pdf_table_rows(table_name: str, rows: list[list[Any]]) -> None:
+    for row_index, row in enumerate(rows):
+        for column_index, value in enumerate(row):
+            log_text_diagnostics(
+                logger,
+                "competitor_analysis.pdf.table_cell",
+                value,
+                table=table_name,
+                row=row_index,
+                column=column_index,
+            )
+
+
+def _log_pdf_payload_diagnostics(payload: dict[str, Any], own: dict[str, Any], competitor: dict[str, Any]) -> None:
+    for role, item in (("own", own), ("competitor", competitor)):
+        for field in ("title", "description", "h1"):
+            log_text_diagnostics(
+                logger,
+                "competitor_analysis.pdf.payload",
+                item.get(field),
+                role=role,
+                field=field,
+                domain=item.get("domain"),
+            )
+
+    recommendations = payload.get("recommendations") if isinstance(payload.get("recommendations"), dict) else {}
+    for group, rows in recommendations.items():
+        for index, row in enumerate((rows or [])[:5]):
+            log_text_diagnostics(
+                logger,
+                "competitor_analysis.pdf.recommendation",
+                row,
+                group=group,
+                index=index,
+            )
 
 
 def _draw_footer(canvas, doc) -> None:
@@ -395,6 +424,7 @@ def _comparison_table(elements: list, own: dict[str, Any], competitor: dict[str,
         ["HTTPS", _yes_no(own.get("https")), _yes_no(competitor.get("https"))],
         ["Количество ошибок", _safe_int(own.get("errors_count")), _safe_int(competitor.get("errors_count"))],
     ]
+    _log_pdf_table_rows("comparison", rows)
     matrix = [[_p("Показатель", "cell_head"), _p("Ваш сайт", "cell_head"), _p("Конкурент", "cell_head")]]
     for row in rows:
         matrix.append([_p(item, "cell") for item in row])
@@ -425,6 +455,7 @@ def _metadata_block(elements: list, own: dict[str, Any], competitor: dict[str, A
         ["Description вашего сайта", _short(own.get("description"), limit=220)],
         ["Description конкурента", _short(competitor.get("description"), limit=220)],
     ]
+    _log_pdf_table_rows("metadata", rows)
     matrix = [[_p("Поле", "cell_head"), _p("Значение", "cell_head")]]
     for row in rows:
         matrix.append([_p(item, "cell") for item in row])
@@ -530,6 +561,7 @@ def build_competitor_analysis_pdf(*, analysis, payload: dict[str, Any]) -> tuple
     own = _first_item(items, "own")
     competitor = _first_item(items, "competitor")
     recommendations = payload.get("recommendations") if isinstance(payload.get("recommendations"), dict) else {}
+    _log_pdf_payload_diagnostics(payload, own, competitor)
     filename = f"competitor-analysis-{_safe_filename(user_domain)}-{generated_at:%Y%m%d}.pdf"
 
     buffer = BytesIO()
