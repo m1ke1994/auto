@@ -30,9 +30,8 @@ const mobileMenuOpen = ref(false)
 const navItems = [
   { label: 'Возможности', href: '#features' },
   { label: 'Аналитика', href: '#analytics' },
-  { label: 'SEO', href: '#seo' },
+  { label: 'SEO', href: '#features' },
   { label: 'Тарифы', href: '#pricing' },
-  { label: 'Блог', href: '#blog' },
   { label: 'FAQ', href: '#faq' },
 ]
 
@@ -99,12 +98,12 @@ const featureCards = [
 ].map(([title, text, icon]) => ({ title, text, icon }))
 
 const insightCards = [
-  'Трафик есть, но пользователи редко отправляют форму.',
-  'Большинство посетителей заходят с телефона — проверьте мобильную версию.',
-  'Кнопка заявки получает мало кликов — сделайте её заметнее.',
-  'Пользователи уходят до блока преимуществ — перенесите его выше.',
-  'Страница получает просмотры, но не приносит заявки.',
-]
+  ['Трафик есть, но пользователи редко отправляют форму.', BarChart3],
+  ['Большинство посетителей заходят с телефона — проверьте мобильную версию.', FileText],
+  ['Кнопка заявки получает мало кликов — сделайте её заметнее.', MousePointerClick],
+  ['Пользователи уходят до блока преимуществ — перенесите его выше.', Route],
+  ['Страница получает просмотры, но не приносит заявок.', SearchCheck],
+].map(([text, icon]) => ({ text, icon }))
 
 const pricingPlans = [
   {
@@ -155,12 +154,6 @@ const trustLogos = [
   ['TRACKNODE', 'платформа аналитики'],
 ]
 
-const blogCards = [
-  ['Как понять, почему сайт не даёт заявки', 'Практический разбор аналитики, тепловых карт и формы заявки.'],
-  ['Какие страницы стоит улучшать первыми', 'Приоритизация по трафику, скроллингу, кликам и конверсии.'],
-  ['SEO-аудит без сложных терминов', 'На что смотреть владельцу бизнеса и какие ошибки исправлять сначала.'],
-]
-
 const faqItems = [
   ['Что такое TrackNode?', 'TrackNode — это сервис аналитики сайта, заявок, SEO-аудита, анализа конкурентов и понятных рекомендаций в одном кабинете.'],
   ['Как подключить сайт?', 'Добавьте сайт в кабинете, скопируйте код трекера и установите его на страницы публичного сайта.'],
@@ -194,10 +187,7 @@ function closeMobileMenu() {
           </a>
         </nav>
 
-        <div class="hidden items-center gap-5 lg:flex">
-          <RouterLink to="/login" class="text-sm font-semibold text-slate-800 transition hover:text-[#5B5CFF]">
-            Войти
-          </RouterLink>
+        <div class="hidden items-center lg:flex">
           <RouterLink to="/login" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-gradient-to-r from-[#5B5CFF] to-[#8B5CF6] px-5 text-sm font-semibold text-white shadow-[0_16px_36px_rgba(91,92,255,0.28)] transition hover:shadow-[0_18px_44px_rgba(91,92,255,0.38)]">
             Войти в кабинет
           </RouterLink>
@@ -205,7 +195,7 @@ function closeMobileMenu() {
 
         <button
           type="button"
-          class="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-900 shadow-sm lg:hidden"
+          class="mobile-menu-button ml-auto h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-transparent bg-[#5B5CFF] text-white shadow-[0_12px_28px_rgba(91,92,255,0.28)]"
           :aria-expanded="mobileMenuOpen"
           aria-label="Открыть меню"
           @click="mobileMenuOpen = !mobileMenuOpen"
@@ -234,21 +224,21 @@ function closeMobileMenu() {
     </header>
 
     <main id="top">
-      <section class="relative overflow-hidden bg-[radial-gradient(circle_at_70%_22%,rgba(139,92,246,0.18),transparent_35%),radial-gradient(circle_at_18%_38%,rgba(59,130,246,0.14),transparent_32%),linear-gradient(180deg,#ffffff_0%,#f8faff_72%,#f4f1ff_100%)]">
-        <div class="mx-auto grid min-h-[700px] w-full max-w-[1320px] items-center gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:px-8 lg:py-16">
-          <div class="relative z-10 max-w-[22rem] sm:max-w-none">
+      <section class="relative overflow-hidden bg-[radial-gradient(circle_at_68%_18%,rgba(139,92,246,0.18),transparent_34%),radial-gradient(circle_at_16%_38%,rgba(59,130,246,0.12),transparent_30%),linear-gradient(180deg,#ffffff_0%,#f8faff_74%,#f5f1ff_100%)]">
+        <div class="mx-auto grid min-h-[600px] w-full max-w-[1320px] items-center gap-9 px-4 py-10 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-12">
+          <div class="relative z-10 max-w-[23rem] sm:max-w-none">
             <p class="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-white/72 px-4 py-2 text-sm font-semibold text-slate-500 shadow-sm backdrop-blur">
               <Sparkles :size="16" class="text-[#5B5CFF]" />
               Аналитика нового поколения
             </p>
-            <h1 class="mt-7 max-w-[720px] text-4xl font-semibold leading-tight text-slate-950 sm:text-5xl lg:text-6xl">
+            <h1 class="mt-6 max-w-[680px] text-4xl font-semibold leading-tight text-slate-950 sm:text-5xl lg:text-[2.65rem]">
               Понимайте, что происходит
               <span class="block bg-gradient-to-r from-[#2563EB] via-[#5B5CFF] to-[#8B5CF6] bg-clip-text text-transparent">с вашим сайтом</span>
             </h1>
-            <p class="mt-7 max-w-2xl text-lg leading-8 text-slate-600">
+            <p class="mt-6 max-w-2xl text-base leading-8 text-slate-600 lg:text-lg">
               TrackNode объединяет аналитику, тепловые карты, записи сессий, заявки, SEO-аудит и AI-рекомендации в одном личном кабинете. Не просто цифры — понятные выводы и действия для роста заявок.
             </p>
-            <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div class="mt-7 flex flex-col gap-3 sm:flex-row">
               <RouterLink to="/login" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#5B5CFF] to-[#8B5CF6] px-6 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(91,92,255,0.28)] transition hover:shadow-[0_20px_48px_rgba(91,92,255,0.38)]">
                 Войти в кабинет
                 <ArrowRight :size="17" />
@@ -257,7 +247,7 @@ function closeMobileMenu() {
                 Посмотреть возможности
               </a>
             </div>
-            <div class="mt-8 grid gap-4 text-sm font-medium text-slate-600 sm:grid-cols-3">
+            <div class="mt-7 grid gap-4 text-xs font-medium text-slate-600 sm:grid-cols-3 lg:text-sm">
               <div v-for="item in benefits" :key="item" class="flex items-center gap-2">
                 <span class="grid h-7 w-7 place-items-center rounded-full bg-indigo-50 text-[#5B5CFF]">
                   <CheckCircle2 :size="15" />
@@ -270,7 +260,7 @@ function closeMobileMenu() {
           <div class="relative">
             <div class="absolute -inset-8 rounded-[32px] bg-[radial-gradient(circle,rgba(139,92,246,0.22),transparent_62%)] blur-2xl" />
             <div class="relative overflow-hidden rounded-[28px] border border-slate-200/70 bg-white/76 shadow-[0_30px_100px_rgba(91,92,255,0.18)] backdrop-blur-xl">
-              <div class="grid min-h-[500px] grid-cols-1 sm:grid-cols-[170px_1fr]">
+              <div class="grid min-h-[460px] grid-cols-1 sm:grid-cols-[170px_1fr]">
                 <aside class="hidden border-r border-slate-200/80 bg-white/60 p-4 sm:block">
                   <div class="flex items-center gap-2 text-sm font-semibold text-slate-950">
                     <span class="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-[#5B5CFF] to-[#8B5CF6] text-white">
@@ -304,7 +294,7 @@ function closeMobileMenu() {
                     <article v-for="[label, value, change] in metricCards" :key="label" class="rounded-lg border border-slate-200/70 bg-white p-4 shadow-sm">
                       <p class="text-[11px] font-semibold text-slate-400">{{ label }}</p>
                       <div class="mt-3 flex items-end justify-between gap-2">
-                        <strong class="text-xl font-semibold text-slate-950">{{ value }}</strong>
+                        <strong class="whitespace-nowrap text-lg font-semibold text-slate-950">{{ value }}</strong>
                         <span class="text-[10px] font-semibold text-emerald-500">{{ change }}</span>
                       </div>
                     </article>
@@ -376,10 +366,10 @@ function closeMobileMenu() {
         </div>
       </section>
 
-      <section class="bg-white py-12">
+      <section class="border-y border-slate-200/70 bg-white/92 py-8">
         <div class="mx-auto w-full max-w-[1320px] px-4 text-center sm:px-6 lg:px-8">
           <p class="text-sm font-semibold text-slate-600">Нам доверяют компании и предприниматели</p>
-          <div class="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-6">
+          <div class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-6">
             <div v-for="[name, caption] in trustLogos" :key="name" class="flex items-center justify-center gap-3 text-left text-slate-500">
               <span class="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 text-slate-500">
                 <Zap v-if="name === 'TRACKNODE'" :size="20" fill="currentColor" />
@@ -394,105 +384,93 @@ function closeMobileMenu() {
         </div>
       </section>
 
-      <section class="bg-white py-16 sm:py-20">
+      <section class="bg-white py-10 sm:py-12">
         <div class="mx-auto w-full max-w-[1320px] px-4 sm:px-6 lg:px-8">
           <div class="mx-auto max-w-3xl text-center">
             <p class="inline-flex rounded-full bg-indigo-50 px-4 py-2 text-xs font-semibold text-[#5B5CFF]">Проблемы знакомы?</p>
-            <h2 class="mt-6 text-3xl font-semibold leading-tight text-slate-950 sm:text-4xl">
+            <h2 class="mt-5 text-3xl font-semibold leading-tight text-slate-950 sm:text-[2rem]">
               Обычная аналитика показывает цифры. TrackNode объясняет, <span class="text-[#5B5CFF]">что они значат.</span>
             </h2>
           </div>
-          <div class="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            <article v-for="[title, icon] in problemCards" :key="title" class="rounded-lg border border-slate-200/80 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
-              <span class="grid h-12 w-12 place-items-center rounded-lg bg-indigo-50 text-[#5B5CFF]">
-                <component :is="icon" :size="20" />
+          <div class="mx-auto mt-8 grid max-w-[1080px] gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <article v-for="[title, icon] in problemCards" :key="title" class="flex min-h-[82px] items-center gap-5 rounded-lg border border-slate-200/80 bg-white px-6 py-5 shadow-[0_16px_44px_rgba(91,92,255,0.06)]">
+              <span class="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-indigo-50 text-[#5B5CFF]">
+                <component :is="icon" :size="19" />
               </span>
-              <h3 class="mt-8 text-base font-semibold leading-6 text-slate-950">{{ title }}</h3>
+              <h3 class="text-base font-semibold leading-6 text-slate-950">{{ title }}</h3>
             </article>
           </div>
         </div>
       </section>
 
-      <section id="features" class="bg-[#f8faff] py-16 sm:py-20">
+      <section id="features" class="bg-[linear-gradient(180deg,#ffffff,#f8faff)] py-10 sm:py-12">
+        <div class="mx-auto w-full max-w-[1320px] px-4 sm:px-6 lg:px-8">
+          <span id="seo" class="sr-only">SEO</span>
+          <div class="mx-auto max-w-3xl text-center">
+            <p class="inline-flex rounded-full bg-indigo-50 px-4 py-2 text-xs font-semibold text-[#5B5CFF]">Возможности</p>
+            <h2 class="mt-3 text-3xl font-semibold text-slate-950 sm:text-[2rem]">Всё, что нужно для понимания сайта</h2>
+          </div>
+          <div class="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <article v-for="item in featureCards" :key="item.title" class="flex min-h-[88px] gap-4 rounded-lg border border-slate-200/80 bg-white/82 p-4 shadow-[0_14px_42px_rgba(91,92,255,0.05)] backdrop-blur">
+              <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-indigo-50 to-violet-50 text-[#5B5CFF]">
+                <component :is="item.icon" :size="18" />
+              </span>
+              <span>
+                <h3 class="text-sm font-semibold text-slate-950">{{ item.title }}</h3>
+                <p class="mt-1 text-xs leading-5 text-slate-600">{{ item.text }}</p>
+              </span>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="analytics" class="bg-white py-10 sm:py-12">
         <div class="mx-auto w-full max-w-[1320px] px-4 sm:px-6 lg:px-8">
           <div class="mx-auto max-w-3xl text-center">
-            <p class="text-sm font-semibold text-[#5B5CFF]">Возможности</p>
-            <h2 class="mt-3 text-3xl font-semibold text-slate-950 sm:text-4xl">Всё, что нужно для понимания сайта</h2>
+            <p class="inline-flex rounded-full bg-indigo-50 px-4 py-2 text-xs font-semibold text-[#5B5CFF]">Не просто статистика</p>
+            <h2 class="mt-3 text-3xl font-semibold leading-tight text-slate-950 sm:text-[2rem]">Не просто статистика — понятные решения</h2>
           </div>
-          <div class="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-            <article v-for="item in featureCards" :key="item.title" class="rounded-lg border border-slate-200/80 bg-white/78 p-5 shadow-[0_18px_50px_rgba(91,92,255,0.06)] backdrop-blur">
-              <span class="grid h-11 w-11 place-items-center rounded-lg bg-gradient-to-br from-indigo-50 to-violet-50 text-[#5B5CFF]">
-                <component :is="item.icon" :size="20" />
+          <div class="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <article v-for="item in insightCards" :key="item.text" class="flex min-h-[112px] flex-col items-center justify-center rounded-lg border border-slate-200/80 bg-white p-5 text-center shadow-[0_16px_44px_rgba(91,92,255,0.06)]">
+              <span class="grid h-10 w-10 place-items-center rounded-lg bg-indigo-50 text-[#5B5CFF]">
+                <component :is="item.icon" :size="18" />
               </span>
-              <h3 class="mt-5 text-base font-semibold text-slate-950">{{ item.title }}</h3>
-              <p class="mt-2 text-sm leading-6 text-slate-600">{{ item.text }}</p>
+              <p class="mt-4 text-sm font-semibold leading-5 text-slate-950">{{ item.text }}</p>
             </article>
           </div>
         </div>
       </section>
 
-      <section id="analytics" class="bg-white py-16 sm:py-20">
-        <div class="mx-auto grid w-full max-w-[1320px] gap-10 px-4 sm:px-6 lg:grid-cols-[0.86fr_1.14fr] lg:px-8">
-          <div>
-            <p class="text-sm font-semibold text-[#5B5CFF]">Не просто статистика</p>
-            <h2 class="mt-3 text-3xl font-semibold leading-tight text-slate-950 sm:text-4xl">Не просто статистика — понятные решения</h2>
-            <p class="mt-5 text-lg leading-8 text-slate-600">
-              TrackNode превращает данные в понятные выводы: что работает, где пользователи теряются и какие действия помогут увеличить заявки.
-            </p>
-          </div>
-          <div class="grid gap-4">
-            <article v-for="item in insightCards" :key="item" class="flex gap-3 rounded-lg border border-slate-200/80 bg-[#f8faff] p-4 text-sm leading-6 text-slate-700">
-              <CheckCircle2 :size="18" class="mt-0.5 shrink-0 text-[#5B5CFF]" />
-              <span>{{ item }}</span>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section id="seo" class="bg-[linear-gradient(180deg,#ffffff,#f8faff)] py-16 sm:py-20">
-        <div class="mx-auto grid w-full max-w-[1320px] gap-5 px-4 sm:px-6 lg:grid-cols-3 lg:px-8">
-          <article class="rounded-lg border border-slate-200/80 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
-            <SearchCheck :size="25" class="text-[#5B5CFF]" />
-            <h2 class="mt-5 text-2xl font-semibold text-slate-950">SEO-аудит сайта</h2>
-            <p class="mt-3 text-sm leading-6 text-slate-600">Проверяйте title, description, H1, технические ошибки и получайте понятные рекомендации.</p>
-          </article>
-          <article class="rounded-lg border border-slate-200/80 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
-            <FileSearch :size="25" class="text-[#5B5CFF]" />
-            <h2 class="mt-5 text-2xl font-semibold text-slate-950">Анализ конкурентов</h2>
-            <p class="mt-3 text-sm leading-6 text-slate-600">Сравнивайте сайт с конкурентами и находите точки роста в нише.</p>
-          </article>
-          <article class="rounded-lg border border-slate-200/80 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
-            <Inbox :size="25" class="text-[#5B5CFF]" />
-            <h2 class="mt-5 text-2xl font-semibold text-slate-950">Заявки в кабинете</h2>
-            <p class="mt-3 text-sm leading-6 text-slate-600">Смотрите источник, дату, статус и связь заявки с аналитикой сайта.</p>
-          </article>
-        </div>
-      </section>
-
-      <section id="pricing" class="bg-white py-16 sm:py-20">
+      <section id="pricing" class="bg-[linear-gradient(180deg,#ffffff,#f8faff)] py-10 sm:py-12">
         <div class="mx-auto w-full max-w-[1320px] px-4 sm:px-6 lg:px-8">
           <div class="mx-auto max-w-3xl text-center">
-            <p class="text-sm font-semibold text-[#5B5CFF]">Тарифы</p>
-            <h2 class="mt-3 text-3xl font-semibold text-slate-950 sm:text-4xl">Выберите формат для вашего сайта</h2>
+            <p class="inline-flex rounded-full bg-indigo-50 px-4 py-2 text-xs font-semibold text-[#5B5CFF]">Тарифы</p>
+            <h2 class="mt-3 text-3xl font-semibold text-slate-950 sm:text-[2rem]">Выберите подходящий тариф</h2>
           </div>
-          <div class="mt-10 grid gap-5 lg:grid-cols-3">
+          <div class="mx-auto mt-8 grid max-w-[1040px] gap-5 lg:grid-cols-3">
             <article
               v-for="plan in pricingPlans"
               :key="plan.name"
-              class="relative rounded-lg border bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.07)]"
-              :class="plan.popular ? 'border-[#5B5CFF]/45 ring-2 ring-[#5B5CFF]/10' : 'border-slate-200/80'"
+              class="relative overflow-hidden rounded-lg border bg-white px-7 pb-7 pt-6 shadow-[0_18px_60px_rgba(91,92,255,0.08)]"
+              :class="plan.popular ? 'border-[#5B5CFF]/65 ring-2 ring-[#5B5CFF]/10' : 'border-slate-200/80'"
             >
-              <span v-if="plan.popular" class="mb-4 inline-flex rounded-full bg-[#5B5CFF] px-3 py-1 text-xs font-semibold text-white">Популярный</span>
-              <h3 class="text-2xl font-semibold text-slate-950">{{ plan.name }}</h3>
-              <p class="mt-2 text-sm leading-6 text-slate-600">{{ plan.description }}</p>
-              <p class="mt-6 text-4xl font-semibold text-slate-950">{{ plan.price }}<span class="text-base font-medium text-slate-500">/мес</span></p>
-              <ul class="mt-7 space-y-3">
-                <li v-for="feature in plan.features" :key="feature" class="flex gap-3 text-sm leading-6 text-slate-700">
-                  <CheckCircle2 :size="17" class="mt-0.5 shrink-0 text-[#5B5CFF]" />
+              <div v-if="plan.popular" class="-mx-7 -mt-6 mb-6 bg-gradient-to-r from-[#5B5CFF] to-[#8B5CF6] px-7 py-2 text-center text-xs font-semibold text-white">
+                Популярный
+              </div>
+              <h3 class="text-xl font-semibold text-slate-950">{{ plan.name }}</h3>
+              <p class="mt-1 text-xs leading-5 text-slate-500">{{ plan.description }}</p>
+              <p class="mt-6 text-3xl font-semibold text-slate-950">{{ plan.price }}<span class="ml-1 text-sm font-medium text-slate-500">/ мес</span></p>
+              <ul class="mt-6 space-y-2">
+                <li v-for="feature in plan.features" :key="feature" class="flex gap-2 text-xs leading-5 text-slate-700">
+                  <CheckCircle2 :size="15" class="mt-0.5 shrink-0 text-[#5B5CFF]" />
                   <span>{{ feature }}</span>
                 </li>
               </ul>
-              <RouterLink to="/login" class="mt-7 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-gradient-to-r from-[#5B5CFF] to-[#8B5CF6] px-4 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(91,92,255,0.2)] transition hover:shadow-[0_16px_36px_rgba(91,92,255,0.28)]">
+              <RouterLink
+                to="/login"
+                class="mt-7 inline-flex min-h-10 w-full items-center justify-center rounded-lg px-4 text-xs font-semibold transition"
+                :class="plan.popular ? 'bg-gradient-to-r from-[#5B5CFF] to-[#8B5CF6] text-white shadow-[0_14px_30px_rgba(91,92,255,0.24)] hover:shadow-[0_16px_36px_rgba(91,92,255,0.3)]' : 'border border-[#5B5CFF]/55 bg-white text-[#5B5CFF] hover:bg-indigo-50'"
+              >
                 Войти в кабинет
               </RouterLink>
             </article>
@@ -500,51 +478,49 @@ function closeMobileMenu() {
         </div>
       </section>
 
-      <section id="blog" class="bg-[#f8faff] py-16 sm:py-20">
-        <div class="mx-auto w-full max-w-[1320px] px-4 sm:px-6 lg:px-8">
-          <div class="mx-auto max-w-3xl text-center">
-            <p class="text-sm font-semibold text-[#5B5CFF]">Блог</p>
-            <h2 class="mt-3 text-3xl font-semibold text-slate-950 sm:text-4xl">Материалы для роста сайта</h2>
-          </div>
-          <div class="mt-10 grid gap-5 md:grid-cols-3">
-            <article v-for="[title, text] in blogCards" :key="title" class="rounded-lg border border-slate-200/80 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
-              <h3 class="text-lg font-semibold text-slate-950">{{ title }}</h3>
-              <p class="mt-3 text-sm leading-6 text-slate-600">{{ text }}</p>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section id="faq" class="bg-white py-16 sm:py-20">
-        <div class="mx-auto grid w-full max-w-[1320px] gap-10 px-4 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
+      <section id="faq" class="bg-white px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
+        <div class="mx-auto grid max-w-[1320px] gap-7 lg:grid-cols-[0.92fr_1.08fr] lg:items-stretch">
           <div>
-            <p class="text-sm font-semibold text-[#5B5CFF]">FAQ</p>
-            <h2 class="mt-3 text-3xl font-semibold text-slate-950 sm:text-4xl">Ответы на частые вопросы</h2>
+            <p class="inline-flex rounded-full bg-indigo-50 px-4 py-2 text-xs font-semibold text-[#5B5CFF]">FAQ</p>
+            <h2 class="mt-3 text-3xl font-semibold text-slate-950 sm:text-[2rem]">Часто задаваемые вопросы</h2>
+            <div class="mt-5 grid gap-2">
+              <details v-for="[question, answer] in faqItems" :key="question" class="group rounded-lg border border-slate-200/80 bg-[#f8faff] px-4 py-2.5">
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-slate-950">
+                  {{ question }}
+                  <ArrowRight :size="16" class="shrink-0 text-[#5B5CFF] transition group-open:rotate-90" />
+                </summary>
+                <p class="mt-2 text-xs leading-5 text-slate-600">{{ answer }}</p>
+              </details>
+            </div>
           </div>
-          <div class="grid gap-3">
-            <details v-for="[question, answer] in faqItems" :key="question" class="group rounded-lg border border-slate-200/80 bg-[#f8faff] p-5">
-              <summary class="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-semibold text-slate-950">
-                {{ question }}
-                <ArrowRight :size="18" class="shrink-0 text-[#5B5CFF] transition group-open:rotate-90" />
-              </summary>
-              <p class="mt-3 text-sm leading-6 text-slate-600">{{ answer }}</p>
-            </details>
-          </div>
-        </div>
-      </section>
 
-      <section class="bg-white px-4 pb-16 sm:px-6 sm:pb-20 lg:px-8">
-        <div class="mx-auto max-w-[1320px] rounded-[28px] border border-indigo-100 bg-[radial-gradient(circle_at_20%_20%,rgba(91,92,255,0.18),transparent_30%),linear-gradient(135deg,#ffffff,#eef2ff)] px-6 py-12 text-center shadow-[0_30px_90px_rgba(91,92,255,0.12)] sm:px-10 sm:py-16">
-          <h2 class="text-3xl font-semibold text-slate-950 sm:text-5xl">Начните понимать свой сайт уже сегодня</h2>
-          <p class="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-            Откройте личный кабинет TrackNode и смотрите аналитику, заявки, SEO и рекомендации в одном месте.
-          </p>
-          <RouterLink to="/login" class="mt-8 inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#5B5CFF] to-[#8B5CF6] px-6 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(91,92,255,0.28)]">
-            Войти в кабинет
-            <ArrowRight :size="17" />
-          </RouterLink>
+          <div class="relative overflow-hidden rounded-[24px] bg-[radial-gradient(circle_at_86%_30%,rgba(255,255,255,0.28),transparent_30%),linear-gradient(135deg,#7C3AED_0%,#5B5CFF_48%,#A855F7_100%)] px-7 py-10 text-white shadow-[0_28px_80px_rgba(91,92,255,0.24)] sm:px-10 lg:flex lg:min-h-[300px] lg:flex-col lg:justify-center">
+            <Zap :size="250" class="absolute -right-8 -top-6 text-white/12" fill="currentColor" />
+            <div class="relative max-w-[560px]">
+              <h2 class="text-3xl font-semibold leading-tight sm:text-4xl">Начните понимать свой сайт уже сегодня</h2>
+              <p class="mt-4 text-sm leading-6 text-white/82 sm:text-base">
+                Откройте личный кабинет TrackNode и смотрите аналитику, заявки, SEO и рекомендации в одном месте.
+              </p>
+              <RouterLink to="/login" class="mt-7 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-white px-5 text-sm font-semibold text-[#5B5CFF] shadow-[0_14px_32px_rgba(15,23,42,0.16)]">
+                Войти в кабинет
+                <ArrowRight :size="17" />
+              </RouterLink>
+            </div>
+          </div>
         </div>
       </section>
     </main>
   </div>
 </template>
+
+<style scoped>
+.mobile-menu-button {
+  display: inline-flex;
+}
+
+@media (min-width: 1024px) {
+  .mobile-menu-button {
+    display: none;
+  }
+}
+</style>
