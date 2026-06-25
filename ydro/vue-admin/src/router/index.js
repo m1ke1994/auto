@@ -5,6 +5,7 @@ import DashboardView from '../views/DashboardView.vue'
 import SiteOverviewView from '../views/SiteOverviewView.vue'
 import AnalyticsView from '../views/AnalyticsView.vue'
 import CompetitorAnalysisView from '../views/CompetitorAnalysisView.vue'
+import LandingPage from '../views/LandingPage.vue'
 import LoginView from '../views/LoginView.vue'
 import LeadsView from '../views/LeadsView.vue'
 import SectionEditView from '../views/SectionEditView.vue'
@@ -20,6 +21,37 @@ import { applyRouteSeo } from '../config/seo'
 
 const routes = [
   {
+    path: '/',
+    name: 'landing',
+    component: LandingPage,
+    meta: {
+      public: true,
+      seoTitle: 'TrackNode — аналитика сайта, тепловые карты, заявки и SEO-аудит',
+      description:
+        'TrackNode помогает владельцам сайтов понимать поведение пользователей, собирать заявки, смотреть тепловые карты, анализировать SEO и получать понятные рекомендации для роста конверсии.',
+      canonicalUrl: 'https://tracknode.ru/',
+      keywords:
+        'аналитика сайта, поведенческая аналитика, тепловая карта кликов, записи сессий, карта скроллинга, анализ поведения пользователей, сервис аналитики сайта, заявки с сайта, CRM заявок, SEO-аудит сайта, анализ конкурентов сайта, AI-рекомендации для сайта, мультисайтовая платформа',
+      ogType: 'website',
+      twitterCard: 'summary_large_image',
+      jsonLd: {
+        '@context': 'https://schema.org',
+        '@type': 'SoftwareApplication',
+        name: 'TrackNode',
+        applicationCategory: 'BusinessApplication',
+        operatingSystem: 'Web',
+        url: 'https://tracknode.ru/',
+        description:
+          'TrackNode помогает владельцам сайтов понимать поведение пользователей, собирать заявки, смотреть тепловые карты, анализировать SEO и получать понятные рекомендации для роста конверсии.',
+        offers: {
+          '@type': 'Offer',
+          price: '2990',
+          priceCurrency: 'RUB',
+        },
+      },
+    },
+  },
+  {
     path: '/login',
     name: 'login',
     component: LoginView,
@@ -30,7 +62,6 @@ const routes = [
     component: AdminLayout,
     meta: { requiresAuth: true },
     children: [
-      { path: '', redirect: { name: 'dashboard' } },
       { path: 'dashboard', name: 'dashboard', component: DashboardView, meta: { title: 'Панель управления' } },
       { path: 'sites/:siteId/overview', name: 'site-overview', component: SiteOverviewView, props: true, meta: { title: 'Обзор сайта' } },
       { path: 'sites/:siteId/sections', name: 'sections', component: SectionsView, props: true, meta: { title: 'Разделы сайта' } },
