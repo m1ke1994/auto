@@ -1,6 +1,8 @@
+import asyncio
 import hmac
 import ipaddress
 import logging
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Header, Request, status
@@ -9,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from app.settings import Settings, get_settings
 from app.telegram_client import send_message_to_telegram
+from app.update_receiver import run_update_polling
 
 settings = get_settings()
 logging.basicConfig(
@@ -17,7 +20,27 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="TrackNode Telegram Relay", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    current_settings = get_settings()
+    stop_event = asyncio.Event()
+    polling_task = None
+    if current_settings.telegram_updates_enabled:
+        polling_task = asyncio.create_task(run_update_polling(current_settings, stop_event))
+    try:
+        yield
+    finally:
+        stop_event.set()
+        if polling_task is not None:
+            polling_task.cancel()
+            try:
+                await polling_task
+            except asyncio.CancelledError:
+                pass
+
+
+app = FastAPI(title="TrackNode Telegram Relay", version="1.0.0", lifespan=lifespan)
 
 
 class SendMessagePayload(BaseModel):

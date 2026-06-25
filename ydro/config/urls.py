@@ -18,7 +18,7 @@ from analytics_app.views import (
 from clients.views import ClientSettingsView, tracker_js_view
 from leads.views import PublicLeadCreateView as MiniPublicLeadCreateView
 from subscriptions.views import YooKassaWebhookView
-from telegram_logs.views import TelegramWebhookView
+from telegram_logs.views import TelegramRelayBindView, TelegramWebhookView
 
 from apps.mediafiles.views import UploadFileView
 from apps.sites.views import PublicLeadCreateView, PublicSiteBundleBySlugView
@@ -69,6 +69,7 @@ urlpatterns = [
     path("api/public/lead/", MiniPublicLeadCreateView.as_view(), name="public_lead"),
     path("api/public/event/", PublicEventCreateView.as_view(), name="public_event"),
     path("api/analytics/event/", PublicAnalyticsEventCreateView.as_view(), name="analytics_event"),
+    path("api/telegram/relay-bind/", TelegramRelayBindView.as_view(), name="telegram_relay_bind"),
     path("api/public/telegram/webhook/", TelegramWebhookView.as_view(), name="telegram_webhook"),
     path("api/subscriptions/yookassa/webhook/", YooKassaWebhookView.as_view(), name="yookassa_webhook_subscriptions"),
     path("api/payments/yookassa/webhook/", YooKassaWebhookView.as_view(), name="yookassa_webhook"),

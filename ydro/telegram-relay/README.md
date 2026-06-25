@@ -14,7 +14,15 @@
 
 3. Заполните `TELEGRAM_BOT_TOKEN` токеном Telegram-бота.
 4. Заполните `RELAY_TOKEN` длинным случайным секретом. Этот же секрет укажите в основном TrackNode как `TELEGRAM_RELAY_TOKEN`.
-5. При необходимости заполните `ALLOWED_SOURCE_IPS` IP-адресом основного сервера TrackNode. Можно указать несколько значений через запятую или CIDR:
+5. Заполните `TRACKNODE_RELAY_BIND_URL` адресом основного backend:
+
+   ```env
+   TRACKNODE_RELAY_BIND_URL=https://tracknode.ru/api/telegram/relay-bind/
+   ```
+
+6. Заполните `TRACKNODE_RELAY_TOKEN`. Обычно это тот же секрет, что и `RELAY_TOKEN`; на основном TrackNode он должен совпадать с `TELEGRAM_RELAY_BIND_TOKEN` или `TELEGRAM_RELAY_TOKEN`.
+7. Оставьте `TELEGRAM_UPDATES_ENABLED=true`, если relay должен принимать `/start ...` от Telegram и подключать чаты к сайтам.
+8. При необходимости заполните `ALLOWED_SOURCE_IPS` IP-адресом основного сервера TrackNode. Можно указать несколько значений через запятую или CIDR:
 
    ```env
    ALLOWED_SOURCE_IPS=203.0.113.10,203.0.113.0/24
@@ -22,7 +30,7 @@
 
    Также рекомендуется на firewall открыть порт relay только для IP основного сервера.
 
-6. Запустите сервис:
+9. Запустите сервис:
 
    ```bash
    docker compose up -d --build
@@ -71,6 +79,7 @@ docker compose logs -f
 TELEGRAM_DELIVERY_MODE=relay
 TELEGRAM_RELAY_URL=https://relay-domain.com/send-message
 TELEGRAM_RELAY_TOKEN=тот_же_секрет_что_в_RELAY_TOKEN
+TELEGRAM_RELAY_BIND_TOKEN=тот_же_секрет_что_в_TRACKNODE_RELAY_TOKEN
 ```
 
 Для возврата к старому режиму:
