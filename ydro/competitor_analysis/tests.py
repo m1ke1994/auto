@@ -72,6 +72,40 @@ class CompetitorAnalysisApiTests(TestCase):
         mocked_delay.assert_called_once_with(analysis.id)
 
     @patch("competitor_analysis.tasks.run_competitor_analysis_task.delay")
+    def test_site_owner_without_client_gets_client_and_can_create_analysis(self, mocked_delay):
+        user_model = get_user_model()
+        owner_without_client = user_model.objects.create_user(
+            username="competitor-owner-without-client",
+            email="competitor-owner-without-client@example.com",
+            password="pass12345",
+        )
+        site_without_client = Site.objects.create(
+            name="A Meditation / Амедиа",
+            slug="a-meditation-no-client",
+            domain="leelabird.ru",
+            owner=owner_without_client,
+            is_active=True,
+        )
+        self.http.force_authenticate(user=owner_without_client)
+
+        response = self.http.post(
+            f"/api/admin/sites/{site_without_client.id}/competitors/analyze/",
+            {
+                "user_domain": "leelabird.ru",
+                "competitor_domain": "example-competitor.ru",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        created_client = Client.objects.get(owner=owner_without_client)
+        analysis = CompetitorAnalysis.objects.get(id=response.json()["id"])
+        self.assertEqual(analysis.site_id, site_without_client.id)
+        self.assertEqual(analysis.client_id, created_client.id)
+        self.assertEqual(created_client.name, site_without_client.name)
+        mocked_delay.assert_called_once_with(analysis.id)
+
+    @patch("competitor_analysis.tasks.run_competitor_analysis_task.delay")
     def test_create_analysis_supports_legacy_single_competitor(self, mocked_delay):
         response = self.http.post(
             f"/api/admin/sites/{self.site.id}/competitors/analyze/",

@@ -15,6 +15,7 @@ from rest_framework.views import APIView
 
 from apps.sites.models import Site
 from clients.models import Client
+from clients.services import get_or_create_client_for_site
 from competitor_analysis.models import CompetitorAnalysis
 from competitor_analysis.serializers import CompetitorAnalysisCreateSerializer, CompetitorAnalysisSerializer
 
@@ -67,7 +68,7 @@ class AdminSiteCompetitorAccessMixin:
         return site
 
     def get_client_for_site(self, site: Site) -> Client:
-        client = Client.objects.filter(owner=site.owner).first()
+        client, _ = get_or_create_client_for_site(site)
         if client is None:
             raise PermissionDenied(detail="Для владельца сайта не найден клиент.")
         if not self._platform_admin() and not client.is_active:

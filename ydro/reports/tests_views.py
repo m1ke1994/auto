@@ -6,6 +6,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from apps.sites.models import Site
 from clients.models import Client
 from subscriptions.models import Subscription
 
@@ -33,6 +34,31 @@ class ReportViewsTests(TestCase):
         response = self.api.post("/api/mini/reports/send-now/", {}, format="json")
         self.assertEqual(response.status_code, 400)
         self.assertFalse(response.data["ok"])
+
+    @override_settings(ENABLE_BILLING=False)
+    def test_site_owner_without_client_gets_client_and_can_access_report_settings(self):
+        user_model = get_user_model()
+        owner_without_client = user_model.objects.create_user(
+            username="reports-owner-without-client",
+            email="reports-owner-without-client@example.com",
+            password="test-pass-123",
+        )
+        site = Site.objects.create(
+            name="A Meditation / Амедиа",
+            slug="reports-a-meditation-no-client",
+            domain="leelabird.ru",
+            owner=owner_without_client,
+            is_active=True,
+        )
+        self.api.force_authenticate(user=owner_without_client)
+
+        response = self.api.get("/api/mini/reports/toggle-daily/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["daily_pdf_enabled"])
+        created_client = Client.objects.get(owner=owner_without_client)
+        self.assertEqual(created_client.name, site.name)
+        self.assertTrue(created_client.is_active)
 
     @override_settings(ENABLE_BILLING=False)
     @patch("reports.views.send_pdf_to_client_telegram", return_value=True)

@@ -2,6 +2,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from clients.models import Client
+from clients.services import get_or_create_client_for_site, get_user_client
 from subscriptions.models import Subscription
 
 
@@ -42,7 +43,14 @@ def can_access_client_dashboard(user, request=None) -> tuple[bool, object | None
         client = _resolve_superuser_client(request=request)
         return (client is not None), client
 
-    client = getattr(user, "client", None)
+    client = get_user_client(user)
+    if client is None:
+        from apps.sites.models import Site
+
+        site = Site.objects.select_related("owner").filter(owner=user, is_active=True).order_by("id").first()
+        if site is not None:
+            client, _ = get_or_create_client_for_site(site)
+
     if client is None:
         return False, None
     if not getattr(client, "is_active", False):

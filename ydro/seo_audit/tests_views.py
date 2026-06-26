@@ -3,7 +3,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -124,6 +124,38 @@ class SEOAuditViewsExtendedTests(TestCase):
         audit = SiteSEOAudit.objects.get(id=response.json()["audit_id"])
         self.assertEqual(audit.client_id, self.client_obj.id)
         self.assertEqual(audit.domain, "leelabird.ru")
+        mocked_delay.assert_called_once_with(audit.id)
+
+    @override_settings(ENABLE_BILLING=False)
+    @patch("seo_audit.tasks.run_site_audit_task.delay")
+    def test_site_owner_without_client_gets_client_and_can_start_seo_audit(self, mocked_delay):
+        user_model = get_user_model()
+        owner_without_client = user_model.objects.create_user(
+            username="seo-owner-without-client",
+            email="seo-owner-without-client@example.com",
+            password="pass12345",
+        )
+        site_without_client = Site.objects.create(
+            name="A Meditation / Амедиа",
+            slug="a-meditation-no-client",
+            domain="leelabird.ru",
+            owner=owner_without_client,
+            is_active=True,
+        )
+        self.http.force_authenticate(user=owner_without_client)
+
+        response = self.http.post(
+            "/api/mini/seo/start/",
+            {"site_id": site_without_client.id, "domain": "https://leelabird.ru/"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        created_client = Client.objects.get(owner=owner_without_client)
+        self.assertTrue(created_client.is_active)
+        self.assertEqual(created_client.name, site_without_client.name)
+        audit = SiteSEOAudit.objects.get(id=response.json()["audit_id"])
+        self.assertEqual(audit.client_id, created_client.id)
         mocked_delay.assert_called_once_with(audit.id)
 
     @patch("seo_audit.tasks.run_site_audit_task.delay")

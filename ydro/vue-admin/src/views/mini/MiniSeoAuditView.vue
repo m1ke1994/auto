@@ -56,7 +56,7 @@ function startAuditErrorMessage(e) {
   if (String(detail).includes('Client dashboard access')) {
     return 'Нет доступа к SEO-аудиту выбранного сайта.'
   }
-  return 'Не удалось выполнить SEO-аудит. Попробуйте позже.'
+  return detail || 'Не удалось выполнить SEO-аудит. Попробуйте позже.'
 }
 
 async function loadAudit(id) {

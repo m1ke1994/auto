@@ -1,7 +1,9 @@
 ﻿from django.contrib import admin
 from django.db.models import Count
+from django.urls import reverse
 from django.utils.html import format_html, format_html_join
 
+from clients.services import get_user_client
 from .models import SectionSchema, Site, SiteLead, SiteSection
 
 
@@ -33,6 +35,7 @@ class SiteAdmin(admin.ModelAdmin):
         "api_key",
         "telegram_status",
         "owner",
+        "owner_client",
         "is_active",
         "sections_count",
         "created_at",
@@ -51,7 +54,7 @@ class SiteAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
-        return queryset.annotate(sections_total=Count("sections"))
+        return queryset.select_related("owner", "owner__client").annotate(sections_total=Count("sections"))
 
     @admin.display(description="Sections", ordering="sections_total")
     def sections_count(self, obj):
@@ -60,6 +63,16 @@ class SiteAdmin(admin.ModelAdmin):
     @admin.display(description="Telegram")
     def telegram_status(self, obj):
         return "подключен" if obj.telegram_chat_id and obj.send_to_telegram else "не подключен"
+
+    @admin.display(description="Mini CRM client")
+    def owner_client(self, obj):
+        client = get_user_client(obj.owner)
+        if client is None:
+            return format_html('<span style="color:#b91c1c;">нет клиента</span>')
+
+        url = reverse("admin:clients_client_change", args=[client.id])
+        status = "active" if client.is_active else "inactive"
+        return format_html('<a href="{}">#{} {}</a>', url, client.id, status)
 
 
 @admin.register(SectionSchema)

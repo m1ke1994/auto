@@ -2,6 +2,7 @@ from rest_framework import permissions
 
 from apps.sites.models import Site
 from clients.models import Client
+from clients.services import get_or_create_client_for_site
 from subscriptions.access import can_access_client_dashboard, has_active_subscription
 from subscriptions.exceptions import PaymentRequired
 
@@ -53,7 +54,7 @@ class SEOAuditAccessPermission(permissions.BasePermission):
         if not is_platform_admin and site.owner_id != user.id:
             return False
 
-        client = getattr(site.owner, "client", None)
+        client, _ = get_or_create_client_for_site(site)
         if client is None:
             return False
 
