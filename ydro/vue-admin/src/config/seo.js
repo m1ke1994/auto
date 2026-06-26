@@ -3,7 +3,7 @@ import { SITE_URL } from './env'
 const SITE_NAME = import.meta.env.VITE_SITE_NAME || 'TrackNode'
 const SITE_DESCRIPTION =
   import.meta.env.VITE_SITE_DESCRIPTION ||
-  'TrackNode объединяет аналитику сайтов, лиды, SEO-аудит и отчёты в одном кабинете.'
+  'TrackNode объединяет аналитику сайтов, заявки, SEO-аудит, конкурентов и отчёты в одном кабинете.'
 const OG_IMAGE_URL = import.meta.env.VITE_OG_IMAGE_URL || `${SITE_URL}/og-image.svg`
 
 function setMeta(selector, attribute, value) {
@@ -56,7 +56,7 @@ function setJsonLd(value) {
 
 export function applyRouteSeo(route) {
   const routeTitle = route.meta.title
-  const title = route.meta.seoTitle || (routeTitle ? `${routeTitle} | ${SITE_NAME}` : `${SITE_NAME} — аналитика, лиды и SEO-аудит`)
+  const title = route.meta.seoTitle || (routeTitle ? `${routeTitle} | ${SITE_NAME}` : `${SITE_NAME} — аналитика, заявки и SEO-аудит`)
   const description = route.meta.description || SITE_DESCRIPTION
   const canonicalUrl = route.meta.canonicalUrl || `${SITE_URL}${route.path === '/' ? '/' : route.path}`
   const robots = route.meta.public ? 'index,follow' : 'noindex,nofollow'
