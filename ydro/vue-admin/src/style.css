@@ -43,7 +43,12 @@
 
 @layer components {
   .page-stack {
-    @apply mx-auto w-full max-w-[1500px] space-y-6;
+    @apply mx-auto min-w-0 w-full max-w-[1500px] space-y-6;
+  }
+
+  .page-stack > * {
+    min-width: 0;
+    max-width: 100%;
   }
 
   .page-heading {
@@ -84,7 +89,7 @@
   }
 
   .surface {
-    @apply rounded-2xl border bg-white p-4 shadow-soft backdrop-blur sm:p-5;
+    @apply min-w-0 rounded-2xl border bg-white p-4 shadow-soft backdrop-blur sm:p-5;
     background: rgba(255, 255, 255, 0.9);
     border-color: var(--tn-border);
   }
@@ -214,7 +219,7 @@
   }
 
   .data-table {
-    @apply min-w-full text-left text-sm;
+    @apply w-max min-w-full text-left text-sm;
   }
 
   .data-table thead {

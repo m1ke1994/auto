@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   BarChart3,
@@ -49,6 +49,7 @@ const success = ref('')
 const summary = ref(null)
 const sectionData = ref({})
 const sessionDetail = ref(null)
+const sessionDetailBlock = ref(null)
 const activeTab = ref('overview')
 const days = ref(14)
 const includeBots = ref(false)
@@ -589,6 +590,8 @@ async function openSession(sessionId) {
   if (!sessionId) return
   sessionLoading.value = true
   sessionDetail.value = null
+  await nextTick()
+  sessionDetailBlock.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   try {
     const { data } = await getSiteAnalyticsSessionRequest(siteId.value, sessionId, {
       days: days.value,
@@ -600,6 +603,8 @@ async function openSession(sessionId) {
   } finally {
     sessionLoading.value = false
   }
+  await nextTick()
+  sessionDetailBlock.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 function setTab(tabKey) {
@@ -705,8 +710,8 @@ onMounted(async () => {
 
         <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <article v-for="metric in overviewMetricCards" :key="metric.label" class="surface">
-            <div class="flex items-start justify-between gap-3">
-              <div>
+            <div class="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
+              <div class="min-w-0">
                 <div class="flex items-center gap-2">
                   <h2 class="text-base font-semibold text-[#17223B]">{{ metric.label }}</h2>
                   <MetricHelpTooltip :text="metric.tooltip" />
@@ -844,15 +849,17 @@ onMounted(async () => {
         <div class="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(360px,0.8fr)]">
           <section class="surface">
             <div class="section-heading"><div><h2>Карта</h2><p>{{ heatmapCanvas.width }} x {{ heatmapCanvas.height }}</p></div></div>
-            <div v-if="heatmapPoints.length" class="relative h-[620px] overflow-hidden rounded-2xl border border-brand-100 bg-[#F5F7FD]">
-              <div class="absolute inset-x-0 top-0 h-px bg-slate-200" />
-              <div
-                v-for="point in heatmapPoints"
-                :key="`${point.x}-${point.y}-${point.count}`"
-                class="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/70"
-                :style="heatPointStyle(point)"
-                :title="`${point.count} кликов`"
-              />
+            <div v-if="heatmapPoints.length" class="max-w-full overflow-x-auto overscroll-x-contain pb-2">
+              <div class="relative h-[620px] w-full min-w-[640px] overflow-hidden rounded-2xl border border-brand-100 bg-[#F5F7FD] lg:min-w-0">
+                <div class="absolute inset-x-0 top-0 h-px bg-slate-200" />
+                <div
+                  v-for="point in heatmapPoints"
+                  :key="`${point.x}-${point.y}-${point.count}`"
+                  class="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/70"
+                  :style="heatPointStyle(point)"
+                  :title="`${point.count} кликов`"
+                />
+              </div>
             </div>
             <EmptyAnalyticsState v-else />
           </section>
@@ -951,8 +958,8 @@ onMounted(async () => {
           <EmptyAnalyticsState v-else />
         </section>
 
-        <section v-if="sessionLoading" class="empty-state"><span class="loading-dot" /><p>Загружаем сессию...</p></section>
-        <section v-else-if="sessionDetail" class="surface">
+        <section v-if="sessionLoading" ref="sessionDetailBlock" class="empty-state scroll-mt-20"><span class="loading-dot" /><p>Загружаем сессию...</p></section>
+        <section v-else-if="sessionDetail" ref="sessionDetailBlock" class="surface scroll-mt-20">
           <div class="section-heading">
             <div>
               <h2>Timeline сессии</h2>

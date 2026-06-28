@@ -405,12 +405,12 @@ onUnmounted(() => {
             <div class="mt-8 flex flex-wrap items-center gap-5 text-sm text-slate-600">
               <div class="flex items-center">
                 <span v-for="index in 5" :key="index" class="-ml-2 first:ml-0 grid h-10 w-10 place-items-center rounded-full border-2 border-white bg-gradient-to-br from-indigo-100 to-white text-xs font-semibold text-[#4C33E6] shadow-sm">
-                  {{ index === 5 ? '+120' : index }}
+                  {{ index === 5 ? '+20' : index }}
                 </span>
               </div>
               <div>
                 <p class="font-semibold text-slate-900">5.0 из 5</p>
-                <p class="text-xs">Нам доверяют более 120 компаний</p>
+                <p class="text-xs">Нам доверяют более 20 компаний</p>
               </div>
             </div>
           </div>
@@ -637,8 +637,10 @@ onUnmounted(() => {
           <div class="tn-reveal seo-score-card">
             <div class="grid gap-6 md:grid-cols-[180px_1fr] md:items-center">
               <div class="score-ring">
-                <strong>85</strong>
-                <span>/100</span>
+                <div class="score-value">
+                  <strong>85</strong>
+                  <span>/100</span>
+                </div>
               </div>
               <div>
                 <p class="text-sm font-semibold text-[#4C33E6]">SEO-аудит и рекомендации</p>
@@ -1148,40 +1150,52 @@ onUnmounted(() => {
 
 .score-ring {
   display: grid;
-  width: 160px;
-  height: 160px;
+  width: clamp(136px, 42vw, 160px);
+  aspect-ratio: 1;
   place-items: center;
   justify-self: center;
-  border-radius: 999px;
-  background: conic-gradient(#35c9b8 0 85%, #e2e8f0 85% 100%);
+  border-radius: 50%;
+  background: conic-gradient(from -90deg, #35c9b8 0 85%, #e7eaf3 85% 100%);
+  box-shadow: 0 18px 46px rgba(47, 42, 120, 0.13), inset 0 0 0 1px rgba(255, 255, 255, 0.72);
   color: #0f172a;
   position: relative;
+  isolation: isolate;
+  overflow: hidden;
 }
 
 .score-ring::after {
   content: '';
   position: absolute;
-  inset: 18px;
-  border-radius: 999px;
-  background: white;
+  inset: clamp(14px, 4vw, 17px);
+  z-index: 0;
+  border: 1px solid rgba(99, 102, 241, 0.08);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, #ffffff 0, #ffffff 46%, #f8faff 100%);
+  box-shadow: inset 0 6px 18px rgba(47, 42, 120, 0.04);
 }
 
-.score-ring strong,
-.score-ring span {
+.score-value {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.22rem;
   position: relative;
   z-index: 1;
+  transform: translateY(1px);
 }
 
-.score-ring strong {
-  font-size: 2.8rem;
+.score-value strong {
+  font-size: clamp(2.45rem, 9vw, 2.9rem);
+  font-weight: 750;
+  letter-spacing: -0.06em;
   line-height: 1;
 }
 
-.score-ring span {
-  margin-top: 3.4rem;
-  margin-left: -4.8rem;
+.score-value span {
   color: #64748b;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .recommendation-row {

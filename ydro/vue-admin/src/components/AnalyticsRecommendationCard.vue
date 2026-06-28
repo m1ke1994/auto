@@ -17,8 +17,8 @@ function importanceStatus(value) {
 
 <template>
   <article class="rounded-2xl border border-brand-100 bg-white/92 p-4 shadow-soft transition hover:-translate-y-0.5 hover:shadow-[0_18px_48px_rgba(32,40,70,0.12)]">
-    <div class="flex items-start justify-between gap-3">
-      <h3 class="text-base font-semibold leading-6 text-[#17223B]">{{ item.title }}</h3>
+    <div class="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
+      <h3 class="min-w-0 text-base font-semibold leading-6 text-[#17223B]">{{ item.title }}</h3>
       <MetricStatusBadge :status="importanceStatus(item.importance)" />
     </div>
     <p v-if="item.description" class="mt-3 text-sm leading-6 text-slate-700">{{ item.description }}</p>

@@ -39,10 +39,10 @@ onMounted(async () => {
     <div class="flex min-h-screen">
       <Sidebar :open="sidebarOpen" @close="closeSidebar" />
 
-      <div class="flex min-h-screen w-full flex-1 flex-col lg:pl-64">
+      <div class="flex min-h-screen min-w-0 w-full flex-1 flex-col lg:pl-64">
         <Topbar @toggle-sidebar="sidebarOpen = !sidebarOpen" />
 
-        <main class="flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-8">
+        <main class="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-8">
           <RouterView />
         </main>
       </div>
