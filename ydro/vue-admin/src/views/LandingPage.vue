@@ -6,6 +6,8 @@ import {
   BarChart3,
   Blocks,
   CheckCircle2,
+  BellRing,
+  Download,
   FileSearch,
   FileText,
   Flame,
@@ -16,6 +18,8 @@ import {
   MousePointerClick,
   Route,
   SearchCheck,
+  Share2,
+  Smartphone,
   Sparkles,
   X,
   Zap,
@@ -102,6 +106,39 @@ const featureCards = [
   { title: 'PDF-отчёты', text: 'Готовьте понятные отчёты для собственника, маркетолога или подрядчика.', icon: FileText },
   { title: 'Telegram-уведомления', text: 'Получайте новые заявки в реальном времени и не теряйте горячие обращения.', icon: Sparkles },
   { title: 'Мультисайтовость', text: 'Управляйте несколькими проектами из одного кабинета без переключения инструментов.', icon: Blocks },
+]
+
+const pwaPlatforms = [
+  {
+    key: 'android',
+    label: 'Android / Chrome',
+    title: 'Установка на Android',
+    icon: Download,
+    steps: [
+      'Откройте tracknode.ru в браузере Chrome.',
+      'Войдите в свой дашборд.',
+      'Нажмите меню ⋮ в правом верхнем углу.',
+      'Выберите «Добавить на главный экран» или «Установить приложение».',
+      'Подтвердите установку.',
+      'Иконка TrackNode появится на рабочем столе телефона.',
+    ],
+    note: 'После установки откройте приложение и включите уведомления в разделе «Заявки».',
+  },
+  {
+    key: 'ios',
+    label: 'iPhone / Safari',
+    title: 'Установка на iPhone',
+    icon: Share2,
+    steps: [
+      'Откройте tracknode.ru в Safari.',
+      'Войдите в свой дашборд.',
+      'Нажмите кнопку «Поделиться».',
+      'Выберите «На экран Домой».',
+      'Нажмите «Добавить».',
+      'Иконка TrackNode появится на экране iPhone.',
+    ],
+    note: 'На iPhone уведомления о новых заявках работают после добавления TrackNode на экран «Домой».',
+  },
 ]
 
 const analyticsCards = [
@@ -573,6 +610,59 @@ onUnmounted(() => {
               <div>
                 <h3>{{ item.title }}</h3>
                 <p>{{ item.text }}</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="pwa-app" class="pwa-section section-band overflow-hidden">
+        <div class="pwa-orb pwa-orb-left" aria-hidden="true" />
+        <div class="pwa-orb pwa-orb-right" aria-hidden="true" />
+        <div class="landing-container relative z-10">
+          <div class="tn-reveal mx-auto grid max-w-5xl gap-6 text-center lg:grid-cols-[1fr_auto] lg:items-end lg:text-left">
+            <div class="section-title lg:mx-0 lg:text-left">
+              <p>Дашборд на телефоне</p>
+              <h2>Установите TrackNode как приложение</h2>
+              <p class="pwa-intro">
+                Добавьте TrackNode на главный экран и открывайте дашборд в один клик — без поиска сайта в браузере.
+                Это удобное PWA-приложение для аналитики сайта и быстрых уведомлений о новых заявках.
+              </p>
+            </div>
+            <div class="pwa-benefit">
+              <span><BellRing :size="21" /></span>
+              <div>
+                <strong>Новые заявки без задержки</strong>
+                <p>Включите push-уведомления в разделе «Заявки».</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-10 grid gap-5 lg:grid-cols-2">
+            <article
+              v-for="platform in pwaPlatforms"
+              :key="platform.key"
+              class="tn-reveal pwa-card"
+              :class="`pwa-card-${platform.key}`"
+            >
+              <header class="flex items-center gap-4">
+                <span class="pwa-platform-icon"><component :is="platform.icon" :size="23" /></span>
+                <div>
+                  <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-[#4C33E6]">{{ platform.label }}</p>
+                  <h3 class="mt-1 text-xl font-semibold text-slate-950">{{ platform.title }}</h3>
+                </div>
+              </header>
+
+              <ol class="mt-6 grid gap-3">
+                <li v-for="(step, index) in platform.steps" :key="step" class="pwa-step">
+                  <span>{{ index + 1 }}</span>
+                  <p>{{ step }}</p>
+                </li>
+              </ol>
+
+              <div class="pwa-note">
+                <Smartphone :size="19" />
+                <p>{{ platform.note }}</p>
               </div>
             </article>
           </div>
@@ -1123,6 +1213,166 @@ onUnmounted(() => {
   line-height: 1.65;
 }
 
+.pwa-section {
+  position: relative;
+  border-block: 1px solid rgba(99, 102, 241, 0.1);
+  background:
+    linear-gradient(135deg, rgba(248, 250, 255, 0.98), rgba(238, 242, 255, 0.94)),
+    radial-gradient(circle at 20% 20%, rgba(91, 53, 245, 0.12), transparent 34%);
+}
+
+.pwa-orb {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(6px);
+  pointer-events: none;
+}
+
+.pwa-orb-left {
+  left: -120px;
+  top: 70px;
+  width: 290px;
+  height: 290px;
+  background: rgba(91, 53, 245, 0.1);
+}
+
+.pwa-orb-right {
+  right: -100px;
+  bottom: 20px;
+  width: 260px;
+  height: 260px;
+  background: rgba(53, 201, 184, 0.12);
+}
+
+.pwa-intro {
+  display: block !important;
+  margin-top: 1.25rem;
+  max-width: 760px;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  color: #475569 !important;
+  font-size: 1rem !important;
+  font-weight: 400 !important;
+  line-height: 1.85;
+}
+
+.pwa-benefit {
+  display: flex;
+  max-width: 360px;
+  align-items: center;
+  gap: 0.9rem;
+  border: 1px solid rgba(99, 102, 241, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  padding: 1rem;
+  text-align: left;
+  box-shadow: 0 18px 50px rgba(47, 42, 120, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.pwa-benefit > span,
+.pwa-platform-icon {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #5b35f5, #1d5cff);
+  color: white;
+  box-shadow: 0 12px 28px rgba(76, 51, 230, 0.22);
+}
+
+.pwa-benefit strong {
+  color: #0f172a;
+  font-size: 0.9rem;
+}
+
+.pwa-benefit p {
+  margin-top: 0.2rem;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.pwa-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(99, 102, 241, 0.16);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.88);
+  padding: clamp(1.25rem, 3vw, 2rem);
+  box-shadow: 0 22px 64px rgba(47, 42, 120, 0.1);
+  backdrop-filter: blur(22px);
+  transition: transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease;
+}
+
+.pwa-card::after {
+  content: '';
+  position: absolute;
+  top: -70px;
+  right: -70px;
+  width: 180px;
+  height: 180px;
+  border-radius: 999px;
+  background: rgba(91, 53, 245, 0.06);
+  pointer-events: none;
+}
+
+.pwa-card-ios::after {
+  background: rgba(53, 201, 184, 0.09);
+}
+
+.pwa-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(76, 51, 230, 0.28);
+  box-shadow: 0 30px 80px rgba(47, 42, 120, 0.14);
+}
+
+.pwa-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  color: #334155;
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+
+.pwa-step > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 9px;
+  background: #eef2ff;
+  color: #4c33e6;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.pwa-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  border: 1px solid rgba(53, 201, 184, 0.24);
+  border-radius: 14px;
+  background: rgba(236, 253, 245, 0.72);
+  padding: 1rem;
+  color: #0f766e;
+  font-size: 0.86rem;
+  font-weight: 650;
+  line-height: 1.6;
+}
+
+.pwa-note svg {
+  margin-top: 0.1rem;
+  flex: 0 0 auto;
+}
+
 .feature-icon {
   display: grid;
   width: 46px;
@@ -1528,6 +1778,13 @@ onUnmounted(() => {
   }
 }
 
+@media (min-width: 1024px) {
+  .pwa-section .section-title {
+    margin-inline: 0;
+    text-align: left;
+  }
+}
+
 @media (max-width: 640px) {
   .landing-container {
     width: min(100% - 1rem, 1440px);
@@ -1557,6 +1814,14 @@ onUnmounted(() => {
 
   .pricing-card {
     min-height: 0;
+  }
+
+  .pwa-benefit {
+    max-width: none;
+  }
+
+  .pwa-card {
+    border-radius: 18px;
   }
 
   .cookie-popup {

@@ -213,35 +213,93 @@ onMounted(async () => {
       </section>
     </template>
 
-    <div v-if="selectedLead" class="fixed inset-0 z-50 flex items-end bg-slate-950/35 backdrop-blur-sm sm:items-center sm:justify-center sm:p-5" @click.self="selectedLead = null">
-      <section class="max-h-[92vh] w-full overflow-y-auto rounded-t-[24px] border border-brand-100 bg-white/94 p-5 shadow-[0_24px_70px_rgba(32,40,70,0.16)] backdrop-blur-xl sm:max-w-2xl sm:rounded-[24px]">
-        <div class="flex items-start justify-between gap-3">
-          <div>
+    <div
+      v-if="selectedLead"
+      class="fixed inset-0 z-50 flex items-end bg-slate-950/60 sm:items-center sm:justify-center sm:p-5"
+      role="presentation"
+      @click.self="selectedLead = null"
+    >
+      <section
+        class="flex max-h-[94vh] max-h-[94dvh] w-full flex-col overflow-hidden rounded-t-[24px] border border-slate-200 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.34)] sm:max-w-2xl sm:rounded-[24px]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="lead-dialog-title"
+      >
+        <header class="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 sm:px-6 sm:py-5">
+          <div class="min-w-0">
             <p class="eyebrow">Карточка заявки</p>
-            <h2 class="mt-1 text-xl font-semibold text-[#17223B]">{{ selectedLead.name || 'Имя не указано' }}</h2>
+            <h2 id="lead-dialog-title" class="mt-1 break-words text-xl font-semibold text-slate-950 sm:text-2xl">
+              {{ selectedLead.name || 'Имя не указано' }}
+            </h2>
           </div>
-          <button type="button" class="icon-button" aria-label="Закрыть" @click="selectedLead = null"><X :size="19" /></button>
-        </div>
-        <div class="mt-5 grid gap-4 text-sm sm:grid-cols-2">
-          <p><strong class="block text-slate-500">Дата</strong>{{ formatDate(selectedLead.created_at) }}</p>
-          <p><strong class="block text-slate-500">Статус</strong>{{ statusOption(selectedLead.status).label }}</p>
-          <p><strong class="block text-slate-500">Телефон</strong>{{ selectedLead.phone || 'Не указано' }}</p>
-          <p><strong class="block text-slate-500">Электронная почта</strong>{{ selectedLead.email || 'Не указано' }}</p>
-          <p><strong class="block text-slate-500">Форма</strong>{{ selectedLead.form_name || 'Не указано' }}</p>
-          <p><strong class="block text-slate-500">Источник</strong>{{ pageLabel(selectedLead.source_url) }}</p>
-          <p class="sm:col-span-2"><strong class="block text-slate-500">Комментарий</strong>{{ selectedLead.message || 'Не указано' }}</p>
-        </div>
-        <div class="mt-6 flex justify-end">
           <button
             type="button"
-            class="action-button-danger"
+            class="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-slate-100 text-slate-700 transition hover:border-slate-300 hover:bg-slate-200 hover:text-slate-950 focus:outline-none focus:ring-4 focus:ring-indigo-100"
+            aria-label="Закрыть карточку заявки"
+            @click="selectedLead = null"
+          >
+            <X :size="20" />
+          </button>
+        </header>
+
+        <div class="overflow-y-auto bg-white px-5 py-5 sm:px-6 sm:py-6">
+          <div class="grid gap-3 sm:grid-cols-2 sm:gap-4">
+            <article class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Дата</p>
+              <p class="mt-1.5 break-words text-[15px] font-semibold leading-6 text-slate-800">{{ formatDate(selectedLead.created_at) }}</p>
+            </article>
+            <article class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Статус</p>
+              <span class="status-badge mt-2" :class="statusOption(selectedLead.status).class">{{ statusOption(selectedLead.status).label }}</span>
+            </article>
+            <article class="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Телефон</p>
+              <a
+                v-if="selectedLead.phone"
+                :href="`tel:${selectedLead.phone}`"
+                class="mt-1.5 block break-all text-[15px] font-semibold leading-6 text-brand-800 hover:underline"
+              >
+                {{ selectedLead.phone }}
+              </a>
+              <p v-else class="mt-1.5 text-[15px] font-semibold leading-6 text-slate-700">Не указан</p>
+            </article>
+            <article class="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Электронная почта</p>
+              <a
+                v-if="selectedLead.email"
+                :href="`mailto:${selectedLead.email}`"
+                class="mt-1.5 block break-all text-[15px] font-semibold leading-6 text-brand-800 hover:underline"
+              >
+                {{ selectedLead.email }}
+              </a>
+              <p v-else class="mt-1.5 text-[15px] font-semibold leading-6 text-slate-700">Не указана</p>
+            </article>
+            <article class="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Форма</p>
+              <p class="mt-1.5 break-words text-[15px] font-semibold leading-6 text-slate-800">{{ selectedLead.form_name || 'Не указана' }}</p>
+            </article>
+            <article class="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Источник</p>
+              <p class="mt-1.5 break-all text-[15px] font-semibold leading-6 text-slate-800">{{ pageLabel(selectedLead.source_url) }}</p>
+            </article>
+            <article class="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 sm:col-span-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Комментарий</p>
+              <p class="mt-1.5 whitespace-pre-wrap break-words text-[15px] font-medium leading-7 text-slate-800">{{ selectedLead.message || 'Не указан' }}</p>
+            </article>
+          </div>
+        </div>
+
+        <footer class="flex shrink-0 justify-end border-t border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
+          <button
+            type="button"
+            class="action-button-danger w-full justify-center shadow-sm sm:w-auto"
             :disabled="deletingLeadId === selectedLead.id"
             @click="deleteLead(selectedLead)"
           >
             <Trash2 :size="17" />
             Удалить заявку
           </button>
-        </div>
+        </footer>
       </section>
     </div>
   </div>
