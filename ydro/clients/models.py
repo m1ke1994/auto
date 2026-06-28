@@ -70,3 +70,27 @@ class Client(models.Model):
         api_key = escape(self.api_key)
         script_url = escape(self.tracker_script_url)
         return f'<script src="{script_url}" data-api-key="{api_key}"></script>'
+
+
+class PushSubscription(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="push_subscriptions",
+        verbose_name="Пользователь",
+    )
+    endpoint = models.URLField(max_length=1024, unique=True, verbose_name="Push endpoint")
+    p256dh = models.TextField(verbose_name="Ключ p256dh")
+    auth = models.TextField(verbose_name="Ключ auth")
+    user_agent = models.CharField(max_length=512, blank=True, verbose_name="User-Agent")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создано")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Обновлено")
+    is_active = models.BooleanField(default=True, db_index=True, verbose_name="Активна")
+
+    class Meta:
+        ordering = ("-updated_at",)
+        verbose_name = "Push-подписка"
+        verbose_name_plural = "Push-подписки"
+
+    def __str__(self) -> str:
+        return f"Push subscription #{self.pk} ({self.user_id})"

@@ -365,6 +365,45 @@ class SitesApiTests(APITestCase):
         self.assertEqual(lead.status, SiteLead.Status.NEW)
         mocked_telegram.assert_called_once()
 
+    @patch("apps.sites.serializers.send_site_lead_push_notification_task.delay")
+    @patch("apps.sites.serializers.send_lead_telegram_notification", return_value=True)
+    def test_public_lead_enqueues_push_after_commit(self, mocked_telegram, mocked_push_task):
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse("public-leads-create"),
+                {
+                    "site_slug": self.site.slug,
+                    "name": "Push test",
+                    "phone": "+79990000000",
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        lead = SiteLead.objects.get()
+        mocked_push_task.assert_called_once_with(lead.id)
+
+    @patch(
+        "apps.sites.serializers.send_site_lead_push_notification_task.delay",
+        side_effect=RuntimeError("broker unavailable"),
+    )
+    @patch("apps.sites.serializers.send_lead_telegram_notification", return_value=True)
+    def test_public_lead_is_saved_when_push_enqueue_fails(self, mocked_telegram, mocked_push_task):
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse("public-leads-create"),
+                {
+                    "site_slug": self.site.slug,
+                    "name": "Push failure test",
+                    "phone": "+79990000000",
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(SiteLead.objects.count(), 1)
+        mocked_push_task.assert_called_once()
+
     def test_get_request_does_not_create_lead(self):
         response = self.client.get(reverse("public-leads-create"))
 

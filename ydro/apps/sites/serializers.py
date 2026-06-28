@@ -1,6 +1,8 @@
 ﻿from django.core.exceptions import ValidationError as DjangoValidationError
 import logging
 
+from django.db import transaction
+
 from rest_framework import serializers
 
 from leads.services import send_lead_telegram_notification
@@ -9,6 +11,7 @@ from .models import SectionSchema, Site, SiteLead, SiteSection
 from .a_meditation import SECTION_TITLES
 from .volga_site import SECTION_TITLES as VOLGA_SECTION_TITLES
 from .tracker_utils import build_tracker_script_tag
+from .tasks import send_site_lead_push_notification_task
 
 logger = logging.getLogger(__name__)
 
@@ -254,6 +257,7 @@ class PublicLeadCreateSerializer(serializers.Serializer):
             payload=payload,
         )
         self._send_site_lead_telegram_notification(site=site, lead=lead)
+        transaction.on_commit(lambda: self._enqueue_site_lead_push_notification(site=site, lead=lead))
         return lead
 
     @staticmethod
@@ -276,6 +280,17 @@ class PublicLeadCreateSerializer(serializers.Serializer):
         if not delivered:
             logger.warning(
                 "Site lead telegram notification skipped or failed site_id=%s lead_id=%s",
+                site.id,
+                lead.id,
+            )
+
+    @staticmethod
+    def _enqueue_site_lead_push_notification(*, site: Site, lead: SiteLead) -> None:
+        try:
+            send_site_lead_push_notification_task.delay(lead.id)
+        except Exception:
+            logger.exception(
+                "Failed to enqueue site lead push notification site_id=%s lead_id=%s",
                 site.id,
                 lead.id,
             )

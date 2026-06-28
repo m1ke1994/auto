@@ -5,6 +5,7 @@ import { Inbox, RefreshCw, Trash2, X } from '@lucide/vue'
 
 import { useLeadsStore } from '../stores/leads'
 import { useSiteStore } from '../stores/site'
+import PushNotificationsCard from '../components/PushNotificationsCard.vue'
 
 const route = useRoute()
 const siteStore = useSiteStore()
@@ -97,7 +98,11 @@ async function openLead(leadId) {
   }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  const leadId = Number(route.query.lead)
+  if (Number.isInteger(leadId) && leadId > 0) await openLead(leadId)
+})
 </script>
 
 <template>
@@ -119,6 +124,8 @@ onMounted(load)
         </button>
       </div>
     </header>
+
+    <PushNotificationsCard />
 
     <p v-if="error" class="notice-error">{{ error }}</p>
     <p v-if="success" class="notice-success">{{ success }}</p>

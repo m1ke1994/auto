@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html, format_html_join
 
-from clients.models import Client
+from clients.models import Client, PushSubscription
 
 
 @admin.register(Client)
@@ -56,3 +56,11 @@ class ClientAdmin(admin.ModelAdmin):
             return "-"
 
         return format_html_join("", "<div>{} <code>{}</code></div>", sites)
+
+
+@admin.register(PushSubscription)
+class PushSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "is_active", "created_at", "updated_at")
+    search_fields = ("user__email", "user__username", "endpoint")
+    list_filter = ("is_active", "created_at", "updated_at")
+    readonly_fields = ("user", "endpoint", "p256dh", "auth", "user_agent", "created_at", "updated_at")
