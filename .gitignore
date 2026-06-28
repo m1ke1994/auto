@@ -28,3 +28,6 @@ Thumbs.db
 
 # docker/runtime local garbage
 *.pid
+*.bak
+*.bak.*
+*.backup.*
