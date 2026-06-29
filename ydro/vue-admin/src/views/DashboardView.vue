@@ -1,6 +1,6 @@
 ﻿<script setup>
 import { onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight, ExternalLink, Globe2 } from '@lucide/vue'
 
 import { useAuthStore } from '../stores/auth'
@@ -9,6 +9,7 @@ import { useSectionsStore } from '../stores/sections'
 import { useSiteStore } from '../stores/site'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const siteStore = useSiteStore()
 const sectionsStore = useSectionsStore()
@@ -31,6 +32,13 @@ onMounted(async () => {
 
 <template>
   <div class="page-stack">
+    <p
+      v-if="route.query.registered === '1'"
+      class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
+    >
+      Аккаунт создан. Добро пожаловать в личный кабинет.
+    </p>
+
     <header class="page-heading">
       <div>
         <p class="eyebrow">Панель управления</p>
@@ -46,8 +54,8 @@ onMounted(async () => {
 
     <section v-else-if="siteStore.sites.length === 0" class="empty-state">
       <Globe2 :size="28" />
-      <h2>Сайты пока не добавлены</h2>
-      <p>Обратитесь к администратору, чтобы подключить первый сайт.</p>
+      <h2>Сайт ещё не подключён</h2>
+      <p>Ваш аккаунт готов. Обратитесь к администратору, чтобы подключить первый сайт.</p>
     </section>
 
     <section v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

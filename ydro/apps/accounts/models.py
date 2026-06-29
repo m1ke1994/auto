@@ -14,6 +14,12 @@ class ClientProfile(models.Model):
         blank=True,
         verbose_name="Отображаемое имя",
     )
+    company_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name="Название компании или проекта",
+    )
     phone = models.CharField(
         max_length=50,
         blank=True,

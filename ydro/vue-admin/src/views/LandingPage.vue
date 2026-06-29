@@ -360,13 +360,21 @@ onUnmounted(() => {
           </a>
         </nav>
 
-        <RouterLink
-          to="/login"
-          class="hidden min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#5B35F5] to-[#1D4FFF] px-5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(59,55,238,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(59,55,238,0.36)] xl:inline-flex"
-        >
-          Войти в кабинет
-          <ArrowRight :size="17" />
-        </RouterLink>
+        <div class="hidden shrink-0 items-center gap-2 xl:flex">
+          <RouterLink
+            to="/register"
+            class="inline-flex min-h-11 items-center justify-center rounded-lg border border-indigo-200 bg-white px-5 text-sm font-semibold text-[#4C33E6] transition hover:-translate-y-0.5 hover:bg-indigo-50"
+          >
+            Регистрация
+          </RouterLink>
+          <RouterLink
+            to="/login"
+            class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#5B35F5] to-[#1D4FFF] px-5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(59,55,238,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(59,55,238,0.36)]"
+          >
+            Войти в кабинет
+            <ArrowRight :size="17" />
+          </RouterLink>
+        </div>
 
         <button
           type="button"
@@ -401,6 +409,13 @@ onUnmounted(() => {
           >
             Войти в кабинет
           </RouterLink>
+          <RouterLink
+            to="/register"
+            class="inline-flex min-h-11 items-center justify-center rounded-lg border border-indigo-200 bg-white px-4 text-sm font-semibold text-[#4C33E6]"
+            @click="closeMobileMenu"
+          >
+            Регистрация
+          </RouterLink>
         </nav>
       </div>
     </header>
@@ -425,7 +440,7 @@ onUnmounted(() => {
 
             <div class="mt-8 flex flex-col gap-3 sm:flex-row">
               <RouterLink
-                to="/login"
+                to="/register"
                 class="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#5B35F5] to-[#1D4FFF] px-6 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(59,55,238,0.32)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_48px_rgba(59,55,238,0.4)]"
               >
                 Попробовать бесплатно
@@ -853,7 +868,7 @@ onUnmounted(() => {
                 </li>
               </ul>
               <RouterLink
-                to="/login"
+                to="/register"
                 class="mt-auto inline-flex min-h-12 w-full items-center justify-center rounded-lg text-sm font-semibold transition"
                 :class="plan.popular ? 'bg-gradient-to-r from-[#5B35F5] to-[#1D4FFF] text-white shadow-[0_16px_34px_rgba(59,55,238,0.28)] hover:-translate-y-0.5' : 'border border-indigo-200 bg-white text-[#4C33E6] hover:bg-indigo-50'"
               >
@@ -951,6 +966,7 @@ onUnmounted(() => {
           <div class="mt-4 grid gap-3 text-sm text-indigo-100/75">
             <a href="https://t.me/M1ke994" target="_blank" rel="noopener noreferrer" class="hover:text-white">Telegram: @M1ke994</a>
             <RouterLink to="/login" class="hover:text-white">Войти в кабинет</RouterLink>
+            <RouterLink to="/register" class="hover:text-white">Регистрация</RouterLink>
           </div>
         </div>
       </div>

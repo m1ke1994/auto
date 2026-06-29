@@ -7,6 +7,7 @@ import AnalyticsView from '../views/AnalyticsView.vue'
 import CompetitorAnalysisView from '../views/CompetitorAnalysisView.vue'
 import LandingPage from '../views/LandingPage.vue'
 import LoginView from '../views/LoginView.vue'
+import RegisterView from '../views/RegisterView.vue'
 import LeadsView from '../views/LeadsView.vue'
 import SectionEditView from '../views/SectionEditView.vue'
 import SectionsView from '../views/SectionsView.vue'
@@ -56,6 +57,12 @@ const routes = [
     name: 'login',
     component: LoginView,
     meta: { guestOnly: true, title: 'Вход' },
+  },
+  {
+    path: '/register',
+    name: 'register',
+    component: RegisterView,
+    meta: { guestOnly: true, title: 'Регистрация' },
   },
   {
     path: '/',

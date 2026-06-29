@@ -121,6 +121,13 @@ async function submit() {
         >
           {{ loading ? 'Входим...' : 'Войти' }}
         </button>
+
+        <p class="text-center text-sm text-slate-500">
+          Нет аккаунта?
+          <RouterLink to="/register" class="font-semibold text-brand-700 hover:text-brand-800">
+            Зарегистрироваться
+          </RouterLink>
+        </p>
       </form>
       </section>
     </div>
