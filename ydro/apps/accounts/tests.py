@@ -91,3 +91,119 @@ class RegisterApiTests(APITestCase):
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
         self.assertFalse(user.sites.exists())
+
+
+class ChangePasswordApiTests(APITestCase):
+    def setUp(self):
+        self.url = reverse("change_password")
+        self.login_url = reverse("token_obtain_pair")
+        self.current_password = "CurrentPass-2026!"
+        self.new_password = "UpdatedPass-2026!"
+        self.user = get_user_model().objects.create_user(
+            username="password-user@example.com",
+            email="password-user@example.com",
+            password=self.current_password,
+        )
+        login_response = self.client.post(
+            self.login_url,
+            {"username": self.user.email, "password": self.current_password},
+            format="json",
+        )
+        self.assertEqual(login_response.status_code, status.HTTP_200_OK)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login_response.data['access']}")
+
+    def payload(self, **overrides):
+        return {
+            "current_password": self.current_password,
+            "new_password": self.new_password,
+            "new_password_confirm": self.new_password,
+            **overrides,
+        }
+
+    def change_password(self):
+        return self.client.post(self.url, self.payload(), format="json")
+
+    def test_authenticated_user_can_change_password(self):
+        response = self.change_password()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {"detail": "Пароль успешно изменён."})
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(self.new_password))
+
+        # Password changes do not interrupt the JWT session currently in use.
+        me_response = self.client.get(reverse("user_me"))
+        self.assertEqual(me_response.status_code, status.HTTP_200_OK)
+
+    def test_old_password_no_longer_allows_login(self):
+        self.change_password()
+        self.client.credentials()
+
+        response = self.client.post(
+            self.login_url,
+            {"username": self.user.email, "password": self.current_password},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_new_password_allows_login(self):
+        self.change_password()
+        self.client.credentials()
+
+        response = self.client.post(
+            self.login_url,
+            {"username": self.user.email, "password": self.new_password},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
+
+    def test_authentication_is_required(self):
+        self.client.credentials()
+
+        response = self.client.post(self.url, self.payload(), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data["detail"], "Необходима авторизация.")
+
+    def test_current_password_must_be_correct(self):
+        response = self.client.post(
+            self.url,
+            self.payload(current_password="WrongPass-2026!"),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["detail"], "Текущий пароль указан неверно.")
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(self.current_password))
+
+    def test_new_passwords_must_match(self):
+        response = self.client.post(
+            self.url,
+            self.payload(new_password_confirm="AnotherPass-2026!"),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["detail"], "Новые пароли не совпадают.")
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(self.current_password))
+
+    def test_weak_new_password_is_rejected(self):
+        response = self.client.post(
+            self.url,
+            self.payload(new_password="12345678", new_password_confirm="12345678"),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["detail"],
+            "Новый пароль не соответствует требованиям безопасности.",
+        )
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(self.current_password))

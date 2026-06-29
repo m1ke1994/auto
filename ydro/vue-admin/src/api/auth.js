@@ -3,3 +3,4 @@
 export const loginRequest = (payload) => http.post('/api/auth/token/', payload)
 export const registerRequest = (payload) => http.post('/api/auth/register/', payload)
 export const meRequest = () => http.get('/api/auth/me/')
+export const changePasswordRequest = (payload) => http.post('/api/auth/change-password/', payload)

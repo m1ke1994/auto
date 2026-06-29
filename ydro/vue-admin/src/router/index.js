@@ -8,6 +8,7 @@ import CompetitorAnalysisView from '../views/CompetitorAnalysisView.vue'
 import LandingPage from '../views/LandingPage.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
+import SecurityView from '../views/SecurityView.vue'
 import LeadsView from '../views/LeadsView.vue'
 import SectionEditView from '../views/SectionEditView.vue'
 import SectionsView from '../views/SectionsView.vue'
@@ -70,6 +71,7 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       { path: 'dashboard', name: 'dashboard', component: DashboardView, meta: { title: 'Панель управления' } },
+      { path: 'security', name: 'security', component: SecurityView, meta: { title: 'Безопасность' } },
       { path: 'sites/:siteId/overview', name: 'site-overview', component: SiteOverviewView, props: true, meta: { title: 'Обзор сайта' } },
       { path: 'sites/:siteId/sections', name: 'sections', component: SectionsView, props: true, meta: { title: 'Разделы сайта' } },
       { path: 'sites/:siteId/analytics', name: 'analytics', component: AnalyticsView, props: true, meta: { title: 'Аналитика' } },

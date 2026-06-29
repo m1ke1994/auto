@@ -14,6 +14,33 @@ class ClientProfileMeSerializer(serializers.ModelSerializer):
         fields = ("display_name", "company_name", "phone")
 
 
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+        error_messages={
+            "required": "Укажите текущий пароль.",
+            "blank": "Укажите текущий пароль.",
+        },
+    )
+    new_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+        error_messages={
+            "required": "Укажите новый пароль.",
+            "blank": "Укажите новый пароль.",
+        },
+    )
+    new_password_confirm = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+        error_messages={
+            "required": "Повторите новый пароль.",
+            "blank": "Повторите новый пароль.",
+        },
+    )
+
+
 class RegisterSerializer(serializers.Serializer):
     name = serializers.CharField(
         max_length=150,

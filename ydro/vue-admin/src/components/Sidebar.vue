@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   SearchCheck,
   Send,
+  ShieldCheck,
   X,
   Zap,
 } from '@lucide/vue'
@@ -35,18 +36,19 @@ const userLabel = computed(() => authStore.user?.first_name || authStore.user?.u
 
 const navItems = computed(() => {
   const items = [{ label: 'Мои сайты', to: '/dashboard', icon: LayoutDashboard }]
-  if (!siteId.value) return items
-
-  return [
-    ...items,
-    { label: 'Главная', to: `/sites/${siteId.value}/overview`, icon: CircleGauge },
-    { label: 'Заявки', to: `/sites/${siteId.value}/leads`, icon: Inbox },
-    { label: 'Аналитика', to: `/sites/${siteId.value}/analytics`, icon: BarChart3 },
-    { label: 'Редактирование сайта', to: `/sites/${siteId.value}/sections`, icon: Blocks },
-    { label: 'SEO-аудит', to: `/sites/${siteId.value}/seo`, icon: SearchCheck },
-    { label: 'Анализ конкурентов', to: `/sites/${siteId.value}/competitors`, icon: FileSearch },
-    { label: 'Telegram', to: `/sites/${siteId.value}/integration`, icon: Send },
-  ]
+  if (siteId.value) {
+    items.push(
+      { label: 'Главная', to: `/sites/${siteId.value}/overview`, icon: CircleGauge },
+      { label: 'Заявки', to: `/sites/${siteId.value}/leads`, icon: Inbox },
+      { label: 'Аналитика', to: `/sites/${siteId.value}/analytics`, icon: BarChart3 },
+      { label: 'Редактирование сайта', to: `/sites/${siteId.value}/sections`, icon: Blocks },
+      { label: 'SEO-аудит', to: `/sites/${siteId.value}/seo`, icon: SearchCheck },
+      { label: 'Анализ конкурентов', to: `/sites/${siteId.value}/competitors`, icon: FileSearch },
+      { label: 'Telegram', to: `/sites/${siteId.value}/integration`, icon: Send },
+    )
+  }
+  items.push({ label: 'Безопасность', to: '/security', icon: ShieldCheck })
+  return items
 })
 
 function isActive(item) {
