@@ -31,18 +31,18 @@ function updateField(key, value) {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="min-w-0 max-w-full space-y-4">
     <section
       v-for="group in fieldGroups"
       :key="group.id"
-      class="rounded-2xl border border-brand-100 bg-white/92 p-4 shadow-soft"
+      class="min-w-0 max-w-full rounded-2xl border border-brand-100 bg-white/92 p-4 shadow-soft"
     >
       <div class="mb-4 border-b border-brand-100 pb-3">
         <h3 class="text-sm font-semibold text-[#17223B]">{{ group.title }}</h3>
         <p class="mt-1 text-xs leading-5 text-slate-500">{{ group.description }}</p>
       </div>
 
-      <div class="grid gap-4" :class="group.id === 'parameters' ? 'sm:grid-cols-2 xl:grid-cols-3' : ''">
+      <div class="grid min-w-0 max-w-full gap-4" :class="group.id === 'parameters' ? 'sm:grid-cols-2 xl:grid-cols-3' : ''">
         <DynamicField
           v-for="field in group.fields"
           :key="field.key"

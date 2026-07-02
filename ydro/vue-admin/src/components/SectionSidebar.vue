@@ -27,7 +27,7 @@ function itemCount(section) {
 </script>
 
 <template>
-  <aside class="surface h-fit p-3 lg:sticky lg:top-24">
+  <aside class="surface min-w-0 max-w-full h-fit p-3 lg:sticky lg:top-24">
     <p class="px-3 pb-2 text-xs font-semibold uppercase text-slate-500">Разделы сайта</p>
     <nav class="space-y-1">
       <RouterLink

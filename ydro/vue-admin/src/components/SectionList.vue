@@ -30,21 +30,21 @@ function toggleSection(sectionId) {
 </script>
 
 <template>
-  <div v-if="sections.length" class="grid gap-3">
+  <div v-if="sections.length" class="grid min-w-0 w-full max-w-full gap-3">
     <article
       v-for="section in sortedSections"
       :key="section.id"
-      class="surface overflow-hidden p-0"
+      class="surface min-w-0 w-full max-w-full overflow-hidden p-0"
       :class="section.is_active ? 'border-brand-100' : 'border-brand-100 bg-[#F5F7FD]'"
     >
-      <div class="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <div class="flex min-w-0 items-start gap-3">
+      <div class="flex min-w-0 max-w-full flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div class="flex min-w-0 max-w-full items-start gap-3">
           <span class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-700">
             <component :is="sectionIcon(section)" :size="21" />
           </span>
-          <div class="min-w-0">
+          <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <p class="truncate font-semibold text-[#17223B]">{{ getSectionLabel(section) }}</p>
+              <p class="min-w-0 break-words font-semibold text-[#17223B]">{{ getSectionLabel(section) }}</p>
               <span class="status-badge" :class="section.is_active ? 'status-success' : 'status-neutral'">
                 {{ section.is_active ? 'Активна' : 'Неактивна' }}
               </span>
@@ -56,31 +56,31 @@ function toggleSection(sectionId) {
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
-          <button type="button" class="action-button-secondary" @click="toggleSection(section.id)">
+        <div class="flex min-w-0 w-full flex-col gap-2 min-[360px]:flex-row sm:w-auto sm:flex-wrap sm:items-center">
+          <button type="button" class="action-button-secondary min-w-0 w-full whitespace-normal min-[360px]:flex-1 sm:w-auto sm:flex-none" @click="toggleSection(section.id)">
             <component :is="isExpanded(section.id) ? ChevronUp : ChevronDown" :size="16" />
             {{ isExpanded(section.id) ? 'Свернуть' : 'Детали' }}
           </button>
-          <RouterLink :to="`/sites/${siteId}/sections/${section.id}`" class="action-button-primary flex-1 sm:flex-none">
+          <RouterLink :to="`/sites/${siteId}/sections/${section.id}`" class="action-button-primary min-w-0 w-full whitespace-normal min-[360px]:flex-1 sm:w-auto sm:flex-none">
             <Pencil :size="16" /> Изменить <ChevronRight :size="16" />
           </RouterLink>
         </div>
       </div>
 
       <div v-if="isExpanded(section.id)" class="grid gap-3 border-t border-brand-100 bg-[#F5F7FD]/80 p-4 text-sm sm:grid-cols-4 sm:p-5">
-        <div>
+        <div class="min-w-0">
           <p class="text-xs font-semibold uppercase text-slate-400">Название</p>
-          <p class="mt-1 font-medium text-slate-800">{{ section.title || getSectionLabel(section) }}</p>
+          <p class="mt-1 break-words font-medium text-slate-800">{{ section.title || getSectionLabel(section) }}</p>
         </div>
-        <div>
+        <div class="min-w-0">
           <p class="text-xs font-semibold uppercase text-slate-400">Тип</p>
-          <p class="mt-1 font-medium text-slate-800">{{ section.section_type || 'не указан' }}</p>
+          <p class="mt-1 break-words font-medium text-slate-800">{{ section.section_type || 'не указан' }}</p>
         </div>
-        <div>
+        <div class="min-w-0">
           <p class="text-xs font-semibold uppercase text-slate-400">Компонент</p>
-          <p class="mt-1 font-medium text-slate-800">{{ section.component_key || 'не указан' }}</p>
+          <p class="mt-1 break-words font-medium text-slate-800">{{ section.component_key || 'не указан' }}</p>
         </div>
-        <div>
+        <div class="min-w-0">
           <p class="text-xs font-semibold uppercase text-slate-400">Статус</p>
           <p class="mt-1 font-medium text-slate-800">
             {{ section.is_active ? 'Показывается на публичном сайте' : 'Сейчас скрыт от посетителей' }}

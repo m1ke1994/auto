@@ -138,9 +138,9 @@ watch(content, () => {
       <h2>Этот раздел пока нельзя изменить здесь</h2>
       <p>Обратитесь к администратору, чтобы настроить удобную форму редактирования.</p>
     </section>
-    <div v-else class="grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+    <div v-else class="grid min-w-0 max-w-full items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
       <SectionSidebar :site-id="siteId" :sections="sectionsStore.sections" />
-      <section class="surface overflow-visible p-0">
+      <section class="surface min-w-0 max-w-full overflow-hidden p-0">
         <header class="sticky top-20 z-10 rounded-t-2xl border-b border-brand-100 bg-white/90 p-4 backdrop-blur-xl sm:p-5">
           <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div class="min-w-0">
@@ -161,11 +161,11 @@ watch(content, () => {
               </div>
             </div>
 
-            <div class="flex flex-wrap gap-2">
-              <button type="button" class="action-button-secondary" :disabled="saving || loading || !hasUnsavedChanges" @click="cancelChanges">
+            <div class="flex min-w-0 w-full flex-col gap-2 min-[420px]:flex-row xl:w-auto xl:flex-wrap">
+              <button type="button" class="action-button-secondary min-w-0 w-full whitespace-normal min-[420px]:flex-1 xl:w-auto xl:flex-none" :disabled="saving || loading || !hasUnsavedChanges" @click="cancelChanges">
                 <RotateCcw :size="17" />Отменить
               </button>
-              <button type="button" class="action-button-primary" :disabled="saving || loading || !hasSchema || !hasUnsavedChanges" @click="save">
+              <button type="button" class="action-button-primary min-w-0 w-full whitespace-normal min-[420px]:flex-1 xl:w-auto xl:flex-none" :disabled="saving || loading || !hasSchema || !hasUnsavedChanges" @click="save">
                 <Save :size="17" />{{ saving ? 'Сохраняем...' : 'Сохранить раздел' }}
               </button>
             </div>

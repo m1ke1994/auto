@@ -241,14 +241,14 @@ function rowBadges(row = {}) {
 </script>
 
 <template>
-  <div class="space-y-2">
-    <div class="flex items-start justify-between gap-3">
-      <label :for="inputId" class="text-sm font-medium text-slate-800">
+  <div class="min-w-0 max-w-full space-y-2">
+    <div class="flex min-w-0 max-w-full flex-col items-start gap-2 min-[480px]:flex-row min-[480px]:justify-between">
+      <label :for="inputId" class="min-w-0 break-words text-sm font-medium text-slate-800">
         {{ field.label || field.key || 'Поле' }}
       </label>
-      <div class="flex flex-wrap items-center justify-end gap-1.5">
-        <span class="status-badge status-neutral">{{ fieldTypeLabel(field) }}</span>
-        <span v-if="field.key" class="status-badge status-neutral">{{ field.key }}</span>
+      <div class="flex min-w-0 max-w-full flex-wrap items-center gap-1.5 min-[480px]:justify-end">
+        <span class="status-badge status-neutral max-w-full break-all">{{ fieldTypeLabel(field) }}</span>
+        <span v-if="field.key" class="status-badge status-neutral max-w-full break-all">{{ field.key }}</span>
         <span v-if="field.required" class="status-badge status-danger">обязательно</span>
       </div>
     </div>
@@ -298,7 +298,7 @@ function rowBadges(row = {}) {
     </template>
 
     <template v-else-if="fieldType === 'repeater'">
-      <div class="space-y-3 rounded-2xl border border-brand-100 bg-[#F5F7FD] p-3">
+      <div class="min-w-0 max-w-full space-y-3 rounded-2xl border border-brand-100 bg-[#F5F7FD] p-3">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p class="text-sm font-semibold text-slate-900">{{ field.label || 'Список элементов' }}</p>
@@ -308,7 +308,7 @@ function rowBadges(row = {}) {
           </div>
           <button
             type="button"
-            class="action-button-secondary"
+            class="action-button-secondary w-full whitespace-normal sm:w-auto"
             @click="addRow"
           >
             <Plus :size="16" />
@@ -319,7 +319,7 @@ function rowBadges(row = {}) {
         <div
           v-for="(row, index) in repeaterRows"
           :key="`${field.key}-row-${index}`"
-          class="overflow-hidden rounded-2xl border border-brand-100 bg-white"
+          class="min-w-0 max-w-full overflow-hidden rounded-2xl border border-brand-100 bg-white"
         >
           <div class="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
             <button
@@ -340,7 +340,7 @@ function rowBadges(row = {}) {
 
             <button
               type="button"
-              class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+              class="inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 sm:w-auto"
               @click="removeRow(index)"
             >
               <Trash2 :size="14" />
@@ -352,13 +352,13 @@ function rowBadges(row = {}) {
             <section
               v-for="group in groupFields(field.fields || [])"
               :key="`${field.key}-${index}-${group.id}`"
-              class="rounded-2xl border border-brand-100 bg-white p-3"
+              class="min-w-0 max-w-full rounded-2xl border border-brand-100 bg-white p-3"
             >
               <div class="mb-3 border-b border-brand-100 pb-2">
                 <h4 class="text-xs font-semibold uppercase text-slate-500">{{ group.title }}</h4>
               </div>
 
-              <div class="grid gap-3" :class="group.id === 'parameters' ? 'sm:grid-cols-2 xl:grid-cols-3' : ''">
+              <div class="grid min-w-0 max-w-full gap-3" :class="group.id === 'parameters' ? 'sm:grid-cols-2 xl:grid-cols-3' : ''">
                 <DynamicField
                   v-for="nested in group.fields"
                   :key="`${field.key}-${index}-${nested.key}`"
@@ -376,7 +376,7 @@ function rowBadges(row = {}) {
         <button
           v-if="repeaterRows.length"
           type="button"
-          class="action-button-secondary"
+          class="action-button-secondary w-full whitespace-normal sm:w-auto"
           @click="addRow"
         >
           <Plus :size="16" />
