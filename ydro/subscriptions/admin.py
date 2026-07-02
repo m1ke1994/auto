@@ -14,15 +14,17 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         "id",
         "name",
         "price",
-        "currency",
-        "duration_days",
-        "recommended",
+        "old_price",
+        "discount_percent",
+        "period_months",
         "is_active",
-        "updated_at",
+        "recommended",
+        "sort_order",
     )
-    list_filter = ("is_active", "recommended", "currency")
-    list_editable = ("recommended", "is_active")
-    search_fields = ("name",)
+    list_filter = ("period_months", "is_active", "recommended", "currency")
+    list_editable = ("is_active", "recommended", "sort_order")
+    search_fields = ("name", "slug", "short_description")
+    ordering = ("period_months", "sort_order", "price")
 
 
 @admin.register(Subscription)

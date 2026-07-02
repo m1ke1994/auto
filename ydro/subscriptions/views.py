@@ -244,7 +244,11 @@ class SubscriptionPlansView(APIView):
     authentication_classes = []
 
     def get(self, request):
-        plans = SubscriptionPlan.objects.filter(is_active=True).order_by("price")
+        plans = SubscriptionPlan.objects.filter(is_active=True).order_by(
+            "period_months",
+            "sort_order",
+            "price",
+        )
         return Response(SubscriptionPlanSerializer(plans, many=True).data, status=status.HTTP_200_OK)
 
 

@@ -27,9 +27,21 @@ const subscriptionError = ref('')
 const plansError = ref('')
 const paymentError = ref('')
 const payingPlanId = ref(null)
+const activePeriod = ref(1)
+
+const periodTabs = [
+  { months: 1, label: '1 месяц' },
+  { months: 6, label: '6 месяцев' },
+  { months: 12, label: '12 месяцев' },
+]
 
 const currentPlan = computed(() => subscription.value?.plan || null)
 const billingEnabled = computed(() => subscription.value?.billing_enabled !== false)
+const visiblePlans = computed(() => (
+  plans.value
+    .filter((plan) => Number(plan?.period_months) === activePeriod.value)
+    .sort((left, right) => Number(left?.sort_order || 0) - Number(right?.sort_order || 0))
+))
 
 const subscriptionPresentation = computed(() => {
   const data = subscription.value
@@ -91,7 +103,12 @@ function formatPrice(value, currency = 'RUB') {
 }
 
 function periodLabel(days) {
-  const duration = Number(days)
+  const months = Number(days?.period_months)
+  if (months === 1) return '1 месяц'
+  if (months === 6) return '6 месяцев'
+  if (months === 12) return '12 месяцев'
+
+  const duration = Number(days?.duration_days ?? days)
   if (!Number.isFinite(duration) || duration <= 0) return 'Срок не указан'
   if (duration === 30 || duration === 31) return '1 месяц'
   if ([180, 181, 182, 183].includes(duration)) return '6 месяцев'
@@ -100,10 +117,20 @@ function periodLabel(days) {
 }
 
 function discountPercent(plan) {
+  const configuredDiscount = Number(plan?.discount_percent)
+  if (Number.isFinite(configuredDiscount) && configuredDiscount > 0) return configuredDiscount
+
   const price = Number(plan?.price)
   const oldPrice = Number(plan?.old_price)
   if (!Number.isFinite(price) || !Number.isFinite(oldPrice) || oldPrice <= price || oldPrice <= 0) return 0
   return Math.round((1 - price / oldPrice) * 100)
+}
+
+function tabSaving(months) {
+  const discount = plans.value
+    .filter((plan) => Number(plan?.period_months) === months)
+    .reduce((maximum, plan) => Math.max(maximum, discountPercent(plan)), 0)
+  return discount ? `Скидка ${discount}%` : 'Без скидки'
 }
 
 function isCurrentPlan(plan) {
@@ -255,8 +282,26 @@ onMounted(() => {
       <div class="section-heading">
         <div>
           <h2>Доступные тарифы</h2>
-          <p>Цена и состав тарифов загружаются из настроек проекта.</p>
+          <p class="max-w-3xl">Выберите тариф под задачу вашего сайта. Можно начать с базового обслуживания или подключить расширенную аналитику, SEO и AI-рекомендации для роста.</p>
         </div>
+      </div>
+
+      <div class="mb-6 inline-grid w-full grid-cols-3 gap-1 rounded-2xl border border-brand-100 bg-white/85 p-1.5 shadow-soft sm:w-auto" role="tablist" aria-label="Период тарифа">
+        <button
+          v-for="tab in periodTabs"
+          :id="`billing-period-tab-${tab.months}`"
+          :key="tab.months"
+          type="button"
+          role="tab"
+          class="min-w-0 rounded-xl px-3 py-2.5 text-center transition sm:min-w-36 sm:px-5"
+          :class="activePeriod === tab.months ? 'bg-brand-600 text-white shadow-[0_10px_24px_rgba(109,93,246,0.25)]' : 'text-slate-600 hover:bg-brand-50 hover:text-brand-800'"
+          :aria-selected="activePeriod === tab.months"
+          aria-controls="billing-period-panel"
+          @click="activePeriod = tab.months"
+        >
+          <span class="block text-sm font-semibold">{{ tab.label }}</span>
+          <span class="mt-0.5 block truncate text-[10px] font-medium opacity-75 sm:text-xs">{{ tabSaving(tab.months) }}</span>
+        </button>
       </div>
 
       <div v-if="plansLoading" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-busy="true">
@@ -272,15 +317,21 @@ onMounted(() => {
         </div>
       </div>
 
-      <div v-else-if="!plans.length" class="empty-state">
+      <div v-else-if="!visiblePlans.length" class="empty-state">
         <CircleAlert :size="28" class="text-brand-500" />
-        <h2>Тарифы пока не опубликованы</h2>
-        <p>Когда администратор добавит активный тариф, он появится на этой странице.</p>
+        <h2>Для выбранного периода тарифы не опубликованы</h2>
+        <p>Когда администратор добавит активные тарифы, они появятся на этой вкладке.</p>
       </div>
 
-      <div v-else class="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div
+        v-else
+        id="billing-period-panel"
+        class="grid items-stretch gap-5 lg:grid-cols-2"
+        role="tabpanel"
+        :aria-labelledby="`billing-period-tab-${activePeriod}`"
+      >
         <article
-          v-for="plan in plans"
+          v-for="plan in visiblePlans"
           :key="plan.id"
           class="relative flex min-h-full flex-col overflow-hidden rounded-3xl border bg-white/92 p-5 shadow-soft transition hover:-translate-y-1 hover:shadow-[0_20px_52px_rgba(32,40,70,0.13)] sm:p-6"
           :class="plan.recommended ? 'border-brand-300 ring-1 ring-brand-200' : 'border-brand-100'"
@@ -289,16 +340,16 @@ onMounted(() => {
             <Sparkles :size="13" /> Рекомендуем
           </div>
           <div class="pr-24">
-            <p class="text-xs font-semibold uppercase tracking-wide text-brand-600">{{ periodLabel(plan.duration_days) }}</p>
+            <p class="text-xs font-semibold uppercase tracking-wide text-brand-600">{{ periodLabel(plan) }}</p>
             <h3 class="mt-2 text-xl font-bold text-[#17223B]">{{ plan.name }}</h3>
           </div>
-          <p v-if="plan.description" class="mt-3 text-sm leading-6 text-slate-600">{{ plan.description }}</p>
+          <p v-if="plan.short_description || plan.description" class="mt-3 text-sm leading-6 text-slate-600">{{ plan.short_description || plan.description }}</p>
 
           <div class="mt-5 flex flex-wrap items-end gap-x-3 gap-y-1">
             <span class="text-3xl font-bold tracking-tight text-[#17223B]">{{ formatPrice(plan.price, plan.currency) }}</span>
-            <span v-if="plan.old_price" class="pb-1 text-sm text-slate-400 line-through">{{ formatPrice(plan.old_price, plan.currency) }}</span>
+            <span v-if="plan.old_price && discountPercent(plan)" class="pb-1 text-sm text-slate-400 line-through">{{ formatPrice(plan.old_price, plan.currency) }}</span>
             <span v-if="discountPercent(plan)" class="mb-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
-              −{{ discountPercent(plan) }}%
+              Скидка {{ discountPercent(plan) }}%
             </span>
           </div>
 
@@ -321,7 +372,7 @@ onMounted(() => {
             <CreditCard v-else :size="18" />
             <span v-if="payingPlanId === plan.id">Создаём платёж…</span>
             <span v-else-if="!billingEnabled">Оплата недоступна</span>
-            <span v-else>{{ isCurrentPlan(plan) ? 'Продлить доступ' : 'Оплатить' }}</span>
+            <span v-else>{{ isCurrentPlan(plan) ? 'Продлить доступ' : 'Выбрать тариф' }}</span>
             <ArrowRight v-if="payingPlanId !== plan.id && billingEnabled" :size="17" />
           </button>
         </article>

@@ -4,25 +4,30 @@ from clients.models import Client
 
 
 class SubscriptionPlan(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=100)
+    slug = models.SlugField(max_length=160, unique=True)
+    short_description = models.CharField(max_length=255, blank=True)
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     old_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    discount_percent = models.PositiveSmallIntegerField(default=0)
     currency = models.CharField(max_length=10, default="RUB")
+    period_months = models.PositiveSmallIntegerField(default=1, db_index=True)
     duration_days = models.PositiveIntegerField()
     features = models.JSONField(default=list, blank=True)
     recommended = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ("price",)
+        ordering = ("period_months", "sort_order", "price")
         verbose_name = "Тариф"
         verbose_name_plural = "Тарифы"
 
     def __str__(self) -> str:
-        return f"{self.name} ({self.price} {self.currency}, {self.duration_days}d)"
+        return f"{self.name} ({self.period_months} mo., {self.price} {self.currency})"
 
 
 class Subscription(models.Model):

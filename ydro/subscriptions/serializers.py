@@ -9,13 +9,18 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "name",
+            "slug",
+            "short_description",
             "description",
+            "period_months",
             "duration_days",
             "price",
             "old_price",
+            "discount_percent",
             "currency",
             "features",
             "recommended",
+            "sort_order",
         )
 
 
