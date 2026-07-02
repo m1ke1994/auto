@@ -14,6 +14,7 @@ from subscriptions.access import billing_is_enabled
 from subscriptions.models import Subscription, SubscriptionPayment, SubscriptionPlan
 from subscriptions.serializers import CreatePaymentSerializer, SubscriptionPlanSerializer
 from subscriptions.services import (
+    YooKassaConfigurationError,
     activate_subscription_from_payment,
     create_yookassa_payment,
     notify_subscription_activated,
@@ -38,7 +39,7 @@ def yookassa_webhook(request):
             return JsonResponse({"status": "ignored"}, status=200)
 
         if not payment_id:
-            logger.error("YooKassa webhook missing payment id. payload=%s", payload)
+            logger.error("YooKassa webhook is missing a payment id")
             return JsonResponse({"status": "error", "reason": "missing_payment_id"}, status=200)
 
         payment = SubscriptionPayment.objects.filter(yookassa_payment_id=payment_id).first()
@@ -53,12 +54,21 @@ def yookassa_webhook(request):
             payment.status,
         )
 
-        if payment.status == SubscriptionPayment.Status.SUCCEEDED:
+        if payment.activated_at is not None:
             logger.info("YooKassa webhook already processed payment_id=%s", payment.id)
             return JsonResponse({"status": "already_processed"}, status=200)
 
-        payment.raw_payload = payment_object
-        payment.save(update_fields=["raw_payload", "updated_at"])
+        # YooKassa webhooks are notifications, not proof of payment. Fetch the
+        # authoritative status through the authenticated backend API before
+        # activating a subscription.
+        provider_status = refresh_payment_status(payment)
+        if provider_status != SubscriptionPayment.Status.SUCCEEDED:
+            logger.warning(
+                "YooKassa webhook status was not confirmed payment_id=%s provider_status=%s",
+                payment.id,
+                provider_status,
+            )
+            return JsonResponse({"status": "ignored"}, status=200)
 
         subscription = activate_subscription_from_payment(payment)
         if subscription is None:
@@ -75,6 +85,12 @@ def yookassa_webhook(request):
             subscription.paid_until,
         )
         return JsonResponse({"status": "ok"}, status=200)
+    except YooKassaConfigurationError:
+        logger.error("YooKassa webhook cannot be processed because backend credentials are missing")
+        return JsonResponse({"status": "service_unavailable"}, status=503)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        logger.warning("YooKassa webhook contains invalid JSON")
+        return JsonResponse({"status": "invalid_payload"}, status=400)
     except Exception:
         logger.exception("YooKassa webhook error")
         return JsonResponse({"status": "error"}, status=200)
@@ -111,7 +127,14 @@ class SubscriptionStatusView(APIView):
         if billing_enabled:
             pending_payment = (
                 SubscriptionPayment.objects
-                .filter(client=client, status=SubscriptionPayment.Status.PENDING)
+                .filter(
+                    client=client,
+                    status__in=(
+                        SubscriptionPayment.Status.PENDING,
+                        SubscriptionPayment.Status.SUCCEEDED,
+                    ),
+                    activated_at__isnull=True,
+                )
                 .exclude(yookassa_payment_id__startswith="pending-")
                 .order_by("-created_at")
                 .first()
@@ -192,7 +215,14 @@ class SubscriptionCreatePaymentView(APIView):
         if plan is None:
             return Response({"detail": "Тариф не найден."}, status=status.HTTP_404_NOT_FOUND)
 
-        payment_data = create_yookassa_payment(client=request.client, plan=plan)
+        try:
+            payment_data = create_yookassa_payment(client=request.client, plan=plan)
+        except YooKassaConfigurationError:
+            logger.error("YooKassa payment creation is unavailable because backend credentials are missing")
+            return Response(
+                {"detail": "Платёжный сервис временно недоступен."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         payment = payment_data["payment"]
 
         return Response(

@@ -3,7 +3,6 @@ import uuid
 from datetime import timedelta
 
 from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 from django.utils import timezone
 from yookassa import Configuration, Payment
@@ -14,13 +13,31 @@ from subscriptions.telegram import send_telegram_message
 logger = logging.getLogger(__name__)
 
 
+class YooKassaConfigurationError(RuntimeError):
+    """Raised when backend-only YooKassa credentials are unavailable."""
+
+
 def _configure_yookassa() -> None:
     shop_id = (getattr(settings, "YOOKASSA_SHOP_ID", "") or "").strip()
     secret_key = (getattr(settings, "YOOKASSA_SECRET_KEY", "") or "").strip()
-    if not shop_id or not secret_key:
-        raise ImproperlyConfigured("YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY must be set")
-    Configuration.account_id = shop_id
-    Configuration.secret_key = secret_key
+    missing = [
+        name
+        for name, value in (
+            ("YOOKASSA_SHOP_ID", shop_id),
+            ("YOOKASSA_SECRET_KEY", secret_key),
+        )
+        if not value
+    ]
+    if missing:
+        logger.error(
+            "YooKassa backend configuration is incomplete; missing environment variables: %s",
+            ", ".join(missing),
+        )
+        raise YooKassaConfigurationError("YooKassa backend credentials are not configured")
+
+    # The SDK creates its API client from this backend-only configuration.
+    # Never pass these credentials to serializers, responses, or frontend code.
+    Configuration.configure(shop_id, secret_key)
 
 
 def create_yookassa_payment(*, client, plan, description: str | None = None) -> dict:
@@ -211,4 +228,3 @@ def notify_subscription_activated(client, plan, paid_until) -> None:
         "Теперь вам доступна вся аналитика TrackNode 🚀"
     )
     send_telegram_message(chat_id=chat_id, text=text)
-

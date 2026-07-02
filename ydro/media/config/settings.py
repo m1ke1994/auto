@@ -8,7 +8,7 @@ from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-ENV_FILE = Path(os.getenv("DJANGO_ENV_FILE", ".env.example"))
+ENV_FILE = Path(os.getenv("DJANGO_ENV_FILE", ".env"))
 if not ENV_FILE.is_absolute():
     ENV_FILE = BASE_DIR / ENV_FILE
 load_dotenv(ENV_FILE, override=False)
@@ -345,8 +345,8 @@ TELEGRAM_WEBHOOK_SECRET = env("TELEGRAM_WEBHOOK_SECRET", "")
 TELEGRAM_USE_WEBHOOK = env_bool("TELEGRAM_USE_WEBHOOK", False)
 TELEGRAM_BIND_TOKEN_MAX_AGE = int(env("TELEGRAM_BIND_TOKEN_MAX_AGE", "3600"))
 
-YOOKASSA_SHOP_ID = env("YOOKASSA_SHOP_ID", "")
-YOOKASSA_SECRET_KEY = env("YOOKASSA_SECRET_KEY", "")
+YOOKASSA_SHOP_ID = env("YOOKASSA_SHOP_ID", "").strip()
+YOOKASSA_SECRET_KEY = env("YOOKASSA_SECRET_KEY", "").strip()
 YOOKASSA_RETURN_URL = env("YOOKASSA_RETURN_URL", f"{SITE_BASE_URL}/dashboard")
 PAYMENT_RETURN_URL = env("PAYMENT_RETURN_URL", YOOKASSA_RETURN_URL)
 PAYMENT_CHECKOUT_URL = env("PAYMENT_CHECKOUT_URL", "")
