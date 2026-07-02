@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
   ArrowRight,
@@ -192,50 +192,110 @@ const caseCards = [
   },
 ]
 
+const pricingTabs = [
+  { id: 'monthly', label: '1 месяц' },
+  { id: 'halfYear', label: '6 месяцев' },
+  { id: 'year', label: '12 месяцев' },
+]
+
+const hostingFeatures = [
+  'Хостинг сайта',
+  'Управление контентом',
+  'Резервное копирование',
+  'Поддержание работоспособности сайта',
+]
+
+const analyticsFeatures = [
+  'Сравнение конкурента с вашим сайтом',
+  'Подключение Telegram',
+  'Расширенная аналитика сайта',
+  'Возможности роста сайта',
+  'SEO-аналитика сайта',
+  'AI-рекомендации',
+  'Управление контентом',
+]
+
 const pricingPlans = [
   {
-    name: 'Старт',
-    price: '2 990 ₽',
-    period: '/ месяц',
-    description: 'Для одного сайта и базового контроля заявок.',
-    features: [
-      'CMS для управления сайтом',
-      'Хостинг',
-      'Telegram-уведомления о заявках в реальном времени',
-      'Базовая поддержка',
-      'Подключение 1 сайта',
-    ],
+    duration: 'monthly',
+    title: 'Контент и хостинг',
+    price: 1299,
+    oldPrice: null,
+    discount: null,
+    periodLabel: '/ месяц',
+    description: 'Надёжная техническая основа и удобное управление сайтом.',
+    features: hostingFeatures,
+    recommended: false,
+    ctaText: 'Выбрать тариф',
   },
   {
-    name: 'Pro',
-    price: '6 990 ₽',
-    period: '/ месяц',
-    description: 'Для роста заявок, SEO и анализа поведения.',
-    popular: true,
-    features: [
-      'Всё из тарифа Старт',
-      'SEO-аудит',
-      'Анализ конкурента',
-      'Аналитика сайта',
-      'Подключение до 3 сайтов',
-      'Расширенные рекомендации',
-    ],
+    duration: 'monthly',
+    title: 'Бизнес-аналитика',
+    price: 1999,
+    oldPrice: null,
+    discount: null,
+    periodLabel: '/ месяц',
+    description: 'Данные и рекомендации для уверенного роста вашего проекта.',
+    features: analyticsFeatures,
+    recommended: true,
+    ctaText: 'Выбрать тариф',
   },
   {
-    name: 'Business',
-    price: 'Индивидуально',
-    period: 'по запросу',
-    description: 'Для компаний, агентств и нескольких проектов.',
-    features: [
-      'Всё из тарифа Pro',
-      'Расширенная мультисайтовость',
-      'Вся аналитика',
-      'Командная работа',
-      'Расширенные отчёты',
-      'Приоритетная техподдержка',
-    ],
+    duration: 'halfYear',
+    title: 'Контент и хостинг',
+    price: 7404,
+    oldPrice: 7794,
+    discount: 5,
+    periodLabel: 'за 6 месяцев',
+    description: 'Надёжная техническая основа и удобное управление сайтом.',
+    features: hostingFeatures,
+    recommended: false,
+    ctaText: 'Выбрать тариф',
+  },
+  {
+    duration: 'halfYear',
+    title: 'Бизнес-аналитика',
+    price: 11394,
+    oldPrice: 11994,
+    discount: 5,
+    periodLabel: 'за 6 месяцев',
+    description: 'Данные и рекомендации для уверенного роста вашего проекта.',
+    features: analyticsFeatures,
+    recommended: true,
+    ctaText: 'Выбрать тариф',
+  },
+  {
+    duration: 'year',
+    title: 'Контент и хостинг',
+    price: 14029,
+    oldPrice: 15588,
+    discount: 10,
+    periodLabel: 'за 12 месяцев',
+    description: 'Надёжная техническая основа и удобное управление сайтом.',
+    features: hostingFeatures,
+    recommended: false,
+    ctaText: 'Выбрать тариф',
+  },
+  {
+    duration: 'year',
+    title: 'Бизнес-аналитика',
+    price: 21589,
+    oldPrice: 23988,
+    discount: 10,
+    periodLabel: 'за 12 месяцев',
+    description: 'Данные и рекомендации для уверенного роста вашего проекта.',
+    features: analyticsFeatures,
+    recommended: true,
+    ctaText: 'Выбрать тариф',
   },
 ]
+
+const activePricingDuration = ref('monthly')
+const visiblePricingPlans = computed(() => pricingPlans.filter((plan) => plan.duration === activePricingDuration.value))
+
+function formatPrice(price) {
+  return `${new Intl.NumberFormat('ru-RU').format(price)} ₽`
+}
 
 const faqItems = [
   ['Что такое TrackNode?', 'Это SaaS-платформа для аналитики сайта, заявок, SEO-аудита, анализа конкурентов и понятных рекомендаций в одном кабинете.'],
@@ -841,40 +901,84 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <section id="pricing" class="section-band bg-white">
-        <div class="landing-container">
+      <section id="pricing" class="pricing-section section-band">
+        <div class="pricing-glow pricing-glow-left" aria-hidden="true" />
+        <div class="pricing-glow pricing-glow-right" aria-hidden="true" />
+        <div class="landing-container relative z-10">
           <div class="section-title tn-reveal">
             <p>Тарифы</p>
-            <h2>Выберите формат подключения</h2>
+            <h2>Выберите решение для вашего сайта</h2>
+            <span class="pricing-subtitle">Прозрачная стоимость, понятные возможности и выгода при длительном подключении.</span>
           </div>
-          <div class="mt-10 grid items-stretch gap-5 lg:grid-cols-3">
-            <article
-              v-for="plan in pricingPlans"
-              :key="plan.name"
-              class="tn-reveal pricing-card"
-              :class="{ 'is-popular': plan.popular }"
-            >
-              <div v-if="plan.popular" class="popular-badge">Популярный</div>
-              <h3>{{ plan.name }}</h3>
-              <p class="mt-2 min-h-[48px] text-sm leading-6 text-slate-600">{{ plan.description }}</p>
-              <div class="mt-6">
-                <strong class="text-3xl font-semibold text-slate-950">{{ plan.price }}</strong>
-                <span class="ml-2 text-sm font-semibold text-slate-500">{{ plan.period }}</span>
-              </div>
-              <ul class="mt-7 grid gap-3">
-                <li v-for="feature in plan.features" :key="feature">
-                  <CheckCircle2 :size="17" />
-                  <span>{{ feature }}</span>
-                </li>
-              </ul>
-              <RouterLink
-                to="/register"
-                class="mt-auto inline-flex min-h-12 w-full items-center justify-center rounded-lg text-sm font-semibold transition"
-                :class="plan.popular ? 'bg-gradient-to-r from-[#5B35F5] to-[#1D4FFF] text-white shadow-[0_16px_34px_rgba(59,55,238,0.28)] hover:-translate-y-0.5' : 'border border-indigo-200 bg-white text-[#4C33E6] hover:bg-indigo-50'"
+
+          <div class="tn-reveal pricing-content">
+            <div class="pricing-tabs" role="tablist" aria-label="Период подключения">
+              <button
+                v-for="tab in pricingTabs"
+                :id="`pricing-tab-${tab.id}`"
+                :key="tab.id"
+                type="button"
+                role="tab"
+                :aria-selected="activePricingDuration === tab.id"
+                :aria-controls="`pricing-panel-${tab.id}`"
+                :class="{ 'is-active': activePricingDuration === tab.id }"
+                @click="activePricingDuration = tab.id"
               >
-                Попробовать тариф
-              </RouterLink>
-            </article>
+                {{ tab.label }}
+                <span v-if="tab.id === 'halfYear'" class="tab-saving">−5%</span>
+                <span v-if="tab.id === 'year'" class="tab-saving">−10%</span>
+              </button>
+            </div>
+
+            <div
+              :id="`pricing-panel-${activePricingDuration}`"
+              class="pricing-grid"
+              role="tabpanel"
+              :aria-labelledby="`pricing-tab-${activePricingDuration}`"
+            >
+              <Transition name="pricing-cards" mode="out-in" appear>
+                <div :key="activePricingDuration" class="pricing-cards-inner">
+                  <article
+                    v-for="plan in visiblePricingPlans"
+                    :key="`${plan.duration}-${plan.title}`"
+                    class="pricing-card"
+                    :class="{ 'is-recommended': plan.recommended }"
+                  >
+                    <div class="pricing-card-topline">
+                      <span v-if="plan.discount" class="discount-badge">Скидка {{ plan.discount }}%</span>
+                      <span v-if="plan.recommended" class="recommended-badge"><Sparkles :size="14" /> Рекомендуем</span>
+                    </div>
+
+                    <div class="pricing-card-heading">
+                      <h3>{{ plan.title }}</h3>
+                      <p>{{ plan.description }}</p>
+                    </div>
+
+                    <div class="pricing-price-block">
+                      <del v-if="plan.oldPrice">{{ formatPrice(plan.oldPrice) }}</del>
+                      <div>
+                        <strong>{{ formatPrice(plan.price) }}</strong>
+                        <span>{{ plan.periodLabel }}</span>
+                      </div>
+                    </div>
+
+                    <div class="pricing-divider" aria-hidden="true" />
+                    <p class="pricing-includes">В тариф входит</p>
+                    <ul>
+                      <li v-for="feature in plan.features" :key="feature">
+                        <span class="pricing-check"><CheckCircle2 :size="16" /></span>
+                        <span>{{ feature }}</span>
+                      </li>
+                    </ul>
+
+                    <RouterLink to="/register" class="pricing-cta">
+                      {{ plan.ctaText }}
+                      <ArrowRight :size="17" />
+                    </RouterLink>
+                  </article>
+                </div>
+              </Transition>
+            </div>
           </div>
         </div>
       </section>
@@ -1557,50 +1661,351 @@ onUnmounted(() => {
   box-shadow: 0 12px 30px rgba(47, 42, 120, 0.06);
 }
 
-.pricing-card {
-  display: flex;
-  min-height: 540px;
-  flex-direction: column;
-  padding: 1.5rem;
+.pricing-section {
   position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(91, 53, 245, 0.09), transparent 38%),
+    linear-gradient(180deg, #ffffff 0%, #f7f8ff 54%, #ffffff 100%);
 }
 
-.pricing-card.is-popular {
-  border-color: rgba(76, 51, 230, 0.38);
-  box-shadow: 0 28px 80px rgba(76, 51, 230, 0.16);
+.pricing-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(91, 53, 245, 0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(91, 53, 245, 0.035) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(to bottom, transparent, black 24%, black 76%, transparent);
+  pointer-events: none;
 }
 
-.popular-badge {
-  margin: -1.5rem -1.5rem 1.25rem;
-  background: linear-gradient(90deg, #5b35f5, #1d4fff);
-  padding: 0.7rem 1rem;
-  color: white;
-  text-align: center;
-  font-size: 0.78rem;
+.pricing-glow {
+  position: absolute;
+  width: 360px;
+  height: 360px;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+.pricing-glow-left {
+  left: -180px;
+  top: 28%;
+  background: #7c3aed;
+}
+
+.pricing-glow-right {
+  right: -180px;
+  bottom: 12%;
+  background: #35c9b8;
+}
+
+.pricing-subtitle {
+  display: block;
+  max-width: 620px;
+  margin: 1.15rem auto 0;
+  color: #64748b;
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.pricing-content {
+  margin-top: 2.5rem;
+}
+
+.pricing-tabs {
+  display: grid;
+  width: min(100%, 570px);
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+  margin-inline: auto;
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.35rem;
+  box-shadow: 0 18px 50px rgba(47, 42, 120, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+}
+
+.pricing-tabs button {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 12px;
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 700;
+  transition: color 220ms ease, background 220ms ease, box-shadow 220ms ease, transform 220ms ease;
+}
+
+.pricing-tabs button:hover {
+  color: #4c33e6;
+}
+
+.pricing-tabs button:focus-visible {
+  outline: 3px solid rgba(91, 53, 245, 0.25);
+  outline-offset: 2px;
+}
+
+.pricing-tabs button.is-active {
+  background: linear-gradient(135deg, #5b35f5, #1d5cff);
+  color: #ffffff;
+  box-shadow: 0 12px 28px rgba(76, 51, 230, 0.28);
+  transform: translateY(-1px);
+}
+
+.tab-saving {
+  border-radius: 999px;
+  background: rgba(76, 51, 230, 0.09);
+  padding: 0.2rem 0.4rem;
+  color: #5b35f5;
+  font-size: 0.67rem;
   font-weight: 800;
 }
 
+.pricing-tabs button.is-active .tab-saving {
+  background: rgba(255, 255, 255, 0.17);
+  color: #ffffff;
+}
+
+.pricing-grid {
+  max-width: 1100px;
+  min-height: 650px;
+  margin: 2rem auto 0;
+}
+
+.pricing-cards-inner {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 1.25rem;
+}
+
+.pricing-card {
+  position: relative;
+  display: flex;
+  min-height: 650px;
+  overflow: hidden;
+  flex-direction: column;
+  border-color: rgba(99, 102, 241, 0.16);
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 255, 0.82));
+  padding: clamp(1.35rem, 3vw, 2rem);
+  box-shadow: 0 22px 65px rgba(47, 42, 120, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  transition: transform 260ms ease, border-color 260ms ease, box-shadow 260ms ease;
+}
+
+.pricing-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(91, 53, 245, 0.5), transparent);
+  opacity: 0.55;
+}
+
+.pricing-card.is-recommended {
+  border-color: rgba(91, 53, 245, 0.34);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(91, 53, 245, 0.12), transparent 35%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(246, 246, 255, 0.88));
+  box-shadow: 0 28px 80px rgba(76, 51, 230, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.pricing-card.is-recommended::before {
+  height: 4px;
+  background: linear-gradient(90deg, #7c3aed, #1d5cff, #35c9b8);
+  opacity: 1;
+}
+
+.pricing-card:hover {
+  border-color: rgba(91, 53, 245, 0.34);
+  transform: translateY(-6px);
+  box-shadow: 0 32px 90px rgba(47, 42, 120, 0.16);
+}
+
+.pricing-card-topline {
+  display: flex;
+  min-height: 28px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.discount-badge,
+.recommended-badge {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.discount-badge {
+  border: 1px solid rgba(16, 185, 129, 0.18);
+  background: rgba(236, 253, 245, 0.9);
+  color: #047857;
+}
+
+.recommended-badge {
+  margin-left: auto;
+  gap: 0.35rem;
+  border: 1px solid rgba(91, 53, 245, 0.15);
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.95), rgba(245, 243, 255, 0.95));
+  color: #4c33e6;
+}
+
+.pricing-card-heading {
+  margin-top: 1.35rem;
+}
+
 .pricing-card h3 {
-  font-size: 1.45rem;
+  color: #0f172a;
+  font-size: clamp(1.35rem, 2vw, 1.65rem);
   font-weight: 750;
+  line-height: 1.2;
+}
+
+.pricing-card-heading p {
+  min-height: 52px;
+  margin-top: 0.65rem;
+  color: #64748b;
+  font-size: 0.92rem;
+  line-height: 1.7;
+}
+
+.pricing-price-block {
+  display: flex;
+  min-height: 92px;
+  flex-direction: column;
+  justify-content: flex-end;
+  margin-top: 1.35rem;
+}
+
+.pricing-price-block del {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  font-weight: 650;
+  text-decoration-color: #ef4444;
+  text-decoration-thickness: 1.5px;
+}
+
+.pricing-price-block div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.pricing-price-block strong {
+  color: #0f172a;
+  font-size: clamp(2rem, 4vw, 2.7rem);
+  font-weight: 750;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.pricing-price-block span {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.pricing-divider {
+  height: 1px;
+  margin-top: 1.25rem;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.04));
+}
+
+.pricing-includes {
+  margin-top: 1.25rem;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .pricing-card ul {
-  margin-bottom: 2rem;
+  display: grid;
+  gap: 0.7rem;
+  margin: 1rem 0 1.75rem;
 }
 
 .pricing-card li {
   display: flex;
-  gap: 0.65rem;
+  align-items: flex-start;
+  gap: 0.7rem;
   color: #334155;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   line-height: 1.5;
 }
 
-.pricing-card li svg {
-  margin-top: 0.15rem;
+.pricing-check {
+  display: grid;
+  width: 23px;
+  height: 23px;
   flex: 0 0 auto;
-  color: var(--tn-primary);
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(91, 53, 245, 0.08);
+  color: #5b35f5;
+}
+
+.pricing-cta {
+  display: inline-flex;
+  min-height: 52px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  margin-top: auto;
+  border: 1px solid rgba(91, 53, 245, 0.22);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #4c33e6;
+  font-size: 0.9rem;
+  font-weight: 750;
+  box-shadow: 0 12px 30px rgba(47, 42, 120, 0.07);
+  transition: transform 220ms ease, background 220ms ease, color 220ms ease, box-shadow 220ms ease;
+}
+
+.pricing-card.is-recommended .pricing-cta {
+  border-color: transparent;
+  background: linear-gradient(135deg, #5b35f5, #1d5cff);
+  color: #ffffff;
+  box-shadow: 0 16px 38px rgba(59, 55, 238, 0.28);
+}
+
+.pricing-cta:hover {
+  transform: translateY(-2px);
+  background: #eef2ff;
+  box-shadow: 0 18px 38px rgba(47, 42, 120, 0.12);
+}
+
+.pricing-card.is-recommended .pricing-cta:hover {
+  background: linear-gradient(135deg, #4c2de0, #164ce8);
+  box-shadow: 0 20px 44px rgba(59, 55, 238, 0.34);
+}
+
+.pricing-cards-enter-active,
+.pricing-cards-leave-active {
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.pricing-cards-enter-from,
+.pricing-cards-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
 
 .faq-item {
@@ -1829,6 +2234,41 @@ onUnmounted(() => {
   }
 
   .pricing-card {
+    min-height: 0;
+  }
+
+  .pricing-tabs {
+    gap: 0.2rem;
+    padding: 0.25rem;
+  }
+
+  .pricing-tabs button {
+    min-height: 44px;
+    flex-direction: column;
+    gap: 0.1rem;
+    font-size: 0.78rem;
+  }
+
+  .tab-saving {
+    padding: 0;
+    background: transparent;
+    font-size: 0.62rem;
+  }
+
+  .pricing-tabs button.is-active .tab-saving {
+    background: transparent;
+  }
+
+  .pricing-grid {
+    min-height: 0;
+  }
+
+  .pricing-cards-inner {
+    grid-template-columns: 1fr;
+  }
+
+  .pricing-card-heading p,
+  .pricing-price-block {
     min-height: 0;
   }
 
