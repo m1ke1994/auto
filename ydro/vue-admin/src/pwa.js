@@ -32,6 +32,17 @@ export function getServiceWorkerRegistration() {
 
 export function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return
+  const hasExistingController = Boolean(navigator.serviceWorker.controller)
+  let reloadingForUpdate = false
+
+  if (hasExistingController) {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloadingForUpdate) return
+      reloadingForUpdate = true
+      window.location.reload()
+    })
+  }
+
   window.addEventListener('load', () => {
     getServiceWorkerRegistration().catch((error) => {
       console.error('TrackNode service worker registration failed.', error)

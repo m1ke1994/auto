@@ -101,6 +101,23 @@ server {
         access_log off;
         expires 1y;
         add_header Cache-Control "public, immutable";
+        add_header X-Content-Type-Options nosniff always;
+    }
+
+    location = /service-worker.js {
+        root /var/www/frontend;
+        try_files $uri =404;
+        access_log off;
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+        add_header X-Content-Type-Options nosniff always;
+    }
+
+    location = /manifest.webmanifest {
+        root /var/www/frontend;
+        try_files $uri =404;
+        access_log off;
+        add_header Cache-Control "no-cache, must-revalidate" always;
+        add_header X-Content-Type-Options nosniff always;
     }
 
     location = /robots.txt {
@@ -133,7 +150,8 @@ server {
 
     location = /index.html {
         root /var/www/frontend;
-        add_header Cache-Control "no-store";
+        try_files $uri =404;
+        add_header Cache-Control "no-store" always;
     }
 
     location / {

@@ -80,8 +80,8 @@ export async function miniReportSendNow() {
   return data
 }
 
-export async function miniSubscriptionStatus() {
-  const { data } = await http.get('/api/mini/subscription/status/')
+export async function miniSubscriptionStatus(config = {}) {
+  const { data } = await http.get('/api/mini/subscription/status/', config)
   return data
 }
 

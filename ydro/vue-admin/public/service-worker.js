@@ -1,65 +1,148 @@
-const CACHE_NAME = 'tracknode-dashboard-v2'
+const CACHE_PREFIX = 'tracknode-dashboard-'
+const CACHE_NAME = `${CACHE_PREFIX}v3`
 const STATIC_CACHE_NAME = `${CACHE_NAME}-static`
 const PAGE_CACHE_NAME = `${CACHE_NAME}-pages`
 const CACHE_NAMES = new Set([STATIC_CACHE_NAME, PAGE_CACHE_NAME])
-const STATIC_PATHS = new Set([
+const APP_SHELL_ROUTES = ['/', '/dashboard', '/login', '/billing']
+const STATIC_PATHS = [
   '/manifest.webmanifest',
   '/pwa-icon-192.svg',
   '/pwa-icon-512.svg',
   '/favicon.svg',
-])
+]
 
-function isDashboardPath(pathname) {
+function isExcludedPath(pathname) {
   return (
-    pathname === '/dashboard' ||
-    pathname === '/billing' ||
-    pathname === '/security' ||
-    pathname === '/login' ||
-    pathname === '/mini' ||
-    pathname.startsWith('/mini/') ||
-    pathname.startsWith('/sites/')
+    pathname === '/api' ||
+    pathname.startsWith('/api/') ||
+    pathname === '/admin' ||
+    pathname.startsWith('/admin/') ||
+    pathname.startsWith('/media/') ||
+    pathname.startsWith('/static/')
   )
 }
 
-self.addEventListener('install', () => {
-  self.skipWaiting()
+function isHtmlResponse(response) {
+  return Boolean(
+    response?.ok &&
+    response.type === 'basic' &&
+    response.headers.get('content-type')?.includes('text/html'),
+  )
+}
+
+function isCacheableAsset(response) {
+  return Boolean(
+    response?.ok &&
+    response.type === 'basic' &&
+    !response.headers.get('content-type')?.includes('text/html'),
+  )
+}
+
+function assetPathsFromHtml(html) {
+  const paths = new Set()
+  const pattern = /(?:src|href)=["'](\/assets\/[^"'#?]+(?:\?[^"']*)?)["']/g
+  for (const match of html.matchAll(pattern)) paths.add(match[1])
+  return [...paths]
+}
+
+async function fetchForCache(path) {
+  return fetch(new Request(path, { cache: 'reload', credentials: 'same-origin' }))
+}
+
+async function precacheAppShell() {
+  const shellResponse = await fetchForCache('/dashboard')
+  if (!isHtmlResponse(shellResponse)) {
+    throw new Error('TrackNode app shell did not return HTML.')
+  }
+
+  const html = await shellResponse.clone().text()
+  const pageCache = await caches.open(PAGE_CACHE_NAME)
+  await Promise.all(
+    APP_SHELL_ROUTES.map((path) => pageCache.put(path, shellResponse.clone())),
+  )
+
+  const staticCache = await caches.open(STATIC_CACHE_NAME)
+  const requiredAssets = assetPathsFromHtml(html)
+  await Promise.all(
+    requiredAssets.map(async (path) => {
+      const response = await fetchForCache(path)
+      if (!isCacheableAsset(response)) {
+        throw new Error(`TrackNode asset could not be cached: ${path}`)
+      }
+      await staticCache.put(path, response)
+    }),
+  )
+
+  await Promise.allSettled(
+    STATIC_PATHS.map(async (path) => {
+      const response = await fetchForCache(path)
+      if (response.ok && response.type === 'basic') await staticCache.put(path, response)
+    }),
+  )
+}
+
+self.addEventListener('install', (event) => {
+  // Do not activate a new worker until its HTML and hashed JS/CSS are cached.
+  // If precaching fails, the previous working service worker remains active.
+  event.waitUntil(precacheAppShell().then(() => self.skipWaiting()))
 })
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     Promise.all([
-      caches.keys().then((names) => Promise.all(names.filter((name) => !CACHE_NAMES.has(name)).map((name) => caches.delete(name)))),
+      caches.keys().then((names) => Promise.all(
+        names
+          .filter((name) => name.startsWith(CACHE_PREFIX) && !CACHE_NAMES.has(name))
+          .map((name) => caches.delete(name)),
+      )),
       self.clients.claim(),
     ]),
   )
 })
 
-async function networkFirst(request, cacheName) {
-  const cache = await caches.open(cacheName)
+function offlineDocument() {
+  return new Response(
+    '<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TrackNode</title><body style="margin:0;font:16px system-ui;background:#fafbff;color:#17223b"><main style="min-height:100vh;display:grid;place-content:center;padding:24px;text-align:center"><h1>TrackNode временно недоступен</h1><p>Проверьте подключение к интернету и попробуйте открыть приложение снова.</p></main></body></html>',
+    { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } },
+  )
+}
+
+async function navigationNetworkFirst(request) {
+  const cache = await caches.open(PAGE_CACHE_NAME)
+  try {
+    const response = await fetch(request)
+    if (!isHtmlResponse(response)) throw new Error('Navigation did not return application HTML.')
+    await cache.put(request, response.clone())
+    return response
+  } catch {
+    return (
+      await cache.match(request, { ignoreSearch: true }) ||
+      await cache.match('/dashboard') ||
+      await cache.match('/') ||
+      offlineDocument()
+    )
+  }
+}
+
+async function cacheFirstAsset(request) {
+  const cache = await caches.open(STATIC_CACHE_NAME)
+  const cached = await cache.match(request, { ignoreSearch: false })
+  if (cached) return cached
+
+  const response = await fetch(request)
+  if (isCacheableAsset(response)) await cache.put(request, response.clone())
+  return response
+}
+
+async function networkFirstStatic(request) {
+  const cache = await caches.open(STATIC_CACHE_NAME)
   try {
     const response = await fetch(request)
     if (response.ok && response.type === 'basic') await cache.put(request, response.clone())
     return response
-  } catch (error) {
-    const cached = await cache.match(request)
-    if (cached) return cached
-    if (request.mode === 'navigate') {
-      const dashboard = await cache.match('/dashboard')
-      if (dashboard) return dashboard
-      const landing = await cache.match('/')
-      if (landing) return landing
-    }
-    throw error
+  } catch {
+    return cache.match(request)
   }
-}
-
-async function cacheFirst(request) {
-  const cache = await caches.open(STATIC_CACHE_NAME)
-  const cached = await cache.match(request)
-  if (cached) return cached
-  const response = await fetch(request)
-  if (response.ok && response.type === 'basic') await cache.put(request, response.clone())
-  return response
 }
 
 self.addEventListener('fetch', (event) => {
@@ -67,20 +150,20 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return
 
   const url = new URL(request.url)
-  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return
+  if (url.origin !== self.location.origin || isExcludedPath(url.pathname)) return
 
-  if (request.mode === 'navigate' && isDashboardPath(url.pathname)) {
-    event.respondWith(networkFirst(request, PAGE_CACHE_NAME))
+  if (request.mode === 'navigate') {
+    event.respondWith(navigationNetworkFirst(request))
     return
   }
 
   if (url.pathname.startsWith('/assets/')) {
-    event.respondWith(cacheFirst(request))
+    event.respondWith(cacheFirstAsset(request))
     return
   }
 
-  if (STATIC_PATHS.has(url.pathname)) {
-    event.respondWith(networkFirst(request, STATIC_CACHE_NAME))
+  if (STATIC_PATHS.includes(url.pathname)) {
+    event.respondWith(networkFirstStatic(request))
   }
 })
 

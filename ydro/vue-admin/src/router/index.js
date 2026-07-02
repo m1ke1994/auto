@@ -127,7 +127,7 @@ router.beforeEach(async (to) => {
 
   if (to.meta.requiresAuth && token && !to.meta.billingExempt) {
     try {
-      const subscription = await miniSubscriptionStatus()
+      const subscription = await miniSubscriptionStatus({ timeout: 4000 })
       if (subscription?.billing_enabled && subscription?.access_allowed === false) {
         return { name: 'billing', query: { next: to.fullPath } }
       }

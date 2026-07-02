@@ -11,6 +11,55 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="theme-color" content="#4c33e6" />
+    <style>
+      .app-boot {
+        min-height: 100vh;
+        min-height: 100dvh;
+        display: grid;
+        place-content: center;
+        gap: 14px;
+        padding: 24px;
+        box-sizing: border-box;
+        background: #fafbff;
+        color: #17223b;
+        text-align: center;
+        font: 500 15px/1.5 Inter, system-ui, sans-serif;
+      }
+      .app-boot__spinner {
+        width: 34px;
+        height: 34px;
+        margin: 0 auto;
+        border: 3px solid #d8d0ff;
+        border-top-color: #6d5df6;
+        border-radius: 999px;
+        animation: app-boot-spin 0.8s linear infinite;
+      }
+      .app-boot__error {
+        max-width: 420px;
+        opacity: 0;
+        animation: app-boot-show-error 1ms 8s forwards;
+      }
+      .app-boot.is-error .app-boot__spinner,
+      .app-boot.is-error > p {
+        display: none;
+      }
+      .app-boot.is-error .app-boot__error {
+        opacity: 1;
+        animation: none;
+      }
+      .app-boot__error a {
+        display: inline-flex;
+        margin-top: 12px;
+        border-radius: 14px;
+        background: #6d5df6;
+        padding: 10px 16px;
+        color: white;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      @keyframes app-boot-spin { to { transform: rotate(360deg); } }
+      @keyframes app-boot-show-error { to { opacity: 1; } }
+    </style>
     <meta
       name="description"
       content="TrackNode объединяет веб-аналитику, тепловые карты, записи сессий, заявки, SEO-аудит, анализ конкурентов и отчёты для роста сайта и бизнеса."
@@ -60,7 +109,18 @@
     <title>TrackNode — аналитика сайта, заявки, SEO-аудит и конкуренты в одном кабинете</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <main class="app-boot" aria-live="polite">
+        <span class="app-boot__spinner" aria-hidden="true"></span>
+        <p>Запускаем TrackNode…</p>
+        <div class="app-boot__error" role="alert">
+          <strong>Не удалось загрузить приложение.</strong><br>
+          Проверьте подключение к интернету и повторите попытку.
+          <br><a href="">Загрузить снова</a>
+        </div>
+      </main>
+      <noscript>Для работы TrackNode необходимо включить JavaScript.</noscript>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
