@@ -8,7 +8,7 @@ from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-ENV_FILE = Path(os.getenv("DJANGO_ENV_FILE", ".env.example"))
+ENV_FILE = Path(os.getenv("DJANGO_ENV_FILE", ".env"))
 if not ENV_FILE.is_absolute():
     ENV_FILE = BASE_DIR / ENV_FILE
 load_dotenv(ENV_FILE, override=False)
@@ -380,8 +380,8 @@ WEB_PUSH_VAPID_PUBLIC_KEY = env("WEB_PUSH_VAPID_PUBLIC_KEY", "").strip()
 WEB_PUSH_VAPID_PRIVATE_KEY = env("WEB_PUSH_VAPID_PRIVATE_KEY", "").strip()
 WEB_PUSH_VAPID_SUBJECT = env("WEB_PUSH_VAPID_SUBJECT", "mailto:admin@tracknode.ru").strip()
 
-YOOKASSA_SHOP_ID = env("YOOKASSA_SHOP_ID", "")
-YOOKASSA_SECRET_KEY = env("YOOKASSA_SECRET_KEY", "")
+YOOKASSA_SHOP_ID = env("YOOKASSA_SHOP_ID", "").strip()
+YOOKASSA_SECRET_KEY = env("YOOKASSA_SECRET_KEY", "").strip()
 YOOKASSA_RETURN_URL = env("YOOKASSA_RETURN_URL", f"{SITE_BASE_URL}/dashboard")
 PAYMENT_RETURN_URL = env("PAYMENT_RETURN_URL", YOOKASSA_RETURN_URL)
 PAYMENT_CHECKOUT_URL = env("PAYMENT_CHECKOUT_URL", "")
