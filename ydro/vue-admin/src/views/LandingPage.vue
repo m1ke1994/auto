@@ -399,7 +399,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="landing-page min-h-screen overflow-x-hidden bg-[#f7f8ff] text-slate-950">
+  <div class="landing-page app-viewport overflow-x-hidden bg-[#f7f8ff] text-slate-950">
     <header class="sticky top-0 z-50 border-b border-indigo-100/80 bg-white/82 shadow-[0_10px_36px_rgba(47,42,120,0.05)] backdrop-blur-xl">
       <div class="mx-auto flex min-h-[76px] w-full max-w-[1440px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <a href="#top" class="flex min-w-0 items-center gap-3" aria-label="TrackNode">

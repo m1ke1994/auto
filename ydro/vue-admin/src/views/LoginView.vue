@@ -44,7 +44,7 @@ async function submit() {
 </script>
 
 <template>
-  <div class="relative flex min-h-screen items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_72%_18%,rgba(109,93,246,0.16),transparent_34%),radial-gradient(circle_at_18%_74%,rgba(124,99,255,0.12),transparent_30%),linear-gradient(180deg,#ffffff_0%,#FAFBFF_48%,#F5F7FD_100%)] px-4 py-10">
+  <div class="app-viewport pwa-safe-screen relative flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_72%_18%,rgba(109,93,246,0.16),transparent_34%),radial-gradient(circle_at_18%_74%,rgba(124,99,255,0.12),transparent_30%),linear-gradient(180deg,#ffffff_0%,#FAFBFF_48%,#F5F7FD_100%)]">
     <div class="pointer-events-none absolute left-[-10rem] top-20 h-80 w-80 rounded-full bg-brand-200/40 blur-3xl" />
     <div class="pointer-events-none absolute bottom-[-9rem] right-[-8rem] h-96 w-96 rounded-full bg-brand-300/28 blur-3xl" />
 

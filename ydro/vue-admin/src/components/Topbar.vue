@@ -32,8 +32,8 @@ function logout() {
 </script>
 
 <template>
-  <header class="sticky top-0 z-20 border-b border-brand-100 bg-white/82 shadow-[0_8px_28px_rgba(32,40,70,0.05)] backdrop-blur-xl">
-    <div class="flex min-h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+  <header class="dashboard-topbar sticky top-0 z-20 border-b border-brand-100 bg-white/82 shadow-[0_8px_28px_rgba(32,40,70,0.05)] backdrop-blur-xl">
+    <div class="dashboard-topbar-inner flex min-h-16 items-center justify-between gap-3">
       <div class="flex min-w-0 items-center gap-3">
         <button type="button" class="icon-button lg:hidden" aria-label="Открыть меню" @click="emit('toggle-sidebar')">
           <Menu :size="21" />

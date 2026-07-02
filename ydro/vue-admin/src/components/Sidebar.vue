@@ -70,7 +70,7 @@ function isActive(item) {
     />
 
     <aside
-      class="fixed inset-y-0 left-0 z-40 flex w-[min(19rem,88vw)] flex-col border-r border-brand-100 bg-white/88 px-4 py-5 text-slate-700 shadow-[0_10px_35px_rgba(32,40,70,0.08)] backdrop-blur-xl transition-transform duration-300 lg:w-64"
+      class="dashboard-sidebar fixed inset-y-0 left-0 z-40 flex w-[min(19rem,88vw)] flex-col border-r border-brand-100 bg-white/88 text-slate-700 shadow-[0_10px_35px_rgba(32,40,70,0.08)] backdrop-blur-xl transition-transform duration-300 lg:w-64"
       :class="open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
     >
       <div class="flex items-center justify-between gap-3 px-2">

@@ -35,14 +35,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#FAFBFF]">
-    <div class="flex min-h-screen">
+  <div class="app-viewport bg-[#FAFBFF]">
+    <div class="app-viewport flex">
       <Sidebar :open="sidebarOpen" @close="closeSidebar" />
 
-      <div class="flex min-h-screen min-w-0 w-full flex-1 flex-col lg:pl-64">
+      <div class="app-viewport flex min-w-0 w-full flex-1 flex-col lg:pl-64">
         <Topbar @toggle-sidebar="sidebarOpen = !sidebarOpen" />
 
-        <main class="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-8">
+        <main class="dashboard-main min-w-0 flex-1">
           <RouterView />
         </main>
       </div>

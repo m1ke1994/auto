@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tracknode-dashboard-v1'
+const CACHE_NAME = 'tracknode-dashboard-v2'
 const STATIC_CACHE_NAME = `${CACHE_NAME}-static`
 const PAGE_CACHE_NAME = `${CACHE_NAME}-pages`
 const CACHE_NAMES = new Set([STATIC_CACHE_NAME, PAGE_CACHE_NAME])
@@ -12,6 +12,8 @@ const STATIC_PATHS = new Set([
 function isDashboardPath(pathname) {
   return (
     pathname === '/dashboard' ||
+    pathname === '/billing' ||
+    pathname === '/security' ||
     pathname === '/login' ||
     pathname === '/mini' ||
     pathname.startsWith('/mini/') ||
