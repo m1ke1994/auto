@@ -6,7 +6,17 @@ from subscriptions.models import Subscription, SubscriptionPlan
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubscriptionPlan
-        fields = ("id", "name", "duration_days", "price")
+        fields = (
+            "id",
+            "name",
+            "description",
+            "duration_days",
+            "price",
+            "old_price",
+            "currency",
+            "features",
+            "recommended",
+        )
 
 
 class SubscriptionStatusSerializer(serializers.ModelSerializer):

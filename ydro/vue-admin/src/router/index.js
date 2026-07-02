@@ -9,6 +9,7 @@ import LandingPage from '../views/LandingPage.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import SecurityView from '../views/SecurityView.vue'
+import BillingView from '../views/BillingView.vue'
 import LeadsView from '../views/LeadsView.vue'
 import SectionEditView from '../views/SectionEditView.vue'
 import SectionsView from '../views/SectionsView.vue'
@@ -20,6 +21,7 @@ import MiniReportsView from '../views/mini/MiniReportsView.vue'
 import MiniSettingsView from '../views/mini/MiniSettingsView.vue'
 import MiniIntegrationView from '../views/mini/MiniIntegrationView.vue'
 import { applyRouteSeo } from '../config/seo'
+import { miniSubscriptionStatus } from '../api/mini'
 
 const routes = [
   {
@@ -71,6 +73,7 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       { path: 'dashboard', name: 'dashboard', component: DashboardView, meta: { title: 'Панель управления' } },
+      { path: 'billing', name: 'billing', component: BillingView, meta: { title: 'Оплата', billingExempt: true } },
       { path: 'security', name: 'security', component: SecurityView, meta: { title: 'Безопасность' } },
       { path: 'sites/:siteId/overview', name: 'site-overview', component: SiteOverviewView, props: true, meta: { title: 'Обзор сайта' } },
       { path: 'sites/:siteId/sections', name: 'sections', component: SectionsView, props: true, meta: { title: 'Разделы сайта' } },
@@ -111,7 +114,7 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const token = localStorage.getItem('access_token')
 
   if (to.meta.requiresAuth && !token) {
@@ -120,6 +123,17 @@ router.beforeEach((to) => {
 
   if (to.meta.guestOnly && token) {
     return { name: 'dashboard' }
+  }
+
+  if (to.meta.requiresAuth && token && !to.meta.billingExempt) {
+    try {
+      const subscription = await miniSubscriptionStatus()
+      if (subscription?.billing_enabled && subscription?.access_allowed === false) {
+        return { name: 'billing', query: { next: to.fullPath } }
+      }
+    } catch {
+      // Backend permissions remain authoritative if the status check is unavailable.
+    }
   }
 
   return true

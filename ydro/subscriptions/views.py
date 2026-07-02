@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 
 from django.http import JsonResponse
 from django.utils import timezone
@@ -10,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import IsClientUser
-from subscriptions.access import billing_is_enabled
+from subscriptions.access import billing_is_enabled, has_active_subscription
 from subscriptions.models import Subscription, SubscriptionPayment, SubscriptionPlan
 from subscriptions.serializers import CreatePaymentSerializer, SubscriptionPlanSerializer
 from subscriptions.services import (
@@ -107,14 +108,19 @@ class SubscriptionStatusView(APIView):
                 {
                     "status": Subscription.Status.EXPIRED,
                     "client_id": None,
+                    "plan": None,
+                    "started_at": None,
                     "paid_until": None,
+                    "days_remaining": 0,
                     "is_trial": False,
+                    "is_paid": False,
                     "billing_enabled": billing_enabled,
+                    "access_allowed": bool(request.user.is_superuser or not billing_enabled),
                 },
                 status=status.HTTP_200_OK,
             )
 
-        subscription = Subscription.objects.filter(client=client).first()
+        subscription = Subscription.objects.select_related("plan").filter(client=client).first()
         if not subscription:
             subscription = Subscription.objects.create(
                 client=client,
@@ -184,13 +190,50 @@ class SubscriptionStatusView(APIView):
                 subscription.status = Subscription.Status.EXPIRED
                 subscription.save(update_fields=["status", "updated_at"])
 
+        now = timezone.now()
+        paid_until = subscription.paid_until
+        days_remaining = (
+            max(0, math.ceil((paid_until - now).total_seconds() / 86400))
+            if paid_until
+            else 0
+        )
+        latest_payment_started_at = (
+            SubscriptionPayment.objects
+            .filter(
+                client=client,
+                status=SubscriptionPayment.Status.SUCCEEDED,
+                activated_at__isnull=False,
+            )
+            .order_by("-activated_at")
+            .values_list("activated_at", flat=True)
+            .first()
+        )
+        is_current = bool(
+            subscription.status == Subscription.Status.ACTIVE
+            and paid_until
+            and paid_until > now
+        )
+
         return Response(
             {
                 "status": subscription.status,
                 "client_id": client.id,
-                "paid_until": subscription.paid_until,
+                "plan": (
+                    SubscriptionPlanSerializer(subscription.plan).data
+                    if subscription.plan_id
+                    else None
+                ),
+                "started_at": latest_payment_started_at or subscription.created_at,
+                "paid_until": paid_until,
+                "days_remaining": days_remaining,
                 "is_trial": subscription.is_trial,
+                "is_paid": bool(is_current and not subscription.is_trial),
                 "billing_enabled": billing_enabled,
+                "access_allowed": bool(
+                    request.user.is_superuser
+                    or not billing_enabled
+                    or has_active_subscription(client)
+                ),
             },
             status=status.HTTP_200_OK,
         )
@@ -209,6 +252,12 @@ class SubscriptionCreatePaymentView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsClientUser]
 
     def post(self, request):
+        if not billing_is_enabled():
+            return Response(
+                {"detail": "Оплата временно недоступна."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         serializer = CreatePaymentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         plan = SubscriptionPlan.objects.filter(id=serializer.validated_data["plan_id"], is_active=True).first()
@@ -223,15 +272,9 @@ class SubscriptionCreatePaymentView(APIView):
                 {"detail": "Платёжный сервис временно недоступен."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-        payment = payment_data["payment"]
-
         return Response(
             {
                 "ok": True,
-                "plan": SubscriptionPlanSerializer(plan).data,
-                "payment_id": payment.id,
-                "yookassa_payment_id": payment.yookassa_payment_id,
-                "metadata": payment_data["metadata"],
                 "checkout_url": payment_data["checkout_url"],
                 "confirmation_url": payment_data["confirmation_url"],
             },

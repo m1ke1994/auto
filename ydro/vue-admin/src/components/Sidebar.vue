@@ -5,6 +5,7 @@ import {
   BarChart3,
   Blocks,
   CircleGauge,
+  CreditCard,
   FileSearch,
   Inbox,
   LayoutDashboard,
@@ -47,6 +48,7 @@ const navItems = computed(() => {
       { label: 'Telegram', to: `/sites/${siteId.value}/integration`, icon: Send },
     )
   }
+  items.push({ label: 'Оплата', to: '/billing', icon: CreditCard })
   items.push({ label: 'Безопасность', to: '/security', icon: ShieldCheck })
   return items
 })

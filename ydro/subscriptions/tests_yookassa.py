@@ -49,7 +49,11 @@ class YooKassaEndpointTests(TestCase):
         self.api = APIClient()
         self.api.force_authenticate(user=user)
 
-    @override_settings(YOOKASSA_SHOP_ID="", YOOKASSA_SECRET_KEY="")
+    @override_settings(
+        ENABLE_BILLING=True,
+        YOOKASSA_SHOP_ID="",
+        YOOKASSA_SECRET_KEY="",
+    )
     def test_create_payment_returns_safe_503_when_credentials_are_missing(self):
         response = self.api.post(
             "/api/mini/subscription/create-payment/",
@@ -60,6 +64,26 @@ class YooKassaEndpointTests(TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.data, {"detail": "Платёжный сервис временно недоступен."})
         self.assertNotIn("YOOKASSA", str(response.data))
+
+    @override_settings(ENABLE_BILLING=True)
+    @patch("subscriptions.views.create_yookassa_payment")
+    def test_create_payment_returns_only_public_checkout_data(self, create_payment):
+        create_payment.return_value = {
+            "checkout_url": "https://checkout.example.test/payment",
+            "confirmation_url": "https://checkout.example.test/payment",
+        }
+
+        response = self.api.post(
+            "/api/mini/subscription/create-payment/",
+            {"plan_id": self.plan.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            set(response.data),
+            {"ok", "checkout_url", "confirmation_url"},
+        )
 
     @override_settings(
         YOOKASSA_SHOP_ID="shop-from-environment",

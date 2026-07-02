@@ -10,8 +10,18 @@ from subscriptions.models import Subscription, SubscriptionPayment, Subscription
 
 @admin.register(SubscriptionPlan)
 class SubscriptionPlanAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "price", "currency", "duration_days", "is_active", "updated_at")
-    list_filter = ("is_active", "currency")
+    list_display = (
+        "id",
+        "name",
+        "price",
+        "currency",
+        "duration_days",
+        "recommended",
+        "is_active",
+        "updated_at",
+    )
+    list_filter = ("is_active", "recommended", "currency")
+    list_editable = ("recommended", "is_active")
     search_fields = ("name",)
 
 

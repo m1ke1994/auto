@@ -49,6 +49,32 @@ class BillingAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("billing_enabled", response.data)
         self.assertFalse(response.data["billing_enabled"])
+        self.assertTrue(response.data["access_allowed"])
+
+    @override_settings(ENABLE_BILLING=True)
+    def test_subscription_status_exposes_denied_access_for_expired_subscription(self):
+        api = APIClient()
+        api.force_authenticate(user=self.user)
+        response = api.get("/api/mini/subscription/status/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["access_allowed"])
+        self.assertFalse(response.data["is_paid"])
+        self.assertEqual(response.data["days_remaining"], 0)
+        self.assertIn("plan", response.data)
+        self.assertIn("started_at", response.data)
+
+    @override_settings(ENABLE_BILLING=True)
+    def test_manual_access_is_exposed_to_frontend_guard(self):
+        self.subscription.admin_override = True
+        self.subscription.save(update_fields=["admin_override", "updated_at"])
+
+        api = APIClient()
+        api.force_authenticate(user=self.user)
+        response = api.get("/api/mini/subscription/status/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["access_allowed"])
 
     @override_settings(ENABLE_BILLING=True)
     def test_subscription_gated_endpoint_is_blocked_when_billing_enabled(self):
