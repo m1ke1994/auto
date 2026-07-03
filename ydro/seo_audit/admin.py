@@ -3,6 +3,13 @@ from django.contrib import admin
 
 from seo_audit.models import SEOIssue, SEOPage, SiteSEOAudit
 
+SiteSEOAudit._meta.verbose_name = "SEO-аудит сайта"
+SiteSEOAudit._meta.verbose_name_plural = "SEO-аудиты сайтов"
+SEOPage._meta.verbose_name = "SEO-страница"
+SEOPage._meta.verbose_name_plural = "SEO-страницы"
+SEOIssue._meta.verbose_name = "SEO-проблема"
+SEOIssue._meta.verbose_name_plural = "SEO-проблемы"
+
 
 @admin.register(SiteSEOAudit)
 class SiteSEOAuditAdmin(admin.ModelAdmin):
@@ -23,4 +30,3 @@ class SEOIssueAdmin(admin.ModelAdmin):
     list_display = ("id", "page", "issue_type", "severity")
     list_filter = ("issue_type", "severity", "page__audit__client")
     search_fields = ("page__url", "recommendation")
-

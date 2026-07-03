@@ -2,6 +2,9 @@ from django.contrib import admin
 
 from reports.models import ReportSettings
 
+ReportSettings._meta.verbose_name = "Настройки отчётов"
+ReportSettings._meta.verbose_name_plural = "Настройки отчётов"
+
 
 @admin.register(ReportSettings)
 class ReportSettingsAdmin(admin.ModelAdmin):

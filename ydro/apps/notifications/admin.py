@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import DashboardNews, UserNewsRead
+from .models import DashboardNews
 
 
 @admin.register(DashboardNews)
@@ -20,15 +20,5 @@ class DashboardNewsAdmin(admin.ModelAdmin):
         if obj.created_by_id is None:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
-
-
-@admin.register(UserNewsRead)
-class UserNewsReadAdmin(admin.ModelAdmin):
-    list_display = ("user", "news", "read_at")
-    list_filter = ("read_at", "news__is_important")
-    search_fields = ("user__username", "user__email", "news__title")
-    readonly_fields = ("user", "news", "read_at")
-
-    def has_add_permission(self, request):
-        return False
-
+# UserNewsRead — технический журнал прочтений; модель продолжает работать,
+# но отдельный раздел в Django admin пользователю не нужен.

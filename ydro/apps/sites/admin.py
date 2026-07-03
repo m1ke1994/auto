@@ -6,6 +6,11 @@ from django.utils.html import format_html, format_html_join
 from clients.services import get_user_client
 from .models import SectionSchema, Site, SiteLead, SiteSection
 
+SectionSchema._meta.verbose_name = "Схема секции"
+SectionSchema._meta.verbose_name_plural = "Схемы секций"
+SiteSection._meta.verbose_name = "Секция сайта"
+SiteSection._meta.verbose_name_plural = "Секции сайта"
+
 
 class SiteSectionInline(admin.TabularInline):
     model = SiteSection

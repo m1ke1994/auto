@@ -2,6 +2,14 @@ from django.contrib import admin
 
 from analytics_app.models import ClickEvent, Event, PageView
 
+# Подписи задаются только для Django admin и не изменяют состояние миграций.
+Event._meta.verbose_name = "Событие"
+Event._meta.verbose_name_plural = "События"
+PageView._meta.verbose_name = "Просмотр страницы"
+PageView._meta.verbose_name_plural = "Просмотры страниц"
+ClickEvent._meta.verbose_name = "Клик"
+ClickEvent._meta.verbose_name_plural = "Клики"
+
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
