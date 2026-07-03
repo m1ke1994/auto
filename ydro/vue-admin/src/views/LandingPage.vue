@@ -1,24 +1,21 @@
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
   ArrowRight,
   BarChart3,
+  BellRing,
   Blocks,
   CheckCircle2,
-  BellRing,
-  Download,
   FileSearch,
   FileText,
   Flame,
   Funnel,
   Inbox,
-  ListVideo,
   Menu,
   MousePointerClick,
   Route,
   SearchCheck,
-  Share2,
   Smartphone,
   Sparkles,
   X,
@@ -26,2287 +23,617 @@ import {
 } from '@lucide/vue'
 
 const mobileMenuOpen = ref(false)
-const cookieVisible = ref(false)
-const supportSent = ref(false)
-const scrollProgress = ref(0)
-const currentYear = new Date().getFullYear()
-
-const supportForm = reactive({
-  title: '',
-  problem: '',
-  description: '',
-})
+const activeSection = ref('features')
+const activePricingDuration = ref('monthly')
+const openFaq = ref(0)
+const ecosystemStyle = ref({ '--cube-x': '0deg', '--cube-y': '0deg' })
+let sectionObserver
 
 const navItems = [
-  { label: 'Возможности', href: '#features' },
-  { label: 'Аналитика', href: '#analytics' },
-  { label: 'SEO-анализ', href: '#seo-audit' },
-  { label: 'Кейсы', href: '#cases' },
-  { label: 'Тарифы', href: '#pricing' },
-  { label: 'FAQ', href: '#faq' },
-  { label: 'Поддержка', href: '#support' },
+  { label: 'Возможности', href: '#features', id: 'features' },
+  { label: 'Аналитика', href: '#ecosystem', id: 'ecosystem' },
+  { label: 'SEO-анализ', href: '#seo-audit', id: 'seo-audit' },
 ]
 
-const trustBadges = ['A Meditation', 'Новое Конаково', 'Volga', 'Local Business', 'Studio Pro', 'Service Hub', 'Marketing Lab']
-const marqueeItems = [...trustBadges, ...trustBadges]
-
-const dashboardMenuItems = [
-  ['Главная', BarChart3],
-  ['Аналитика', BarChart3],
-  ['Поведение', MousePointerClick],
-  ['Тепловые карты', Flame],
-  ['Записи сессий', ListVideo],
-  ['Заявки', Inbox],
-  ['SEO-аудит', SearchCheck],
-  ['Конкуренты', FileSearch],
-  ['Отчёты', FileText],
-  ['Настройки', Blocks],
+const rightNavItems = [
+  { label: 'Тарифы', href: '#pricing', id: 'pricing' },
+  { label: 'FAQ', href: '#faq', id: 'faq' },
 ]
 
-const dashboardMetrics = [
-  { key: 'visitors', label: 'Посетители', value: 24780, change: 12.3, color: 'text-indigo-600', spark: 'M4 30 L22 38 L40 22 L58 31 L76 18 L94 34 L112 25 L130 30 L148 20' },
-  { key: 'views', label: 'Просмотры', value: 71842, change: 8.1, color: 'text-violet-600', spark: 'M4 34 L24 20 L44 34 L64 18 L84 29 L104 22 L124 33 L148 19' },
-  { key: 'leads', label: 'Заявки', value: 342, change: 15.7, color: 'text-emerald-600', spark: 'M4 28 L22 34 L40 17 L58 29 L76 22 L94 33 L112 27 L130 31 L148 20' },
-  { key: 'conversion', label: 'Конверсия', value: 2.47, change: 0.3, suffix: '%', color: 'text-amber-600', spark: 'M4 29 L22 22 L40 31 L58 21 L76 32 L94 25 L112 34 L130 28 L148 20' },
+const heroBenefits = [
+  ['Установка за 5 минут', Zap],
+  ['Данные в реальном времени', Route],
+  ['Без карты и ограничений', CheckCircle2],
+  ['Российский сервер', Blocks],
 ]
 
-const animatedValues = reactive(Object.fromEntries(dashboardMetrics.map((item) => [item.key, 0])))
-const animatedChanges = reactive(Object.fromEntries(dashboardMetrics.map((item) => [item.key, 0])))
-
-const trafficSources = [
-  ['Прямые', '40%', 'bg-indigo-600', '78%'],
-  ['Поиск', '30%', 'bg-cyan-500', '62%'],
-  ['Соцсети', '20%', 'bg-teal-400', '44%'],
-  ['Рефералы', '10%', 'bg-violet-500', '28%'],
+const features = [
+  { number: '01', title: 'Веб-аналитика', text: 'Посетители, источники трафика и ключевые события в одном отчёте.', icon: BarChart3, type: 'chart' },
+  { number: '02', title: 'Карта кликов и скролла', text: 'Находите зоны внимания и точки, где аудитория теряет интерес.', icon: MousePointerClick, type: 'heatmap' },
+  { number: '03', title: 'Конверсии и цели', text: 'Собирайте воронки и отслеживайте путь от просмотра до заявки.', icon: Funnel, type: 'funnel' },
+  { number: '04', title: 'SEO-аудит', text: 'Проверяйте техническое SEO и получайте понятные рекомендации.', icon: SearchCheck, type: 'score' },
+  { number: '05', title: 'Анализ конкурентов', text: 'Сравнивайте трафик, страницы и видимость с конкурентами.', icon: FileSearch, type: 'compare' },
+  { number: '06', title: 'Уведомления', text: 'Получайте важные события и новые заявки без задержек.', icon: BellRing, type: 'alerts' },
+  { number: '07', title: 'Отчёты и экспорт', text: 'Экспортируйте данные в PDF и CSV по расписанию.', icon: FileText, type: 'reports' },
+  { number: '08', title: 'Устройства и технологии', text: 'Узнавайте, с каких устройств и браузеров приходит аудитория.', icon: Smartphone, type: 'devices' },
+  { number: '09', title: 'AI-инсайты и рекомендации', text: 'Находите скрытые точки роста и получайте план действий.', icon: Sparkles, type: 'ai' },
 ]
 
-const topPages = [
-  ['/services', '12 480'],
-  ['/about', '8 320'],
-  ['/blog', '6 160'],
-  ['/contacts', '2 080'],
+const ecosystemItems = [
+  { title: 'Аналитика', text: 'Вся динамика сайта в реальном времени', icon: BarChart3, position: 'p1' },
+  { title: 'SEO-анализ', text: 'Ошибки и поисковые возможности', icon: SearchCheck, position: 'p2' },
+  { title: 'Карта кликов', text: 'Визуальная карта внимания', icon: MousePointerClick, position: 'p3' },
+  { title: 'Поведение', text: 'Путь каждого пользователя', icon: Route, position: 'p4' },
+  { title: 'AI-инсайты', text: 'Рекомендации по росту', icon: Sparkles, position: 'p5' },
+  { title: 'Воронки', text: 'Контроль этапов конверсии', icon: Funnel, position: 'p6' },
+  { title: 'Уведомления', text: 'Важное — без задержек', icon: BellRing, position: 'p7' },
+  { title: 'Производительность', text: 'Скорость и стабильность сайта', icon: Zap, position: 'p8' },
+  { title: 'Конкуренты', text: 'Сравнение позиций и страниц', icon: FileSearch, position: 'p9' },
+  { title: 'Конверсии', text: 'Цели, заявки и результат', icon: CheckCircle2, position: 'p10' },
 ]
 
-const heroFeatureCards = [
-  { title: 'Веб-аналитика', text: 'Трафик, источники, конверсии', icon: BarChart3 },
-  { title: 'Тепловые карты', text: 'Клики, скролл, движение мыши', icon: Flame },
-  { title: 'Записи сессий', text: 'Как пользователи работают с сайтом', icon: ListVideo },
-  { title: 'SEO-анализ', text: 'Проверка и рекомендации', icon: SearchCheck },
-  { title: 'Сравнение конкурентов', text: 'Узнайте, кто вас опережает', icon: FileSearch },
-  { title: 'Отчёты', text: 'PDF и email для команды', icon: FileText },
-]
-
-const featureCards = [
-  { title: 'Веб-аналитика', text: 'Посещения, просмотры, источники трафика и конверсии в одном понятном отчёте.', icon: BarChart3 },
-  { title: 'Тепловые карты', text: 'Клики, скролл и зоны внимания помогают увидеть, что реально замечают посетители.', icon: Flame },
-  { title: 'Записи сессий', text: 'Смотрите путь пользователя как аккуратную timeline-ленту без лишнего шума.', icon: ListVideo },
-  { title: 'Заявки с сайта', text: 'Все обращения попадают в кабинет с источником, страницей и статусом обработки.', icon: Inbox },
-  { title: 'SEO-аудит', text: 'Title, description, H1, скорость, индексация и технические ошибки собраны в чек-лист.', icon: SearchCheck },
-  { title: 'Анализ конкурентов', text: 'Сравнивайте страницы, офферы и точки роста в вашей нише.', icon: FileSearch },
-  { title: 'PDF-отчёты', text: 'Готовьте понятные отчёты для собственника, маркетолога или подрядчика.', icon: FileText },
-  { title: 'Telegram-уведомления', text: 'Получайте новые заявки в реальном времени и не теряйте горячие обращения.', icon: Sparkles },
-  { title: 'Мультисайтовость', text: 'Управляйте несколькими проектами из одного кабинета без переключения инструментов.', icon: Blocks },
-]
-
-const pwaPlatforms = [
-  {
-    key: 'android',
-    label: 'Android / Chrome',
-    title: 'Установка на Android',
-    icon: Download,
-    steps: [
-      'Откройте tracknode.ru в браузере Chrome.',
-      'Войдите в свой дашборд.',
-      'Нажмите меню ⋮ в правом верхнем углу.',
-      'Выберите «Добавить на главный экран» или «Установить приложение».',
-      'Подтвердите установку.',
-      'Иконка TrackNode появится на рабочем столе телефона.',
-    ],
-    note: 'После установки откройте приложение и включите уведомления в разделе «Заявки».',
-  },
-  {
-    key: 'ios',
-    label: 'iPhone / Safari',
-    title: 'Установка на iPhone',
-    icon: Share2,
-    steps: [
-      'Откройте tracknode.ru в Safari.',
-      'Войдите в свой дашборд.',
-      'Нажмите кнопку «Поделиться».',
-      'Выберите «На экран Домой».',
-      'Нажмите «Добавить».',
-      'Иконка TrackNode появится на экране iPhone.',
-    ],
-    note: 'На iPhone уведомления о новых заявках работают после добавления TrackNode на экран «Домой».',
-  },
-]
-
-const analyticsCards = [
-  { title: 'Путь до заявки', text: 'TrackNode показывает шаги, где пользователь заинтересовался, отвлёкся или ушёл.', icon: Route },
-  { title: 'Воронка конверсии', text: 'Понимайте, какие страницы дают заявки, а какие только потребляют рекламный бюджет.', icon: Funnel },
-  { title: 'Поведение на блоках', text: 'Клики, скролл и активность по секциям помогают перестроить посадочные страницы.', icon: MousePointerClick },
-]
-
-const seoRecommendations = [
-  ['Высокий приоритет', 'Добавить уникальные title для 8 страниц услуг'],
-  ['Средний приоритет', 'Усилить H1 и первые экраны коммерческих страниц'],
-  ['Средний приоритет', 'Сжать изображения на мобильной версии'],
-  ['Низкий приоритет', 'Добавить FAQ-разметку для поисковых сниппетов'],
-]
-
-const competitorRows = [
-  ['Вы', 88, 'bg-indigo-600'],
-  ['site1.ru', 72, 'bg-violet-500'],
-  ['site2.ru', 61, 'bg-cyan-500'],
-  ['site3.ru', 54, 'bg-slate-300'],
-]
-
-const caseCards = [
-  {
-    title: 'Рост органического трафика',
-    problem: 'Страницы услуг не индексировались и теряли показы.',
-    action: 'TrackNode нашёл технические ошибки, дубли title и слабые коммерческие сигналы.',
-    result: '+46%',
-    bars: [38, 46, 52, 68, 84],
-  },
-  {
-    title: 'Больше заявок с посадочной',
-    problem: 'Пользователи читали страницу, но редко отправляли форму.',
-    action: 'Тепловая карта показала слабую CTA-зону, рекомендации помогли перестроить блоки.',
-    result: '+31%',
-    bars: [30, 35, 44, 59, 72],
-  },
-  {
-    title: 'Меньше потерь обращений',
-    problem: 'Часть заявок терялась между формой, менеджером и каналами связи.',
-    action: 'TrackNode связал заявки, источники и Telegram-уведомления в единый поток.',
-    result: '-28%',
-    bars: [82, 69, 62, 51, 42],
-  },
-  {
-    title: 'Точки роста против конкурентов',
-    problem: 'Было непонятно, почему конкуренты получают больше поискового трафика.',
-    action: 'Сравнение страниц показало недостающие разделы, FAQ и слабые сниппеты.',
-    result: '+19%',
-    bars: [44, 51, 58, 63, 71],
-  },
+const seoChecks = [
+  ['Title и Description', 'ok'],
+  ['Скорость загрузки', 'warn'],
+  ['Мобильная адаптация', 'ok'],
+  ['Индексация', 'ok'],
+  ['Технические ошибки', 'error'],
+  ['Дубли страниц', 'warn'],
+  ['Изображения', 'ok'],
+  ['Структура заголовков', 'ok'],
 ]
 
 const pricingTabs = [
   { id: 'monthly', label: '1 месяц' },
-  { id: 'halfYear', label: '6 месяцев' },
-  { id: 'year', label: '12 месяцев' },
-]
-
-const hostingFeatures = [
-  'Хостинг сайта',
-  'Управление контентом',
-  'Резервное копирование',
-  'Поддержание работоспособности сайта',
-]
-
-const analyticsFeatures = [
-  'Сравнение конкурента с вашим сайтом',
-  'Подключение Telegram',
-  'Расширенная аналитика сайта',
-  'Возможности роста сайта',
-  'SEO-аналитика сайта',
-  'AI-рекомендации',
-  'Управление контентом',
+  { id: 'halfYear', label: '6 месяцев', saving: '−5%' },
+  { id: 'year', label: '12 месяцев', saving: '−10%' },
 ]
 
 const pricingPlans = [
-  {
-    duration: 'monthly',
-    title: 'Контент и хостинг',
-    price: 1299,
-    oldPrice: null,
-    discount: null,
-    periodLabel: '/ месяц',
-    description: 'Надёжная техническая основа и удобное управление сайтом.',
-    features: hostingFeatures,
-    recommended: false,
-    ctaText: 'Выбрать тариф',
-  },
-  {
-    duration: 'monthly',
-    title: 'Бизнес-аналитика',
-    price: 1999,
-    oldPrice: null,
-    discount: null,
-    periodLabel: '/ месяц',
-    description: 'Данные и рекомендации для уверенного роста вашего проекта.',
-    features: analyticsFeatures,
-    recommended: true,
-    ctaText: 'Выбрать тариф',
-  },
-  {
-    duration: 'halfYear',
-    title: 'Контент и хостинг',
-    price: 7404,
-    oldPrice: 7794,
-    discount: 5,
-    periodLabel: 'за 6 месяцев',
-    description: 'Надёжная техническая основа и удобное управление сайтом.',
-    features: hostingFeatures,
-    recommended: false,
-    ctaText: 'Выбрать тариф',
-  },
-  {
-    duration: 'halfYear',
-    title: 'Бизнес-аналитика',
-    price: 11394,
-    oldPrice: 11994,
-    discount: 5,
-    periodLabel: 'за 6 месяцев',
-    description: 'Данные и рекомендации для уверенного роста вашего проекта.',
-    features: analyticsFeatures,
-    recommended: true,
-    ctaText: 'Выбрать тариф',
-  },
-  {
-    duration: 'year',
-    title: 'Контент и хостинг',
-    price: 14029,
-    oldPrice: 15588,
-    discount: 10,
-    periodLabel: 'за 12 месяцев',
-    description: 'Надёжная техническая основа и удобное управление сайтом.',
-    features: hostingFeatures,
-    recommended: false,
-    ctaText: 'Выбрать тариф',
-  },
-  {
-    duration: 'year',
-    title: 'Бизнес-аналитика',
-    price: 21589,
-    oldPrice: 23988,
-    discount: 10,
-    periodLabel: 'за 12 месяцев',
-    description: 'Данные и рекомендации для уверенного роста вашего проекта.',
-    features: analyticsFeatures,
-    recommended: true,
-    ctaText: 'Выбрать тариф',
-  },
+  { duration: 'monthly', title: 'Контент и хостинг', price: '1 299', period: '/ месяц', featured: false },
+  { duration: 'monthly', title: 'Бизнес-аналитика', price: '1 999', period: '/ месяц', featured: true },
+  { duration: 'halfYear', title: 'Контент и хостинг', price: '7 404', period: 'за 6 месяцев', featured: false },
+  { duration: 'halfYear', title: 'Бизнес-аналитика', price: '11 394', period: 'за 6 месяцев', featured: true },
+  { duration: 'year', title: 'Контент и хостинг', price: '14 029', period: 'за 12 месяцев', featured: false },
+  { duration: 'year', title: 'Бизнес-аналитика', price: '21 589', period: 'за 12 месяцев', featured: true },
 ]
 
-const activePricingDuration = ref('monthly')
-const visiblePricingPlans = computed(() => pricingPlans.filter((plan) => plan.duration === activePricingDuration.value))
+const visiblePlans = computed(() => pricingPlans.filter((plan) => plan.duration === activePricingDuration.value))
 
-function formatPrice(price) {
-  return `${new Intl.NumberFormat('ru-RU').format(price)} ₽`
+const planFeatures = {
+  'Контент и хостинг': ['Хостинг сайта', 'Управление контентом', 'Резервное копирование', 'Техническая поддержка'],
+  'Бизнес-аналитика': ['Веб-аналитика и цели', 'SEO-аудит и конкуренты', 'AI-рекомендации', 'Отчёты и уведомления'],
 }
 
 const faqItems = [
-  ['Что такое TrackNode?', 'Это SaaS-платформа для аналитики сайта, заявок, SEO-аудита, анализа конкурентов и понятных рекомендаций в одном кабинете.'],
-  ['Нужно ли устанавливать код на сайт?', 'Да, для тепловых карт, записей сессий и событий нужен короткий код трекера. Подключение занимает несколько минут.'],
-  ['Можно ли подключить несколько сайтов?', 'Да, TrackNode поддерживает мультисайтовость. Количество сайтов зависит от тарифа.'],
-  ['Где смотреть заявки?', 'Заявки отображаются в кабинете вместе с источником, страницей, датой, статусом и связанной аналитикой.'],
-  ['Есть ли SEO-аудит и конкуренты?', 'Да. В кабинете доступны SEO-аудит, сравнение с конкурентами и отчёты с рекомендациями.'],
-  ['Безопасно ли собирать поведение пользователей?', 'TrackNode не сохраняет пароли и чувствительные значения полей форм. Аналитика нужна для улучшения сайта и сервиса.'],
+  ['Сколько занимает подключение TrackNode?', 'Обычно не больше пяти минут: добавьте сайт, установите короткий код и дождитесь первых событий.'],
+  ['Нужна ли банковская карта для пробного периода?', 'Нет. Пробный период запускается без карты и автоматически не продлевается.'],
+  ['Данные хранятся в России?', 'Да, инфраструктура TrackNode и основные данные размещены на российских серверах.'],
+  ['Можно ли подключить несколько сайтов?', 'Да. В кабинете можно управлять несколькими проектами и переключаться между ними.'],
+  ['TrackNode заменяет Яндекс Метрику?', 'TrackNode дополняет привычную аналитику SEO-аудитом, конкурентным анализом и единым планом действий.'],
 ]
-
-let revealObserver
-let metricFrame
 
 function closeMobileMenu() {
   mobileMenuOpen.value = false
 }
 
-function formatMetric(item) {
-  const value = animatedValues[item.key] || 0
-  if (item.suffix === '%') return `${value.toFixed(2)}%`
-  return new Intl.NumberFormat('ru-RU').format(Math.round(value))
+function handleEcosystemMove(event) {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  const rect = event.currentTarget.getBoundingClientRect()
+  const x = ((event.clientY - rect.top) / rect.height - 0.5) * -10
+  const y = ((event.clientX - rect.left) / rect.width - 0.5) * 12
+  ecosystemStyle.value = { '--cube-x': `${x}deg`, '--cube-y': `${y}deg` }
 }
 
-function formatChange(item) {
-  return `+${(animatedChanges[item.key] || 0).toFixed(1)}%`
-}
-
-function updateScrollProgress() {
-  const element = document.documentElement
-  const scrollable = element.scrollHeight - element.clientHeight
-  scrollProgress.value = scrollable > 0 ? Math.min(100, Math.max(0, (window.scrollY / scrollable) * 100)) : 0
-}
-
-function animateMetrics() {
-  const startedAt = performance.now()
-  const duration = 1400
-
-  const tick = (now) => {
-    const progress = Math.min(1, (now - startedAt) / duration)
-    const eased = 1 - (1 - progress) ** 3
-
-    dashboardMetrics.forEach((item) => {
-      animatedValues[item.key] = item.value * eased
-      animatedChanges[item.key] = item.change * eased
-    })
-
-    if (progress < 1) {
-      metricFrame = requestAnimationFrame(tick)
-    }
-  }
-
-  metricFrame = requestAnimationFrame(tick)
-}
-
-function submitSupport() {
-  // TODO: подключить публичный API поддержки, когда в backend появится отдельный endpoint.
-  supportSent.value = true
-  supportForm.title = ''
-  supportForm.problem = ''
-  supportForm.description = ''
-}
-
-function acceptCookies() {
-  localStorage.setItem('tracknode_cookie_consent', 'accepted')
-  cookieVisible.value = false
+function resetEcosystem() {
+  ecosystemStyle.value = { '--cube-x': '0deg', '--cube-y': '0deg' }
 }
 
 onMounted(() => {
-  cookieVisible.value = localStorage.getItem('tracknode_cookie_consent') !== 'accepted'
-  updateScrollProgress()
-  animateMetrics()
+  const sections = [...navItems, ...rightNavItems]
+    .map((item) => document.getElementById(item.id))
+    .filter(Boolean)
 
-  window.addEventListener('scroll', updateScrollProgress, { passive: true })
-  window.addEventListener('resize', updateScrollProgress)
-
-  document.querySelectorAll('.hero-section .tn-reveal').forEach((element) => {
-    element.classList.add('is-visible')
-  })
-
-  revealObserver = new IntersectionObserver(
+  sectionObserver = new IntersectionObserver(
     (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('is-visible')
-          revealObserver.unobserve(entry.target)
-        }
-      })
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+      if (visible) activeSection.value = visible.target.id
     },
-    { threshold: 0.16, rootMargin: '0px 0px -8% 0px' },
+    { rootMargin: '-24% 0px -62% 0px', threshold: [0, 0.1, 0.3] },
   )
 
-  document.querySelectorAll('.tn-reveal:not(.is-visible)').forEach((element) => revealObserver.observe(element))
+  sections.forEach((section) => sectionObserver.observe(section))
 })
 
-onUnmounted(() => {
-  window.removeEventListener('scroll', updateScrollProgress)
-  window.removeEventListener('resize', updateScrollProgress)
-  if (revealObserver) revealObserver.disconnect()
-  if (metricFrame) cancelAnimationFrame(metricFrame)
-})
+onUnmounted(() => sectionObserver?.disconnect())
 </script>
 
 <template>
-  <div class="landing-page app-viewport overflow-x-hidden bg-[#f7f8ff] text-slate-950">
-    <header class="sticky top-0 z-50 border-b border-indigo-100/80 bg-white/82 shadow-[0_10px_36px_rgba(47,42,120,0.05)] backdrop-blur-xl">
-      <div class="mx-auto flex min-h-[76px] w-full max-w-[1440px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        <a href="#top" class="flex min-w-0 items-center gap-3" aria-label="TrackNode">
-          <span class="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[#5B35F5] to-[#1D5CFF] text-white shadow-[0_16px_34px_rgba(75,54,240,0.28)]">
-            <Zap :size="23" fill="currentColor" />
-          </span>
-          <span class="truncate text-xl font-semibold text-slate-950">TrackNode</span>
-        </a>
-
-        <nav class="hidden items-center gap-7 xl:flex" aria-label="Основная навигация">
+  <div class="landing-page">
+    <header class="landing-header">
+      <nav class="nav-shell" aria-label="Основная навигация">
+        <div class="nav-side nav-left">
           <a
             v-for="item in navItems"
             :key="item.href"
             :href="item.href"
-            class="text-sm font-semibold text-slate-700 transition hover:text-[#4C33E6]"
-          >
-            {{ item.label }}
-          </a>
-        </nav>
+            class="nav-link"
+            :class="{ active: activeSection === item.id }"
+          >{{ item.label }}</a>
+        </div>
 
-        <div class="hidden shrink-0 items-center gap-2 xl:flex">
-          <RouterLink
-            to="/register"
-            class="inline-flex min-h-11 items-center justify-center rounded-lg border border-indigo-200 bg-white px-5 text-sm font-semibold text-[#4C33E6] transition hover:-translate-y-0.5 hover:bg-indigo-50"
-          >
-            Регистрация
-          </RouterLink>
-          <RouterLink
-            to="/login"
-            class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#5B35F5] to-[#1D4FFF] px-5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(59,55,238,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(59,55,238,0.36)]"
-          >
-            Войти в кабинет
-            <ArrowRight :size="17" />
-          </RouterLink>
+        <a class="brand" href="#top" aria-label="TrackNode — на главную">
+          <span class="brand-kicker">Система</span>
+          <span class="brand-line">
+            <span class="brand-cube"><Zap :size="18" fill="currentColor" /></span>
+            <span>Track<span>Node</span></span>
+          </span>
+        </a>
+
+        <div class="nav-side nav-right">
+          <a
+            v-for="item in rightNavItems"
+            :key="item.href"
+            :href="item.href"
+            class="nav-link"
+            :class="{ active: activeSection === item.id }"
+          >{{ item.label }}</a>
+          <RouterLink class="login-button" to="/login">Войти в кабинет <ArrowRight :size="17" /></RouterLink>
         </div>
 
         <button
+          class="menu-button"
           type="button"
-          class="mobile-menu-button grid h-11 w-11 place-items-center rounded-lg border border-indigo-100 bg-white text-[#4C33E6] shadow-sm xl:hidden"
           :aria-expanded="mobileMenuOpen"
+          aria-controls="mobile-navigation"
           aria-label="Открыть меню"
           @click="mobileMenuOpen = !mobileMenuOpen"
         >
-          <X v-if="mobileMenuOpen" :size="21" />
-          <Menu v-else :size="21" />
+          <X v-if="mobileMenuOpen" :size="22" />
+          <Menu v-else :size="22" />
         </button>
-      </div>
-      <div class="h-px bg-indigo-100/70">
-        <span class="progress-line block h-full bg-gradient-to-r from-[#5B35F5] via-[#1D5CFF] to-[#35C9B8]" :style="{ transform: `scaleX(${scrollProgress / 100})` }" />
-      </div>
+      </nav>
 
-      <div v-if="mobileMenuOpen" class="border-t border-indigo-100 bg-white px-4 py-4 xl:hidden">
-        <nav class="mx-auto grid max-w-[1440px] gap-2" aria-label="Мобильная навигация">
-          <a
-            v-for="item in navItems"
-            :key="item.href"
-            :href="item.href"
-            class="rounded-lg px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-indigo-50"
-            @click="closeMobileMenu"
-          >
-            {{ item.label }}
-          </a>
-          <RouterLink
-            to="/login"
-            class="mt-2 inline-flex min-h-11 items-center justify-center rounded-lg bg-[#4C33E6] px-4 text-sm font-semibold text-white"
-            @click="closeMobileMenu"
-          >
-            Войти в кабинет
-          </RouterLink>
-          <RouterLink
-            to="/register"
-            class="inline-flex min-h-11 items-center justify-center rounded-lg border border-indigo-200 bg-white px-4 text-sm font-semibold text-[#4C33E6]"
-            @click="closeMobileMenu"
-          >
-            Регистрация
-          </RouterLink>
-        </nav>
+      <div v-if="mobileMenuOpen" id="mobile-navigation" class="mobile-menu">
+        <a v-for="item in [...navItems, ...rightNavItems]" :key="item.href" :href="item.href" @click="closeMobileMenu">
+          {{ item.label }}
+        </a>
+        <RouterLink to="/login" class="login-button" @click="closeMobileMenu">Войти в кабинет <ArrowRight :size="17" /></RouterLink>
       </div>
     </header>
 
     <main id="top">
-      <section class="hero-section relative overflow-hidden">
-        <div class="mx-auto grid min-h-[720px] w-full max-w-[1440px] items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[0.74fr_1.26fr] lg:px-8 lg:py-14">
-          <div class="tn-reveal relative z-10">
-            <p class="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-white/78 px-4 py-2 text-xs font-semibold text-[#4338CA] shadow-sm backdrop-blur">
-              <Sparkles :size="16" />
-              Аналитика нового поколения
+      <section class="hero-section" aria-labelledby="hero-title">
+        <div class="ambient ambient-one"></div>
+        <div class="ambient ambient-two"></div>
+        <div class="landing-container hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow"><BarChart3 :size="15" /> Аналитика для роста бизнеса</p>
+            <h1 id="hero-title">Понимайте аудиторию.<br />Принимайте решения.<br /><span>Растите быстрее.</span></h1>
+            <p class="hero-lead">
+              TrackNode собирает данные о посетителях, источниках трафика и действиях на сайте.
+              Превращает цифры в понятные инсайты, которые помогают увеличивать конверсию и прибыль.
             </p>
-
-            <h1 class="mt-7 max-w-[660px] text-4xl font-semibold leading-tight text-slate-950 sm:text-5xl lg:text-[3.3rem]">
-              Понимайте, что происходит
-              <span class="block bg-gradient-to-r from-[#1D4FFF] via-[#4C33E6] to-[#7C3AED] bg-clip-text text-transparent">с вашим сайтом</span>
-            </h1>
-
-            <p class="mt-6 max-w-[610px] text-base leading-8 text-slate-600 sm:text-lg">
-              TrackNode объединяет аналитику, заявки, SEO-аудит, конкурентов и отчёты в одном кабинете. Всё, что нужно для роста сайта и бизнеса.
-            </p>
-
-            <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-              <RouterLink
-                to="/register"
-                class="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#5B35F5] to-[#1D4FFF] px-6 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(59,55,238,0.32)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_48px_rgba(59,55,238,0.4)]"
-              >
-                Попробовать бесплатно
-                <Zap :size="17" fill="currentColor" />
-              </RouterLink>
-              <a href="#features" class="inline-flex min-h-12 items-center justify-center gap-3 rounded-lg border border-indigo-100 bg-white/75 px-6 text-sm font-semibold text-[#3524B6] shadow-sm transition hover:-translate-y-0.5 hover:bg-white">
-                <span class="grid h-9 w-9 place-items-center rounded-full bg-indigo-50">
-                  <ArrowRight :size="16" />
-                </span>
-                Смотреть возможности
-              </a>
+            <div class="hero-actions">
+              <RouterLink class="primary-button" to="/register">Попробовать бесплатно 3 дня <Zap :size="18" /></RouterLink>
+              <a class="secondary-button" href="#ecosystem"><span class="play">▶</span> Посмотреть демо</a>
             </div>
-
-            <div class="mt-8 flex flex-wrap items-center gap-5 text-sm text-slate-600">
-              <div class="flex items-center">
-                <span v-for="index in 5" :key="index" class="-ml-2 first:ml-0 grid h-10 w-10 place-items-center rounded-full border-2 border-white bg-gradient-to-br from-indigo-100 to-white text-xs font-semibold text-[#4C33E6] shadow-sm">
-                  {{ index === 5 ? '+20' : index }}
-                </span>
-              </div>
-              <div>
-                <p class="font-semibold text-slate-900">5.0 из 5</p>
-                <p class="text-xs">Нам доверяют более 20 компаний</p>
+            <div class="hero-benefits">
+              <div v-for="([label, icon]) in heroBenefits" :key="label" class="hero-benefit">
+                <span><component :is="icon" :size="16" /></span>
+                {{ label }}
               </div>
             </div>
           </div>
 
-          <div class="tn-reveal dashboard-shell relative z-10">
-            <div class="dashboard-window">
-              <aside class="dashboard-sidebar">
-                <div class="flex items-center gap-3 px-3">
-                  <span class="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-[#5B35F5] to-[#1D5CFF] text-white">
-                    <Zap :size="18" fill="currentColor" />
-                  </span>
-                  <strong class="text-base text-white">TrackNode</strong>
-                </div>
-
-                <nav class="mt-7 grid gap-1">
-                  <div
-                    v-for="([item, icon], index) in dashboardMenuItems"
-                    :key="item"
-                    class="flex min-h-10 items-center gap-3 rounded-lg px-3 text-xs font-semibold"
-                    :class="index === 0 ? 'bg-white/10 text-white' : 'text-indigo-100/80'"
-                  >
-                    <component :is="icon" :size="16" />
-                    <span class="truncate">{{ item }}</span>
-                  </div>
-                </nav>
-
-                <div class="mt-auto rounded-xl border border-white/10 bg-white/8 p-4 text-white shadow-[0_16px_40px_rgba(0,0,0,0.18)]">
-                  <div class="flex items-start justify-between gap-3">
-                    <div>
-                      <p class="text-sm font-semibold">Тариф Pro</p>
-                      <p class="mt-2 text-xs leading-5 text-indigo-100/78">До 3 сайтов, SEO и расширенные отчёты</p>
-                    </div>
-                    <span class="text-indigo-100/60">×</span>
-                  </div>
-                  <RouterLink to="/login" class="mt-4 inline-flex min-h-10 w-full items-center justify-center rounded-lg bg-gradient-to-r from-[#5B35F5] to-[#1D4FFF] text-xs font-semibold text-white">
-                    Управлять
-                  </RouterLink>
-                </div>
-              </aside>
-
-              <div class="min-w-0 flex-1 p-4 sm:p-5">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div class="flex items-center gap-4">
-                    <h2 class="text-2xl font-semibold text-slate-950">Обзор</h2>
-                    <span class="hidden rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 sm:inline-flex">Все сайты</span>
-                  </div>
-                  <span class="inline-flex w-fit rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600">25 мая — 24 июн 2026</span>
-                </div>
-
-                <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <article v-for="item in dashboardMetrics" :key="item.key" class="metric-card">
-                    <p class="text-xs font-semibold text-slate-500">{{ item.label }}</p>
-                    <div class="mt-3 flex items-end justify-between gap-3">
-                      <strong class="text-2xl font-semibold text-slate-950">{{ formatMetric(item) }}</strong>
-                      <span class="text-xs font-semibold text-emerald-600">{{ formatChange(item) }}</span>
-                    </div>
-                    <svg viewBox="0 0 152 44" class="mt-2 h-9 w-full" role="img" :aria-label="`Мини-график: ${item.label}`">
-                      <path :d="item.spark" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="mini-chart" :class="item.color" />
-                    </svg>
-                  </article>
-                </div>
-
-                <div class="mt-4 grid gap-4 xl:grid-cols-[1.18fr_0.82fr]">
-                  <article class="dashboard-panel min-h-[236px]">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                      <h3 class="text-sm font-semibold text-slate-950">График посетителей</h3>
-                      <div class="flex gap-4 text-xs text-slate-500">
-                        <span class="inline-flex items-center gap-2"><i class="h-1.5 w-4 rounded-full bg-[#4C33E6]" />Посетители</span>
-                        <span class="inline-flex items-center gap-2"><i class="h-1.5 w-4 rounded-full bg-slate-300" />Предыдущий период</span>
-                      </div>
-                    </div>
-                    <svg viewBox="0 0 560 210" class="mt-4 h-[190px] w-full" role="img" aria-label="Анимированный график посетителей">
-                      <path d="M28 174H532M28 132H532M28 90H532M28 48H532" stroke="#E7EAF5" stroke-width="1" />
-                      <path d="M42 150 C72 130 83 110 104 89 C131 62 145 142 178 116 C205 95 220 101 246 86 C273 68 292 151 320 120 C348 89 372 106 402 77 C430 49 450 139 478 108 C502 83 516 88 532 72" fill="none" stroke="#CBD5E1" stroke-width="3" stroke-dasharray="7 9" />
-                      <path class="hero-chart-line" d="M42 146 C72 112 88 74 111 42 C136 78 151 118 178 93 C203 70 221 88 248 71 C276 49 292 127 322 91 C351 58 374 82 404 48 C431 20 450 112 480 78 C503 52 520 66 532 58" fill="none" stroke="#4C33E6" stroke-width="5" stroke-linecap="round" />
-                      <circle class="chart-dot" cx="111" cy="42" r="6" fill="#4C33E6" />
-                      <circle class="chart-dot delay-1" cx="248" cy="71" r="6" fill="#4C33E6" />
-                      <circle class="chart-dot delay-2" cx="404" cy="48" r="6" fill="#4C33E6" />
-                    </svg>
-                  </article>
-
-                  <article class="dashboard-panel min-h-[236px]">
-                    <h3 class="text-sm font-semibold text-slate-950">Тепловая карта кликов</h3>
-                    <div class="heatmap mt-4" role="img" aria-label="Тепловая карта кликов">
-                      <span class="heat-line top-[18%] left-[10%] w-[70%]" />
-                      <span class="heat-line top-[32%] left-[12%] w-[58%]" />
-                      <span class="heat-line top-[48%] left-[9%] w-[78%]" />
-                      <span class="heat-line top-[68%] left-[14%] w-[46%]" />
-                      <span class="heat-blob heat-a" />
-                      <span class="heat-blob heat-b" />
-                      <span class="heat-blob heat-c" />
-                      <span class="heat-blob heat-d" />
-                      <strong class="absolute bottom-4 right-4 rounded-lg bg-white/92 px-3 py-2 text-xs shadow-sm">Кликов: 1842</strong>
-                    </div>
-                  </article>
-                </div>
-
-                <div class="mt-4 grid gap-4 xl:grid-cols-3">
-                  <article class="dashboard-panel">
-                    <h3 class="text-sm font-semibold text-slate-950">Источники трафика</h3>
-                    <div class="mt-4 grid grid-cols-[96px_1fr] items-center gap-4">
-                      <div class="donut-chart"><span>24 780</span></div>
-                      <div class="space-y-3">
-                        <div v-for="[source, value, color, width] in trafficSources" :key="source" class="grid grid-cols-[74px_1fr_36px] items-center gap-2 text-xs">
-                          <span class="text-slate-500">{{ source }}</span>
-                          <span class="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                            <span class="block h-full rounded-full" :class="color" :style="{ width }" />
-                          </span>
-                          <strong class="text-right text-slate-700">{{ value }}</strong>
-                        </div>
-                      </div>
-                    </div>
-                  </article>
-
-                  <article class="dashboard-panel">
-                    <h3 class="text-sm font-semibold text-slate-950">Топ страниц</h3>
-                    <div class="mt-4 space-y-3">
-                      <div v-for="[page, count] in topPages" :key="page" class="grid grid-cols-[1fr_auto] items-center gap-4 text-xs">
-                        <span class="font-semibold text-slate-700">{{ page }}</span>
-                        <span class="text-slate-500">{{ count }}</span>
-                        <span class="col-span-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                          <span class="block h-full rounded-full bg-[#4C33E6]" :style="{ width: page === '/services' ? '86%' : page === '/about' ? '68%' : page === '/blog' ? '54%' : '32%' }" />
-                        </span>
-                      </div>
-                    </div>
-                  </article>
-
-                  <article class="dashboard-panel">
-                    <h3 class="text-sm font-semibold text-slate-950">AI-рекомендации</h3>
-                    <div class="mt-4 space-y-3 text-xs leading-5 text-slate-600">
-                      <p class="flex gap-2"><Sparkles :size="14" class="mt-0.5 shrink-0 text-[#4C33E6]" />Увеличьте контраст кнопок на главном экране</p>
-                      <p class="flex gap-2"><Sparkles :size="14" class="mt-0.5 shrink-0 text-[#4C33E6]" />Добавьте отзывы клиентов на страницу услуг</p>
-                      <p class="flex gap-2"><Sparkles :size="14" class="mt-0.5 shrink-0 text-[#4C33E6]" />Оптимизируйте изображения для мобильных устройств</p>
-                    </div>
-                  </article>
-                </div>
-              </div>
-            </div>
+          <div class="hero-visual" aria-label="Визуализация аналитики TrackNode">
+            <div class="hero-orbit orbit-a"></div>
+            <div class="hero-orbit orbit-b"></div>
+            <div class="cube-stage"></div>
+            <div class="hero-cube" role="img" aria-label="Светящийся куб TrackNode"></div>
+            <article class="float-card visitors-card">
+              <small>Посетители</small><strong>24 780 <em>+12.3%</em></strong>
+              <svg viewBox="0 0 190 45" aria-hidden="true"><path d="M2 36 24 26 45 34 66 18 88 29 110 17 134 30 160 20 188 6" /></svg>
+            </article>
+            <article class="float-card conversion-card">
+              <small>Конверсия</small><strong>2.47% <em>+8.3%</em></strong>
+              <div class="donut"></div>
+            </article>
+            <article class="float-card heat-card">
+              <small>Тепловая карта</small>
+              <div class="mini-heat"><i></i><i></i><i></i><i></i></div>
+            </article>
+            <article class="float-card traffic-card">
+              <small>Источники трафика</small>
+              <span><i style="width: 84%"></i></span><span><i style="width: 61%"></i></span><span><i style="width: 42%"></i></span>
+            </article>
           </div>
         </div>
-
-        <div class="mx-auto grid w-full max-w-[1440px] gap-4 px-4 pb-12 sm:px-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 xl:px-8">
-          <article v-for="item in heroFeatureCards" :key="item.title" class="tn-reveal hero-mini-card">
-            <component :is="item.icon" :size="22" class="text-[#4C33E6]" />
-            <h3 class="mt-4 text-base font-semibold text-slate-950">{{ item.title }}</h3>
-            <p class="mt-2 text-sm leading-6 text-slate-600">{{ item.text }}</p>
-          </article>
+        <div class="landing-container metrics-strip">
+          <div><BarChart3 :size="20" /><span><strong>24 780</strong><small>Посетителей <em>+12.3%</em></small></span></div>
+          <div><Route :size="20" /><span><strong>71 842</strong><small>Просмотра <em>+8.1%</em></small></span></div>
+          <div><Inbox :size="20" /><span><strong>342</strong><small>Заявки <em>+15.7%</em></small></span></div>
+          <div><Funnel :size="20" /><span><strong>2.47%</strong><small>Конверсия <em>+8.3%</em></small></span></div>
         </div>
       </section>
 
-      <section id="features" class="section-band bg-white">
+      <section id="features" class="section features-section" aria-labelledby="features-title">
         <div class="landing-container">
-          <div class="section-title tn-reveal">
-            <p>Возможности платформы</p>
-            <h2>Один кабинет для аналитики, заявок и роста</h2>
+          <div class="features-heading">
+            <div>
+              <p class="eyebrow"><Zap :size="15" /> Всё для роста вашего бизнеса</p>
+              <h2 id="features-title">Возможности,<br />которые <span>дают результат</span></h2>
+              <p>TrackNode объединяет ключевые инструменты для анализа, оптимизации и роста сайта в одном сервисе.</p>
+            </div>
+            <div class="feature-promises">
+              <div><CheckCircle2 :size="22" /><span><strong>Точные данные</strong><small>Без искажений</small></span></div>
+              <div><Zap :size="22" /><span><strong>Реальное время</strong><small>Метрики онлайн</small></span></div>
+              <div><Sparkles :size="22" /><span><strong>Практические инсайты</strong><small>Понятный план роста</small></span></div>
+            </div>
           </div>
-          <div class="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <article v-for="item in featureCards" :key="item.title" class="tn-reveal feature-card">
-              <span class="feature-icon"><component :is="item.icon" :size="22" /></span>
-              <div>
-                <h3>{{ item.title }}</h3>
-                <p>{{ item.text }}</p>
+
+          <div class="features-grid">
+            <article v-for="feature in features" :key="feature.number" class="feature-card" :class="`visual-${feature.type}`">
+              <div class="feature-copy">
+                <div class="feature-number">{{ feature.number }}</div>
+                <component :is="feature.icon" :size="23" class="feature-icon" />
+                <h3>{{ feature.title }}</h3>
+                <p>{{ feature.text }}</p>
+              </div>
+              <div class="feature-mini" aria-hidden="true">
+                <template v-if="feature.type === 'chart'">
+                  <strong>24 780 <em>+12.3%</em></strong><svg viewBox="0 0 160 60"><path d="M2 48 24 35 46 44 70 25 92 39 115 18 138 31 158 10" /></svg>
+                </template>
+                <template v-else-if="feature.type === 'heatmap'">
+                  <div class="feature-heat"><i></i><i></i><i></i><i></i><i></i></div>
+                </template>
+                <template v-else-if="feature.type === 'funnel'">
+                  <i class="funnel-layer"></i><i class="funnel-layer"></i><i class="funnel-layer"></i><i class="funnel-layer"></i>
+                </template>
+                <template v-else-if="feature.type === 'score'">
+                  <div class="score-ring"><strong>87</strong><small>/100</small></div>
+                </template>
+                <template v-else-if="feature.type === 'compare'">
+                  <span v-for="width in [92, 74, 58, 41]" :key="width"><i :style="{ width: `${width}%` }"></i></span>
+                </template>
+                <template v-else-if="feature.type === 'alerts'">
+                  <p v-for="(label, index) in ['Новая заявка', 'Цель достигнута', 'Ошибка на сайте']" :key="label"><i :class="`alert-${index}`"></i>{{ label }}</p>
+                </template>
+                <template v-else-if="feature.type === 'reports'">
+                  <span class="report-file">PDF</span><span class="report-file green">CSV</span>
+                </template>
+                <template v-else-if="feature.type === 'devices'">
+                  <div class="device-donut"></div><p>Desktop 55%<br />Mobile 35%<br />Tablet 10%</p>
+                </template>
+                <template v-else>
+                  <strong class="ai-growth">+23%</strong><svg viewBox="0 0 160 60"><path d="M2 52 28 42 51 48 78 20 101 36 128 8 158 17" /></svg>
+                </template>
               </div>
             </article>
           </div>
         </div>
       </section>
 
-      <section id="pwa-app" class="pwa-section section-band overflow-hidden">
-        <div class="pwa-orb pwa-orb-left" aria-hidden="true" />
-        <div class="pwa-orb pwa-orb-right" aria-hidden="true" />
-        <div class="landing-container relative z-10">
-          <div class="tn-reveal mx-auto grid max-w-5xl gap-6 text-center lg:grid-cols-[1fr_auto] lg:items-end lg:text-left">
-            <div class="section-title lg:mx-0 lg:text-left">
-              <p>Дашборд на телефоне</p>
-              <h2>Установите TrackNode как приложение</h2>
-              <p class="pwa-intro">
-                Добавьте TrackNode на главный экран и открывайте дашборд в один клик — без поиска сайта в браузере.
-                Это удобное PWA-приложение для аналитики сайта и быстрых уведомлений о новых заявках.
-              </p>
-            </div>
-            <div class="pwa-benefit">
-              <span><BellRing :size="21" /></span>
-              <div>
-                <strong>Новые заявки без задержки</strong>
-                <p>Включите push-уведомления в разделе «Заявки».</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-10 grid gap-5 lg:grid-cols-2">
-            <article
-              v-for="platform in pwaPlatforms"
-              :key="platform.key"
-              class="tn-reveal pwa-card"
-              :class="`pwa-card-${platform.key}`"
-            >
-              <header class="flex items-center gap-4">
-                <span class="pwa-platform-icon"><component :is="platform.icon" :size="23" /></span>
-                <div>
-                  <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-[#4C33E6]">{{ platform.label }}</p>
-                  <h3 class="mt-1 text-xl font-semibold text-slate-950">{{ platform.title }}</h3>
-                </div>
-              </header>
-
-              <ol class="mt-6 grid gap-3">
-                <li v-for="(step, index) in platform.steps" :key="step" class="pwa-step">
-                  <span>{{ index + 1 }}</span>
-                  <p>{{ step }}</p>
-                </li>
-              </ol>
-
-              <div class="pwa-note">
-                <Smartphone :size="19" />
-                <p>{{ platform.note }}</p>
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section id="analytics" class="section-band bg-[#f7f8ff]">
-        <div class="landing-container grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
-          <div class="tn-reveal">
-            <div class="section-title text-left">
-              <p>Интерактивная аналитика</p>
-              <h2>Цифры превращаются в понятные решения</h2>
-            </div>
-            <div class="mt-7 grid gap-4">
-              <article v-for="item in analyticsCards" :key="item.title" class="feature-card">
-                <span class="feature-icon"><component :is="item.icon" :size="22" /></span>
-                <div>
-                  <h3>{{ item.title }}</h3>
-                  <p>{{ item.text }}</p>
-                </div>
-              </article>
-            </div>
-          </div>
-
-          <div class="tn-reveal analytics-board">
-            <div class="grid gap-4 md:grid-cols-[1.05fr_0.95fr]">
-              <article class="dashboard-panel">
-                <h3 class="text-base font-semibold text-slate-950">Воронка заявок</h3>
-                <div class="mt-5 space-y-4">
-                  <div v-for="([label, value], index) in [['Посещения', '24 780'], ['Клики по CTA', '3 218'], ['Формы открыты', '914'], ['Заявки', '342']]" :key="label" class="rounded-lg border border-indigo-100 bg-white p-4">
-                    <div class="flex items-center justify-between gap-3 text-sm">
-                      <span class="font-semibold text-slate-700">{{ label }}</span>
-                      <strong class="text-slate-950">{{ value }}</strong>
-                    </div>
-                    <span class="mt-3 block h-2 overflow-hidden rounded-full bg-slate-100">
-                      <span class="block h-full rounded-full bg-gradient-to-r from-[#5B35F5] to-[#35C9B8]" :style="{ width: `${92 - index * 18}%` }" />
-                    </span>
-                  </div>
-                </div>
-              </article>
-              <article class="dashboard-panel">
-                <h3 class="text-base font-semibold text-slate-950">Записи сессий</h3>
-                <div class="mt-5 space-y-3">
-                  <div v-for="([session, time, status], index) in [['Сессия #1254', '02:36', 'Заявка'], ['Сессия #1253', '04:18', 'SEO'], ['Сессия #1252', '01:54', 'Отказ'], ['Сессия #1251', '03:22', 'CTA']]" :key="session" class="flex items-center gap-3 rounded-lg border border-indigo-100 bg-white p-3">
-                    <span class="grid h-9 w-9 place-items-center rounded-lg bg-indigo-50 text-[#4C33E6]"><ListVideo :size="17" /></span>
-                    <div class="min-w-0 flex-1">
-                      <p class="truncate text-sm font-semibold text-slate-900">{{ session }}</p>
-                      <p class="text-xs text-slate-500">{{ status }}</p>
-                    </div>
-                    <strong class="text-xs text-slate-600">{{ time }}</strong>
-                    <ArrowRight :size="15" class="text-[#4C33E6]" />
-                  </div>
-                </div>
-              </article>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="seo-audit" class="section-band bg-white">
-        <div class="landing-container grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-          <div class="tn-reveal seo-score-card">
-            <div class="grid gap-6 md:grid-cols-[180px_1fr] md:items-center">
-              <div class="score-ring">
-                <div class="score-value">
-                  <strong>85</strong>
-                  <span>/100</span>
-                </div>
-              </div>
-              <div>
-                <p class="text-sm font-semibold text-[#4C33E6]">SEO-аудит и рекомендации</p>
-                <h2 class="mt-3 text-3xl font-semibold leading-tight text-slate-950">Проверка, которую можно сразу отдать в работу</h2>
-                <p class="mt-4 text-base leading-8 text-slate-600">
-                  TrackNode показывает технические ошибки, слабые мета-теги, проблемы индексации и конкретные шаги для роста органического трафика.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div class="tn-reveal grid gap-3">
-            <article v-for="[priority, text] in seoRecommendations" :key="text" class="recommendation-row">
-              <span><SearchCheck :size="18" /></span>
-              <div>
-                <p class="text-xs font-semibold text-[#4C33E6]">{{ priority }}</p>
-                <h3 class="mt-1 text-sm font-semibold text-slate-950">{{ text }}</h3>
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section id="competitors" class="section-band bg-[#f7f8ff]">
-        <div class="landing-container grid gap-8 lg:grid-cols-[0.86fr_1.14fr] lg:items-center">
-          <div class="tn-reveal">
-            <div class="section-title text-left">
-              <p>Анализ конкурентов</p>
-              <h2>Видно, где вы сильнее и где можно расти</h2>
-            </div>
-            <p class="mt-5 max-w-xl text-base leading-8 text-slate-600">
-              Сравнивайте SEO-сигналы, структуру страниц, коммерческие блоки и видимость конкурентов. Кабинет помогает быстро понять, какие изменения дадут эффект.
-            </p>
-          </div>
-
-          <div class="tn-reveal competitor-card">
-            <div class="grid h-[280px] grid-cols-4 items-end gap-5">
-              <div v-for="[label, value, color] in competitorRows" :key="label" class="flex h-full flex-col justify-end">
-                <div class="rounded-t-lg shadow-[0_14px_34px_rgba(76,51,230,0.14)]" :class="color" :style="{ height: `${value}%` }" />
-                <p class="mt-3 truncate text-center text-sm font-semibold text-slate-700">{{ label }}</p>
-              </div>
-            </div>
-            <div class="mt-6 grid gap-3 md:grid-cols-3">
-              <div class="rounded-lg bg-indigo-50 p-4">
-                <p class="text-xs text-slate-500">SEO-счёт</p>
-                <strong class="mt-1 block text-2xl text-slate-950">88</strong>
-              </div>
-              <div class="rounded-lg bg-white p-4">
-                <p class="text-xs text-slate-500">Точки роста</p>
-                <strong class="mt-1 block text-2xl text-slate-950">14</strong>
-              </div>
-              <div class="rounded-lg bg-white p-4">
-                <p class="text-xs text-slate-500">Риск потерь</p>
-                <strong class="mt-1 block text-2xl text-emerald-600">низкий</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="cases" class="section-band bg-white">
+      <section id="ecosystem" class="section ecosystem-section" aria-labelledby="ecosystem-title">
         <div class="landing-container">
-          <div class="section-title tn-reveal">
-            <p>Кейсы SEO-оптимизации</p>
-            <h2>Понятные сценарии, где TrackNode показывает эффект</h2>
+          <div class="section-heading centered">
+            <p class="eyebrow"><Blocks :size="15" /> Экосистема TrackNode</p>
+            <h2 id="ecosystem-title">Вся сила аналитики в <span>единой экосистеме</span></h2>
+            <p>Все инструменты TrackNode работают вместе, чтобы данные превращались в понятные решения для роста.</p>
           </div>
-          <div class="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-            <article v-for="item in caseCards" :key="item.title" class="tn-reveal case-card">
-              <div class="flex items-start justify-between gap-4">
-                <h3>{{ item.title }}</h3>
-                <strong>{{ item.result }}</strong>
-              </div>
-              <p><span>Проблема:</span> {{ item.problem }}</p>
-              <p><span>Что сделал TrackNode:</span> {{ item.action }}</p>
-              <div class="mt-auto flex h-24 items-end gap-2 pt-5">
-                <i v-for="(bar, index) in item.bars" :key="`${item.title}-${index}`" class="case-bar" :style="{ height: `${bar}%` }" />
-              </div>
+
+          <div
+            class="ecosystem-canvas"
+            :style="ecosystemStyle"
+            @pointermove="handleEcosystemMove"
+            @pointerleave="resetEcosystem"
+          >
+            <div class="orbit-line orbit-line-1"></div>
+            <div class="orbit-line orbit-line-2"></div>
+            <div class="orbit-line orbit-line-3"></div>
+            <div class="orbit-glow"></div>
+            <div class="ecosystem-cube-wrap" role="img" aria-label="Куб — центр экосистемы TrackNode"></div>
+            <article v-for="item in ecosystemItems" :key="item.title" class="ecosystem-node" :class="item.position" tabindex="0">
+              <component :is="item.icon" :size="24" />
+              <strong>{{ item.title }}</strong>
+              <span>{{ item.text }}</span>
+            </article>
+          </div>
+
+          <div class="ecosystem-mobile-grid">
+            <article v-for="item in ecosystemItems" :key="`mobile-${item.title}`">
+              <component :is="item.icon" :size="22" /><span><strong>{{ item.title }}</strong><small>{{ item.text }}</small></span>
             </article>
           </div>
         </div>
       </section>
 
-      <section class="section-band bg-[#f7f8ff]">
-        <div class="landing-container">
-          <div class="section-title tn-reveal">
-            <p>Нам доверяют компании</p>
-            <h2>Проекты, которые уже подключены к TrackNode</h2>
-          </div>
-          <div class="tn-reveal marquee-shell mt-8" aria-label="Бегущая строка компаний">
-            <div class="marquee-track">
-              <span v-for="(item, index) in marqueeItems" :key="`${item}-${index}`" class="marquee-pill">{{ item }}</span>
+      <section id="seo-audit" class="section seo-section" aria-labelledby="seo-title">
+        <div class="landing-container seo-grid">
+          <div class="seo-copy">
+            <p class="eyebrow"><SearchCheck :size="15" /> SEO-анализ</p>
+            <h2 id="seo-title">SEO-анализ, который показывает, <span>что мешает сайту расти</span></h2>
+            <p>TrackNode сканирует сайт, расставляет приоритеты и объясняет, что исправить в первую очередь — без сложных таблиц и технического шума.</p>
+            <div class="seo-summary">
+              <div><strong>12</strong><small>ошибок</small></div>
+              <div><strong>8</strong><small>предупреждений</small></div>
+              <div><strong>34</strong><small>проверки пройдено</small></div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="pricing" class="pricing-section section-band">
-        <div class="pricing-glow pricing-glow-left" aria-hidden="true" />
-        <div class="pricing-glow pricing-glow-right" aria-hidden="true" />
-        <div class="landing-container relative z-10">
-          <div class="section-title tn-reveal">
-            <p>Тарифы</p>
-            <h2>Выберите решение для вашего сайта</h2>
-            <span class="pricing-subtitle">Прозрачная стоимость, понятные возможности и выгода при длительном подключении.</span>
+            <RouterLink class="primary-button" to="/register">Проверить свой сайт <ArrowRight :size="18" /></RouterLink>
           </div>
 
-          <div class="tn-reveal pricing-content">
-            <div class="pricing-tabs" role="tablist" aria-label="Период подключения">
-              <button
-                v-for="tab in pricingTabs"
-                :id="`pricing-tab-${tab.id}`"
-                :key="tab.id"
-                type="button"
-                role="tab"
-                :aria-selected="activePricingDuration === tab.id"
-                :aria-controls="`pricing-panel-${tab.id}`"
-                :class="{ 'is-active': activePricingDuration === tab.id }"
-                @click="activePricingDuration = tab.id"
-              >
-                {{ tab.label }}
-                <span v-if="tab.id === 'halfYear'" class="tab-saving">−5%</span>
-                <span v-if="tab.id === 'year'" class="tab-saving">−10%</span>
-              </button>
-            </div>
-
-            <div
-              :id="`pricing-panel-${activePricingDuration}`"
-              class="pricing-grid"
-              role="tabpanel"
-              :aria-labelledby="`pricing-tab-${activePricingDuration}`"
-            >
-              <Transition name="pricing-cards" mode="out-in" appear>
-                <div :key="activePricingDuration" class="pricing-cards-inner">
-                  <article
-                    v-for="plan in visiblePricingPlans"
-                    :key="`${plan.duration}-${plan.title}`"
-                    class="pricing-card"
-                    :class="{ 'is-recommended': plan.recommended }"
-                  >
-                    <div class="pricing-card-topline">
-                      <span v-if="plan.discount" class="discount-badge">Скидка {{ plan.discount }}%</span>
-                      <span v-if="plan.recommended" class="recommended-badge"><Sparkles :size="14" /> Рекомендуем</span>
-                    </div>
-
-                    <div class="pricing-card-heading">
-                      <h3>{{ plan.title }}</h3>
-                      <p>{{ plan.description }}</p>
-                    </div>
-
-                    <div class="pricing-price-block">
-                      <del v-if="plan.oldPrice">{{ formatPrice(plan.oldPrice) }}</del>
-                      <div>
-                        <strong>{{ formatPrice(plan.price) }}</strong>
-                        <span>{{ plan.periodLabel }}</span>
-                      </div>
-                    </div>
-
-                    <div class="pricing-divider" aria-hidden="true" />
-                    <p class="pricing-includes">В тариф входит</p>
-                    <ul>
-                      <li v-for="feature in plan.features" :key="feature">
-                        <span class="pricing-check"><CheckCircle2 :size="16" /></span>
-                        <span>{{ feature }}</span>
-                      </li>
-                    </ul>
-
-                    <RouterLink to="/register" class="pricing-cta">
-                      {{ plan.ctaText }}
-                      <ArrowRight :size="17" />
-                    </RouterLink>
-                  </article>
+          <div class="seo-dashboard">
+            <div class="browser-bar"><i></i><i></i><i></i><span>your-site.ru</span><SearchCheck :size="17" /></div>
+            <div class="seo-dashboard-body">
+              <div class="health-card">
+                <div class="health-ring"><span><strong>87</strong><small>/100</small></span></div>
+                <div><small>SEO Health</small><strong>Хороший результат</strong><p>Сайт готов к росту. Осталось исправить несколько важных пунктов.</p></div>
+              </div>
+              <div class="seo-checks">
+                <div v-for="([label, status]) in seoChecks" :key="label" :class="`status-${status}`">
+                  <span><CheckCircle2 v-if="status === 'ok'" :size="17" /><Zap v-else-if="status === 'warn'" :size="17" /><X v-else :size="17" /></span>
+                  <strong>{{ label }}</strong><small>{{ status === 'ok' ? 'Пройдено' : status === 'warn' ? 'Проверить' : 'Исправить' }}</small>
                 </div>
-              </Transition>
+              </div>
+              <div class="ai-recommendation">
+                <span><Sparkles :size="22" /></span>
+                <div><small>AI-рекомендация</small><strong>Сожмите изображения на 4 страницах</strong><p>Это ускорит загрузку на мобильных устройствах примерно на 1,2 секунды.</p></div>
+                <ArrowRight :size="20" />
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section id="faq" class="section-band bg-[#f7f8ff]">
-        <div class="landing-container grid gap-8 lg:grid-cols-[0.75fr_1.25fr]">
-          <div class="tn-reveal">
-            <div class="section-title text-left">
-              <p>FAQ</p>
-              <h2>Частые вопросы о TrackNode</h2>
-            </div>
-            <p class="mt-5 text-base leading-8 text-slate-600">Коротко о подключении, аналитике, заявках, SEO и безопасности данных.</p>
+      <section id="pricing" class="section pricing-section" aria-labelledby="pricing-title">
+        <div class="landing-container">
+          <div class="section-heading centered">
+            <p class="eyebrow"><Zap :size="15" /> Простые тарифы</p>
+            <h2 id="pricing-title">Выберите формат <span>для вашего роста</span></h2>
+            <p>Начните с трёх бесплатных дней. Карта не нужна.</p>
           </div>
-          <div class="tn-reveal grid gap-3">
-            <details v-for="[question, answer] in faqItems" :key="question" class="faq-item">
-              <summary>
-                <span>{{ question }}</span>
-                <ArrowRight :size="18" />
-              </summary>
-              <p>{{ answer }}</p>
-            </details>
+          <div class="pricing-tabs" role="tablist" aria-label="Период оплаты">
+            <button v-for="tab in pricingTabs" :key="tab.id" type="button" :class="{ active: activePricingDuration === tab.id }" @click="activePricingDuration = tab.id">
+              {{ tab.label }} <small v-if="tab.saving">{{ tab.saving }}</small>
+            </button>
+          </div>
+          <div class="pricing-grid">
+            <article v-for="plan in visiblePlans" :key="`${plan.duration}-${plan.title}`" class="pricing-card" :class="{ featured: plan.featured }">
+              <span v-if="plan.featured" class="popular">Популярный</span>
+              <p class="pricing-label">{{ plan.title }}</p>
+              <div class="price"><strong>{{ plan.price }} ₽</strong><small>{{ plan.period }}</small></div>
+              <p>{{ plan.featured ? 'Полный набор инструментов для роста сайта и бизнеса.' : 'Надёжная техническая основа для вашего сайта.' }}</p>
+              <ul><li v-for="item in planFeatures[plan.title]" :key="item"><CheckCircle2 :size="18" />{{ item }}</li></ul>
+              <RouterLink :class="plan.featured ? 'primary-button' : 'secondary-button'" to="/register">Попробовать бесплатно <ArrowRight :size="17" /></RouterLink>
+            </article>
           </div>
         </div>
       </section>
 
-      <section id="support" class="section-band bg-white">
-        <div class="landing-container grid gap-8 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
-          <div class="tn-reveal">
-            <div class="section-title text-left">
-              <p>Техническая поддержка</p>
-              <h2>Опишите вопрос, и команда поможет разобраться</h2>
-            </div>
-            <p class="mt-5 max-w-xl text-base leading-8 text-slate-600">
-              Форма подготовлена на фронте. Когда появится публичный endpoint поддержки, её можно подключить без изменения интерфейса.
-            </p>
-            <a href="https://t.me/M1ke994" target="_blank" rel="noopener noreferrer" class="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-indigo-200 bg-white px-5 text-sm font-semibold text-[#4C33E6] shadow-sm transition hover:-translate-y-0.5 hover:bg-indigo-50">
-              Связаться через Telegram
-              <ArrowRight :size="17" />
-            </a>
+      <section id="faq" class="section faq-section" aria-labelledby="faq-title">
+        <div class="landing-container faq-layout">
+          <div class="faq-heading"><p class="eyebrow">FAQ</p><h2 id="faq-title">Ответы на частые вопросы</h2><p>Не нашли ответ? Напишите нам — поможем разобраться.</p></div>
+          <div class="faq-list">
+            <article v-for="([question, answer], index) in faqItems" :key="question" :class="{ open: openFaq === index }">
+              <button type="button" :aria-expanded="openFaq === index" @click="openFaq = openFaq === index ? -1 : index"><span>{{ question }}</span><span>+</span></button>
+              <div v-show="openFaq === index"><p>{{ answer }}</p></div>
+            </article>
           </div>
+        </div>
+      </section>
 
-          <form class="tn-reveal support-form" @submit.prevent="submitSupport">
-            <label>
-              <span>Заголовок</span>
-              <input v-model="supportForm.title" required type="text" placeholder="Например: не вижу заявки в кабинете" />
-            </label>
-            <label>
-              <span>Проблема</span>
-              <input v-model="supportForm.problem" required type="text" placeholder="Кратко опишите, что произошло" />
-            </label>
-            <label>
-              <span>Описание</span>
-              <textarea v-model="supportForm.description" required rows="5" placeholder="Добавьте детали: сайт, раздел, время, что уже проверили" />
-            </label>
-            <button type="submit">Отправить</button>
-            <p v-if="supportSent" class="rounded-lg bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-              Обращение сохранено на стороне интерфейса. Для срочного вопроса используйте Telegram.
-            </p>
-          </form>
+      <section class="final-cta">
+        <div class="landing-container final-cta-inner">
+          <div><p>Один сервис — вся аналитика</p><h2>Начните принимать решения на основе данных</h2></div>
+          <RouterLink class="cta-white" to="/register">Попробовать бесплатно 3 дня <ArrowRight :size="18" /></RouterLink>
         </div>
       </section>
     </main>
 
-    <footer class="border-t border-indigo-100 bg-[#080B23] py-12 text-white" id="footer">
-      <div class="landing-container grid gap-8 md:grid-cols-[1.15fr_0.85fr_0.85fr]">
-        <div>
-          <a href="#top" class="inline-flex items-center gap-3" aria-label="TrackNode">
-            <span class="grid h-10 w-10 place-items-center rounded-lg bg-gradient-to-br from-[#5B35F5] to-[#1D5CFF] text-white">
-              <Zap :size="21" fill="currentColor" />
-            </span>
-            <strong class="text-xl">TrackNode</strong>
-          </a>
-          <p class="mt-5 max-w-md text-sm leading-7 text-indigo-100/75">
-            SaaS-платформа для аналитики сайтов, заявок, SEO-аудита, анализа конкурентов и отчётов в одном кабинете.
-          </p>
-          <p class="mt-6 text-sm text-indigo-100/60">© {{ currentYear }} TrackNode</p>
-        </div>
-        <div>
-          <h2 class="text-sm font-semibold text-white">Документы</h2>
-          <div class="mt-4 grid gap-3 text-sm text-indigo-100/75">
-            <a href="#footer" class="hover:text-white">Пользовательское соглашение</a>
-            <a href="#footer" class="hover:text-white">Политика конфиденциальности</a>
-            <a href="#pricing" class="hover:text-white">Тарифы</a>
-            <a href="#support" class="hover:text-white">Поддержка</a>
-          </div>
-        </div>
-        <div>
-          <h2 class="text-sm font-semibold text-white">Контакты</h2>
-          <div class="mt-4 grid gap-3 text-sm text-indigo-100/75">
-            <a href="https://t.me/M1ke994" target="_blank" rel="noopener noreferrer" class="hover:text-white">Telegram: @M1ke994</a>
-            <RouterLink to="/login" class="hover:text-white">Войти в кабинет</RouterLink>
-            <RouterLink to="/register" class="hover:text-white">Регистрация</RouterLink>
-          </div>
-        </div>
+    <footer class="landing-footer">
+      <div class="landing-container footer-grid">
+        <a class="footer-brand" href="#top"><span><Zap :size="18" fill="currentColor" /></span>TrackNode</a>
+        <p>Аналитика, SEO и инсайты для роста сайта в одном сервисе.</p>
+        <div><a href="#features">Возможности</a><a href="#pricing">Тарифы</a><a href="#faq">FAQ</a><RouterLink to="/login">Войти</RouterLink></div>
+        <small>© {{ new Date().getFullYear() }} TrackNode</small>
       </div>
     </footer>
-
-    <div v-if="cookieVisible" class="cookie-popup" role="dialog" aria-live="polite" aria-label="Уведомление о cookies">
-      <div>
-        <p class="font-semibold text-slate-950">Cookies и аналитика</p>
-        <p class="mt-1 text-sm leading-6 text-slate-600">Сайт использует cookies для аналитики и улучшения сервиса.</p>
-      </div>
-      <button type="button" @click="acceptCookies">Принять</button>
-    </div>
   </div>
 </template>
 
 <style scoped>
-:global(html) {
-  scroll-behavior: smooth;
-}
+:global(html) { scroll-behavior: smooth; scroll-padding-top: 118px; }
+:global(body) { background: #fdfdff; }
 
 .landing-page {
-  --tn-primary: #4c33e6;
-  --tn-blue: #1d5cff;
-  --tn-teal: #35c9b8;
-}
-
-.progress-line {
-  transform-origin: left center;
-  transition: transform 120ms linear;
-}
-
-.hero-section {
-  background:
-    linear-gradient(115deg, rgba(255, 255, 255, 0.95) 0%, rgba(247, 248, 255, 0.96) 45%, rgba(238, 242, 255, 0.92) 100%),
-    repeating-linear-gradient(90deg, rgba(76, 51, 230, 0.05) 0 1px, transparent 1px 112px);
-}
-
-.hero-section::before {
-  content: '';
-  position: absolute;
-  inset: auto -12% -16% -12%;
-  height: 300px;
-  background: linear-gradient(180deg, transparent 0%, rgba(124, 58, 237, 0.08) 52%, rgba(29, 92, 255, 0.12) 100%);
-  clip-path: polygon(0 36%, 15% 22%, 34% 48%, 52% 28%, 70% 44%, 86% 18%, 100% 36%, 100% 100%, 0 100%);
-  pointer-events: none;
-}
-
-.landing-container {
-  width: min(100% - 2rem, 1440px);
-  margin-inline: auto;
-}
-
-.section-band {
-  padding-block: clamp(4rem, 7vw, 6.5rem);
-}
-
-.section-title {
-  max-width: 760px;
-  margin-inline: auto;
-  text-align: center;
-}
-
-.section-title p {
-  display: inline-flex;
-  border-radius: 999px;
-  background: #eef2ff;
-  padding: 0.5rem 1rem;
-  color: var(--tn-primary);
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
-.section-title h2 {
-  margin-top: 1rem;
-  color: #0f172a;
-  font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 650;
-  line-height: 1.1;
-}
-
-.dashboard-shell {
-  filter: drop-shadow(0 34px 70px rgba(59, 55, 238, 0.2));
-}
-
-.dashboard-window {
-  display: flex;
-  min-height: 610px;
-  overflow: hidden;
-  border: 1px solid rgba(99, 102, 241, 0.2);
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 0 0 8px rgba(92, 72, 255, 0.05);
-  backdrop-filter: blur(22px);
-}
-
-.dashboard-sidebar {
-  display: flex;
-  width: 178px;
-  flex: 0 0 auto;
-  flex-direction: column;
-  gap: 1rem;
-  background: #070a24;
-  padding: 1.25rem 1rem;
-}
-
-.metric-card,
-.dashboard-panel,
-.hero-mini-card,
-.feature-card,
-.analytics-board,
-.seo-score-card,
-.competitor-card,
-.case-card,
-.pricing-card,
-.support-form {
-  border: 1px solid rgba(99, 102, 241, 0.14);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 18px 50px rgba(47, 42, 120, 0.08);
-  backdrop-filter: blur(18px);
-}
-
-.metric-card {
-  padding: 1rem;
-}
-
-.dashboard-panel {
-  padding: 1rem;
-}
-
-.mini-chart {
-  stroke-dasharray: 220;
-  stroke-dashoffset: 220;
-  animation: drawMini 1.2s ease forwards;
-}
-
-.hero-chart-line {
-  stroke-dasharray: 880;
-  stroke-dashoffset: 880;
-  animation: drawLine 1.8s ease forwards, liveLine 5s ease-in-out infinite 1.8s;
-}
-
-.chart-dot {
-  opacity: 0;
-  animation: dotPulse 2.4s ease-in-out infinite 1.2s;
-}
-
-.delay-1 {
-  animation-delay: 1.45s;
-}
-
-.delay-2 {
-  animation-delay: 1.7s;
-}
-
-.heatmap {
-  position: relative;
-  height: 190px;
-  overflow: hidden;
-  border: 1px solid #e4e7fb;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #eef2ff, #ffffff);
-}
-
-.heat-line {
-  position: absolute;
-  height: 10px;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.2);
-}
-
-.heat-blob {
-  position: absolute;
-  border-radius: 999px;
-  filter: blur(9px);
-  animation: heatPulse 4s ease-in-out infinite;
-}
-
-.heat-a {
-  left: 39%;
-  top: 22%;
-  width: 76px;
-  height: 76px;
-  background: rgba(239, 68, 68, 0.82);
-}
-
-.heat-b {
-  left: 23%;
-  top: 45%;
-  width: 62px;
-  height: 62px;
-  background: rgba(250, 204, 21, 0.72);
-}
-
-.heat-c {
-  left: 56%;
-  top: 57%;
-  width: 58px;
-  height: 58px;
-  background: rgba(52, 211, 153, 0.68);
-}
-
-.heat-d {
-  left: 66%;
-  top: 31%;
-  width: 42px;
-  height: 42px;
-  background: rgba(45, 212, 191, 0.66);
-}
-
-.donut-chart {
-  display: grid;
-  width: 96px;
-  height: 96px;
-  place-items: center;
-  border-radius: 999px;
-  background: conic-gradient(#4c33e6 0 40%, #22c7d5 40% 70%, #35c9b8 70% 90%, #8b5cf6 90% 100%);
-  position: relative;
-}
-
-.donut-chart::after {
-  content: '';
-  position: absolute;
-  inset: 18px;
-  border-radius: 999px;
-  background: white;
-}
-
-.donut-chart span {
-  position: relative;
-  z-index: 1;
-  font-size: 0.95rem;
-  font-weight: 700;
-}
-
-.hero-mini-card {
-  min-height: 174px;
-  padding: 1.25rem;
-  transition: transform 260ms ease, box-shadow 260ms ease;
-}
-
-.feature-card {
-  display: flex;
-  min-height: 126px;
-  gap: 1rem;
-  padding: 1.25rem;
-  transition: transform 260ms ease, box-shadow 260ms ease;
-}
-
-.feature-card h3 {
-  color: #0f172a;
-  font-size: 1rem;
-  font-weight: 700;
-}
-
-.feature-card p {
-  margin-top: 0.35rem;
-  color: #64748b;
-  font-size: 0.9rem;
-  line-height: 1.65;
-}
-
-.pwa-section {
-  position: relative;
-  border-block: 1px solid rgba(99, 102, 241, 0.1);
-  background:
-    linear-gradient(135deg, rgba(248, 250, 255, 0.98), rgba(238, 242, 255, 0.94)),
-    radial-gradient(circle at 20% 20%, rgba(91, 53, 245, 0.12), transparent 34%);
-}
-
-.pwa-orb {
-  position: absolute;
-  border-radius: 999px;
-  filter: blur(6px);
-  pointer-events: none;
-}
-
-.pwa-orb-left {
-  left: -120px;
-  top: 70px;
-  width: 290px;
-  height: 290px;
-  background: rgba(91, 53, 245, 0.1);
-}
-
-.pwa-orb-right {
-  right: -100px;
-  bottom: 20px;
-  width: 260px;
-  height: 260px;
-  background: rgba(53, 201, 184, 0.12);
-}
-
-.pwa-intro {
-  display: block !important;
-  margin-top: 1.25rem;
-  max-width: 760px;
-  border-radius: 0 !important;
-  background: transparent !important;
-  padding: 0 !important;
-  color: #475569 !important;
-  font-size: 1rem !important;
-  font-weight: 400 !important;
-  line-height: 1.85;
-}
-
-.pwa-benefit {
-  display: flex;
-  max-width: 360px;
-  align-items: center;
-  gap: 0.9rem;
-  border: 1px solid rgba(99, 102, 241, 0.16);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.78);
-  padding: 1rem;
-  text-align: left;
-  box-shadow: 0 18px 50px rgba(47, 42, 120, 0.08);
-  backdrop-filter: blur(18px);
-}
-
-.pwa-benefit > span,
-.pwa-platform-icon {
-  display: grid;
-  width: 46px;
-  height: 46px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #5b35f5, #1d5cff);
-  color: white;
-  box-shadow: 0 12px 28px rgba(76, 51, 230, 0.22);
-}
-
-.pwa-benefit strong {
-  color: #0f172a;
-  font-size: 0.9rem;
-}
-
-.pwa-benefit p {
-  margin-top: 0.2rem;
-  color: #64748b;
-  font-size: 0.78rem;
-  line-height: 1.5;
-}
-
-.pwa-card {
-  position: relative;
-  overflow: hidden;
-  border: 1px solid rgba(99, 102, 241, 0.16);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.88);
-  padding: clamp(1.25rem, 3vw, 2rem);
-  box-shadow: 0 22px 64px rgba(47, 42, 120, 0.1);
-  backdrop-filter: blur(22px);
-  transition: transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease;
-}
-
-.pwa-card::after {
-  content: '';
-  position: absolute;
-  top: -70px;
-  right: -70px;
-  width: 180px;
-  height: 180px;
-  border-radius: 999px;
-  background: rgba(91, 53, 245, 0.06);
-  pointer-events: none;
-}
-
-.pwa-card-ios::after {
-  background: rgba(53, 201, 184, 0.09);
-}
-
-.pwa-card:hover {
-  transform: translateY(-5px);
-  border-color: rgba(76, 51, 230, 0.28);
-  box-shadow: 0 30px 80px rgba(47, 42, 120, 0.14);
-}
-
-.pwa-step {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.85rem;
-  color: #334155;
-  font-size: 0.92rem;
-  line-height: 1.65;
-}
-
-.pwa-step > span {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 1px solid rgba(99, 102, 241, 0.15);
-  border-radius: 9px;
-  background: #eef2ff;
-  color: #4c33e6;
-  font-size: 0.75rem;
-  font-weight: 800;
-}
-
-.pwa-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-  border: 1px solid rgba(53, 201, 184, 0.24);
-  border-radius: 14px;
-  background: rgba(236, 253, 245, 0.72);
-  padding: 1rem;
-  color: #0f766e;
-  font-size: 0.86rem;
-  font-weight: 650;
-  line-height: 1.6;
-}
-
-.pwa-note svg {
-  margin-top: 0.1rem;
-  flex: 0 0 auto;
-}
-
-.feature-icon {
-  display: grid;
-  width: 46px;
-  height: 46px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #eef2ff, #f8fafc);
-  color: var(--tn-primary);
-}
-
-.hero-mini-card:hover,
-.feature-card:hover,
-.case-card:hover,
-.pricing-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 24px 70px rgba(47, 42, 120, 0.12);
-}
-
-.analytics-board,
-.seo-score-card,
-.competitor-card {
-  padding: clamp(1rem, 3vw, 1.5rem);
-}
-
-.score-ring {
-  display: grid;
-  width: clamp(136px, 42vw, 160px);
-  aspect-ratio: 1;
-  place-items: center;
-  justify-self: center;
-  border-radius: 50%;
-  background: conic-gradient(from -90deg, #35c9b8 0 85%, #e7eaf3 85% 100%);
-  box-shadow: 0 18px 46px rgba(47, 42, 120, 0.13), inset 0 0 0 1px rgba(255, 255, 255, 0.72);
-  color: #0f172a;
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-}
-
-.score-ring::after {
-  content: '';
-  position: absolute;
-  inset: clamp(14px, 4vw, 17px);
-  z-index: 0;
-  border: 1px solid rgba(99, 102, 241, 0.08);
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 28%, #ffffff 0, #ffffff 46%, #f8faff 100%);
-  box-shadow: inset 0 6px 18px rgba(47, 42, 120, 0.04);
-}
-
-.score-value {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 0.22rem;
-  position: relative;
-  z-index: 1;
-  transform: translateY(1px);
-}
-
-.score-value strong {
-  font-size: clamp(2.45rem, 9vw, 2.9rem);
-  font-weight: 750;
-  letter-spacing: -0.06em;
-  line-height: 1;
-}
-
-.score-value span {
-  color: #64748b;
-  font-size: 0.82rem;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.recommendation-row {
-  display: flex;
-  gap: 1rem;
-  align-items: flex-start;
-  border: 1px solid rgba(99, 102, 241, 0.14);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.86);
-  padding: 1rem;
-  box-shadow: 0 14px 34px rgba(47, 42, 120, 0.06);
-}
-
-.recommendation-row span {
-  display: grid;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 8px;
-  background: #eef2ff;
-  color: var(--tn-primary);
-}
-
-.case-card {
-  display: flex;
-  min-height: 420px;
-  flex-direction: column;
-  padding: 1.25rem;
-}
-
-.case-card h3 {
-  font-size: 1.08rem;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.case-card strong {
-  flex: 0 0 auto;
-  border-radius: 8px;
-  background: #ecfdf5;
-  padding: 0.45rem 0.65rem;
-  color: #059669;
-}
-
-.case-card p {
-  margin-top: 1rem;
-  color: #64748b;
-  font-size: 0.9rem;
-  line-height: 1.65;
-}
-
-.case-card p span {
-  color: #0f172a;
-  font-weight: 700;
-}
-
-.case-bar {
-  width: 100%;
-  border-radius: 7px 7px 2px 2px;
-  background: linear-gradient(180deg, #5b35f5, #35c9b8);
-  transform-origin: bottom;
-  animation: growBar 1.2s ease both;
-}
-
-.marquee-shell {
-  overflow: hidden;
-  border: 1px solid rgba(99, 102, 241, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.72);
-  padding: 1rem 0;
-  box-shadow: 0 16px 44px rgba(47, 42, 120, 0.07);
-}
-
-.marquee-track {
-  display: flex;
-  width: max-content;
-  gap: 1rem;
-  animation: marquee 24s linear infinite;
-}
-
-.marquee-pill {
-  display: inline-flex;
-  min-height: 48px;
-  align-items: center;
-  border: 1px solid rgba(99, 102, 241, 0.16);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
-  padding: 0 1.3rem;
-  color: #334155;
-  font-size: 0.95rem;
-  font-weight: 700;
-  box-shadow: 0 12px 30px rgba(47, 42, 120, 0.06);
-}
-
-.pricing-section {
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(91, 53, 245, 0.09), transparent 38%),
-    linear-gradient(180deg, #ffffff 0%, #f7f8ff 54%, #ffffff 100%);
-}
-
-.pricing-section::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: linear-gradient(rgba(91, 53, 245, 0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(91, 53, 245, 0.035) 1px, transparent 1px);
-  background-size: 72px 72px;
-  mask-image: linear-gradient(to bottom, transparent, black 24%, black 76%, transparent);
-  pointer-events: none;
-}
-
-.pricing-glow {
-  position: absolute;
-  width: 360px;
-  height: 360px;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.22;
-  pointer-events: none;
-}
-
-.pricing-glow-left {
-  left: -180px;
-  top: 28%;
-  background: #7c3aed;
-}
-
-.pricing-glow-right {
-  right: -180px;
-  bottom: 12%;
-  background: #35c9b8;
-}
-
-.pricing-subtitle {
-  display: block;
-  max-width: 620px;
-  margin: 1.15rem auto 0;
-  color: #64748b;
-  font-size: 1rem;
-  line-height: 1.75;
-}
-
-.pricing-content {
-  margin-top: 2.5rem;
-}
-
-.pricing-tabs {
-  display: grid;
-  width: min(100%, 570px);
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.35rem;
-  margin-inline: auto;
-  border: 1px solid rgba(99, 102, 241, 0.14);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
-  padding: 0.35rem;
-  box-shadow: 0 18px 50px rgba(47, 42, 120, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(20px);
-}
-
-.pricing-tabs button {
-  display: inline-flex;
-  min-height: 48px;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  border-radius: 12px;
-  color: #64748b;
-  font-size: 0.9rem;
-  font-weight: 700;
-  transition: color 220ms ease, background 220ms ease, box-shadow 220ms ease, transform 220ms ease;
-}
-
-.pricing-tabs button:hover {
-  color: #4c33e6;
-}
-
-.pricing-tabs button:focus-visible {
-  outline: 3px solid rgba(91, 53, 245, 0.25);
-  outline-offset: 2px;
-}
-
-.pricing-tabs button.is-active {
-  background: linear-gradient(135deg, #5b35f5, #1d5cff);
-  color: #ffffff;
-  box-shadow: 0 12px 28px rgba(76, 51, 230, 0.28);
-  transform: translateY(-1px);
-}
-
-.tab-saving {
-  border-radius: 999px;
-  background: rgba(76, 51, 230, 0.09);
-  padding: 0.2rem 0.4rem;
-  color: #5b35f5;
-  font-size: 0.67rem;
-  font-weight: 800;
-}
-
-.pricing-tabs button.is-active .tab-saving {
-  background: rgba(255, 255, 255, 0.17);
-  color: #ffffff;
-}
-
-.pricing-grid {
-  max-width: 1100px;
-  min-height: 650px;
-  margin: 2rem auto 0;
-}
-
-.pricing-cards-inner {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: stretch;
-  gap: 1.25rem;
-}
-
-.pricing-card {
-  position: relative;
-  display: flex;
-  min-height: 650px;
-  overflow: hidden;
-  flex-direction: column;
-  border-color: rgba(99, 102, 241, 0.16);
-  border-radius: 24px;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 255, 0.82));
-  padding: clamp(1.35rem, 3vw, 2rem);
-  box-shadow: 0 22px 65px rgba(47, 42, 120, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  transition: transform 260ms ease, border-color 260ms ease, box-shadow 260ms ease;
-}
-
-.pricing-card::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, rgba(91, 53, 245, 0.5), transparent);
-  opacity: 0.55;
-}
-
-.pricing-card.is-recommended {
-  border-color: rgba(91, 53, 245, 0.34);
-  background:
-    radial-gradient(circle at 100% 0%, rgba(91, 53, 245, 0.12), transparent 35%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(246, 246, 255, 0.88));
-  box-shadow: 0 28px 80px rgba(76, 51, 230, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.95);
-}
-
-.pricing-card.is-recommended::before {
-  height: 4px;
-  background: linear-gradient(90deg, #7c3aed, #1d5cff, #35c9b8);
-  opacity: 1;
-}
-
-.pricing-card:hover {
-  border-color: rgba(91, 53, 245, 0.34);
-  transform: translateY(-6px);
-  box-shadow: 0 32px 90px rgba(47, 42, 120, 0.16);
-}
-
-.pricing-card-topline {
-  display: flex;
-  min-height: 28px;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-}
-
-.discount-badge,
-.recommended-badge {
-  display: inline-flex;
-  min-height: 28px;
-  align-items: center;
-  border-radius: 999px;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.01em;
-}
-
-.discount-badge {
-  border: 1px solid rgba(16, 185, 129, 0.18);
-  background: rgba(236, 253, 245, 0.9);
-  color: #047857;
-}
-
-.recommended-badge {
-  margin-left: auto;
-  gap: 0.35rem;
-  border: 1px solid rgba(91, 53, 245, 0.15);
-  background: linear-gradient(135deg, rgba(238, 242, 255, 0.95), rgba(245, 243, 255, 0.95));
-  color: #4c33e6;
-}
-
-.pricing-card-heading {
-  margin-top: 1.35rem;
-}
-
-.pricing-card h3 {
-  color: #0f172a;
-  font-size: clamp(1.35rem, 2vw, 1.65rem);
-  font-weight: 750;
-  line-height: 1.2;
-}
-
-.pricing-card-heading p {
-  min-height: 52px;
-  margin-top: 0.65rem;
-  color: #64748b;
-  font-size: 0.92rem;
-  line-height: 1.7;
-}
-
-.pricing-price-block {
-  display: flex;
-  min-height: 92px;
-  flex-direction: column;
-  justify-content: flex-end;
-  margin-top: 1.35rem;
-}
-
-.pricing-price-block del {
-  display: block;
-  margin-bottom: 0.25rem;
-  color: #94a3b8;
-  font-size: 0.9rem;
-  font-weight: 650;
-  text-decoration-color: #ef4444;
-  text-decoration-thickness: 1.5px;
-}
-
-.pricing-price-block div {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.55rem;
-}
-
-.pricing-price-block strong {
-  color: #0f172a;
-  font-size: clamp(2rem, 4vw, 2.7rem);
-  font-weight: 750;
-  letter-spacing: -0.045em;
-  line-height: 1;
-}
-
-.pricing-price-block span {
-  color: #64748b;
-  font-size: 0.82rem;
-  font-weight: 650;
-}
-
-.pricing-divider {
-  height: 1px;
-  margin-top: 1.25rem;
-  background: linear-gradient(90deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.04));
-}
-
-.pricing-includes {
-  margin-top: 1.25rem;
-  color: #334155;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.pricing-card ul {
-  display: grid;
-  gap: 0.7rem;
-  margin: 1rem 0 1.75rem;
-}
-
-.pricing-card li {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.7rem;
-  color: #334155;
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-
-.pricing-check {
-  display: grid;
-  width: 23px;
-  height: 23px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 50%;
-  background: rgba(91, 53, 245, 0.08);
-  color: #5b35f5;
-}
-
-.pricing-cta {
-  display: inline-flex;
-  min-height: 52px;
-  width: 100%;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem;
-  margin-top: auto;
-  border: 1px solid rgba(91, 53, 245, 0.22);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.78);
-  color: #4c33e6;
-  font-size: 0.9rem;
-  font-weight: 750;
-  box-shadow: 0 12px 30px rgba(47, 42, 120, 0.07);
-  transition: transform 220ms ease, background 220ms ease, color 220ms ease, box-shadow 220ms ease;
-}
-
-.pricing-card.is-recommended .pricing-cta {
-  border-color: transparent;
-  background: linear-gradient(135deg, #5b35f5, #1d5cff);
-  color: #ffffff;
-  box-shadow: 0 16px 38px rgba(59, 55, 238, 0.28);
-}
-
-.pricing-cta:hover {
-  transform: translateY(-2px);
-  background: #eef2ff;
-  box-shadow: 0 18px 38px rgba(47, 42, 120, 0.12);
-}
-
-.pricing-card.is-recommended .pricing-cta:hover {
-  background: linear-gradient(135deg, #4c2de0, #164ce8);
-  box-shadow: 0 20px 44px rgba(59, 55, 238, 0.34);
-}
-
-.pricing-cards-enter-active,
-.pricing-cards-leave-active {
-  transition: opacity 220ms ease, transform 220ms ease;
-}
-
-.pricing-cards-enter-from,
-.pricing-cards-leave-to {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-.faq-item {
-  border: 1px solid rgba(99, 102, 241, 0.14);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.86);
-  padding: 1rem 1.1rem;
-  box-shadow: 0 14px 36px rgba(47, 42, 120, 0.06);
-}
-
-.faq-item summary {
-  display: flex;
-  cursor: pointer;
-  list-style: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  color: #0f172a;
-  font-size: 1rem;
-  font-weight: 700;
-}
-
-.faq-item summary::-webkit-details-marker {
-  display: none;
-}
-
-.faq-item summary svg {
-  flex: 0 0 auto;
-  color: var(--tn-primary);
-  transition: transform 220ms ease;
-}
-
-.faq-item[open] summary svg {
-  transform: rotate(90deg);
-}
-
-.faq-item p {
-  margin-top: 0.8rem;
-  color: #64748b;
-  font-size: 0.94rem;
-  line-height: 1.7;
-}
-
-.support-form {
-  display: grid;
-  gap: 1rem;
-  padding: clamp(1rem, 3vw, 1.5rem);
-}
-
-.support-form label {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.support-form label span {
-  color: #334155;
-  font-size: 0.86rem;
-  font-weight: 700;
-}
-
-.support-form input,
-.support-form textarea {
-  width: 100%;
-  border: 1px solid rgba(99, 102, 241, 0.18);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  padding: 0.9rem 1rem;
-  color: #0f172a;
-  font-size: 0.95rem;
-  outline: none;
-  transition: border-color 180ms ease, box-shadow 180ms ease;
-}
-
-.support-form input:focus,
-.support-form textarea:focus {
-  border-color: rgba(76, 51, 230, 0.72);
-  box-shadow: 0 0 0 4px rgba(76, 51, 230, 0.1);
-}
-
-.support-form button,
-.cookie-popup button {
-  min-height: 48px;
-  border-radius: 8px;
-  background: linear-gradient(90deg, #5b35f5, #1d4fff);
-  padding: 0 1.25rem;
-  color: white;
-  font-size: 0.94rem;
-  font-weight: 800;
-  box-shadow: 0 16px 34px rgba(59, 55, 238, 0.24);
-}
-
-.cookie-popup {
-  position: fixed;
-  right: 1rem;
-  bottom: 1rem;
-  z-index: 60;
-  display: flex;
-  width: min(calc(100vw - 2rem), 520px);
-  align-items: center;
-  gap: 1rem;
-  border: 1px solid rgba(99, 102, 241, 0.18);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.94);
-  padding: 1rem;
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.16);
-  backdrop-filter: blur(18px);
-}
-
-.tn-reveal {
-  opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 620ms ease, transform 620ms ease;
-}
-
-.tn-reveal.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.hero-section .tn-reveal {
-  opacity: 1;
-  transform: none;
-  transition: none;
-}
-
-@keyframes drawLine {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes drawMini {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes liveLine {
-  50% {
-    transform: translateY(-4px);
-  }
-}
-
-@keyframes dotPulse {
-  0%,
-  100% {
-    opacity: 0.6;
-    transform: scale(0.9);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.15);
-  }
-}
-
-@keyframes heatPulse {
-  0%,
-  100% {
-    transform: scale(0.92);
-  }
-  50% {
-    transform: scale(1.08);
-  }
-}
-
-@keyframes growBar {
-  from {
-    transform: scaleY(0);
-  }
-  to {
-    transform: scaleY(1);
-  }
-}
-
-@keyframes marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-@media (max-width: 1023px) {
-  .dashboard-window {
-    min-height: auto;
-  }
-
-  .dashboard-sidebar {
-    display: none;
-  }
-}
-
-@media (min-width: 1024px) {
-  .pwa-section .section-title {
-    margin-inline: 0;
-    text-align: left;
-  }
+  --ink: #11152d;
+  --muted: #626985;
+  --purple: #4b2cff;
+  --violet: #7856ff;
+  --line: rgba(92, 67, 255, 0.12);
+  min-height: 100vh;
+  overflow: clip;
+  color: var(--ink);
+  background: #fdfdff;
+}
+
+.landing-container { width: min(100% - 40px, 1440px); margin-inline: auto; }
+.section { position: relative; padding: 112px 0; scroll-margin-top: 112px; }
+.section h2 { margin: 14px 0 18px; font-size: clamp(2.2rem, 4vw, 4rem); line-height: 1.04; letter-spacing: -0.05em; }
+.section h2 span { color: var(--purple); }
+.section-heading { max-width: 900px; margin-bottom: 56px; }
+.section-heading.centered { margin-inline: auto; text-align: center; }
+.section-heading.centered .eyebrow { margin-inline: auto; }
+.section-heading > p:last-child { max-width: 720px; margin: 0 auto; color: var(--muted); font-size: 1.08rem; line-height: 1.75; }
+.eyebrow { display: inline-flex; align-items: center; gap: 7px; width: max-content; margin: 0; padding: 8px 13px; border: 1px solid rgba(89, 56, 255, 0.11); border-radius: 999px; color: var(--purple); background: rgba(255, 255, 255, 0.72); box-shadow: 0 8px 28px rgba(70, 38, 220, 0.08); font-size: .74rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+
+.landing-header { position: fixed; z-index: 100; top: max(14px, env(safe-area-inset-top)); left: 50%; width: min(calc(100% - 32px), 1480px); transform: translateX(-50%); }
+.nav-shell { position: relative; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 88px; padding: 10px 16px 10px 24px; border: 1px solid rgba(255,255,255,.84); border-radius: 25px; background: rgba(255,255,255,.74); box-shadow: 0 18px 60px rgba(70,51,165,.13), inset 0 0 0 1px rgba(84,57,255,.05); backdrop-filter: blur(24px) saturate(150%); }
+.nav-side { display: flex; align-items: center; gap: clamp(14px, 2vw, 34px); }
+.nav-right { justify-content: flex-end; }
+.nav-link { position: relative; padding: 13px 2px; color: #282a3c; font-size: .88rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.nav-link::after { position: absolute; right: 0; bottom: 6px; left: 0; height: 2px; border-radius: 99px; background: var(--purple); content: ''; opacity: 0; transform: scaleX(.3); transition: .25s ease; }
+.nav-link:hover, .nav-link.active { color: var(--purple); }
+.nav-link.active::after { opacity: 1; transform: scaleX(1); }
+.brand { display: grid; min-width: 210px; padding: 0 24px; color: var(--ink); text-align: left; text-decoration: none; }
+.brand-kicker { margin-left: 49px; color: #777c91; font-size: .68rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.brand-line { display: flex; align-items: center; gap: 10px; font-size: 1.78rem; font-weight: 900; letter-spacing: -.055em; }
+.brand-line > span:last-child > span { color: var(--purple); }
+.brand-cube, .footer-brand span { display: grid; width: 39px; height: 39px; place-items: center; border-radius: 11px; color: white; background: linear-gradient(145deg, #7b5cff, #3115ed); box-shadow: 0 9px 22px rgba(69,37,241,.35), inset 0 1px 2px rgba(255,255,255,.6); transform: rotate(-3deg); }
+.login-button, .primary-button, .secondary-button, .cta-white { display: inline-flex; min-height: 50px; align-items: center; justify-content: center; gap: 9px; border-radius: 14px; padding: 0 21px; font-weight: 800; text-decoration: none; transition: .25s ease; }
+.login-button, .primary-button { color: white; background: linear-gradient(135deg, #5c38ff, #3518ee); box-shadow: 0 12px 26px rgba(66,37,238,.28), inset 0 1px 1px rgba(255,255,255,.25); }
+.login-button { min-height: 48px; padding-inline: 19px; font-size: .85rem; }
+.login-button:hover, .primary-button:hover { transform: translateY(-2px); box-shadow: 0 17px 34px rgba(66,37,238,.36); }
+.menu-button { display: none; width: 46px; height: 46px; place-items: center; border: 1px solid var(--line); border-radius: 14px; color: var(--purple); background: white; }
+.mobile-menu { display: none; }
+
+.hero-section { position: relative; min-height: 900px; padding: 188px 0 56px; background: radial-gradient(circle at 70% 42%, rgba(114,73,255,.17), transparent 28%), radial-gradient(circle at 10% 12%, rgba(114,73,255,.09), transparent 26%), linear-gradient(180deg, #fff 0%, #faf9ff 72%, #fff 100%); }
+.ambient { position: absolute; border-radius: 50%; filter: blur(3px); pointer-events: none; }
+.ambient-one { top: 100px; right: -180px; width: 620px; height: 620px; background: radial-gradient(circle, rgba(85,47,255,.12), transparent 66%); }
+.ambient-two { bottom: 80px; left: -240px; width: 520px; height: 520px; background: radial-gradient(circle, rgba(153,116,255,.1), transparent 65%); }
+.hero-grid { position: relative; z-index: 1; display: grid; grid-template-columns: .88fr 1.12fr; align-items: center; gap: 30px; min-height: 590px; }
+.hero-copy { position: relative; z-index: 5; padding-left: 12px; }
+.hero-copy h1 { margin: 28px 0 22px; font-size: clamp(3.1rem, 5.25vw, 5.3rem); line-height: 1.01; letter-spacing: -.064em; }
+.hero-copy h1 span { color: var(--purple); }
+.hero-lead { max-width: 690px; color: var(--muted); font-size: 1.08rem; line-height: 1.8; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 32px; }
+.primary-button { min-height: 56px; padding-inline: 26px; }
+.secondary-button { min-height: 56px; border: 1px solid var(--line); color: var(--purple); background: rgba(255,255,255,.8); box-shadow: 0 10px 30px rgba(58,34,150,.08); }
+.secondary-button:hover { transform: translateY(-2px); border-color: rgba(75,44,255,.3); }
+.play { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 50%; color: white; background: var(--purple); font-size: .65rem; }
+.hero-benefits { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px 18px; max-width: 620px; margin-top: 34px; }
+.hero-benefit { display: flex; align-items: center; gap: 9px; color: #545b77; font-size: .8rem; font-weight: 650; }
+.hero-benefit > span { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--purple); background: white; box-shadow: 0 7px 19px rgba(70,42,180,.08); }
+.hero-visual { position: relative; min-height: 600px; perspective: 1000px; }
+.hero-cube { position: absolute; z-index: 2; top: 50%; left: 50%; width: min(520px, 68%); aspect-ratio: 1; border-radius: 50%; background-image: url('/images/landing/ecosystem-reference.png'); background-repeat: no-repeat; background-position: 50% 69%; background-size: 1850px auto; filter: saturate(1.06) drop-shadow(0 30px 28px rgba(71,38,230,.16)); transform: translate(-48%,-49%); animation: heroCubeFloat 6s ease-in-out infinite; }
+.cube-stage { position: absolute; z-index: 1; left: 50%; bottom: 70px; width: 370px; height: 120px; border: 2px solid rgba(90,56,255,.28); border-radius: 50%; background: radial-gradient(ellipse, rgba(87,51,255,.38), rgba(255,255,255,.3) 46%, transparent 72%); box-shadow: 0 20px 55px rgba(67,36,227,.22), inset 0 0 25px white; transform: translateX(-50%); }
+.hero-orbit { position: absolute; top: 50%; left: 50%; border: 1px solid rgba(93,62,255,.17); border-radius: 50%; transform: translate(-50%,-50%) rotate(-10deg); }
+.orbit-a { width: 96%; height: 49%; }
+.orbit-b { width: 78%; height: 38%; transform: translate(-50%,-50%) rotate(18deg); }
+.float-card { position: absolute; z-index: 4; min-width: 180px; padding: 16px 18px; border: 1px solid rgba(255,255,255,.9); border-radius: 18px; background: rgba(255,255,255,.72); box-shadow: 0 18px 50px rgba(63,43,145,.13), inset 0 0 0 1px rgba(84,58,255,.06); backdrop-filter: blur(15px); animation: cardFloat 5s ease-in-out infinite; }
+.float-card small { display: block; margin-bottom: 9px; color: #666c84; font-weight: 700; }
+.float-card strong { font-size: 1.25rem; }
+.float-card em, .metrics-strip em, .feature-mini em { color: #0cab79; font-size: .66rem; font-style: normal; }
+.visitors-card { top: 40px; left: 6%; }
+.visitors-card svg, .feature-mini svg { display: block; width: 100%; margin-top: 8px; fill: none; stroke: #5535ff; stroke-width: 3; }
+.conversion-card { bottom: 120px; left: 2%; animation-delay: -2s; }
+.donut { width: 54px; height: 54px; margin-top: 9px; border-radius: 50%; background: conic-gradient(var(--purple) 0 72%, #e7e4ff 72%); -webkit-mask: radial-gradient(circle, transparent 45%, #000 47%); mask: radial-gradient(circle, transparent 45%, #000 47%); }
+.heat-card { top: 70px; right: 0; width: 218px; animation-delay: -1.2s; }
+.mini-heat, .feature-heat { position: relative; height: 82px; overflow: hidden; border-radius: 11px; background: linear-gradient(135deg, #e6e4ff, #eff8ff); }
+.mini-heat i, .feature-heat i { position: absolute; width: 32px; height: 32px; border-radius: 50%; background: #ffdf36; filter: blur(8px); }
+.mini-heat i:nth-child(1), .feature-heat i:nth-child(1) { top: 32%; left: 44%; background: #ff432f; }
+.mini-heat i:nth-child(2), .feature-heat i:nth-child(2) { top: 10%; left: 20%; background: #5ce070; }
+.mini-heat i:nth-child(3), .feature-heat i:nth-child(3) { right: 13%; bottom: 5%; }
+.mini-heat i:nth-child(4), .feature-heat i:nth-child(4) { bottom: 4%; left: 32%; background: #72de77; }
+.traffic-card { right: 4%; bottom: 72px; width: 210px; animation-delay: -3.1s; }
+.traffic-card > span, .visual-compare .feature-mini > span { display: block; height: 7px; margin: 9px 0; overflow: hidden; border-radius: 99px; background: #e9e7fa; }
+.traffic-card i, .visual-compare .feature-mini i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #826aff, #4b2cff); }
+.metrics-strip { position: relative; z-index: 6; display: grid; grid-template-columns: repeat(4,1fr); margin-top: 16px; padding: 24px 8px; border-top: 1px solid var(--line); }
+.metrics-strip > div { display: flex; align-items: center; gap: 15px; padding: 4px 26px; border-right: 1px solid var(--line); color: var(--purple); }
+.metrics-strip > div:last-child { border: 0; }
+.metrics-strip span, .metrics-strip strong, .metrics-strip small { display: block; }
+.metrics-strip strong { color: var(--ink); font-size: 1.5rem; }
+.metrics-strip small { margin-top: 3px; color: #5e657d; }
+
+.features-section { background: linear-gradient(180deg,#fff,#fbfaff); }
+.features-heading { display: grid; grid-template-columns: .9fr 1.1fr; align-items: end; gap: 60px; margin-bottom: 46px; }
+.features-heading h2 { font-size: clamp(2.45rem, 4vw, 4.1rem); }
+.features-heading > div:first-child > p:last-child { max-width: 570px; color: var(--muted); line-height: 1.75; }
+.feature-promises { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; padding-bottom: 12px; }
+.feature-promises > div { display: flex; gap: 12px; min-height: 76px; padding: 14px; border-left: 1px solid var(--line); color: var(--purple); }
+.feature-promises strong, .feature-promises small { display: block; }
+.feature-promises strong { color: var(--ink); font-size: .83rem; }
+.feature-promises small { margin-top: 7px; color: var(--muted); font-size: .72rem; }
+.features-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 15px; }
+.feature-card { display: grid; grid-template-columns: minmax(0,1fr) minmax(130px,.78fr); min-height: 230px; padding: 24px; overflow: hidden; border: 1px solid rgba(89,58,225,.11); border-radius: 20px; background: rgba(255,255,255,.76); box-shadow: 0 12px 34px rgba(66,43,145,.065); transition: .3s ease; }
+.feature-card:hover { z-index: 2; border-color: rgba(75,44,255,.25); box-shadow: 0 24px 55px rgba(66,43,145,.14); transform: translateY(-6px); }
+.feature-copy { position: relative; z-index: 2; }
+.feature-number { display: inline-grid; width: 38px; height: 38px; margin-right: 8px; place-items: center; border-radius: 11px; color: #765cff; background: #f0edff; font-weight: 850; }
+.feature-icon { display: inline; color: var(--purple); vertical-align: middle; }
+.feature-card h3 { margin: 28px 0 9px; font-size: 1.08rem; }
+.feature-card p { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.65; }
+.feature-mini { align-self: center; min-width: 0; margin-left: 13px; }
+.feature-mini > strong { display: block; font-size: 1.15rem; }
+.feature-heat { height: 112px; }
+.feature-heat i:nth-child(5) { top: 18%; right: 9%; background: #55d886; }
+.visual-funnel .feature-mini { display: grid; justify-items: center; gap: 5px; }
+.funnel-layer { display: block; height: 22px; clip-path: polygon(10% 0,90% 0,72% 100%,28% 100%); background: linear-gradient(90deg,#bfb4ff,#5436fa); }
+.funnel-layer:nth-child(1) { width: 125px; }.funnel-layer:nth-child(2){width:100px}.funnel-layer:nth-child(3){width:75px}.funnel-layer:nth-child(4){width:48px}
+.score-ring, .device-donut { display: grid; width: 92px; height: 92px; margin: auto; place-items: center; border-radius: 50%; background: conic-gradient(#23c48a 0 87%,#eceafb 87%); -webkit-mask: radial-gradient(circle,transparent 54%,#000 56%); mask: radial-gradient(circle,transparent 54%,#000 56%); }
+.score-ring strong { font-size: 1.35rem; }
+.score-ring small { font-size: .62rem; }
+.visual-compare .feature-mini > span { height: 10px; }
+.visual-alerts .feature-mini p { display: flex; align-items: center; gap: 7px; margin: 7px 0; padding: 8px; border-radius: 9px; background: #f8f7ff; color: #4a5068; font-size: .65rem; }
+.visual-alerts .feature-mini p i { width: 8px; height: 8px; border-radius: 50%; background: #18bf8a; }.visual-alerts .feature-mini p i.alert-1{background:#f3ad26}.visual-alerts .feature-mini p i.alert-2{background:#ef5b65}
+.visual-reports .feature-mini { display: flex; gap: 8px; }.report-file { display: grid; width: 58px; height: 70px; place-items: center; border-radius: 10px; color: #e94d5c; background: #fff0f1; font-size: .72rem; font-weight: 900; }.report-file.green{color:#12ad7f;background:#e9fbf5}
+.visual-devices .feature-mini { display: flex; align-items: center; gap: 10px; }.device-donut{width:75px;height:75px;flex:0 0 auto;background:conic-gradient(#4b2cff 0 55%,#3295ff 55% 90%,#20c7ad 90%)}.visual-devices .feature-mini p{font-size:.62rem;line-height:1.9}
+.visual-ai .feature-mini { padding: 14px; border-radius: 14px; color: white; background: linear-gradient(145deg,#22116b,#5229d9); }.visual-ai .feature-mini .ai-growth{color:#30deb2;font-size:1.6rem}.visual-ai .feature-mini svg{stroke:#9f8cff}
+
+.ecosystem-section { min-height: 980px; background: radial-gradient(circle at 50% 55%,rgba(101,61,255,.17),transparent 30%), linear-gradient(180deg,#fbfaff,#f7f5ff 62%,#fff); }
+.ecosystem-canvas { position: relative; height: 660px; max-width: 1340px; margin: 0 auto; perspective: 1200px; }
+.orbit-line { position: absolute; top: 50%; left: 50%; border: 1px solid rgba(93,62,255,.19); border-radius: 50%; box-shadow: 0 0 14px rgba(87,50,255,.07); transform: translate(-50%,-50%) rotate(-7deg); }
+.orbit-line::after { position: absolute; top: 50%; left: -5px; width: 10px; height: 10px; border-radius: 50%; background: white; box-shadow: 0 0 14px 5px #9a85ff; content: ''; }
+.orbit-line-1 { width: 52%; height: 37%; animation: orbitSpin 18s linear infinite; }.orbit-line-2{width:76%;height:57%;transform:translate(-50%,-50%) rotate(7deg);animation:orbitSpinReverse 27s linear infinite}.orbit-line-3{width:96%;height:78%;transform:translate(-50%,-50%) rotate(-4deg);animation:orbitSpin 36s linear infinite}
+.orbit-glow { position: absolute; top: 50%; left: 50%; width: 470px; height: 170px; border: 2px solid rgba(95,61,255,.25); border-radius: 50%; background: radial-gradient(ellipse,rgba(99,58,255,.25),transparent 68%); box-shadow: 0 20px 55px rgba(75,39,239,.2),inset 0 0 30px white; transform: translate(-50%,55%); }
+.ecosystem-cube-wrap { position: absolute; z-index: 3; top: 50%; left: 50%; width: 330px; height: 330px; border-radius: 50%; background-image: url('/images/landing/ecosystem-reference.png'); background-repeat: no-repeat; background-position: 50% 69%; background-size: 1536px auto; filter: saturate(1.08) drop-shadow(0 23px 28px rgba(71,38,230,.18)); transform: translate(-50%,-55%) rotateX(var(--cube-x)) rotateY(var(--cube-y)); transition: transform .18s ease-out; animation: cubeFloat 6s ease-in-out infinite; }
+.ecosystem-node { position: absolute; z-index: 5; display: grid; width: 136px; min-height: 116px; place-items: center; padding: 13px; border: 1px solid rgba(255,255,255,.92); border-radius: 18px; color: var(--purple); text-align: center; background: rgba(255,255,255,.73); box-shadow: 0 15px 43px rgba(61,43,132,.12),inset 0 0 0 1px rgba(83,56,230,.06); backdrop-filter: blur(14px); transition: .3s ease; animation: nodeFloat 5s ease-in-out infinite; }
+.ecosystem-node strong { color: var(--ink); font-size: .78rem; }
+.ecosystem-node span { position: absolute; top: calc(100% - 10px); left: 50%; width: 175px; padding: 9px 11px; border-radius: 9px; color: white; background: #21175b; font-size: .66rem; opacity: 0; pointer-events: none; transform: translate(-50%,8px); transition: .25s ease; }
+.ecosystem-node:hover, .ecosystem-node:focus { z-index: 8; border-color: rgba(91,56,255,.3); box-shadow: 0 20px 52px rgba(61,43,132,.2),0 0 30px rgba(99,64,255,.15); transform: translateY(-6px) scale(1.03); outline: none; }
+.ecosystem-node:hover span, .ecosystem-node:focus span { opacity: 1; transform: translate(-50%,0); }
+.p1{top:2%;left:45%}.p2{top:10%;right:17%}.p3{top:34%;right:4%}.p4{right:15%;bottom:8%}.p5{right:36%;bottom:0}.p6{bottom:2%;left:31%}.p7{bottom:10%;left:9%}.p8{top:36%;left:0}.p9{top:10%;left:14%}.p10{top:29%;left:25%}
+.p2,.p7{animation-delay:-1s}.p3,.p8{animation-delay:-2s}.p4,.p9{animation-delay:-3s}.p5,.p10{animation-delay:-4s}
+.ecosystem-mobile-grid { display: none; }
+
+.seo-section { background: #fff; }
+.seo-grid { display: grid; grid-template-columns: .74fr 1.26fr; align-items: center; gap: 70px; }
+.seo-copy > p:not(.eyebrow) { max-width: 580px; color: var(--muted); line-height: 1.78; }
+.seo-summary { display: grid; grid-template-columns: repeat(3,1fr); max-width: 530px; margin: 32px 0; border: 1px solid var(--line); border-radius: 16px; background: #fbfaff; }
+.seo-summary > div { padding: 16px 18px; border-right: 1px solid var(--line); }.seo-summary > div:last-child{border:0}
+.seo-summary strong,.seo-summary small { display:block }.seo-summary strong{font-size:1.45rem}.seo-summary small{margin-top:4px;color:var(--muted);font-size:.68rem}
+.seo-dashboard { overflow: hidden; border: 1px solid rgba(83,52,222,.13); border-radius: 25px; background: rgba(255,255,255,.9); box-shadow: 0 35px 80px rgba(61,43,132,.14); }
+.browser-bar { display: flex; align-items: center; gap: 7px; height: 53px; padding: 0 17px; border-bottom: 1px solid var(--line); background: #f7f6fd; color: var(--purple); }.browser-bar i{width:8px;height:8px;border-radius:50%;background:#ff777f}.browser-bar i:nth-child(2){background:#f7bd43}.browser-bar i:nth-child(3){background:#3bd28f}.browser-bar span{flex:1;margin-left:10px;padding:7px 12px;border-radius:8px;color:#73788e;background:#fff;font-size:.68rem}
+.seo-dashboard-body { padding: 22px; background: linear-gradient(145deg,#fff,#faf9ff); }
+.health-card { display: grid; grid-template-columns: 135px 1fr; align-items:center;gap:18px;padding:18px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 10px 25px rgba(61,43,132,.06)}
+.health-ring { display:grid;width:120px;height:120px;place-items:center;border-radius:50%;background:conic-gradient(#4b2cff 0 87%,#e9e7fa 87%);position:relative}.health-ring::after{position:absolute;inset:12px;border-radius:50%;background:#fff;content:''}.health-ring span{position:relative;z-index:2;text-align:center}.health-ring strong,.health-ring small{display:block}.health-ring strong{font-size:2rem}.health-card > div:last-child > small{color:var(--purple);font-weight:800;text-transform:uppercase}.health-card > div:last-child > strong{display:block;margin-top:5px;font-size:1.1rem}.health-card p{margin:7px 0 0;color:var(--muted);font-size:.73rem;line-height:1.55}
+.seo-checks { display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin:12px 0}.seo-checks > div{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:9px;padding:10px;border:1px solid var(--line);border-radius:11px;background:#fff}.seo-checks > div > span{display:grid;width:29px;height:29px;place-items:center;border-radius:8px}.seo-checks strong{font-size:.7rem}.seo-checks small{font-size:.6rem}.status-ok > span,.status-ok small{color:#0da777;background:#e8fbf4}.status-warn > span,.status-warn small{color:#c78109;background:#fff6dd}.status-error > span,.status-error small{color:#dc4755;background:#fff0f1}.seo-checks small{padding:4px 6px;border-radius:6px;background:transparent}
+.ai-recommendation { display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:13px;padding:15px;border-radius:15px;color:white;background:linear-gradient(130deg,#271174,#5a31e8);box-shadow:0 14px 28px rgba(63,31,199,.22)}.ai-recommendation > span{display:grid;width:42px;height:42px;place-items:center;border-radius:12px;background:rgba(255,255,255,.14)}.ai-recommendation small,.ai-recommendation strong{display:block}.ai-recommendation small{color:#c9bdff;font-size:.6rem;text-transform:uppercase}.ai-recommendation strong{margin-top:3px;font-size:.8rem}.ai-recommendation p{margin:4px 0 0;color:#ded8ff;font-size:.63rem}
+
+.pricing-section { background: linear-gradient(180deg,#faf9ff,#fff); }
+.pricing-tabs { display:flex;width:max-content;max-width:100%;margin:-20px auto 38px;padding:5px;border:1px solid var(--line);border-radius:15px;background:white;box-shadow:0 10px 30px rgba(61,43,132,.08)}
+.pricing-tabs button { min-height:44px;padding:0 20px;border:0;border-radius:11px;color:var(--muted);background:transparent;font-weight:750}.pricing-tabs button.active{color:white;background:var(--purple);box-shadow:0 8px 18px rgba(75,44,255,.25)}.pricing-tabs small{margin-left:4px;padding:3px 5px;border-radius:5px;color:#0a9b71;background:#e8fbf4}.pricing-tabs button.active small{color:white;background:rgba(255,255,255,.18)}
+.pricing-grid { display:grid;grid-template-columns:repeat(2,minmax(0,480px));justify-content:center;gap:20px}.pricing-card{position:relative;padding:32px;border:1px solid var(--line);border-radius:23px;background:rgba(255,255,255,.84);box-shadow:0 18px 50px rgba(61,43,132,.09)}.pricing-card.featured{color:white;border-color:transparent;background:linear-gradient(145deg,#271174,#5430df);box-shadow:0 25px 60px rgba(63,31,199,.25)}.popular{position:absolute;top:20px;right:20px;padding:6px 9px;border-radius:99px;color:#4b2cff;background:#fff;font-size:.62rem;font-weight:850;text-transform:uppercase}.pricing-label{margin:0;font-weight:850}.price{margin:20px 0}.price strong,.price small{display:block}.price strong{font-size:2.5rem;letter-spacing:-.04em}.price small{margin-top:4px;color:var(--muted)}.featured .price small,.featured > p{color:#d8d1ff}.pricing-card ul{display:grid;gap:12px;margin:25px 0;padding:0;list-style:none}.pricing-card li{display:flex;gap:9px;font-size:.84rem}.pricing-card li svg{flex:0 0 auto;color:#6f54ff}.featured li svg{color:#bcb0ff}.pricing-card .primary-button,.pricing-card .secondary-button{width:100%;margin-top:5px}.pricing-card.featured .primary-button{color:var(--purple);background:white;box-shadow:none}
+
+.faq-section { background:#fff }.faq-layout{display:grid;grid-template-columns:.65fr 1.35fr;gap:80px}.faq-heading h2{margin:17px 0;font-size:clamp(2.2rem,3.5vw,3.4rem);letter-spacing:-.05em}.faq-heading > p:last-child{color:var(--muted);line-height:1.65}.faq-list{display:grid;gap:10px}.faq-list article{border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 8px 26px rgba(61,43,132,.05)}.faq-list article.open{border-color:rgba(75,44,255,.25)}.faq-list button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:20px;padding:20px 22px;border:0;color:var(--ink);text-align:left;background:transparent;font-weight:800}.faq-list button span:last-child{display:grid;width:31px;height:31px;flex:0 0 auto;place-items:center;border-radius:50%;color:var(--purple);background:#f0edff;font-size:1.25rem;transition:.25s ease}.faq-list article.open button span:last-child{color:white;background:var(--purple);transform:rotate(45deg)}.faq-list article > div p{margin:0;padding:0 22px 20px;color:var(--muted);line-height:1.7}
+.final-cta{padding:35px 0 70px;background:#fff}.final-cta-inner{display:flex;align-items:center;justify-content:space-between;gap:30px;padding:40px 45px;border-radius:24px;color:white;background:radial-gradient(circle at 18% 0,rgba(145,121,255,.55),transparent 35%),linear-gradient(110deg,#241072,#4c28d5);box-shadow:0 25px 60px rgba(63,31,199,.23)}.final-cta p{margin:0;color:#cfc7ff;font-weight:750}.final-cta h2{max-width:800px;margin:8px 0 0;font-size:clamp(1.8rem,3vw,2.8rem);line-height:1.1;letter-spacing:-.04em}.cta-white{flex:0 0 auto;color:var(--purple);background:white;box-shadow:0 12px 26px rgba(20,10,70,.18)}.cta-white:hover{transform:translateY(-2px)}
+.landing-footer{padding:48px 0 30px;color:#c6c9d7;background:#0d1022}.footer-grid{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:30px}.footer-brand{display:flex;align-items:center;gap:10px;color:white;font-size:1.35rem;font-weight:900;text-decoration:none}.footer-brand span{width:34px;height:34px;border-radius:9px}.footer-grid p{font-size:.82rem}.footer-grid > div{display:flex;gap:20px}.footer-grid a{color:#dfe1eb;text-decoration:none;font-size:.78rem}.footer-grid a:hover{color:white}.footer-grid > small{grid-column:1/-1;padding-top:25px;border-top:1px solid rgba(255,255,255,.1);color:#777d94}
+
+@keyframes heroCubeFloat { 0%,100%{transform:translate(-48%,-49%) rotate(-1deg)}50%{transform:translate(-48%,calc(-49% - 13px)) rotate(1deg)} }
+@keyframes cubeFloat { 0%,100%{margin-top:0}50%{margin-top:-13px} }
+@keyframes cardFloat { 0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)} }
+@keyframes nodeFloat { 0%,100%{margin-top:0}50%{margin-top:-7px} }
+@keyframes orbitSpin { to{transform:translate(-50%,-50%) rotate(353deg)} }
+@keyframes orbitSpinReverse { to{transform:translate(-50%,-50%) rotate(-353deg)} }
+
+@media (max-width: 1180px) {
+  .nav-shell{grid-template-columns:1fr auto}.nav-side{display:none}.brand{justify-self:start;padding:0;min-width:0}.brand-kicker{display:none}.menu-button{display:grid;justify-self:end}.mobile-menu{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;padding:16px;border:1px solid rgba(255,255,255,.9);border-radius:20px;background:rgba(255,255,255,.92);box-shadow:0 18px 50px rgba(61,43,132,.15);backdrop-filter:blur(20px)}.mobile-menu > a:not(.login-button){padding:13px;border-radius:10px;color:var(--ink);font-weight:750;text-align:center;text-decoration:none}.mobile-menu .login-button{grid-column:1/-1}.hero-grid{grid-template-columns:1fr 1fr}.float-card{transform:scale(.88)}.heat-card{right:-3%}.traffic-card{right:-5%}.features-heading{grid-template-columns:1fr}.feature-card{grid-template-columns:1fr}.feature-mini{min-height:90px;margin:20px 0 0}.features-grid{grid-template-columns:repeat(3,1fr)}.ecosystem-node{width:122px}.seo-grid{gap:35px}.footer-grid{grid-template-columns:auto 1fr}.footer-grid > div{grid-column:1/-1;grid-row:2}.footer-grid > small{grid-row:3}
+}
+
+@media (max-width: 900px) {
+  .section{padding:82px 0}.hero-section{min-height:0;padding-top:155px}.hero-grid{grid-template-columns:1fr}.hero-copy{text-align:center}.hero-copy .eyebrow{margin-inline:auto}.hero-lead{margin-inline:auto}.hero-actions,.hero-benefits{justify-content:center;margin-inline:auto}.hero-visual{min-height:570px}.metrics-strip{grid-template-columns:repeat(2,1fr)}.metrics-strip > div:nth-child(2){border-right:0}.features-grid{grid-template-columns:repeat(2,1fr)}.feature-promises{grid-template-columns:repeat(3,1fr)}.ecosystem-canvas{display:none}.ecosystem-section{min-height:0}.ecosystem-mobile-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.ecosystem-mobile-grid article{display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--line);border-radius:15px;color:var(--purple);background:rgba(255,255,255,.8);box-shadow:0 10px 30px rgba(61,43,132,.07)}.ecosystem-mobile-grid strong,.ecosystem-mobile-grid small{display:block}.ecosystem-mobile-grid strong{color:var(--ink);font-size:.82rem}.ecosystem-mobile-grid small{margin-top:4px;color:var(--muted);font-size:.68rem}.seo-grid{grid-template-columns:1fr}.seo-copy{text-align:center}.seo-copy .eyebrow,.seo-copy > p:not(.eyebrow),.seo-summary{margin-inline:auto}.faq-layout{grid-template-columns:1fr;gap:35px}.final-cta-inner{display:grid;text-align:center;justify-items:center}.footer-grid{display:flex;flex-direction:column;align-items:flex-start}.footer-grid > small{width:100%}
 }
 
 @media (max-width: 640px) {
-  .landing-container {
-    width: min(100% - 1rem, 1440px);
-  }
+  :global(html){scroll-padding-top:96px}.landing-container{width:min(100% - 24px,1440px)}.section{padding:68px 0}.landing-header{top:max(8px,env(safe-area-inset-top));width:calc(100% - 16px)}.nav-shell{min-height:66px;padding:8px 10px 8px 14px;border-radius:19px}.brand-line{font-size:1.26rem}.brand-cube{width:34px;height:34px}.mobile-menu{grid-template-columns:1fr 1fr;padding:10px}.mobile-menu > a:not(.login-button){padding:11px 5px;font-size:.82rem}.hero-section{padding:125px 0 36px}.hero-copy{padding:0}.hero-copy h1{margin-top:23px;font-size:clamp(2.55rem,12vw,3.65rem)}.hero-lead{font-size:.94rem;line-height:1.7}.hero-actions{display:grid}.hero-actions > a{width:100%}.hero-benefits{grid-template-columns:1fr 1fr;gap:10px}.hero-benefit{align-items:flex-start;text-align:left;font-size:.7rem}.hero-visual{min-height:430px;margin-top:5px}.hero-cube{width:80%}.cube-stage{bottom:35px;width:250px;height:85px}.float-card{min-width:130px;padding:10px 11px;border-radius:13px;animation:none}.float-card small{margin-bottom:5px;font-size:.6rem}.float-card strong{font-size:.85rem}.visitors-card{top:23px;left:-7%;width:148px}.heat-card{top:50px;right:-9%;width:145px}.mini-heat{height:60px}.conversion-card{bottom:58px;left:-5%}.donut{width:38px;height:38px}.traffic-card{right:-6%;bottom:35px;width:143px}.metrics-strip{gap:0;padding-top:16px}.metrics-strip > div{padding:12px 8px;gap:8px}.metrics-strip strong{font-size:1.08rem}.metrics-strip small{font-size:.65rem}.features-heading{gap:28px}.section h2,.features-heading h2{font-size:2.35rem}.feature-promises{grid-template-columns:1fr}.feature-promises > div{min-height:0}.features-grid{grid-template-columns:1fr}.feature-card{grid-template-columns:minmax(0,1fr) minmax(115px,.72fr);min-height:210px;padding:20px}.feature-mini{min-height:0;margin:0 0 0 10px}.feature-card h3{margin-top:22px}.ecosystem-mobile-grid{grid-template-columns:1fr}.seo-summary{grid-template-columns:repeat(3,1fr)}.seo-summary > div{padding:13px 8px}.seo-summary strong{font-size:1.15rem}.seo-dashboard-body{padding:12px}.health-card{grid-template-columns:95px 1fr;padding:12px}.health-ring{width:84px;height:84px}.health-ring::after{inset:9px}.health-ring strong{font-size:1.4rem}.seo-checks{grid-template-columns:1fr}.ai-recommendation{grid-template-columns:auto 1fr}.ai-recommendation > svg{display:none}.pricing-tabs{width:100%}.pricing-tabs button{flex:1;padding:0 7px;font-size:.72rem}.pricing-grid{grid-template-columns:1fr}.pricing-card{padding:25px 20px}.faq-list button{padding:17px}.faq-list article > div p{padding:0 17px 17px}.final-cta{padding-bottom:45px}.final-cta-inner{padding:32px 20px}.cta-white{width:100%}.footer-grid > div{flex-wrap:wrap}
+}
 
-  .section-band {
-    padding-block: 3.5rem;
-  }
-
-  .dashboard-window {
-    border-radius: 18px;
-  }
-
-  .metric-card,
-  .dashboard-panel,
-  .hero-mini-card,
-  .feature-card,
-  .case-card,
-  .pricing-card,
-  .support-form {
-    padding: 1rem;
-  }
-
-  .feature-card {
-    min-height: auto;
-  }
-
-  .pricing-card {
-    min-height: 0;
-  }
-
-  .pricing-tabs {
-    gap: 0.2rem;
-    padding: 0.25rem;
-  }
-
-  .pricing-tabs button {
-    min-height: 44px;
-    flex-direction: column;
-    gap: 0.1rem;
-    font-size: 0.78rem;
-  }
-
-  .tab-saving {
-    padding: 0;
-    background: transparent;
-    font-size: 0.62rem;
-  }
-
-  .pricing-tabs button.is-active .tab-saving {
-    background: transparent;
-  }
-
-  .pricing-grid {
-    min-height: 0;
-  }
-
-  .pricing-cards-inner {
-    grid-template-columns: 1fr;
-  }
-
-  .pricing-card-heading p,
-  .pricing-price-block {
-    min-height: 0;
-  }
-
-  .pwa-benefit {
-    max-width: none;
-  }
-
-  .pwa-card {
-    border-radius: 18px;
-  }
-
-  .cookie-popup {
-    left: 0.5rem;
-    right: 0.5rem;
-    bottom: 0.5rem;
-    width: auto;
-    flex-direction: column;
-    align-items: stretch;
-  }
+@media (max-width: 390px) {
+  .hero-benefits{grid-template-columns:1fr}.feature-card{grid-template-columns:1fr}.feature-mini{margin:18px 0 0}.metrics-strip{grid-template-columns:1fr}.metrics-strip > div{border-right:0;border-bottom:1px solid var(--line)}.metrics-strip > div:last-child{border-bottom:0}.seo-summary small{font-size:.58rem}.health-card{grid-template-columns:1fr;text-align:center}.health-ring{margin:auto}.brand-line{gap:7px}.brand-cube{width:31px;height:31px}
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :global(html) {
-    scroll-behavior: auto;
-  }
-
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: 0.001ms !important;
-  }
-
-  .tn-reveal {
-    opacity: 1;
-    transform: none;
-  }
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
 }
 </style>
