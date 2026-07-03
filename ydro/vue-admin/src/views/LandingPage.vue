@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
   ArrowRight,
@@ -27,6 +27,22 @@ const activeSection = ref('features')
 const activePricingDuration = ref('monthly')
 const openFaq = ref(0)
 let sectionObserver
+let statsAnimationFrame
+let statsUpdateTimer
+
+const liveStats = reactive({
+  visitors: 0,
+  views: 0,
+  leads: 0,
+  conversion: 0,
+})
+
+const statTargets = {
+  visitors: 24780,
+  views: 71842,
+  leads: 342,
+  conversion: 2.47,
+}
 
 const navItems = [
   { label: 'Возможности', href: '#features', id: 'features' },
@@ -42,7 +58,7 @@ const rightNavItems = [
 const heroBenefits = [
   ['Установка за 5 минут', Zap],
   ['Данные в реальном времени', Route],
-  ['Без карты и ограничений', CheckCircle2],
+  ['Понятные тарифы', CheckCircle2],
   ['Российский сервер', Blocks],
 ]
 
@@ -106,7 +122,7 @@ const planFeatures = {
 
 const faqItems = [
   ['Сколько занимает подключение TrackNode?', 'Обычно не больше пяти минут: добавьте сайт, установите короткий код и дождитесь первых событий.'],
-  ['Нужна ли банковская карта для пробного периода?', 'Нет. Пробный период запускается без карты и автоматически не продлевается.'],
+  ['Как начать работу с TrackNode?', 'Зарегистрируйтесь, выберите подходящий тариф и подключите сайт по инструкции в личном кабинете.'],
   ['Данные хранятся в России?', 'Да, инфраструктура TrackNode и основные данные размещены на российских серверах.'],
   ['Можно ли подключить несколько сайтов?', 'Да. В кабинете можно управлять несколькими проектами и переключаться между ними.'],
   ['TrackNode заменяет Яндекс Метрику?', 'TrackNode дополняет привычную аналитику SEO-аудитом, конкурентным анализом и единым планом действий.'],
@@ -114,6 +130,47 @@ const faqItems = [
 
 function closeMobileMenu() {
   mobileMenuOpen.value = false
+}
+
+function formatInteger(value) {
+  return Math.round(value).toLocaleString('ru-RU')
+}
+
+function formatConversion(value) {
+  return Number(value).toFixed(2)
+}
+
+function startLiveUpdates() {
+  statsUpdateTimer = window.setInterval(() => {
+    liveStats.visitors += 1 + Math.floor(Math.random() * 3)
+    liveStats.views += 3 + Math.floor(Math.random() * 5)
+    if (Math.random() > 0.55) liveStats.leads += 1
+    liveStats.conversion = Math.min(2.59, Math.max(2.4, liveStats.conversion + (Math.random() - 0.48) * 0.012))
+  }, 2800)
+}
+
+function animateStats() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    Object.assign(liveStats, statTargets)
+    return
+  }
+
+  const startedAt = performance.now()
+  const duration = 1600
+
+  const update = (now) => {
+    const progress = Math.min((now - startedAt) / duration, 1)
+    const eased = 1 - Math.pow(1 - progress, 3)
+    liveStats.visitors = statTargets.visitors * eased
+    liveStats.views = statTargets.views * eased
+    liveStats.leads = statTargets.leads * eased
+    liveStats.conversion = statTargets.conversion * eased
+
+    if (progress < 1) statsAnimationFrame = requestAnimationFrame(update)
+    else startLiveUpdates()
+  }
+
+  statsAnimationFrame = requestAnimationFrame(update)
 }
 
 onMounted(() => {
@@ -132,9 +189,14 @@ onMounted(() => {
   )
 
   sections.forEach((section) => sectionObserver.observe(section))
+  animateStats()
 })
 
-onUnmounted(() => sectionObserver?.disconnect())
+onUnmounted(() => {
+  sectionObserver?.disconnect()
+  cancelAnimationFrame(statsAnimationFrame)
+  window.clearInterval(statsUpdateTimer)
+})
 </script>
 
 <template>
@@ -206,7 +268,7 @@ onUnmounted(() => sectionObserver?.disconnect())
               Превращает цифры в понятные инсайты, которые помогают увеличивать конверсию и прибыль.
             </p>
             <div class="hero-actions">
-              <RouterLink class="primary-button" to="/register">Попробовать бесплатно 3 дня <Zap :size="18" /></RouterLink>
+              <RouterLink class="primary-button" to="/register">Подключиться <Zap :size="18" /></RouterLink>
               <a class="secondary-button" href="#ecosystem"><span class="play">▶</span> Посмотреть демо</a>
             </div>
             <div class="hero-benefits">
@@ -223,11 +285,11 @@ onUnmounted(() => sectionObserver?.disconnect())
             <div class="cube-stage"></div>
             <img class="hero-cube" src="/images/landing/cube.png" alt="Фирменный куб TrackNode" />
             <article class="float-card visitors-card">
-              <small>Посетители</small><strong>24 780 <em>+12.3%</em></strong>
+              <small>Посетители</small><strong class="live-number">{{ formatInteger(liveStats.visitors) }} <em>+12.3%</em></strong>
               <svg viewBox="0 0 190 45" aria-hidden="true"><path d="M2 36 24 26 45 34 66 18 88 29 110 17 134 30 160 20 188 6" /></svg>
             </article>
             <article class="float-card conversion-card">
-              <small>Конверсия</small><strong>2.47% <em>+8.3%</em></strong>
+              <small>Конверсия</small><strong class="live-number">{{ formatConversion(liveStats.conversion) }}% <em>+8.3%</em></strong>
               <div class="donut"></div>
             </article>
             <article class="float-card heat-card">
@@ -241,10 +303,10 @@ onUnmounted(() => sectionObserver?.disconnect())
           </div>
         </div>
         <div class="landing-container metrics-strip">
-          <div><BarChart3 :size="20" /><span><strong>24 780</strong><small>Посетителей <em>+12.3%</em></small></span></div>
-          <div><Route :size="20" /><span><strong>71 842</strong><small>Просмотра <em>+8.1%</em></small></span></div>
-          <div><Inbox :size="20" /><span><strong>342</strong><small>Заявки <em>+15.7%</em></small></span></div>
-          <div><Funnel :size="20" /><span><strong>2.47%</strong><small>Конверсия <em>+8.3%</em></small></span></div>
+          <div><BarChart3 :size="20" /><span><strong class="live-number">{{ formatInteger(liveStats.visitors) }}</strong><small>Посетителей <em>+12.3%</em></small></span></div>
+          <div><Route :size="20" /><span><strong class="live-number">{{ formatInteger(liveStats.views) }}</strong><small>Просмотра <em>+8.1%</em></small></span></div>
+          <div><Inbox :size="20" /><span><strong class="live-number">{{ formatInteger(liveStats.leads) }}</strong><small>Заявки <em>+15.7%</em></small></span></div>
+          <div><Funnel :size="20" /><span><strong class="live-number">{{ formatConversion(liveStats.conversion) }}%</strong><small>Конверсия <em>+8.3%</em></small></span></div>
         </div>
       </section>
 
@@ -273,7 +335,7 @@ onUnmounted(() => sectionObserver?.disconnect())
               </div>
               <div class="feature-mini" aria-hidden="true">
                 <template v-if="feature.type === 'chart'">
-                  <strong>24 780 <em>+12.3%</em></strong><svg viewBox="0 0 160 60"><path d="M2 48 24 35 46 44 70 25 92 39 115 18 138 31 158 10" /></svg>
+                  <strong class="live-number">{{ formatInteger(liveStats.visitors) }} <em>+12.3%</em></strong><svg viewBox="0 0 160 60"><path d="M2 48 24 35 46 44 70 25 92 39 115 18 138 31 158 10" /></svg>
                 </template>
                 <template v-else-if="feature.type === 'heatmap'">
                   <div class="feature-heat"><i></i><i></i><i></i><i></i><i></i></div>
@@ -351,7 +413,7 @@ onUnmounted(() => sectionObserver?.disconnect())
               <div><strong>8</strong><small>предупреждений</small></div>
               <div><strong>34</strong><small>проверки пройдено</small></div>
             </div>
-            <RouterLink class="primary-button" to="/register">Проверить свой сайт <ArrowRight :size="18" /></RouterLink>
+            <RouterLink class="primary-button" to="/register">Подключиться <ArrowRight :size="18" /></RouterLink>
           </div>
 
           <div class="seo-dashboard">
@@ -382,7 +444,7 @@ onUnmounted(() => sectionObserver?.disconnect())
           <div class="section-heading centered">
             <p class="eyebrow"><Zap :size="15" /> Простые тарифы</p>
             <h2 id="pricing-title">Выберите формат <span>для вашего роста</span></h2>
-            <p>Начните с трёх бесплатных дней. Карта не нужна.</p>
+            <p>Выберите подходящий тариф и зарегистрируйте проект.</p>
           </div>
           <div class="pricing-tabs" role="tablist" aria-label="Период оплаты">
             <button v-for="tab in pricingTabs" :key="tab.id" type="button" :class="{ active: activePricingDuration === tab.id }" @click="activePricingDuration = tab.id">
@@ -396,7 +458,7 @@ onUnmounted(() => sectionObserver?.disconnect())
               <div class="price"><strong>{{ plan.price }} ₽</strong><small>{{ plan.period }}</small></div>
               <p>{{ plan.featured ? 'Полный набор инструментов для роста сайта и бизнеса.' : 'Надёжная техническая основа для вашего сайта.' }}</p>
               <ul><li v-for="item in planFeatures[plan.title]" :key="item"><CheckCircle2 :size="18" />{{ item }}</li></ul>
-              <RouterLink :class="plan.featured ? 'primary-button' : 'secondary-button'" to="/register">Попробовать бесплатно <ArrowRight :size="17" /></RouterLink>
+              <RouterLink :class="plan.featured ? 'primary-button' : 'secondary-button'" to="/register">Подключиться <ArrowRight :size="17" /></RouterLink>
             </article>
           </div>
         </div>
@@ -417,7 +479,7 @@ onUnmounted(() => sectionObserver?.disconnect())
       <section class="final-cta">
         <div class="landing-container final-cta-inner">
           <div><p>Один сервис — вся аналитика</p><h2>Начните принимать решения на основе данных</h2></div>
-          <RouterLink class="cta-white" to="/register">Попробовать бесплатно 3 дня <ArrowRight :size="18" /></RouterLink>
+          <RouterLink class="cta-white" to="/register">Регистрация <ArrowRight :size="18" /></RouterLink>
         </div>
       </section>
     </main>
@@ -504,14 +566,17 @@ onUnmounted(() => sectionObserver?.disconnect())
 .hero-orbit { position: absolute; top: 50%; left: 50%; border: 1px solid rgba(93,62,255,.17); border-radius: 50%; transform: translate(-50%,-50%) rotate(-10deg); }
 .orbit-a { width: 96%; height: 49%; }
 .orbit-b { width: 78%; height: 38%; transform: translate(-50%,-50%) rotate(18deg); }
-.float-card { position: absolute; z-index: 4; min-width: 180px; padding: 16px 18px; border: 1px solid rgba(255,255,255,.9); border-radius: 18px; background: rgba(255,255,255,.72); box-shadow: 0 18px 50px rgba(63,43,145,.13), inset 0 0 0 1px rgba(84,58,255,.06); backdrop-filter: blur(15px); animation: cardFloat 5s ease-in-out infinite; }
+.float-card { position: absolute; z-index: 4; min-width: 180px; padding: 16px 18px; border: 1px solid rgba(255,255,255,.9); border-radius: 18px; cursor: default; background: rgba(255,255,255,.72); box-shadow: 0 18px 50px rgba(63,43,145,.13), inset 0 0 0 1px rgba(84,58,255,.06); backdrop-filter: blur(15px); transition: border-color .25s ease, box-shadow .25s ease; animation: cardFloat 5s ease-in-out infinite; }
+.float-card:hover { border-color: rgba(93,59,255,.28); box-shadow: 0 22px 58px rgba(63,43,145,.2),0 0 24px rgba(99,64,255,.12); animation-play-state: paused; }
 .float-card small { display: block; margin-bottom: 9px; color: #666c84; font-weight: 700; }
 .float-card strong { font-size: 1.25rem; }
+.live-number { display: inline-block; min-width: 3ch; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
 .float-card em, .metrics-strip em, .feature-mini em { color: #0cab79; font-size: .66rem; font-style: normal; }
 .visitors-card { top: 40px; left: 6%; }
 .visitors-card svg, .feature-mini svg { display: block; width: 100%; margin-top: 8px; fill: none; stroke: #5535ff; stroke-width: 3; }
+.visitors-card svg path, .feature-mini svg path { stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 300; stroke-dashoffset: 300; animation: chartDraw 4.2s ease-in-out infinite; }
 .conversion-card { bottom: 120px; left: 2%; animation-delay: -2s; }
-.donut { width: 54px; height: 54px; margin-top: 9px; border-radius: 50%; background: conic-gradient(var(--purple) 0 72%, #e7e4ff 72%); -webkit-mask: radial-gradient(circle, transparent 45%, #000 47%); mask: radial-gradient(circle, transparent 45%, #000 47%); }
+.donut { width: 54px; height: 54px; margin-top: 9px; border-radius: 50%; background: conic-gradient(var(--purple) 0 72%, #e7e4ff 72%); -webkit-mask: radial-gradient(circle, transparent 45%, #000 47%); mask: radial-gradient(circle, transparent 45%, #000 47%); animation: ringGlow 2.8s ease-in-out infinite; }
 .heat-card { top: 70px; right: 0; width: 218px; animation-delay: -1.2s; }
 .mini-heat, .feature-heat { position: relative; height: 82px; overflow: hidden; border-radius: 11px; background: linear-gradient(135deg, #e6e4ff, #eff8ff); }
 .mini-heat i, .feature-heat i { position: absolute; width: 32px; height: 32px; border-radius: 50%; background: #ffdf36; filter: blur(8px); }
@@ -519,11 +584,13 @@ onUnmounted(() => sectionObserver?.disconnect())
 .mini-heat i:nth-child(2), .feature-heat i:nth-child(2) { top: 10%; left: 20%; background: #5ce070; }
 .mini-heat i:nth-child(3), .feature-heat i:nth-child(3) { right: 13%; bottom: 5%; }
 .mini-heat i:nth-child(4), .feature-heat i:nth-child(4) { bottom: 4%; left: 32%; background: #72de77; }
+.mini-heat i, .feature-heat i { animation: heatPoint 2.6s ease-in-out infinite; }.mini-heat i:nth-child(2),.feature-heat i:nth-child(2){animation-delay:-.65s}.mini-heat i:nth-child(3),.feature-heat i:nth-child(3){animation-delay:-1.3s}.mini-heat i:nth-child(4),.feature-heat i:nth-child(4){animation-delay:-1.95s}
 .traffic-card { right: 4%; bottom: 72px; width: 210px; animation-delay: -3.1s; }
 .traffic-card > span, .visual-compare .feature-mini > span { display: block; height: 7px; margin: 9px 0; overflow: hidden; border-radius: 99px; background: #e9e7fa; }
-.traffic-card i, .visual-compare .feature-mini i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #826aff, #4b2cff); }
+.traffic-card i, .visual-compare .feature-mini i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #826aff, #4b2cff, #9b87ff, #4b2cff); background-size: 220% 100%; animation: barFlow 2.8s linear infinite; }
 .metrics-strip { position: relative; z-index: 6; display: grid; grid-template-columns: repeat(4,1fr); margin-top: 16px; padding: 24px 8px; border-top: 1px solid var(--line); }
-.metrics-strip > div { display: flex; align-items: center; gap: 15px; padding: 4px 26px; border-right: 1px solid var(--line); color: var(--purple); }
+.metrics-strip > div { display: flex; align-items: center; gap: 15px; padding: 4px 26px; border-right: 1px solid var(--line); border-radius: 14px; color: var(--purple); transition: background-color .25s ease, box-shadow .25s ease, transform .25s ease; }
+.metrics-strip > div:hover { background: rgba(255,255,255,.74); box-shadow: 0 12px 30px rgba(61,43,132,.09); transform: translateY(-3px); }
 .metrics-strip > div:last-child { border: 0; }
 .metrics-strip span, .metrics-strip strong, .metrics-strip small { display: block; }
 .metrics-strip strong { color: var(--ink); font-size: 1.5rem; }
@@ -608,6 +675,10 @@ onUnmounted(() => sectionObserver?.disconnect())
 .landing-footer{padding:48px 0 30px;color:#c6c9d7;background:#0d1022}.footer-grid{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:30px}.footer-brand{display:flex;align-items:center;gap:10px;color:white;font-size:1.35rem;font-weight:900;text-decoration:none}.footer-brand span{position:relative;width:36px;height:36px;overflow:hidden}.footer-brand img{position:absolute;top:50%;left:50%;width:52px;max-width:none;height:52px;object-fit:cover;transform:translate(-50%,-50%)}.footer-grid p{font-size:.82rem}.footer-grid > div{display:flex;gap:20px}.footer-grid a{color:#dfe1eb;text-decoration:none;font-size:.78rem}.footer-grid a:hover{color:white}.footer-grid > small{grid-column:1/-1;padding-top:25px;border-top:1px solid rgba(255,255,255,.1);color:#777d94}
 
 @keyframes cardFloat { 0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)} }
+@keyframes chartDraw { 0%{stroke-dashoffset:300;opacity:.35}45%,82%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:-24;opacity:.55} }
+@keyframes barFlow { to{background-position:-220% 0} }
+@keyframes heatPoint { 0%,100%{opacity:.55;transform:scale(.82)}50%{opacity:1;transform:scale(1.18)} }
+@keyframes ringGlow { 0%,100%{filter:drop-shadow(0 0 0 rgba(75,44,255,0))}50%{filter:drop-shadow(0 0 7px rgba(75,44,255,.35))} }
 @keyframes nodePulse { 0%,100%{border-color:rgba(255,255,255,.92);box-shadow:0 15px 43px rgba(61,43,132,.1),inset 0 0 0 1px rgba(83,56,230,.05)}50%{border-color:rgba(112,82,255,.27);box-shadow:0 18px 48px rgba(61,43,132,.16),0 0 26px rgba(99,64,255,.13),inset 0 0 0 1px rgba(83,56,230,.1)} }
 
 @media (max-width: 1180px) {
