@@ -1,9 +1,9 @@
 const CACHE_PREFIX = 'tracknode-dashboard-'
-const CACHE_NAME = `${CACHE_PREFIX}v3`
+const CACHE_NAME = `${CACHE_PREFIX}v4`
 const STATIC_CACHE_NAME = `${CACHE_NAME}-static`
 const PAGE_CACHE_NAME = `${CACHE_NAME}-pages`
 const CACHE_NAMES = new Set([STATIC_CACHE_NAME, PAGE_CACHE_NAME])
-const APP_SHELL_ROUTES = ['/', '/dashboard', '/login', '/billing']
+const APP_SHELL_ROUTES = ['/', '/dashboard', '/dashboard/notifications', '/login', '/billing']
 const STATIC_PATHS = [
   '/manifest.webmanifest',
   '/pwa-icon-192.svg',

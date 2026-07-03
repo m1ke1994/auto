@@ -1,12 +1,14 @@
 ﻿<script setup>
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 import Sidebar from '../components/Sidebar.vue'
 import Topbar from '../components/Topbar.vue'
 import { useAuthStore } from '../stores/auth'
+import { useNewsStore } from '../stores/news'
 import { useSiteStore } from '../stores/site'
 
 const authStore = useAuthStore()
+const newsStore = useNewsStore()
 const siteStore = useSiteStore()
 
 const sidebarOpen = ref(false)
@@ -24,6 +26,8 @@ onMounted(async () => {
     }
   }
 
+  newsStore.startPolling()
+
   if (!siteStore.sites.length) {
     try {
       await siteStore.fetchSites()
@@ -32,6 +36,8 @@ onMounted(async () => {
     }
   }
 })
+
+onBeforeUnmount(() => newsStore.stopPolling())
 </script>
 
 <template>

@@ -11,6 +11,8 @@ import RegisterView from '../views/RegisterView.vue'
 import SecurityView from '../views/SecurityView.vue'
 import BillingView from '../views/BillingView.vue'
 import LeadsView from '../views/LeadsView.vue'
+import NotificationsView from '../views/NotificationsView.vue'
+import NotificationDetailView from '../views/NotificationDetailView.vue'
 import SectionEditView from '../views/SectionEditView.vue'
 import SectionsView from '../views/SectionsView.vue'
 import MiniLayoutView from '../views/mini/MiniLayoutView.vue'
@@ -73,6 +75,8 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       { path: 'dashboard', name: 'dashboard', component: DashboardView, meta: { title: 'Панель управления' } },
+      { path: 'dashboard/notifications', name: 'notifications', component: NotificationsView, meta: { title: 'Уведомления' } },
+      { path: 'dashboard/notifications/:newsId', name: 'notification-detail', component: NotificationDetailView, meta: { title: 'Новость' } },
       { path: 'billing', name: 'billing', component: BillingView, meta: { title: 'Оплата', billingExempt: true } },
       { path: 'security', name: 'security', component: SecurityView, meta: { title: 'Безопасность' } },
       { path: 'sites/:siteId/overview', name: 'site-overview', component: SiteOverviewView, props: true, meta: { title: 'Обзор сайта' } },

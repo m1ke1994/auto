@@ -1,21 +1,24 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ExternalLink, LogOut, Menu } from '@lucide/vue'
+import { Bell, ExternalLink, LogOut, Menu, X } from '@lucide/vue'
 
 import { useAuthStore } from '../stores/auth'
 import { toPublicUrl } from '../config/env'
+import { useNewsStore } from '../stores/news'
 import { useSectionsStore } from '../stores/sections'
 import { useSiteStore } from '../stores/site'
 
 const emit = defineEmits(['toggle-sidebar'])
 const router = useRouter()
 const authStore = useAuthStore()
+const newsStore = useNewsStore()
 const siteStore = useSiteStore()
 const sectionsStore = useSectionsStore()
 
 const siteTitle = computed(() => siteStore.currentSite?.name || 'Выберите сайт')
 const canOpenSite = computed(() => Boolean(siteStore.currentSite?.domain))
+const unreadLabel = computed(() => newsStore.unreadCount > 99 ? '99+' : String(newsStore.unreadCount))
 
 function openPublicSite() {
   const domain = siteStore.currentSite?.domain
@@ -24,10 +27,24 @@ function openPublicSite() {
 }
 
 function logout() {
+  newsStore.reset()
   authStore.logout()
   siteStore.reset()
   sectionsStore.reset()
   router.push('/login')
+}
+
+async function openNotifications() {
+  try {
+    const items = await newsStore.fetchNews()
+    if (items.length === 1) {
+      await router.push({ name: 'notification-detail', params: { newsId: items[0].id } })
+      return
+    }
+  } catch {
+    // The notifications page renders the retry state.
+  }
+  await router.push({ name: 'notifications' })
 }
 </script>
 
@@ -47,6 +64,19 @@ function logout() {
       <div class="flex items-center gap-2">
         <button
           type="button"
+          class="icon-button relative"
+          :aria-label="newsStore.unreadCount ? `Уведомления: ${newsStore.unreadCount} непрочитанных` : 'Уведомления'"
+          title="Уведомления"
+          @click="openNotifications"
+        >
+          <Bell :size="19" />
+          <span
+            v-if="newsStore.unreadCount"
+            class="absolute -right-1.5 -top-1.5 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm ring-2 ring-white"
+          >{{ unreadLabel }}</span>
+        </button>
+        <button
+          type="button"
           class="action-button-secondary hidden sm:inline-flex"
           :disabled="!canOpenSite"
           @click="openPublicSite"
@@ -59,5 +89,25 @@ function logout() {
         </button>
       </div>
     </div>
+
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="translate-y-2 opacity-0"
+      leave-active-class="transition duration-150 ease-in"
+      leave-to-class="translate-y-2 opacity-0"
+    >
+      <div v-if="newsStore.toast" class="fixed left-3 right-3 top-20 z-50 flex items-start gap-3 rounded-2xl border border-brand-200 bg-white/95 p-4 shadow-[0_20px_55px_rgba(32,40,70,0.2)] backdrop-blur-xl sm:left-auto sm:right-5 sm:w-96">
+        <button type="button" class="flex min-w-0 flex-1 items-start gap-3 text-left" @click="openNotifications">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700"><Bell :size="19" /></span>
+          <span class="min-w-0">
+            <strong class="block text-sm text-[#17223B]">{{ newsStore.toast.title }}</strong>
+            <span class="mt-1 block text-xs leading-5 text-slate-600">{{ newsStore.toast.body }}</span>
+          </span>
+        </button>
+        <button type="button" class="text-slate-400 hover:text-slate-700" aria-label="Закрыть уведомление" @click="newsStore.dismissToast">
+          <X :size="17" />
+        </button>
+      </div>
+    </Transition>
   </header>
 </template>

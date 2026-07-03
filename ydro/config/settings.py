@@ -97,6 +97,7 @@ INSTALLED_APPS = [
     "apps.analytics",
     "apps.sites",
     "apps.mediafiles",
+    "apps.notifications",
     "clients",
     "leads",
     "analytics_app",

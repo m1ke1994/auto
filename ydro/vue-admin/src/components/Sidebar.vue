@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   BarChart3,
+  Bell,
   Blocks,
   CircleGauge,
   CreditCard,
@@ -36,7 +37,10 @@ const siteLabel = computed(() => siteStore.currentSite?.name || 'Сайт не �
 const userLabel = computed(() => authStore.user?.first_name || authStore.user?.username || 'Пользователь')
 
 const navItems = computed(() => {
-  const items = [{ label: 'Мои сайты', to: '/dashboard', icon: LayoutDashboard }]
+  const items = [
+    { label: 'Мои сайты', to: '/dashboard', icon: LayoutDashboard },
+    { label: 'Уведомления', to: '/dashboard/notifications', icon: Bell },
+  ]
   if (siteId.value) {
     items.push(
       { label: 'Главная', to: `/sites/${siteId.value}/overview`, icon: CircleGauge },

@@ -40,6 +40,7 @@ def api_root(_request):
                 "tracking": "/api/track/",
                 "tracking_legacy": "/api/mini/track/",
                 "media": "/api/client/media/",
+                "news": "/api/client/news/",
                 "uploads": "/api/uploads/",
                 "leads": "/api/leads/",
                 "analytics": "/api/analytics/",
@@ -100,6 +101,7 @@ urlpatterns = [
     path("api/admin/", include("apps.analytics.admin_urls")),
     path("api/uploads/", UploadFileView.as_view(), name="upload-file"),
     path("api/client/media/", include("apps.mediafiles.client_urls")),
+    path("api/client/news/", include("apps.notifications.urls")),
 ]
 
 if settings.DEBUG:
