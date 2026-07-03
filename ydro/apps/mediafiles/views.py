@@ -6,13 +6,16 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 
 from apps.sites.models import Site
+from subscriptions.access import FEATURE_SITE_EDIT
+from subscriptions.permissions import HasFeatureAccess
 
 from .models import MediaFile
 from .serializers import MediaFileSerializer
 
 
 class ClientMediaAccessMixin:
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_SITE_EDIT
 
     def get_accessible_sites(self) -> QuerySet[Site]:
         queryset = Site.objects.filter(is_active=True)

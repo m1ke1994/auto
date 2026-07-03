@@ -9,13 +9,16 @@ from accounts.permissions import IsClientUser
 from clients.serializers import ClientSettingsSerializer
 from leads.services import send_telegram_message
 from subscriptions.access import billing_is_enabled
+from subscriptions.access import FEATURE_TELEGRAM
 from subscriptions.models import TelegramLink
+from subscriptions.permissions import HasFeatureAccess
 
 logger = logging.getLogger(__name__)
 
 
 class TelegramIntegrationStatusView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsClientUser]
+    permission_classes = [permissions.IsAuthenticated, IsClientUser, HasFeatureAccess]
+    required_feature = FEATURE_TELEGRAM
 
     def get(self, request):
         serializer = ClientSettingsSerializer(instance=request.client, context={"request": request})
@@ -33,7 +36,8 @@ class TelegramIntegrationStatusView(APIView):
 
 
 class TelegramIntegrationDisconnectView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsClientUser]
+    permission_classes = [permissions.IsAuthenticated, IsClientUser, HasFeatureAccess]
+    required_feature = FEATURE_TELEGRAM
 
     def post(self, request):
         client = request.client
@@ -48,7 +52,8 @@ class TelegramIntegrationDisconnectView(APIView):
 
 
 class TelegramIntegrationSendTestView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsClientUser]
+    permission_classes = [permissions.IsAuthenticated, IsClientUser, HasFeatureAccess]
+    required_feature = FEATURE_TELEGRAM
 
     def post(self, request):
         client = request.client

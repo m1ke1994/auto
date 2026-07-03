@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { Bell, ExternalLink, LogOut, Menu, X } from '@lucide/vue'
 
 import { useAuthStore } from '../stores/auth'
+import { useAccessStore } from '../stores/access'
 import { toPublicUrl } from '../config/env'
 import { useNewsStore } from '../stores/news'
 import { useSectionsStore } from '../stores/sections'
@@ -12,6 +13,7 @@ import { useSiteStore } from '../stores/site'
 const emit = defineEmits(['toggle-sidebar'])
 const router = useRouter()
 const authStore = useAuthStore()
+const accessStore = useAccessStore()
 const newsStore = useNewsStore()
 const siteStore = useSiteStore()
 const sectionsStore = useSectionsStore()
@@ -27,6 +29,7 @@ function openPublicSite() {
 }
 
 function logout() {
+  accessStore.reset()
   newsStore.reset()
   authStore.logout()
   siteStore.reset()

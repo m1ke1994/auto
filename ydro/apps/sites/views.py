@@ -11,6 +11,8 @@ from rest_framework.views import APIView
 
 from leads.services import send_telegram_message
 from tracker.models import Site as TrackerSite
+from subscriptions.access import FEATURE_LEADS, FEATURE_SITE_EDIT, FEATURE_TELEGRAM
+from subscriptions.permissions import HasFeatureAccess
 
 from .models import Site, SiteLead, SiteSection
 from .serializers import (
@@ -208,6 +210,9 @@ def _telegram_connect_data(site: Site) -> dict:
 
 
 class AdminSiteTelegramStatusView(AdminSiteAccessMixin, APIView):
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_TELEGRAM
+
     def get(self, request, site_id: int):
         site = self.get_site()
         connected = bool(site.telegram_chat_id and site.send_to_telegram)
@@ -229,6 +234,9 @@ class AdminSiteTelegramStatusView(AdminSiteAccessMixin, APIView):
 
 
 class AdminSiteTelegramDisconnectView(AdminSiteAccessMixin, APIView):
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_TELEGRAM
+
     def post(self, request, site_id: int):
         site = self.get_site()
         if not site.telegram_chat_id and not site.send_to_telegram:
@@ -242,6 +250,9 @@ class AdminSiteTelegramDisconnectView(AdminSiteAccessMixin, APIView):
 
 
 class AdminSiteTelegramSendTestView(AdminSiteAccessMixin, APIView):
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_TELEGRAM
+
     def post(self, request, site_id: int):
         site = self.get_site()
         if not site.telegram_chat_id or not site.send_to_telegram:
@@ -273,6 +284,9 @@ class AdminSiteTelegramSendTestView(AdminSiteAccessMixin, APIView):
 
 
 class AdminSiteTrackingKeyRefreshView(AdminSiteAccessMixin, APIView):
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_SITE_EDIT
+
     def post(self, request, site_id: int):
         site = self.get_site()
         old_api_key = site.api_key
@@ -326,6 +340,9 @@ class AdminMySiteDetailView(AdminSiteAccessMixin, generics.RetrieveAPIView):
 
 
 class AdminMySiteSectionsListCreateView(AdminSiteAccessMixin, generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_SITE_EDIT
+
     def get_queryset(self):
         return SiteSection.objects.filter(site=self.get_site()).order_by("order", "title")
 
@@ -339,6 +356,9 @@ class AdminMySiteSectionsListCreateView(AdminSiteAccessMixin, generics.ListCreat
 
 
 class AdminMySiteSectionDetailView(AdminSiteAccessMixin, generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_SITE_EDIT
+
     http_method_names = ["get", "patch", "delete", "head", "options"]
 
     def get_queryset(self):
@@ -364,6 +384,9 @@ class AdminMySiteSectionDetailView(AdminSiteAccessMixin, generics.RetrieveUpdate
 
 
 class AdminMyLeadsListView(AdminSiteAccessMixin, generics.ListAPIView):
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_LEADS
+
     serializer_class = AdminLeadSerializer
 
     def get_queryset(self):
@@ -380,6 +403,9 @@ class AdminMyLeadsListView(AdminSiteAccessMixin, generics.ListAPIView):
 
 
 class AdminMyLeadDetailView(AdminSiteAccessMixin, generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_LEADS
+
     serializer_class = AdminLeadSerializer
     lookup_url_kwarg = "lead_id"
     http_method_names = ["get", "patch", "delete", "head", "options"]

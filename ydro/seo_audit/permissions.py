@@ -1,10 +1,15 @@
 from rest_framework import permissions
+from rest_framework.exceptions import PermissionDenied
 
 from apps.sites.models import Site
 from clients.models import Client
 from clients.services import get_or_create_client_for_site
-from subscriptions.access import can_access_client_dashboard, has_active_subscription
-from subscriptions.exceptions import PaymentRequired
+from subscriptions.access import (
+    BUSINESS_ANALYTICS_REQUIRED_MESSAGE,
+    FEATURE_SEO_AUDIT,
+    can_access_client_dashboard,
+    user_has_feature,
+)
 
 
 class SEOAuditAccessPermission(permissions.BasePermission):
@@ -105,7 +110,12 @@ class SEOAuditAccessPermission(permissions.BasePermission):
         if getattr(request, "seo_platform_admin", False):
             return True
 
-        if has_active_subscription(getattr(request, "client", None)):
+        if user_has_feature(
+            request.user,
+            FEATURE_SEO_AUDIT,
+            request=request,
+            client=getattr(request, "client", None),
+        ):
             return True
 
-        raise PaymentRequired()
+        raise PermissionDenied(detail=BUSINESS_ANALYTICS_REQUIRED_MESSAGE)

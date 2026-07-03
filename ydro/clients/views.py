@@ -7,13 +7,16 @@ from rest_framework.response import Response
 from accounts.permissions import IsClientUser
 from clients.serializers import ClientSettingsSerializer
 from reports.models import ReportSettings
+from subscriptions.access import FEATURE_BILLING_FULL_ACCESS
+from subscriptions.permissions import HasFeatureAccess
 
 logger = logging.getLogger(__name__)
 
 
 class ClientSettingsView(generics.RetrieveUpdateAPIView):
     serializer_class = ClientSettingsSerializer
-    permission_classes = [permissions.IsAuthenticated, IsClientUser]
+    permission_classes = [permissions.IsAuthenticated, IsClientUser, HasFeatureAccess]
+    required_feature = FEATURE_BILLING_FULL_ACCESS
 
     def get_object(self):
         return self.request.client

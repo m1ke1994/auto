@@ -5,13 +5,16 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from subscriptions.access import FEATURE_NOTIFICATIONS
+from subscriptions.permissions import HasFeatureAccess
 
 from .models import DashboardNews, UserNewsRead
 from .serializers import DashboardNewsDetailSerializer, DashboardNewsListSerializer
 
 
 class PublishedNewsMixin:
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (IsAuthenticated, HasFeatureAccess)
+    required_feature = FEATURE_NOTIFICATIONS
 
     def get_queryset(self):
         read_at = UserNewsRead.objects.filter(
@@ -34,7 +37,8 @@ class DashboardNewsDetailView(PublishedNewsMixin, generics.RetrieveAPIView):
 
 
 class DashboardNewsReadView(APIView):
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (IsAuthenticated, HasFeatureAccess)
+    required_feature = FEATURE_NOTIFICATIONS
 
     def post(self, request, pk):
         news = get_object_or_404(
@@ -51,7 +55,8 @@ class DashboardNewsReadView(APIView):
 
 
 class DashboardNewsUnreadCountView(APIView):
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (IsAuthenticated, HasFeatureAccess)
+    required_feature = FEATURE_NOTIFICATIONS
 
     def get(self, request):
         count = (
@@ -60,4 +65,3 @@ class DashboardNewsUnreadCountView(APIView):
             .count()
         )
         return Response({"count": count})
-

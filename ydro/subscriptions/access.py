@@ -6,6 +6,52 @@ from clients.services import get_or_create_client_for_site, get_user_client
 from subscriptions.models import Subscription
 
 
+PLAN_CONTENT_HOSTING = "content_hosting"
+PLAN_BUSINESS_ANALYTICS = "business_analytics"
+
+FEATURE_DASHBOARD_OVERVIEW = "dashboard_overview"
+FEATURE_SITE_EDIT = "site_edit"
+FEATURE_LEADS = "leads"
+FEATURE_NOTIFICATIONS = "notifications"
+FEATURE_ANALYTICS = "analytics"
+FEATURE_SEO_AUDIT = "seo_audit"
+FEATURE_COMPETITORS = "competitors"
+FEATURE_TELEGRAM = "telegram"
+FEATURE_REPORTS = "reports"
+FEATURE_HEATMAPS = "heatmaps"
+FEATURE_SESSION_RECORDINGS = "session_recordings"
+FEATURE_AI_RECOMMENDATIONS = "ai_recommendations"
+FEATURE_BILLING = "billing"
+FEATURE_BILLING_FULL_ACCESS = "billing_full_access"
+
+BASE_FEATURES = (
+    FEATURE_DASHBOARD_OVERVIEW,
+    FEATURE_NOTIFICATIONS,
+    FEATURE_BILLING,
+)
+CONTENT_HOSTING_FEATURES = (
+    *BASE_FEATURES,
+    FEATURE_SITE_EDIT,
+    FEATURE_LEADS,
+)
+BUSINESS_ANALYTICS_FEATURES = (
+    *CONTENT_HOSTING_FEATURES,
+    FEATURE_ANALYTICS,
+    FEATURE_SEO_AUDIT,
+    FEATURE_COMPETITORS,
+    FEATURE_TELEGRAM,
+    FEATURE_REPORTS,
+    FEATURE_HEATMAPS,
+    FEATURE_SESSION_RECORDINGS,
+    FEATURE_AI_RECOMMENDATIONS,
+    FEATURE_BILLING_FULL_ACCESS,
+)
+BUSINESS_ONLY_FEATURES = frozenset(BUSINESS_ANALYTICS_FEATURES) - frozenset(CONTENT_HOSTING_FEATURES)
+
+BUSINESS_ANALYTICS_REQUIRED_MESSAGE = "Функция доступна на тарифе Бизнес-аналитика"
+ACTIVE_PLAN_REQUIRED_MESSAGE = "Для доступа к функции подключите тариф"
+
+
 def billing_is_enabled() -> bool:
     return bool(getattr(settings, "ENABLE_BILLING", False))
 
@@ -73,3 +119,85 @@ def has_active_subscription(client) -> bool:
         paid_until__gt=timezone.now(),
     ).first()
     return bool(subscription)
+
+
+def resolve_plan_code(plan) -> str | None:
+    if plan is None:
+        return None
+
+    slug = str(getattr(plan, "slug", "") or "").strip().lower().replace("_", "-")
+    name = str(getattr(plan, "name", "") or "").strip().lower()
+    if slug.startswith("content-hosting") or name == "контент и хостинг":
+        return PLAN_CONTENT_HOSTING
+    if slug.startswith("business-analytics") or name == "бизнес-аналитика":
+        return PLAN_BUSINESS_ANALYTICS
+
+    feature_labels = {str(value).strip().lower() for value in (getattr(plan, "features", None) or [])}
+    if any("аналит" in value or "конкурент" in value or "ai-" in value for value in feature_labels):
+        return PLAN_BUSINESS_ANALYTICS
+    if any("хостинг" in value or "контент" in value for value in feature_labels):
+        return PLAN_CONTENT_HOSTING
+
+    # Active plans created before the current catalog retain their historical full access.
+    return PLAN_BUSINESS_ANALYTICS
+
+
+def get_access_profile(user, request=None, client=None) -> dict:
+    if request is not None and hasattr(request, "_tracknode_access_profile"):
+        return request._tracknode_access_profile
+
+    is_platform_admin = bool(
+        user
+        and user.is_authenticated
+        and (getattr(user, "is_superuser", False) or getattr(user, "is_staff", False))
+    )
+
+    if client is None and user and user.is_authenticated:
+        _, client = can_access_client_dashboard(user, request=request)
+
+    subscription = None
+    if client is not None:
+        subscription = Subscription.objects.select_related("plan").filter(client=client).first()
+
+    active = bool(
+        subscription
+        and (
+            subscription.admin_override
+            or (
+                subscription.status == Subscription.Status.ACTIVE
+                and subscription.paid_until
+                and subscription.paid_until > timezone.now()
+            )
+        )
+    )
+    plan = subscription.plan if subscription and subscription.plan_id else None
+    plan_code = resolve_plan_code(plan) if active else None
+
+    if is_platform_admin or not billing_is_enabled() or (subscription and subscription.admin_override):
+        allowed_features = BUSINESS_ANALYTICS_FEATURES
+        plan_code = plan_code or PLAN_BUSINESS_ANALYTICS
+        plan_title = getattr(plan, "name", "") or "Полный доступ"
+    elif active and plan_code == PLAN_CONTENT_HOSTING:
+        allowed_features = CONTENT_HOSTING_FEATURES
+        plan_title = getattr(plan, "name", "") or "Контент и хостинг"
+    elif active:
+        allowed_features = BUSINESS_ANALYTICS_FEATURES
+        plan_code = PLAN_BUSINESS_ANALYTICS
+        plan_title = getattr(plan, "name", "") or "Бизнес-аналитика"
+    else:
+        allowed_features = BASE_FEATURES
+        plan_title = None
+
+    profile = {
+        "plan": plan_code,
+        "plan_title": plan_title,
+        "allowed_features": list(allowed_features),
+        "has_active_subscription": active,
+    }
+    if request is not None:
+        request._tracknode_access_profile = profile
+    return profile
+
+
+def user_has_feature(user, feature: str, request=None, client=None) -> bool:
+    return feature in get_access_profile(user, request=request, client=client)["allowed_features"]

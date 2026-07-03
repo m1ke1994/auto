@@ -13,6 +13,7 @@ import BillingView from '../views/BillingView.vue'
 import LeadsView from '../views/LeadsView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import NotificationDetailView from '../views/NotificationDetailView.vue'
+import AccessRestrictedView from '../views/AccessRestrictedView.vue'
 import SectionEditView from '../views/SectionEditView.vue'
 import SectionsView from '../views/SectionsView.vue'
 import MiniLayoutView from '../views/mini/MiniLayoutView.vue'
@@ -23,7 +24,7 @@ import MiniReportsView from '../views/mini/MiniReportsView.vue'
 import MiniSettingsView from '../views/mini/MiniSettingsView.vue'
 import MiniIntegrationView from '../views/mini/MiniIntegrationView.vue'
 import { applyRouteSeo } from '../config/seo'
-import { miniSubscriptionStatus } from '../api/mini'
+import { useAccessStore } from '../stores/access'
 
 const routes = [
   {
@@ -74,28 +75,29 @@ const routes = [
     component: AdminLayout,
     meta: { requiresAuth: true },
     children: [
-      { path: 'dashboard', name: 'dashboard', component: DashboardView, meta: { title: 'Панель управления' } },
-      { path: 'dashboard/notifications', name: 'notifications', component: NotificationsView, meta: { title: 'Уведомления' } },
-      { path: 'dashboard/notifications/:newsId', name: 'notification-detail', component: NotificationDetailView, meta: { title: 'Новость' } },
+      { path: 'dashboard', name: 'dashboard', component: DashboardView, meta: { title: 'Панель управления', requiredFeature: 'dashboard_overview' } },
+      { path: 'dashboard/notifications', name: 'notifications', component: NotificationsView, meta: { title: 'Уведомления', requiredFeature: 'notifications' } },
+      { path: 'dashboard/notifications/:newsId', name: 'notification-detail', component: NotificationDetailView, meta: { title: 'Новость', requiredFeature: 'notifications' } },
+      { path: 'access-restricted', name: 'access-restricted', component: AccessRestrictedView, meta: { title: 'Ограничение доступа', billingExempt: true } },
       { path: 'billing', name: 'billing', component: BillingView, meta: { title: 'Оплата', billingExempt: true } },
       { path: 'security', name: 'security', component: SecurityView, meta: { title: 'Безопасность' } },
-      { path: 'sites/:siteId/overview', name: 'site-overview', component: SiteOverviewView, props: true, meta: { title: 'Обзор сайта' } },
-      { path: 'sites/:siteId/sections', name: 'sections', component: SectionsView, props: true, meta: { title: 'Разделы сайта' } },
-      { path: 'sites/:siteId/analytics', name: 'analytics', component: AnalyticsView, props: true, meta: { title: 'Аналитика' } },
-      { path: 'sites/:siteId/leads', name: 'leads', component: LeadsView, props: true, meta: { title: 'Лиды' } },
-      { path: 'sites/:siteId/seo', name: 'site-seo', component: MiniSeoAuditView, props: true, meta: { title: 'SEO-аудит' } },
-      { path: 'sites/:siteId/competitors', name: 'competitor-analysis', component: CompetitorAnalysisView, props: true, meta: { title: 'Анализ конкурентов' } },
-      { path: 'sites/:siteId/integration', name: 'site-integration', component: MiniIntegrationView, props: true, meta: { title: 'Интеграция' } },
+      { path: 'sites/:siteId/overview', name: 'site-overview', component: SiteOverviewView, props: true, meta: { title: 'Обзор сайта', requiredFeature: 'dashboard_overview' } },
+      { path: 'sites/:siteId/sections', name: 'sections', component: SectionsView, props: true, meta: { title: 'Разделы сайта', requiredFeature: 'site_edit' } },
+      { path: 'sites/:siteId/analytics', name: 'analytics', component: AnalyticsView, props: true, meta: { title: 'Аналитика', requiredFeature: 'analytics' } },
+      { path: 'sites/:siteId/leads', name: 'leads', component: LeadsView, props: true, meta: { title: 'Лиды', requiredFeature: 'leads' } },
+      { path: 'sites/:siteId/seo', name: 'site-seo', component: MiniSeoAuditView, props: true, meta: { title: 'SEO-аудит', requiredFeature: 'seo_audit' } },
+      { path: 'sites/:siteId/competitors', name: 'competitor-analysis', component: CompetitorAnalysisView, props: true, meta: { title: 'Анализ конкурентов', requiredFeature: 'competitors' } },
+      { path: 'sites/:siteId/integration', name: 'site-integration', component: MiniIntegrationView, props: true, meta: { title: 'Интеграция', requiredFeature: 'telegram' } },
       {
         path: 'mini',
         component: MiniLayoutView,
         children: [
-          { path: '', name: 'mini-overview', component: MiniOverviewView, meta: { title: 'Обзор' } },
-          { path: 'leads', name: 'mini-leads', component: MiniLeadsView, meta: { title: 'Лиды' } },
-          { path: 'seo', name: 'mini-seo', component: MiniSeoAuditView, meta: { title: 'SEO-аудит' } },
-          { path: 'reports', name: 'mini-reports', component: MiniReportsView, meta: { title: 'Отчёты' } },
-          { path: 'settings', name: 'mini-settings', component: MiniSettingsView, meta: { title: 'Настройки' } },
-          { path: 'integration', name: 'mini-integration', component: MiniIntegrationView, meta: { title: 'Интеграция' } },
+          { path: '', name: 'mini-overview', component: MiniOverviewView, meta: { title: 'Обзор', requiredFeature: 'dashboard_overview' } },
+          { path: 'leads', name: 'mini-leads', component: MiniLeadsView, meta: { title: 'Лиды', requiredFeature: 'leads' } },
+          { path: 'seo', name: 'mini-seo', component: MiniSeoAuditView, meta: { title: 'SEO-аудит', requiredFeature: 'seo_audit' } },
+          { path: 'reports', name: 'mini-reports', component: MiniReportsView, meta: { title: 'Отчёты', requiredFeature: 'reports' } },
+          { path: 'settings', name: 'mini-settings', component: MiniSettingsView, meta: { title: 'Настройки', requiredFeature: 'billing_full_access' } },
+          { path: 'integration', name: 'mini-integration', component: MiniIntegrationView, meta: { title: 'Интеграция', requiredFeature: 'telegram' } },
         ],
       },
       {
@@ -103,7 +105,7 @@ const routes = [
         name: 'section-edit',
         component: SectionEditView,
         props: true,
-        meta: { title: 'Редактирование раздела' },
+        meta: { title: 'Редактирование раздела', requiredFeature: 'site_edit' },
       },
     ],
   },
@@ -129,14 +131,18 @@ router.beforeEach(async (to) => {
     return { name: 'dashboard' }
   }
 
-  if (to.meta.requiresAuth && token && !to.meta.billingExempt) {
+  if (to.meta.requiresAuth && token) {
     try {
-      const subscription = await miniSubscriptionStatus({ timeout: 4000 })
-      if (subscription?.billing_enabled && subscription?.access_allowed === false) {
-        return { name: 'billing', query: { next: to.fullPath } }
+      const accessStore = useAccessStore()
+      await accessStore.fetchAccess({ force: true, timeout: 4000 })
+      if (to.meta.requiredFeature && !accessStore.can(to.meta.requiredFeature)) {
+        return {
+          name: 'access-restricted',
+          query: { feature: to.meta.requiredFeature, from: to.fullPath },
+        }
       }
     } catch {
-      // Backend permissions remain authoritative if the status check is unavailable.
+      // Backend feature permissions remain authoritative if the access check is unavailable.
     }
   }
 

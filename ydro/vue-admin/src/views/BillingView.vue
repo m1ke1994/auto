@@ -18,6 +18,9 @@ import {
   miniSubscriptionPlans,
   miniSubscriptionStatus,
 } from '../api/mini'
+import { useAccessStore } from '../stores/access'
+
+const accessStore = useAccessStore()
 
 const subscription = ref(null)
 const plans = ref([])
@@ -142,6 +145,7 @@ async function loadSubscription() {
   subscriptionError.value = ''
   try {
     subscription.value = await miniSubscriptionStatus()
+    accessStore.applyAccess(subscription.value)
   } catch (error) {
     subscriptionError.value = requestErrorMessage(error, 'Не удалось загрузить статус подписки.')
   } finally {

@@ -18,6 +18,7 @@ import {
 } from '@lucide/vue'
 
 import { useAuthStore } from '../stores/auth'
+import { useAccessStore } from '../stores/access'
 import { useSiteStore } from '../stores/site'
 
 defineProps({
@@ -30,6 +31,7 @@ defineProps({
 const emit = defineEmits(['close'])
 const route = useRoute()
 const authStore = useAuthStore()
+const accessStore = useAccessStore()
 const siteStore = useSiteStore()
 
 const siteId = computed(() => siteStore.currentSiteId)
@@ -38,23 +40,23 @@ const userLabel = computed(() => authStore.user?.first_name || authStore.user?.u
 
 const navItems = computed(() => {
   const items = [
-    { label: 'Мои сайты', to: '/dashboard', icon: LayoutDashboard },
-    { label: 'Уведомления', to: '/dashboard/notifications', icon: Bell },
+    { label: 'Мои сайты', to: '/dashboard', icon: LayoutDashboard, feature: 'dashboard_overview' },
+    { label: 'Уведомления', to: '/dashboard/notifications', icon: Bell, feature: 'notifications' },
   ]
   if (siteId.value) {
     items.push(
-      { label: 'Главная', to: `/sites/${siteId.value}/overview`, icon: CircleGauge },
-      { label: 'Заявки', to: `/sites/${siteId.value}/leads`, icon: Inbox },
-      { label: 'Аналитика', to: `/sites/${siteId.value}/analytics`, icon: BarChart3 },
-      { label: 'Редактирование сайта', to: `/sites/${siteId.value}/sections`, icon: Blocks },
-      { label: 'SEO-аудит', to: `/sites/${siteId.value}/seo`, icon: SearchCheck },
-      { label: 'Анализ конкурентов', to: `/sites/${siteId.value}/competitors`, icon: FileSearch },
-      { label: 'Telegram', to: `/sites/${siteId.value}/integration`, icon: Send },
+      { label: 'Главная', to: `/sites/${siteId.value}/overview`, icon: CircleGauge, feature: 'dashboard_overview' },
+      { label: 'Заявки', to: `/sites/${siteId.value}/leads`, icon: Inbox, feature: 'leads' },
+      { label: 'Аналитика', to: `/sites/${siteId.value}/analytics`, icon: BarChart3, feature: 'analytics' },
+      { label: 'Редактирование сайта', to: `/sites/${siteId.value}/sections`, icon: Blocks, feature: 'site_edit' },
+      { label: 'SEO-аудит', to: `/sites/${siteId.value}/seo`, icon: SearchCheck, feature: 'seo_audit' },
+      { label: 'Анализ конкурентов', to: `/sites/${siteId.value}/competitors`, icon: FileSearch, feature: 'competitors' },
+      { label: 'Telegram', to: `/sites/${siteId.value}/integration`, icon: Send, feature: 'telegram' },
     )
   }
   items.push({ label: 'Оплата', to: '/billing', icon: CreditCard })
   items.push({ label: 'Безопасность', to: '/security', icon: ShieldCheck })
-  return items
+  return items.filter((item) => accessStore.can(item.feature))
 })
 
 function isActive(item) {

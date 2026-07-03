@@ -7,10 +7,12 @@ import { getSiteAnalyticsSummaryRequest } from '../api/analytics'
 import { getSiteTelegramRequest } from '../api/site'
 import DashboardStats from '../components/DashboardStats.vue'
 import { toPublicUrl } from '../config/env'
+import { useAccessStore } from '../stores/access'
 import { useSiteStore } from '../stores/site'
 
 const route = useRoute()
 const router = useRouter()
+const accessStore = useAccessStore()
 const siteStore = useSiteStore()
 const loading = ref(false)
 const error = ref('')
@@ -18,20 +20,28 @@ const summary = ref(null)
 const telegram = ref(null)
 
 const siteId = computed(() => Number(route.params.siteId))
-const stats = computed(() => [
-  { label: 'Заявки', value: summary.value?.leads_count ?? 0, sub: 'за последние 14 дней' },
-  { label: 'Посетители', value: summary.value?.visitors_unique ?? 0, sub: 'уникальные пользователи' },
-  { label: 'Просмотры', value: summary.value?.pageviews_count ?? 0, sub: 'просмотры страниц' },
-  { label: 'Конверсия', value: `${summary.value?.conversion ?? 0}%`, sub: 'посетители, оставившие заявку' },
-])
+const stats = computed(() => {
+  if (!accessStore.can('analytics')) {
+    return [
+      { label: 'Разделы сайта', value: siteStore.currentSite?.sections_count ?? 0, sub: 'доступно для редактирования' },
+      { label: 'Состояние', value: siteStore.currentSite?.is_active ? 'Работает' : 'Отключён', sub: 'текущий статус сайта' },
+    ]
+  }
+  return [
+    { label: 'Заявки', value: summary.value?.leads_count ?? 0, sub: 'за последние 14 дней' },
+    { label: 'Посетители', value: summary.value?.visitors_unique ?? 0, sub: 'уникальные пользователи' },
+    { label: 'Просмотры', value: summary.value?.pageviews_count ?? 0, sub: 'просмотры страниц' },
+    { label: 'Конверсия', value: `${summary.value?.conversion ?? 0}%`, sub: 'посетители, оставившие заявку' },
+  ]
+})
 
 const actions = computed(() => [
-  { label: 'Посмотреть заявки', text: 'Новые обращения клиентов', icon: Inbox, to: `/sites/${siteId.value}/leads` },
-  { label: 'Изменить сайт', text: 'Тексты, изображения и разделы', icon: Blocks, to: `/sites/${siteId.value}/sections` },
-  { label: 'Открыть аналитику', text: 'Посетители и популярные страницы', icon: BarChart3, to: `/sites/${siteId.value}/analytics` },
-  { label: 'Проверить SEO', text: 'Найти проблемы сайта', icon: SearchCheck, to: `/sites/${siteId.value}/seo` },
-  { label: telegram.value?.connected ? 'Telegram подключен' : 'Подключить Telegram', text: 'Получать заявки сразу в чат', icon: Send, to: `/sites/${siteId.value}/integration` },
-])
+  { label: 'Посмотреть заявки', text: 'Новые обращения клиентов', icon: Inbox, to: `/sites/${siteId.value}/leads`, feature: 'leads' },
+  { label: 'Изменить сайт', text: 'Тексты, изображения и разделы', icon: Blocks, to: `/sites/${siteId.value}/sections`, feature: 'site_edit' },
+  { label: 'Открыть аналитику', text: 'Посетители и популярные страницы', icon: BarChart3, to: `/sites/${siteId.value}/analytics`, feature: 'analytics' },
+  { label: 'Проверить SEO', text: 'Найти проблемы сайта', icon: SearchCheck, to: `/sites/${siteId.value}/seo`, feature: 'seo_audit' },
+  { label: telegram.value?.connected ? 'Telegram подключен' : 'Подключить Telegram', text: 'Получать заявки сразу в чат', icon: Send, to: `/sites/${siteId.value}/integration`, feature: 'telegram' },
+].filter((action) => accessStore.can(action.feature)))
 
 function openPublicSite() {
   const domain = siteStore.currentSite?.domain
@@ -45,12 +55,14 @@ async function load() {
   try {
     siteStore.selectSite(siteId.value)
     if (!siteStore.currentSite) await siteStore.fetchSite(siteId.value)
-    const [{ data }, telegramData] = await Promise.all([
-      getSiteAnalyticsSummaryRequest(siteId.value, { days: 14 }),
-      getSiteTelegramRequest(siteId.value),
-    ])
-    summary.value = data
-    telegram.value = telegramData.data
+    const requests = []
+    if (accessStore.can('analytics')) {
+      requests.push(getSiteAnalyticsSummaryRequest(siteId.value, { days: 14 }).then(({ data }) => { summary.value = data }))
+    }
+    if (accessStore.can('telegram')) {
+      requests.push(getSiteTelegramRequest(siteId.value).then(({ data }) => { telegram.value = data }))
+    }
+    await Promise.all(requests)
   } catch (e) {
     error.value = e?.response?.data?.detail || 'Не удалось загрузить данные сайта.'
   } finally {
@@ -96,6 +108,9 @@ onMounted(load)
             </span>
           </button>
         </div>
+        <p v-if="!actions.length" class="notice-info mt-3">
+          Подключите тариф, чтобы открыть управление сайтом и дополнительные инструменты.
+        </p>
       </section>
     </template>
   </div>

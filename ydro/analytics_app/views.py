@@ -20,7 +20,8 @@ from analytics_app.services.report_builder import build_full_report
 from clients.models import Client
 from clients.permissions import HasValidApiKey
 from tracker.models import Visit
-from subscriptions.permissions import HasActiveSubscription
+from subscriptions.access import FEATURE_AI_RECOMMENDATIONS, FEATURE_ANALYTICS
+from subscriptions.permissions import HasFeatureAccess
 
 logger = logging.getLogger(__name__)
 
@@ -227,7 +228,8 @@ class PublicAnalyticsEventCreateView(CreateAPIView):
 
 
 class AnalyticsSummaryView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsClientUser, HasActiveSubscription]
+    permission_classes = [permissions.IsAuthenticated, IsClientUser, HasFeatureAccess]
+    required_feature = FEATURE_ANALYTICS
 
     def get(self, request):
         client = request.client
@@ -247,7 +249,8 @@ class AnalyticsSummaryView(APIView):
 
 
 class AnalyticsAiRecommendationsView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsClientUser, HasActiveSubscription]
+    permission_classes = [permissions.IsAuthenticated, IsClientUser, HasFeatureAccess]
+    required_feature = FEATURE_AI_RECOMMENDATIONS
 
     def get(self, request):
         date_from, date_to, from_dt, to_dt = _period_range(request, days=14)
@@ -263,7 +266,8 @@ class AnalyticsAiRecommendationsView(APIView):
 
 
 class AnalyticsOverviewView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsClientUser, HasActiveSubscription]
+    permission_classes = [permissions.IsAuthenticated, IsClientUser, HasFeatureAccess]
+    required_feature = FEATURE_ANALYTICS
 
     def get(self, request):
         client = request.client
@@ -291,7 +295,8 @@ class AnalyticsOverviewView(APIView):
 
 
 class AnalyticsEngagementView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsClientUser, HasActiveSubscription]
+    permission_classes = [permissions.IsAuthenticated, IsClientUser, HasFeatureAccess]
+    required_feature = FEATURE_ANALYTICS
 
     def get(self, request):
         client = request.client
@@ -316,7 +321,8 @@ class AnalyticsEngagementView(APIView):
 
 
 class AnalyticsUniqueDailyView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsClientUser, HasActiveSubscription]
+    permission_classes = [permissions.IsAuthenticated, IsClientUser, HasFeatureAccess]
+    required_feature = FEATURE_ANALYTICS
 
     def get(self, request):
         client = request.client
@@ -363,7 +369,8 @@ class AnalyticsUniqueDailyView(APIView):
 
 
 class AnalyticsDevicesView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsClientUser, HasActiveSubscription]
+    permission_classes = [permissions.IsAuthenticated, IsClientUser, HasFeatureAccess]
+    required_feature = FEATURE_ANALYTICS
 
     def get(self, request):
         client = request.client

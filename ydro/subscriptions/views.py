@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import IsClientUser
-from subscriptions.access import billing_is_enabled, has_active_subscription
+from subscriptions.access import billing_is_enabled, get_access_profile, has_active_subscription
 from subscriptions.models import Subscription, SubscriptionPayment, SubscriptionPlan
 from subscriptions.serializers import CreatePaymentSerializer, SubscriptionPlanSerializer
 from subscriptions.services import (
@@ -104,6 +104,7 @@ class SubscriptionStatusView(APIView):
         billing_enabled = billing_is_enabled()
         client = getattr(request.user, "client", None)
         if client is None:
+            access_profile = get_access_profile(request.user, request=request)
             return Response(
                 {
                     "status": Subscription.Status.EXPIRED,
@@ -116,6 +117,9 @@ class SubscriptionStatusView(APIView):
                     "is_paid": False,
                     "billing_enabled": billing_enabled,
                     "access_allowed": bool(request.user.is_superuser or not billing_enabled),
+                    "plan_code": access_profile["plan"],
+                    "plan_title": access_profile["plan_title"],
+                    "allowed_features": access_profile["allowed_features"],
                 },
                 status=status.HTTP_200_OK,
             )
@@ -213,6 +217,7 @@ class SubscriptionStatusView(APIView):
             and paid_until
             and paid_until > now
         )
+        access_profile = get_access_profile(request.user, request=request, client=client)
 
         return Response(
             {
@@ -234,6 +239,9 @@ class SubscriptionStatusView(APIView):
                     or not billing_enabled
                     or has_active_subscription(client)
                 ),
+                "plan_code": access_profile["plan"],
+                "plan_title": access_profile["plan_title"],
+                "allowed_features": access_profile["allowed_features"],
             },
             status=status.HTTP_200_OK,
         )

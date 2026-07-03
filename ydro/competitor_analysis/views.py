@@ -18,6 +18,8 @@ from clients.models import Client
 from clients.services import get_or_create_client_for_site
 from competitor_analysis.models import CompetitorAnalysis
 from competitor_analysis.serializers import CompetitorAnalysisCreateSerializer, CompetitorAnalysisSerializer
+from subscriptions.access import FEATURE_COMPETITORS
+from subscriptions.permissions import HasFeatureAccess
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +53,8 @@ class AnyAcceptRenderer(BaseRenderer):
 
 
 class AdminSiteCompetitorAccessMixin:
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_COMPETITORS
 
     def _platform_admin(self) -> bool:
         user = self.request.user

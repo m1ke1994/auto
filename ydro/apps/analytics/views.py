@@ -18,6 +18,13 @@ from tracker.models import PageView as TrackerPageView
 from tracker.models import Site as TrackerSite
 from tracker.models import Visit as TrackerVisit
 from tracker.services.bot_filter import detect_bot_visit
+from subscriptions.access import (
+    FEATURE_AI_RECOMMENDATIONS,
+    FEATURE_ANALYTICS,
+    FEATURE_HEATMAPS,
+    FEATURE_SESSION_RECORDINGS,
+)
+from subscriptions.permissions import HasFeatureAccess
 
 from .models import PageView, TrackingEvent, Visit
 from .serializers import PageViewSerializer, TrackEventSerializer, VisitEndSerializer, VisitStartSerializer
@@ -322,7 +329,8 @@ def _available_pages(scope: dict, limit: int = 100) -> list[dict]:
 
 
 class AdminSiteAnalyticsBaseView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_ANALYTICS
 
     def get_site(self, request, site_id: int):
         return _get_user_site(request, site_id)
@@ -511,7 +519,8 @@ class VisitEndView(TrackBaseAPIView):
 
 
 class AdminSiteAnalyticsSummaryView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_ANALYTICS
 
     def _get_site(self, request, site_id):
         queryset = Site.objects.all()
@@ -639,6 +648,7 @@ class AdminSiteAnalyticsSummaryView(APIView):
 
 
 class AdminSiteAnalyticsHeatmapView(AdminSiteAnalyticsBaseView):
+    required_feature = FEATURE_HEATMAPS
     def get(self, request, site_id: int):
         site, scope, period, _bounds = self.get_context(request, site_id)
         if site is None:
@@ -724,6 +734,7 @@ class AdminSiteAnalyticsHeatmapView(AdminSiteAnalyticsBaseView):
 
 
 class AdminSiteAnalyticsScrollmapView(AdminSiteAnalyticsBaseView):
+    required_feature = FEATURE_HEATMAPS
     def get(self, request, site_id: int):
         site, scope, period, _bounds = self.get_context(request, site_id)
         if site is None:
@@ -793,6 +804,7 @@ class AdminSiteAnalyticsScrollmapView(AdminSiteAnalyticsBaseView):
 
 
 class AdminSiteAnalyticsSessionsView(AdminSiteAnalyticsBaseView):
+    required_feature = FEATURE_SESSION_RECORDINGS
     def get(self, request, site_id: int):
         site, scope, period, _bounds = self.get_context(request, site_id)
         if site is None:
@@ -852,6 +864,7 @@ class AdminSiteAnalyticsSessionsView(AdminSiteAnalyticsBaseView):
 
 
 class AdminSiteAnalyticsSessionDetailView(AdminSiteAnalyticsBaseView):
+    required_feature = FEATURE_SESSION_RECORDINGS
     def get(self, request, site_id: int, session_id: str):
         site, scope, period, _bounds = self.get_context(request, site_id)
         if site is None:
@@ -1263,6 +1276,7 @@ class AdminSiteAnalyticsPerformanceView(AdminSiteAnalyticsBaseView):
 
 
 class AdminSiteAnalyticsRecommendationsView(AdminSiteAnalyticsBaseView):
+    required_feature = FEATURE_AI_RECOMMENDATIONS
     def get(self, request, site_id: int):
         site, scope, period, _bounds = self.get_context(request, site_id)
         if site is None:
