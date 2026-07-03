@@ -1,14 +1,12 @@
-from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
-from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.sites.models import Site
 from clients.models import Client
-from subscriptions.models import Subscription
+from subscriptions.test_utils import grant_business_analytics
 
 
 class ReportViewsTests(TestCase):
@@ -20,12 +18,7 @@ class ReportViewsTests(TestCase):
             password="test-pass-123",
         )
         self.client_obj = Client.objects.create(owner=self.user, name="Reports Client", is_active=True)
-        Subscription.objects.create(
-            client=self.client_obj,
-            status=Subscription.Status.ACTIVE,
-            paid_until=timezone.now() + timedelta(days=30),
-            admin_override=True,
-        )
+        grant_business_analytics(self.user, client=self.client_obj)
         self.api = APIClient()
         self.api.force_authenticate(user=self.user)
 
@@ -52,11 +45,15 @@ class ReportViewsTests(TestCase):
         )
         self.api.force_authenticate(user=owner_without_client)
 
+        denied_response = self.api.get("/api/mini/reports/toggle-daily/")
+        self.assertEqual(denied_response.status_code, 403)
+
+        created_client = Client.objects.get(owner=owner_without_client)
+        grant_business_analytics(owner_without_client, client=created_client)
         response = self.api.get("/api/mini/reports/toggle-daily/")
 
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.data["daily_pdf_enabled"])
-        created_client = Client.objects.get(owner=owner_without_client)
         self.assertEqual(created_client.name, site.name)
         self.assertTrue(created_client.is_active)
 

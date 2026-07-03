@@ -8,8 +8,8 @@ from rest_framework.test import APIClient
 
 from apps.sites.models import Site
 from clients.models import Client
-from subscriptions.access import BUSINESS_ANALYTICS_REQUIRED_MESSAGE
-from subscriptions.models import Subscription, SubscriptionPlan
+from subscriptions.access import BUSINESS_ANALYTICS_REQUIRED_MESSAGE, resolve_plan_code
+from subscriptions.models import Subscription, SubscriptionPayment, SubscriptionPlan
 
 
 @override_settings(ENABLE_BILLING=True)
@@ -57,6 +57,8 @@ class SubscriptionFeatureAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["plan_code"], "content_hosting")
+        self.assertEqual(response.data["plan"], "content_hosting")
+        self.assertEqual(response.data["plan_details"]["id"], self.content_plan.id)
         self.assertEqual(response.data["plan_title"], "Контент и хостинг")
         self.assertTrue({"dashboard_overview", "site_edit", "leads", "notifications"}.issubset(response.data["allowed_features"]))
         self.assertNotIn("analytics", response.data["allowed_features"])
@@ -102,6 +104,7 @@ class SubscriptionFeatureAccessTests(TestCase):
         competitors_response = self.api.get(f"/api/admin/sites/{self.site.id}/competitors/")
 
         self.assertEqual(status_response.data["plan_code"], "business_analytics")
+        self.assertEqual(status_response.data["plan"], "business_analytics")
         self.assertIn("analytics", status_response.data["allowed_features"])
         self.assertIn("competitors", status_response.data["allowed_features"])
         self.assertEqual(analytics_response.status_code, 200)
@@ -114,6 +117,8 @@ class SubscriptionFeatureAccessTests(TestCase):
         sections_response = self.api.get(f"/api/admin/my-sites/{self.site.id}/sections/")
 
         self.assertEqual(status_response.data["plan_code"], None)
+        self.assertIsNone(status_response.data["plan"])
+        self.assertEqual(status_response.data["plan_title"], "Тариф не выбран")
         self.assertEqual(
             status_response.data["allowed_features"],
             ["dashboard_overview", "notifications", "billing"],
@@ -122,3 +127,67 @@ class SubscriptionFeatureAccessTests(TestCase):
         self.assertEqual(news_response.status_code, 200)
         self.assertEqual(sections_response.status_code, 403)
         self.assertEqual(sections_response.data["detail"], "Для доступа к функции подключите тариф")
+
+    def test_active_subscription_without_plan_never_gets_full_access(self):
+        self.activate(None)
+
+        status_response = self.api.get("/api/mini/subscription/status/")
+        analytics_response = self.api.get("/api/mini/analytics/overview/")
+
+        self.assertTrue(status_response.data["access_allowed"])
+        self.assertIsNone(status_response.data["plan"])
+        self.assertEqual(status_response.data["plan_title"], "Тариф не выбран")
+        self.assertFalse(status_response.data["is_paid"])
+        self.assertEqual(
+            status_response.data["allowed_features"],
+            ["dashboard_overview", "notifications", "billing"],
+        )
+        self.assertEqual(analytics_response.status_code, 403)
+
+    @override_settings(ENABLE_BILLING=False)
+    def test_disabled_billing_does_not_bypass_content_plan_limits(self):
+        self.subscription.plan = self.content_plan
+        self.subscription.save(update_fields=("plan", "updated_at"))
+
+        status_response = self.api.get("/api/mini/subscription/status/")
+        analytics_response = self.api.get("/api/mini/analytics/overview/")
+
+        self.assertTrue(status_response.data["access_allowed"])
+        self.assertEqual(status_response.data["plan"], "content_hosting")
+        self.assertNotIn("analytics", status_response.data["allowed_features"])
+        self.assertEqual(analytics_response.status_code, 403)
+
+    def test_unknown_active_plan_uses_safe_base_features(self):
+        unknown_plan = self.create_plan("legacy-unknown", "Архивный тариф")
+        self.activate(unknown_plan)
+
+        response = self.api.get("/api/mini/subscription/status/")
+
+        self.assertIsNone(response.data["plan"])
+        self.assertEqual(
+            response.data["allowed_features"],
+            ["dashboard_overview", "notifications", "billing"],
+        )
+
+    def test_plan_relation_is_restored_from_successful_payment(self):
+        SubscriptionPayment.objects.create(
+            client=self.client_obj,
+            plan=self.content_plan,
+            yookassa_payment_id="successful-plan-recovery",
+            status=SubscriptionPayment.Status.SUCCEEDED,
+            activated_at=timezone.now(),
+        )
+        self.activate(None)
+
+        response = self.api.get("/api/mini/subscription/status/")
+
+        self.subscription.refresh_from_db()
+        self.assertEqual(self.subscription.plan_id, self.content_plan.id)
+        self.assertEqual(response.data["plan"], "content_hosting")
+
+    def test_legacy_plan_names_have_stable_codes(self):
+        content_plan = self.create_plan("legacy-content", "Контент + хостинг")
+        business_plan = self.create_plan("legacy-business", "Бизнес аналитика")
+
+        self.assertEqual(resolve_plan_code(content_plan), "content_hosting")
+        self.assertEqual(resolve_plan_code(business_plan), "business_analytics")

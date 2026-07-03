@@ -6,7 +6,15 @@ import { useAccessStore } from '../stores/access'
 
 const accessStore = useAccessStore()
 
+const title = computed(() => {
+  if (!accessStore.planCode) return 'Функция недоступна без выбранного тарифа'
+  return 'Функция доступна на тарифе Бизнес-аналитика'
+})
+
 const description = computed(() => {
+  if (!accessStore.planCode) {
+    return 'Тариф не выбран. Выберите тариф для открытия функций.'
+  }
   if (accessStore.planCode === 'content_hosting') {
     return 'Текущий тариф включает управление сайтом, заявки и уведомления. Для аналитики, SEO-аудита, анализа конкурентов и расширенных рекомендаций подключите тариф Бизнес-аналитика.'
   }
@@ -23,7 +31,7 @@ const description = computed(() => {
         </span>
         <p class="eyebrow mt-6">Ограничение тарифа</p>
         <h1 class="mx-auto mt-4 max-w-2xl text-2xl font-bold leading-tight text-[#17223B] sm:text-3xl">
-          Функция доступна на тарифе Бизнес-аналитика
+          {{ title }}
         </h1>
         <p class="mx-auto mt-4 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">{{ description }}</p>
         <div class="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
@@ -41,4 +49,3 @@ const description = computed(() => {
     </section>
   </div>
 </template>
-

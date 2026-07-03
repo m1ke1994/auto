@@ -6,6 +6,7 @@ from rest_framework.test import APIClient
 
 from clients.models import Client
 from subscriptions.models import TelegramLink
+from subscriptions.test_utils import grant_business_analytics
 
 
 class TelegramIntegrationApiTests(TestCase):
@@ -17,6 +18,7 @@ class TelegramIntegrationApiTests(TestCase):
             password="test-test-123",
         )
         self.client_obj = Client.objects.create(owner=self.user, name="Telegram Client", is_active=True)
+        grant_business_analytics(self.user, client=self.client_obj)
         self.api = APIClient()
         self.api.force_authenticate(user=self.user)
 

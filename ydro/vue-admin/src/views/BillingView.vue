@@ -38,7 +38,7 @@ const periodTabs = [
   { months: 12, label: '12 месяцев' },
 ]
 
-const currentPlan = computed(() => subscription.value?.plan || null)
+const currentPlan = computed(() => subscription.value?.plan_details || null)
 const billingEnabled = computed(() => subscription.value?.billing_enabled !== false)
 const visiblePlans = computed(() => (
   plans.value

@@ -110,6 +110,7 @@ class SubscriptionStatusView(APIView):
                     "status": Subscription.Status.EXPIRED,
                     "client_id": None,
                     "plan": None,
+                    "plan_details": None,
                     "started_at": None,
                     "paid_until": None,
                     "days_remaining": 0,
@@ -223,7 +224,8 @@ class SubscriptionStatusView(APIView):
             {
                 "status": subscription.status,
                 "client_id": client.id,
-                "plan": (
+                "plan": access_profile["plan"],
+                "plan_details": (
                     SubscriptionPlanSerializer(subscription.plan).data
                     if subscription.plan_id
                     else None
@@ -232,7 +234,7 @@ class SubscriptionStatusView(APIView):
                 "paid_until": paid_until,
                 "days_remaining": days_remaining,
                 "is_trial": subscription.is_trial,
-                "is_paid": bool(is_current and not subscription.is_trial),
+                "is_paid": bool(is_current and subscription.plan_id and not subscription.is_trial),
                 "billing_enabled": billing_enabled,
                 "access_allowed": bool(
                     request.user.is_superuser

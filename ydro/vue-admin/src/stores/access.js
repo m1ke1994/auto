@@ -36,7 +36,10 @@ export const useAccessStore = defineStore('access', () => {
 
   function normalizeFeatures(data) {
     if (Array.isArray(data?.allowed_features)) return data.allowed_features
-    if (data?.billing_enabled === false || data?.access_allowed) return FULL_FEATURES
+    if (data?.plan_code === 'business_analytics' || data?.plan === 'business_analytics') return FULL_FEATURES
+    if (data?.plan_code === 'content_hosting' || data?.plan === 'content_hosting') {
+      return ['dashboard_overview', 'site_edit', 'leads', 'notifications', 'billing']
+    }
     return BASE_FEATURES
   }
 

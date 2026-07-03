@@ -1,13 +1,11 @@
-from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
-from django.utils import timezone
 from rest_framework.test import APIClient
 
 from clients.models import Client
-from subscriptions.models import Subscription
+from subscriptions.test_utils import grant_business_analytics
 
 
 class AnalyticsAiRecommendationsViewTests(TestCase):
@@ -19,12 +17,7 @@ class AnalyticsAiRecommendationsViewTests(TestCase):
             password="pass12345",
         )
         self.client_obj = Client.objects.create(owner=self.user, name="Analytics AI Client")
-        Subscription.objects.create(
-            client=self.client_obj,
-            status=Subscription.Status.ACTIVE,
-            paid_until=timezone.now() + timedelta(days=30),
-            admin_override=True,
-        )
+        grant_business_analytics(self.user, client=self.client_obj)
         self.http = APIClient()
         self.http.force_authenticate(user=self.user)
 

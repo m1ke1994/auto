@@ -3,7 +3,7 @@ from django.utils import timezone
 
 from clients.models import Client
 from clients.services import get_or_create_client_for_site, get_user_client
-from subscriptions.models import Subscription
+from subscriptions.models import Subscription, SubscriptionPayment
 
 
 PLAN_CONTENT_HOSTING = "content_hosting"
@@ -126,20 +126,44 @@ def resolve_plan_code(plan) -> str | None:
         return None
 
     slug = str(getattr(plan, "slug", "") or "").strip().lower().replace("_", "-")
-    name = str(getattr(plan, "name", "") or "").strip().lower()
-    if slug.startswith("content-hosting") or name == "контент и хостинг":
+    name = " ".join(str(getattr(plan, "name", "") or "").strip().lower().split())
+    if slug == "content-hosting" or slug.startswith("content-hosting-") or name in {
+        "контент и хостинг",
+        "контент + хостинг",
+    }:
         return PLAN_CONTENT_HOSTING
-    if slug.startswith("business-analytics") or name == "бизнес-аналитика":
+    if slug == "business-analytics" or slug.startswith("business-analytics-") or name in {
+        "бизнес-аналитика",
+        "бизнес аналитика",
+    }:
         return PLAN_BUSINESS_ANALYTICS
 
-    feature_labels = {str(value).strip().lower() for value in (getattr(plan, "features", None) or [])}
-    if any("аналит" in value or "конкурент" in value or "ai-" in value for value in feature_labels):
-        return PLAN_BUSINESS_ANALYTICS
-    if any("хостинг" in value or "контент" in value for value in feature_labels):
-        return PLAN_CONTENT_HOSTING
+    # Неизвестный тариф нельзя повышать до полного доступа по умолчанию.
+    return None
 
-    # Active plans created before the current catalog retain their historical full access.
-    return PLAN_BUSINESS_ANALYTICS
+
+def _restore_plan_from_successful_payment(subscription):
+    """Восстанавливает потерянную связь только по подтверждённому платежу."""
+    if subscription is None or subscription.plan_id:
+        return getattr(subscription, "plan", None)
+
+    payment_plan = (
+        SubscriptionPayment.objects
+        .select_related("plan")
+        .filter(
+            client_id=subscription.client_id,
+            status=SubscriptionPayment.Status.SUCCEEDED,
+            plan__isnull=False,
+        )
+        .order_by("-activated_at", "-created_at")
+        .first()
+    )
+    if payment_plan is None:
+        return None
+
+    subscription.plan = payment_plan.plan
+    subscription.save(update_fields=["plan", "updated_at"])
+    return subscription.plan
 
 
 def get_access_profile(user, request=None, client=None) -> dict:
@@ -170,23 +194,23 @@ def get_access_profile(user, request=None, client=None) -> dict:
             )
         )
     )
-    plan = subscription.plan if subscription and subscription.plan_id else None
-    plan_code = resolve_plan_code(plan) if active else None
+    plan = _restore_plan_from_successful_payment(subscription)
+    entitlement_active = bool(active or (subscription and not billing_is_enabled()))
+    plan_code = resolve_plan_code(plan)
 
-    if is_platform_admin or not billing_is_enabled() or (subscription and subscription.admin_override):
+    if is_platform_admin:
         allowed_features = BUSINESS_ANALYTICS_FEATURES
         plan_code = plan_code or PLAN_BUSINESS_ANALYTICS
         plan_title = getattr(plan, "name", "") or "Полный доступ"
-    elif active and plan_code == PLAN_CONTENT_HOSTING:
+    elif entitlement_active and plan_code == PLAN_CONTENT_HOSTING:
         allowed_features = CONTENT_HOSTING_FEATURES
         plan_title = getattr(plan, "name", "") or "Контент и хостинг"
-    elif active:
+    elif entitlement_active and plan_code == PLAN_BUSINESS_ANALYTICS:
         allowed_features = BUSINESS_ANALYTICS_FEATURES
-        plan_code = PLAN_BUSINESS_ANALYTICS
         plan_title = getattr(plan, "name", "") or "Бизнес-аналитика"
     else:
         allowed_features = BASE_FEATURES
-        plan_title = None
+        plan_title = getattr(plan, "name", "") if plan_code else "Тариф не выбран"
 
     profile = {
         "plan": plan_code,

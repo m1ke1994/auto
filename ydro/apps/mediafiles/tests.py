@@ -11,6 +11,7 @@ from io import StringIO
 from pathlib import Path
 
 from apps.sites.models import Site
+from subscriptions.test_utils import grant_business_analytics
 
 from .models import MediaFile
 
@@ -32,6 +33,7 @@ class MediaUploadTests(APITestCase):
             domain="localhost:5173",
             owner=self.user,
         )
+        grant_business_analytics(self.user)
         self.client.force_authenticate(self.user)
 
     def tearDown(self):

@@ -12,6 +12,7 @@ from clients.models import Client
 from competitor_analysis.models import CompetitorAnalysis
 from competitor_analysis.services.pdf_report import _sanitize_text, build_competitor_analysis_pdf
 from config.celery import app as celery_app
+from subscriptions.test_utils import grant_business_analytics
 
 
 class CompetitorAnalysisApiTests(TestCase):
@@ -27,6 +28,7 @@ class CompetitorAnalysisApiTests(TestCase):
             password="pass12345",
         )
         self.client_obj = Client.objects.create(owner=self.user, name="Competitor Owner")
+        grant_business_analytics(self.user, client=self.client_obj)
         self.site = Site.objects.create(
             name="Example Site",
             slug="example-site",
@@ -39,7 +41,8 @@ class CompetitorAnalysisApiTests(TestCase):
             email="competitor-other@example.com",
             password="pass12345",
         )
-        Client.objects.create(owner=self.other_user, name="Other Owner")
+        other_client = Client.objects.create(owner=self.other_user, name="Other Owner")
+        grant_business_analytics(self.other_user, client=other_client)
 
         self.http = APIClient()
         self.http.force_authenticate(user=self.user)
@@ -88,17 +91,26 @@ class CompetitorAnalysisApiTests(TestCase):
         )
         self.http.force_authenticate(user=owner_without_client)
 
+        payload = {
+            "user_domain": "leelabird.ru",
+            "competitor_domain": "example-competitor.ru",
+        }
+        denied_response = self.http.post(
+            f"/api/admin/sites/{site_without_client.id}/competitors/analyze/",
+            payload,
+            format="json",
+        )
+        self.assertEqual(denied_response.status_code, 403)
+
+        created_client = Client.objects.get(owner=owner_without_client)
+        grant_business_analytics(owner_without_client, client=created_client)
         response = self.http.post(
             f"/api/admin/sites/{site_without_client.id}/competitors/analyze/",
-            {
-                "user_domain": "leelabird.ru",
-                "competitor_domain": "example-competitor.ru",
-            },
+            payload,
             format="json",
         )
 
         self.assertEqual(response.status_code, 201)
-        created_client = Client.objects.get(owner=owner_without_client)
         analysis = CompetitorAnalysis.objects.get(id=response.json()["id"])
         self.assertEqual(analysis.site_id, site_without_client.id)
         self.assertEqual(analysis.client_id, created_client.id)

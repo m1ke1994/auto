@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -10,7 +9,7 @@ from rest_framework.test import APIClient
 from apps.sites.models import Site, SiteLead
 from clients.models import Client
 from seo_audit.models import SEOIssue, SEOPage, SiteSEOAudit
-from subscriptions.models import Subscription
+from subscriptions.test_utils import grant_business_analytics
 
 
 class SEOAuditViewsExtendedTests(TestCase):
@@ -29,12 +28,7 @@ class SEOAuditViewsExtendedTests(TestCase):
             owner=self.user,
             is_active=True,
         )
-        Subscription.objects.create(
-            client=self.client_obj,
-            status=Subscription.Status.ACTIVE,
-            paid_until=timezone.now() + timedelta(days=30),
-            admin_override=True,
-        )
+        grant_business_analytics(self.user, client=self.client_obj)
         self.staff_user = user_model.objects.create_user(
             username="seo-staff",
             email="seo-staff@example.com",
@@ -52,6 +46,7 @@ class SEOAuditViewsExtendedTests(TestCase):
             password="pass12345",
         )
         self.other_client = Client.objects.create(owner=self.other_user, name="Other SEO Client")
+        grant_business_analytics(self.other_user, client=self.other_client)
         self.inactive_user = user_model.objects.create_user(
             username="seo-inactive",
             email="seo-inactive@example.com",
@@ -144,14 +139,19 @@ class SEOAuditViewsExtendedTests(TestCase):
         )
         self.http.force_authenticate(user=owner_without_client)
 
-        response = self.http.post(
+        payload = {"site_id": site_without_client.id, "domain": "https://leelabird.ru/"}
+        denied_response = self.http.post(
             "/api/mini/seo/start/",
-            {"site_id": site_without_client.id, "domain": "https://leelabird.ru/"},
+            payload,
             format="json",
         )
+        self.assertEqual(denied_response.status_code, 403)
+
+        created_client = Client.objects.get(owner=owner_without_client)
+        grant_business_analytics(owner_without_client, client=created_client)
+        response = self.http.post("/api/mini/seo/start/", payload, format="json")
 
         self.assertEqual(response.status_code, 201)
-        created_client = Client.objects.get(owner=owner_without_client)
         self.assertTrue(created_client.is_active)
         self.assertEqual(created_client.name, site_without_client.name)
         audit = SiteSEOAudit.objects.get(id=response.json()["audit_id"])

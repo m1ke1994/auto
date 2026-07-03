@@ -10,6 +10,7 @@ from tracker.models import Event as TrackerEvent
 from tracker.models import PageView as TrackerPageView
 from tracker.models import Site as TrackerSite
 from tracker.models import Visit as TrackerVisit
+from subscriptions.test_utils import grant_business_analytics
 
 
 class AnalyticsApiTests(APITestCase):
@@ -39,6 +40,8 @@ class AnalyticsApiTests(APITestCase):
             owner=self.other_user,
             is_active=True,
         )
+        grant_business_analytics(self.user)
+        grant_business_analytics(self.other_user)
 
     def test_public_tracking_endpoints_create_data(self):
         visit_start_url = reverse("track-visit-start")

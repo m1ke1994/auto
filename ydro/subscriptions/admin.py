@@ -1,11 +1,25 @@
 from datetime import timedelta
 
+from django import forms
 from django.contrib import admin
+from django.contrib import messages
 from django.http import HttpResponseRedirect
 from django.urls import reverse
 from django.utils import timezone
 
 from subscriptions.models import Subscription, SubscriptionPayment, SubscriptionPlan, SubscriptionSettings, TelegramLink
+
+
+class SubscriptionAdminForm(forms.ModelForm):
+    class Meta:
+        model = Subscription
+        fields = "__all__"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get("status") == Subscription.Status.ACTIVE and not cleaned_data.get("plan"):
+            self.add_error("plan", "Для активной подписки необходимо выбрать тариф.")
+        return cleaned_data
 
 
 @admin.register(SubscriptionPlan)
@@ -29,18 +43,28 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
 
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
+    form = SubscriptionAdminForm
     list_display = ("id", "client", "plan", "status", "paid_until", "admin_override", "updated_at")
-    list_filter = ("status",)
-    search_fields = ("client__name", "client__owner__email")
-    list_editable = ("status", "paid_until", "admin_override")
+    list_filter = ("status", "plan", "admin_override")
+    search_fields = ("client__name", "client__owner__email", "plan__name", "plan__slug")
+    list_editable = ("plan", "status", "paid_until", "admin_override")
+    list_select_related = ("client", "plan")
+    fieldsets = (
+        ("Клиент и тариф", {"fields": ("client", "plan")}),
+        ("Доступ", {"fields": ("status", "paid_until", "is_trial", "admin_override", "auto_renew")}),
+    )
     actions = ("activate_subscription",)
 
     @admin.action(description="Активировать подписку")
     def activate_subscription(self, request, queryset):
         now = timezone.now()
         updated = 0
+        skipped = 0
         for subscription in queryset.select_related("plan"):
-            duration_days = subscription.plan.duration_days if subscription.plan_id and subscription.plan else 30
+            if not subscription.plan_id:
+                skipped += 1
+                continue
+            duration_days = subscription.plan.duration_days
             subscription.status = Subscription.Status.ACTIVE
             subscription.paid_until = now + timedelta(days=duration_days)
             subscription.is_trial = False
@@ -48,6 +72,12 @@ class SubscriptionAdmin(admin.ModelAdmin):
             updated += 1
 
         self.message_user(request, f"Активировано подписок: {updated}")
+        if skipped:
+            self.message_user(
+                request,
+                f"Пропущено без выбранного тарифа: {skipped}",
+                level=messages.WARNING,
+            )
 
 
 @admin.register(TelegramLink)

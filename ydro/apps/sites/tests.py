@@ -19,6 +19,7 @@ from apps.sites.volga_site import (
     get_site_specific_schema_key,
 )
 from clients.models import Client
+from subscriptions.test_utils import grant_business_analytics
 
 
 class SitesApiTests(APITestCase):
@@ -61,6 +62,7 @@ class SitesApiTests(APITestCase):
             send_to_telegram=True,
             telegram_chat_id="123456",
         )
+        grant_business_analytics(self.user, client=self.owner_client)
 
         self.hero = SiteSection.objects.create(
             site=self.site,
