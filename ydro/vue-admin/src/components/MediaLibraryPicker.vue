@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Image, Search, Trash2, X } from '@lucide/vue'
 
 import { deleteMediaFile, listMediaFiles, updateMediaFile } from '../api/media'
@@ -86,15 +86,31 @@ async function removeItem(item) {
   }
 }
 
-onMounted(load)
+let previousBodyOverflow = ''
+
+onMounted(() => {
+  previousBodyOverflow = document.body.style.overflow
+  document.body.style.overflow = 'hidden'
+  load()
+})
+
+onBeforeUnmount(() => {
+  document.body.style.overflow = previousBodyOverflow
+})
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm" @click.self="emit('close')">
-    <section class="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-[24px] border border-brand-100 bg-white/94 shadow-[0_24px_70px_rgba(32,40,70,0.16)] backdrop-blur-xl">
+  <Teleport to="body">
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/35 p-3 backdrop-blur-sm sm:p-4" @click.self="emit('close')">
+      <section
+        class="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-[24px] border border-brand-100 bg-white/94 shadow-[0_24px_70px_rgba(32,40,70,0.16)] backdrop-blur-xl sm:max-h-[calc(100dvh-2rem)]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="media-library-title"
+      >
       <header class="flex items-center justify-between border-b border-brand-100 px-4 py-3 sm:px-5">
         <div>
-          <h2 class="text-lg font-semibold text-[#17223B]">Медиатека</h2>
+          <h2 id="media-library-title" class="text-lg font-semibold text-[#17223B]">Медиатека</h2>
           <p class="text-sm text-slate-500">Выберите существующий файл или управляйте его описанием.</p>
         </div>
         <button type="button" class="icon-button" aria-label="Закрыть" @click="emit('close')">
@@ -164,6 +180,7 @@ onMounted(load)
           </div>
         </article>
       </div>
-    </section>
-  </div>
+      </section>
+    </div>
+  </Teleport>
 </template>
