@@ -25,11 +25,6 @@ export async function miniUnique(params = {}) {
   return data
 }
 
-export async function miniAiRecommendations(params = {}) {
-  const { data } = await http.get('/api/mini/analytics/ai-recommendations/', { params })
-  return data
-}
-
 export async function miniLeads(params = {}) {
   const { data } = await http.get('/api/mini/leads/', { params })
   return data
@@ -105,33 +100,13 @@ export async function miniSeoLatest(domain, params = {}) {
   return data
 }
 
-export async function miniSeoAudits(params = {}) {
-  const { data } = await http.get('/api/mini/seo/audits/', { params })
-  return data
-}
-
 export async function miniSeoDetail(auditId, params = {}) {
   const { data } = await http.get(`/api/mini/seo/${auditId}/`, { params })
   return data
 }
 
-export async function miniSeoPages(auditId, params = {}) {
-  const { data } = await http.get(`/api/mini/seo/${auditId}/pages/`, { params })
-  return data
-}
-
 export async function miniSeoIssues(auditId, params = {}) {
   const { data } = await http.get(`/api/mini/seo/${auditId}/issues/`, { params })
-  return data
-}
-
-export async function miniSeoHistory(auditId, params = {}) {
-  const { data } = await http.get(`/api/mini/seo/${auditId}/history/`, { params })
-  return data
-}
-
-export async function miniSeoRecommendations(auditId, params = {}) {
-  const { data } = await http.get(`/api/mini/seo/${auditId}/ai-recommendations/`, { params })
   return data
 }
 

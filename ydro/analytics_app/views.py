@@ -170,34 +170,6 @@ class PublicEventCreateView(CreateAPIView):
         return Response({"id": event.id}, status=status.HTTP_201_CREATED)
 
 
-class PublicVisitTrackView(APIView):
-    permission_classes = [HasValidApiKey]
-    throttle_scope = "public_event"
-
-    def post(self, request, *args, **kwargs):
-        payload = {
-            "event_type": Event.EventType.VISIT,
-            "page_url": request.data.get("page_url"),
-            "element_id": request.data.get("element_id"),
-            "visitor_id": request.data.get("visitor_id"),
-        }
-        serializer = PublicEventCreateSerializer(data=payload, context={"client": request.client})
-        serializer.is_valid(raise_exception=True)
-        try:
-            event = serializer.save()
-        except Exception:
-            logger.exception("Failed to create visit event")
-            return Response({"detail": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        logger.info(
-            "Visit track endpoint stored event: client_id=%s event_id=%s visitor_id=%s page_url=%s",
-            request.client.id,
-            event.id,
-            event.visitor_id,
-            event.page_url,
-        )
-        return Response({"id": event.id, "event_type": event.event_type}, status=status.HTTP_200_OK)
-
-
 class PublicAnalyticsEventCreateView(CreateAPIView):
     serializer_class = PublicAnalyticsEventSerializer
     permission_classes = [HasValidApiKey]
