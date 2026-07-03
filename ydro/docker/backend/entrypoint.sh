@@ -48,6 +48,10 @@ if [ "${RUN_SEED_VOLGA_SITE:-0}" = "1" ]; then
   python manage.py seed_volga_site
 fi
 
+if [ "${RUN_SEED_TRACKNODE_SITE:-0}" = "1" ]; then
+  python manage.py seed_tracknode_site
+fi
+
 if [ "$#" -gt 0 ]; then
   exec "$@"
 fi

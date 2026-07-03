@@ -1,6 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import {
   ArrowRight,
   BarChart3,
@@ -22,10 +21,16 @@ import {
   Zap,
 } from '@lucide/vue'
 
+import { applyPublicSiteSeo, ensurePublicSiteTracker, loadTrackNodePublicSite } from '../api/publicSite'
+
 const mobileMenuOpen = ref(false)
 const activeSection = ref('features')
-const activePricingDuration = ref('monthly')
+const activePricingDuration = ref('')
 const openFaq = ref(0)
+const site = ref(null)
+const sections = ref([])
+const loading = ref(true)
+const loadError = ref('')
 let sectionObserver
 let statsAnimationFrame
 let statsUpdateTimer
@@ -37,96 +42,51 @@ const liveStats = reactive({
   conversion: 0,
 })
 
-const statTargets = {
-  visitors: 24780,
-  views: 71842,
-  leads: 342,
-  conversion: 2.47,
+const iconMap = {
+  analytics: BarChart3,
+  bell: BellRing,
+  blocks: Blocks,
+  check: CheckCircle2,
+  click: MousePointerClick,
+  device: Smartphone,
+  funnel: Funnel,
+  inbox: Inbox,
+  report: FileText,
+  route: Route,
+  search: FileSearch,
+  seo: SearchCheck,
+  sparkles: Sparkles,
+  zap: Zap,
 }
 
-const navItems = [
-  { label: 'Возможности', href: '#features', id: 'features' },
-  { label: 'Аналитика', href: '#ecosystem', id: 'ecosystem' },
-  { label: 'SEO-анализ', href: '#seo-audit', id: 'seo-audit' },
-]
+const sectionsByKey = computed(() => Object.fromEntries(sections.value.map((section) => [section.key, section])))
+const sectionContent = (key) => sectionsByKey.value[key]?.content || {}
+const sectionOrder = (key) => Number(sectionsByKey.value[key]?.order || 0)
+const hasSection = (key) => Boolean(sectionsByKey.value[key])
+const resolveIcon = (name) => iconMap[name] || Blocks
 
-const rightNavItems = [
-  { label: 'Тарифы', href: '#pricing', id: 'pricing' },
-  { label: 'FAQ', href: '#faq', id: 'faq' },
-]
+const navigation = computed(() => sectionContent('navigation'))
+const hero = computed(() => sectionContent('hero'))
+const featuresSection = computed(() => sectionContent('features'))
+const analyticsSection = computed(() => sectionContent('analytics'))
+const seoSection = computed(() => sectionContent('seo_analysis'))
+const tariffsSection = computed(() => sectionContent('tariffs'))
+const faqSection = computed(() => sectionContent('faq'))
+const finalCta = computed(() => sectionContent('final_cta'))
+const footer = computed(() => sectionContent('footer'))
 
-const heroBenefits = [
-  ['Установка за 5 минут', Zap],
-  ['Данные в реальном времени', Route],
-  ['Понятные тарифы', CheckCircle2],
-  ['Российский сервер', Blocks],
-]
-
-const features = [
-  { number: '01', title: 'Веб-аналитика', text: 'Посетители, источники трафика и ключевые события в одном отчёте.', icon: BarChart3, type: 'chart' },
-  { number: '02', title: 'Карта кликов и скролла', text: 'Находите зоны внимания и точки, где аудитория теряет интерес.', icon: MousePointerClick, type: 'heatmap' },
-  { number: '03', title: 'Конверсии и цели', text: 'Собирайте воронки и отслеживайте путь от просмотра до заявки.', icon: Funnel, type: 'funnel' },
-  { number: '04', title: 'SEO-аудит', text: 'Проверяйте техническое SEO и получайте понятные рекомендации.', icon: SearchCheck, type: 'score' },
-  { number: '05', title: 'Анализ конкурентов', text: 'Сравнивайте трафик, страницы и видимость с конкурентами.', icon: FileSearch, type: 'compare' },
-  { number: '06', title: 'Уведомления', text: 'Получайте важные события и новые заявки без задержек.', icon: BellRing, type: 'alerts' },
-  { number: '07', title: 'Отчёты и экспорт', text: 'Экспортируйте данные в PDF и CSV по расписанию.', icon: FileText, type: 'reports' },
-  { number: '08', title: 'Устройства и технологии', text: 'Узнавайте, с каких устройств и браузеров приходит аудитория.', icon: Smartphone, type: 'devices' },
-  { number: '09', title: 'AI-инсайты и рекомендации', text: 'Находите скрытые точки роста и получайте план действий.', icon: Sparkles, type: 'ai' },
-]
-
-const ecosystemItems = [
-  { title: 'Аналитика', text: 'Вся динамика сайта в реальном времени', icon: BarChart3, position: 'p1' },
-  { title: 'SEO-анализ', text: 'Ошибки и поисковые возможности', icon: SearchCheck, position: 'p2' },
-  { title: 'Карта кликов', text: 'Визуальная карта внимания', icon: MousePointerClick, position: 'p3' },
-  { title: 'Поведение', text: 'Путь каждого пользователя', icon: Route, position: 'p4' },
-  { title: 'AI-инсайты', text: 'Рекомендации по росту', icon: Sparkles, position: 'p5' },
-  { title: 'Воронки', text: 'Контроль этапов конверсии', icon: Funnel, position: 'p6' },
-  { title: 'Уведомления', text: 'Важное — без задержек', icon: BellRing, position: 'p7' },
-  { title: 'Производительность', text: 'Скорость и стабильность сайта', icon: Zap, position: 'p8' },
-  { title: 'Конкуренты', text: 'Сравнение позиций и страниц', icon: FileSearch, position: 'p9' },
-  { title: 'Конверсии', text: 'Цели, заявки и результат', icon: CheckCircle2, position: 'p10' },
-]
-
-const seoChecks = [
-  ['Title и Description', 'ok'],
-  ['Скорость загрузки', 'warn'],
-  ['Мобильная адаптация', 'ok'],
-  ['Индексация', 'ok'],
-  ['Технические ошибки', 'error'],
-  ['Дубли страниц', 'warn'],
-  ['Изображения', 'ok'],
-  ['Структура заголовков', 'ok'],
-]
-
-const pricingTabs = [
-  { id: 'monthly', label: '1 месяц' },
-  { id: 'halfYear', label: '6 месяцев', saving: '−5%' },
-  { id: 'year', label: '12 месяцев', saving: '−10%' },
-]
-
-const pricingPlans = [
-  { duration: 'monthly', title: 'Контент и хостинг', price: '1 299', period: '/ месяц', featured: false },
-  { duration: 'monthly', title: 'Бизнес-аналитика', price: '1 999', period: '/ месяц', featured: true },
-  { duration: 'halfYear', title: 'Контент и хостинг', price: '7 404', period: 'за 6 месяцев', featured: false },
-  { duration: 'halfYear', title: 'Бизнес-аналитика', price: '11 394', period: 'за 6 месяцев', featured: true },
-  { duration: 'year', title: 'Контент и хостинг', price: '14 029', period: 'за 12 месяцев', featured: false },
-  { duration: 'year', title: 'Бизнес-аналитика', price: '21 589', period: 'за 12 месяцев', featured: true },
-]
-
-const visiblePlans = computed(() => pricingPlans.filter((plan) => plan.duration === activePricingDuration.value))
-
-const planFeatures = {
-  'Контент и хостинг': ['Хостинг сайта', 'Управление контентом', 'Резервное копирование', 'Техническая поддержка'],
-  'Бизнес-аналитика': ['Веб-аналитика и цели', 'SEO-аудит и конкуренты', 'AI-рекомендации', 'Отчёты и уведомления'],
-}
-
-const faqItems = [
-  ['Сколько занимает подключение TrackNode?', 'Обычно не больше пяти минут: добавьте сайт, установите короткий код и дождитесь первых событий.'],
-  ['Как начать работу с TrackNode?', 'Зарегистрируйтесь, выберите подходящий тариф и подключите сайт по инструкции в личном кабинете.'],
-  ['Данные хранятся в России?', 'Да, инфраструктура TrackNode и основные данные размещены на российских серверах.'],
-  ['Можно ли подключить несколько сайтов?', 'Да. В кабинете можно управлять несколькими проектами и переключаться между ними.'],
-  ['TrackNode заменяет Яндекс Метрику?', 'TrackNode дополняет привычную аналитику SEO-аудитом, конкурентным анализом и единым планом действий.'],
-]
+const navItems = computed(() => navigation.value.left_links || [])
+const rightNavItems = computed(() => navigation.value.right_links || [])
+const heroBenefits = computed(() => (hero.value.benefits || []).map((item) => ({ ...item, icon: resolveIcon(item.icon) })))
+const heroStats = computed(() => hero.value.stats || [])
+const featurePromises = computed(() => (featuresSection.value.promises || []).map((item) => ({ ...item, icon: resolveIcon(item.icon) })))
+const features = computed(() => (featuresSection.value.items || []).map((item) => ({ ...item, icon: resolveIcon(item.icon), type: item.visual_type })))
+const ecosystemItems = computed(() => (analyticsSection.value.items || []).map((item) => ({ ...item, icon: resolveIcon(item.icon) })))
+const seoChecks = computed(() => seoSection.value.checks || [])
+const pricingTabs = computed(() => tariffsSection.value.tabs || [])
+const pricingPlans = computed(() => tariffsSection.value.plans || [])
+const visiblePlans = computed(() => pricingPlans.value.filter((plan) => plan.duration === activePricingDuration.value))
+const faqItems = computed(() => faqSection.value.items || [])
 
 function closeMobileMenu() {
   mobileMenuOpen.value = false
@@ -140,18 +100,29 @@ function formatConversion(value) {
   return Number(value).toFixed(2)
 }
 
+function formatStat(stat) {
+  const value = liveStats[stat.key] || 0
+  return stat.format === 'percent' ? `${formatConversion(value)}%` : formatInteger(value)
+}
+
+function statByKey(key) {
+  return heroStats.value.find((item) => item.key === key) || { key, label: '', delta: '', format: 'integer' }
+}
+
 function startLiveUpdates() {
   statsUpdateTimer = window.setInterval(() => {
     liveStats.visitors += 1 + Math.floor(Math.random() * 3)
     liveStats.views += 3 + Math.floor(Math.random() * 5)
     if (Math.random() > 0.55) liveStats.leads += 1
-    liveStats.conversion = Math.min(2.59, Math.max(2.4, liveStats.conversion + (Math.random() - 0.48) * 0.012))
+    const conversionTarget = Number(heroStats.value.find((item) => item.key === 'conversion')?.target || 0)
+    liveStats.conversion = Math.min(conversionTarget + 0.12, Math.max(conversionTarget - 0.07, liveStats.conversion + (Math.random() - 0.48) * 0.012))
   }, 2800)
 }
 
 function animateStats() {
+  const targets = Object.fromEntries(heroStats.value.map((item) => [item.key, Number(item.target || 0)]))
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    Object.assign(liveStats, statTargets)
+    Object.assign(liveStats, targets)
     return
   }
 
@@ -161,10 +132,7 @@ function animateStats() {
   const update = (now) => {
     const progress = Math.min((now - startedAt) / duration, 1)
     const eased = 1 - Math.pow(1 - progress, 3)
-    liveStats.visitors = statTargets.visitors * eased
-    liveStats.views = statTargets.views * eased
-    liveStats.leads = statTargets.leads * eased
-    liveStats.conversion = statTargets.conversion * eased
+    for (const key of Object.keys(liveStats)) liveStats[key] = Number(targets[key] || 0) * eased
 
     if (progress < 1) statsAnimationFrame = requestAnimationFrame(update)
     else startLiveUpdates()
@@ -173,9 +141,9 @@ function animateStats() {
   statsAnimationFrame = requestAnimationFrame(update)
 }
 
-onMounted(() => {
-  const sections = [...navItems, ...rightNavItems]
-    .map((item) => document.getElementById(item.id))
+function setupSectionObserver() {
+  const sections = [...navItems.value, ...rightNavItems.value]
+    .map((item) => document.getElementById(item.section_id))
     .filter(Boolean)
 
   sectionObserver = new IntersectionObserver(
@@ -189,7 +157,24 @@ onMounted(() => {
   )
 
   sections.forEach((section) => sectionObserver.observe(section))
-  animateStats()
+}
+
+onMounted(async () => {
+  try {
+    const payload = await loadTrackNodePublicSite()
+    site.value = payload.site
+    sections.value = [...payload.sections].sort((left, right) => Number(left.order) - Number(right.order))
+    activePricingDuration.value = pricingTabs.value[0]?.id || ''
+    applyPublicSiteSeo(site.value)
+    ensurePublicSiteTracker(site.value)
+    await nextTick()
+    setupSectionObserver()
+    animateStats()
+  } catch (error) {
+    loadError.value = error?.message || 'Не удалось загрузить данные лендинга из ядра.'
+  } finally {
+    loading.value = false
+  }
 })
 
 onUnmounted(() => {
@@ -201,7 +186,13 @@ onUnmounted(() => {
 
 <template>
   <div class="landing-page">
-    <header class="landing-header">
+    <div v-if="loading" class="landing-state" role="status">Загружаем TrackNode…</div>
+    <div v-else-if="loadError" class="landing-state landing-state-error" role="alert">
+      <strong>Лендинг временно недоступен</strong>
+      <span>{{ loadError }}</span>
+    </div>
+    <template v-else>
+    <header v-if="hasSection('navigation')" class="landing-header">
       <nav class="nav-shell" aria-label="Основная навигация">
         <div class="nav-side nav-left">
           <a
@@ -209,17 +200,17 @@ onUnmounted(() => {
             :key="item.href"
             :href="item.href"
             class="nav-link"
-            :class="{ active: activeSection === item.id }"
+            :class="{ active: activeSection === item.section_id }"
           >{{ item.label }}</a>
         </div>
 
-        <a class="brand" href="#top" aria-label="TrackNode — на главную">
+        <a class="brand" href="#top" :aria-label="`${navigation.brand_name} — на главную`">
           <span class="brand-cube" aria-hidden="true">
-            <img src="/images/landing/cube.png" alt="" />
+            <img src="/images/landing/cube.png" :alt="navigation.cube_alt" />
           </span>
           <span class="brand-copy">
-            <span class="brand-kicker">Система</span>
-            <span class="brand-line">Track<span>Node</span></span>
+            <span class="brand-kicker">{{ navigation.brand_kicker }}</span>
+            <span class="brand-line">{{ navigation.brand_name.slice(0, -4) }}<span>{{ navigation.brand_name.slice(-4) }}</span></span>
           </span>
         </a>
 
@@ -229,9 +220,9 @@ onUnmounted(() => {
             :key="item.href"
             :href="item.href"
             class="nav-link"
-            :class="{ active: activeSection === item.id }"
+            :class="{ active: activeSection === item.section_id }"
           >{{ item.label }}</a>
-          <RouterLink class="login-button" to="/login">Войти в кабинет <ArrowRight :size="17" /></RouterLink>
+          <a class="login-button" :href="navigation.login_route">{{ navigation.login_label }} <ArrowRight :size="17" /></a>
         </div>
 
         <button
@@ -251,30 +242,27 @@ onUnmounted(() => {
         <a v-for="item in [...navItems, ...rightNavItems]" :key="item.href" :href="item.href" @click="closeMobileMenu">
           {{ item.label }}
         </a>
-        <RouterLink to="/login" class="login-button" @click="closeMobileMenu">Войти в кабинет <ArrowRight :size="17" /></RouterLink>
+        <a :href="navigation.login_route" class="login-button" @click="closeMobileMenu">{{ navigation.login_label }} <ArrowRight :size="17" /></a>
       </div>
     </header>
 
-    <main id="top">
-      <section class="hero-section" aria-labelledby="hero-title">
+    <main id="top" class="landing-main">
+      <section v-if="hasSection('hero')" class="hero-section" aria-labelledby="hero-title" :style="{ order: sectionOrder('hero') }">
         <div class="ambient ambient-one"></div>
         <div class="ambient ambient-two"></div>
         <div class="landing-container hero-grid">
           <div class="hero-copy">
-            <p class="eyebrow"><BarChart3 :size="15" /> Аналитика для роста бизнеса</p>
-            <h1 id="hero-title">Понимайте аудиторию.<br />Принимайте решения.<br /><span>Растите быстрее.</span></h1>
-            <p class="hero-lead">
-              TrackNode собирает данные о посетителях, источниках трафика и действиях на сайте.
-              Превращает цифры в понятные инсайты, которые помогают увеличивать конверсию и прибыль.
-            </p>
+            <p class="eyebrow"><BarChart3 :size="15" /> {{ hero.eyebrow }}</p>
+            <h1 id="hero-title">{{ hero.title_line_1 }}<br />{{ hero.title_line_2 }}<br /><span>{{ hero.title_accent }}</span></h1>
+            <p class="hero-lead">{{ hero.description }}</p>
             <div class="hero-actions">
-              <RouterLink class="primary-button" to="/register">Подключиться <Zap :size="18" /></RouterLink>
-              <a class="secondary-button" href="#ecosystem"><span class="play">▶</span> Посмотреть демо</a>
+              <a class="primary-button" :href="hero.primary_route">{{ hero.primary_label }} <Zap :size="18" /></a>
+              <a class="secondary-button" :href="hero.secondary_href"><span class="play">▶</span> {{ hero.secondary_label }}</a>
             </div>
             <div class="hero-benefits">
-              <div v-for="([label, icon]) in heroBenefits" :key="label" class="hero-benefit">
-                <span><component :is="icon" :size="16" /></span>
-                {{ label }}
+              <div v-for="item in heroBenefits" :key="item.label" class="hero-benefit">
+                <span><component :is="item.icon" :size="16" /></span>
+                {{ item.label }}
               </div>
             </div>
           </div>
@@ -283,45 +271,40 @@ onUnmounted(() => {
             <div class="hero-orbit orbit-a"></div>
             <div class="hero-orbit orbit-b"></div>
             <div class="cube-stage"></div>
-            <img class="hero-cube" src="/images/landing/cube.png" alt="Фирменный куб TrackNode" />
+            <img class="hero-cube" src="/images/landing/cube.png" :alt="hero.cube_alt" />
             <article class="float-card visitors-card">
-              <small>Посетители</small><strong class="live-number">{{ formatInteger(liveStats.visitors) }} <em>+12.3%</em></strong>
+              <small>{{ hero.visitors_card_label }}</small><strong class="live-number">{{ formatInteger(liveStats.visitors) }} <em>{{ statByKey('visitors').delta }}</em></strong>
               <svg viewBox="0 0 190 45" aria-hidden="true"><path d="M2 36 24 26 45 34 66 18 88 29 110 17 134 30 160 20 188 6" /></svg>
             </article>
             <article class="float-card conversion-card">
-              <small>Конверсия</small><strong class="live-number">{{ formatConversion(liveStats.conversion) }}% <em>+8.3%</em></strong>
+              <small>{{ hero.conversion_card_label }}</small><strong class="live-number">{{ formatConversion(liveStats.conversion) }}% <em>{{ statByKey('conversion').delta }}</em></strong>
               <div class="donut"></div>
             </article>
             <article class="float-card heat-card">
-              <small>Тепловая карта</small>
+              <small>{{ hero.heatmap_card_label }}</small>
               <div class="mini-heat"><i></i><i></i><i></i><i></i></div>
             </article>
             <article class="float-card traffic-card">
-              <small>Источники трафика</small>
+              <small>{{ hero.traffic_card_label }}</small>
               <span><i style="width: 84%"></i></span><span><i style="width: 61%"></i></span><span><i style="width: 42%"></i></span>
             </article>
           </div>
         </div>
         <div class="landing-container metrics-strip">
-          <div><BarChart3 :size="20" /><span><strong class="live-number">{{ formatInteger(liveStats.visitors) }}</strong><small>Посетителей <em>+12.3%</em></small></span></div>
-          <div><Route :size="20" /><span><strong class="live-number">{{ formatInteger(liveStats.views) }}</strong><small>Просмотра <em>+8.1%</em></small></span></div>
-          <div><Inbox :size="20" /><span><strong class="live-number">{{ formatInteger(liveStats.leads) }}</strong><small>Заявки <em>+15.7%</em></small></span></div>
-          <div><Funnel :size="20" /><span><strong class="live-number">{{ formatConversion(liveStats.conversion) }}%</strong><small>Конверсия <em>+8.3%</em></small></span></div>
+          <div v-for="stat in heroStats" :key="stat.key"><component :is="resolveIcon(stat.icon)" :size="20" /><span><strong class="live-number">{{ formatStat(stat) }}</strong><small>{{ stat.label }} <em>{{ stat.delta }}</em></small></span></div>
         </div>
       </section>
 
-      <section id="features" class="section features-section" aria-labelledby="features-title">
+      <section v-if="hasSection('features')" id="features" class="section features-section" aria-labelledby="features-title" :style="{ order: sectionOrder('features') }">
         <div class="landing-container">
           <div class="features-heading">
             <div>
-              <p class="eyebrow"><Zap :size="15" /> Всё для роста вашего бизнеса</p>
-              <h2 id="features-title">Возможности,<br />которые <span>дают результат</span></h2>
-              <p>TrackNode объединяет ключевые инструменты для анализа, оптимизации и роста сайта в одном сервисе.</p>
+              <p class="eyebrow"><Zap :size="15" /> {{ featuresSection.eyebrow }}</p>
+              <h2 id="features-title">{{ featuresSection.title }}<br />{{ featuresSection.title_line_2 }} <span>{{ featuresSection.title_accent }}</span></h2>
+              <p>{{ featuresSection.description }}</p>
             </div>
             <div class="feature-promises">
-              <div><CheckCircle2 :size="22" /><span><strong>Точные данные</strong><small>Без искажений</small></span></div>
-              <div><Zap :size="22" /><span><strong>Реальное время</strong><small>Метрики онлайн</small></span></div>
-              <div><Sparkles :size="22" /><span><strong>Практические инсайты</strong><small>Понятный план роста</small></span></div>
+              <div v-for="item in featurePromises" :key="item.title"><component :is="item.icon" :size="22" /><span><strong>{{ item.title }}</strong><small>{{ item.text }}</small></span></div>
             </div>
           </div>
 
@@ -335,7 +318,7 @@ onUnmounted(() => {
               </div>
               <div class="feature-mini" aria-hidden="true">
                 <template v-if="feature.type === 'chart'">
-                  <strong class="live-number">{{ formatInteger(liveStats.visitors) }} <em>+12.3%</em></strong><svg viewBox="0 0 160 60"><path d="M2 48 24 35 46 44 70 25 92 39 115 18 138 31 158 10" /></svg>
+                  <strong class="live-number">{{ formatInteger(liveStats.visitors) }} <em>{{ statByKey('visitors').delta }}</em></strong><svg viewBox="0 0 160 60"><path d="M2 48 24 35 46 44 70 25 92 39 115 18 138 31 158 10" /></svg>
                 </template>
                 <template v-else-if="feature.type === 'heatmap'">
                   <div class="feature-heat"><i></i><i></i><i></i><i></i><i></i></div>
@@ -344,22 +327,22 @@ onUnmounted(() => {
                   <i class="funnel-layer"></i><i class="funnel-layer"></i><i class="funnel-layer"></i><i class="funnel-layer"></i>
                 </template>
                 <template v-else-if="feature.type === 'score'">
-                  <div class="score-ring"><strong>87</strong><small>/100</small></div>
+                  <div class="score-ring" :style="{ '--health-score': `${feature.visual_items?.[0]?.label || 0}%` }"><strong>{{ feature.visual_items?.[0]?.label }}</strong><small>{{ feature.visual_items?.[1]?.label }}</small></div>
                 </template>
                 <template v-else-if="feature.type === 'compare'">
                   <span v-for="width in [92, 74, 58, 41]" :key="width"><i :style="{ width: `${width}%` }"></i></span>
                 </template>
                 <template v-else-if="feature.type === 'alerts'">
-                  <p v-for="(label, index) in ['Новая заявка', 'Цель достигнута', 'Ошибка на сайте']" :key="label"><i :class="`alert-${index}`"></i>{{ label }}</p>
+                  <p v-for="(item, index) in feature.visual_items" :key="item.label"><i :class="`alert-${index}`"></i>{{ item.label }}</p>
                 </template>
                 <template v-else-if="feature.type === 'reports'">
-                  <span class="report-file">PDF</span><span class="report-file green">CSV</span>
+                  <span v-for="(item, index) in feature.visual_items" :key="item.label" class="report-file" :class="{ green: index === 1 }">{{ item.label }}</span>
                 </template>
                 <template v-else-if="feature.type === 'devices'">
-                  <div class="device-donut"></div><p>Desktop 55%<br />Mobile 35%<br />Tablet 10%</p>
+                  <div class="device-donut"></div><p><template v-for="item in feature.visual_items" :key="item.label">{{ item.label }}<br /></template></p>
                 </template>
                 <template v-else>
-                  <strong class="ai-growth">+23%</strong><svg viewBox="0 0 160 60"><path d="M2 52 28 42 51 48 78 20 101 36 128 8 158 17" /></svg>
+                  <strong class="ai-growth">{{ feature.visual_items?.[0]?.label }}</strong><svg viewBox="0 0 160 60"><path d="M2 52 28 42 51 48 78 20 101 36 128 8 158 17" /></svg>
                 </template>
               </div>
             </article>
@@ -367,12 +350,12 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <section id="ecosystem" class="section ecosystem-section" aria-labelledby="ecosystem-title">
+      <section v-if="hasSection('analytics')" id="ecosystem" class="section ecosystem-section" aria-labelledby="ecosystem-title" :style="{ order: sectionOrder('analytics') }">
         <div class="landing-container">
           <div class="section-heading centered">
-            <p class="eyebrow"><Blocks :size="15" /> Экосистема TrackNode</p>
-            <h2 id="ecosystem-title">Вся сила аналитики в <span>единой экосистеме</span></h2>
-            <p>Все инструменты TrackNode работают вместе, чтобы данные превращались в понятные решения для роста.</p>
+            <p class="eyebrow"><Blocks :size="15" /> {{ analyticsSection.eyebrow }}</p>
+            <h2 id="ecosystem-title">{{ analyticsSection.title }} <span>{{ analyticsSection.title_accent }}</span></h2>
+            <p>{{ analyticsSection.description }}</p>
           </div>
 
           <div class="ecosystem-canvas">
@@ -381,7 +364,7 @@ onUnmounted(() => {
             <div class="orbit-line orbit-line-3"></div>
             <div class="orbit-glow"></div>
             <div class="ecosystem-cube-wrap">
-              <img src="/images/landing/cube.png" alt="Фирменный куб — центр экосистемы TrackNode" />
+              <img src="/images/landing/cube.png" :alt="analyticsSection.cube_alt" />
             </div>
             <div class="ecosystem-nodes">
               <article v-for="item in ecosystemItems" :key="item.title" class="ecosystem-node" :class="item.position" tabindex="0">
@@ -402,36 +385,34 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <section id="seo-audit" class="section seo-section" aria-labelledby="seo-title">
+      <section v-if="hasSection('seo_analysis')" id="seo-audit" class="section seo-section" aria-labelledby="seo-title" :style="{ order: sectionOrder('seo_analysis') }">
         <div class="landing-container seo-grid">
           <div class="seo-copy">
-            <p class="eyebrow"><SearchCheck :size="15" /> SEO-анализ</p>
-            <h2 id="seo-title">SEO-анализ, который показывает, <span>что мешает сайту расти</span></h2>
-            <p>TrackNode сканирует сайт, расставляет приоритеты и объясняет, что исправить в первую очередь — без сложных таблиц и технического шума.</p>
+            <p class="eyebrow"><SearchCheck :size="15" /> {{ seoSection.eyebrow }}</p>
+            <h2 id="seo-title">{{ seoSection.title }} <span>{{ seoSection.title_accent }}</span></h2>
+            <p>{{ seoSection.description }}</p>
             <div class="seo-summary">
-              <div><strong>12</strong><small>ошибок</small></div>
-              <div><strong>8</strong><small>предупреждений</small></div>
-              <div><strong>34</strong><small>проверки пройдено</small></div>
+              <div v-for="item in seoSection.summary" :key="item.label"><strong>{{ item.value }}</strong><small>{{ item.label }}</small></div>
             </div>
-            <RouterLink class="primary-button" to="/register">Подключиться <ArrowRight :size="18" /></RouterLink>
+            <a class="primary-button" :href="seoSection.cta_route">{{ seoSection.cta_label }} <ArrowRight :size="18" /></a>
           </div>
 
           <div class="seo-dashboard">
-            <div class="browser-bar"><i></i><i></i><i></i><span>your-site.ru</span><SearchCheck :size="17" /></div>
+            <div class="browser-bar"><i></i><i></i><i></i><span>{{ seoSection.dashboard_domain }}</span><SearchCheck :size="17" /></div>
             <div class="seo-dashboard-body">
               <div class="health-card">
-                <div class="health-ring"><span><strong>87</strong><small>/100</small></span></div>
-                <div><small>SEO Health</small><strong>Хороший результат</strong><p>Сайт готов к росту. Осталось исправить несколько важных пунктов.</p></div>
+                <div class="health-ring" :style="{ '--health-score': `${seoSection.health_value}%` }"><span><strong>{{ seoSection.health_value }}</strong><small>{{ seoSection.health_scale }}</small></span></div>
+                <div><small>{{ seoSection.health_label }}</small><strong>{{ seoSection.health_status }}</strong><p>{{ seoSection.health_description }}</p></div>
               </div>
               <div class="seo-checks">
-                <div v-for="([label, status]) in seoChecks" :key="label" :class="`status-${status}`">
-                  <span><CheckCircle2 v-if="status === 'ok'" :size="17" /><Zap v-else-if="status === 'warn'" :size="17" /><X v-else :size="17" /></span>
-                  <strong>{{ label }}</strong><small>{{ status === 'ok' ? 'Пройдено' : status === 'warn' ? 'Проверить' : 'Исправить' }}</small>
+                <div v-for="item in seoChecks" :key="item.label" :class="`status-${item.status}`">
+                  <span><CheckCircle2 v-if="item.status === 'ok'" :size="17" /><Zap v-else-if="item.status === 'warn'" :size="17" /><X v-else :size="17" /></span>
+                  <strong>{{ item.label }}</strong><small>{{ item.result }}</small>
                 </div>
               </div>
               <div class="ai-recommendation">
                 <span><Sparkles :size="22" /></span>
-                <div><small>AI-рекомендация</small><strong>Сожмите изображения на 4 страницах</strong><p>Это ускорит загрузку на мобильных устройствах примерно на 1,2 секунды.</p></div>
+                <div><small>{{ seoSection.recommendation_label }}</small><strong>{{ seoSection.recommendation_title }}</strong><p>{{ seoSection.recommendation_text }}</p></div>
                 <ArrowRight :size="20" />
               </div>
             </div>
@@ -439,12 +420,12 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <section id="pricing" class="section pricing-section" aria-labelledby="pricing-title">
+      <section v-if="hasSection('tariffs')" id="pricing" class="section pricing-section" aria-labelledby="pricing-title" :style="{ order: sectionOrder('tariffs') }">
         <div class="landing-container">
           <div class="section-heading centered">
-            <p class="eyebrow"><Zap :size="15" /> Простые тарифы</p>
-            <h2 id="pricing-title">Выберите формат <span>для вашего роста</span></h2>
-            <p>Выберите подходящий тариф и зарегистрируйте проект.</p>
+            <p class="eyebrow"><Zap :size="15" /> {{ tariffsSection.eyebrow }}</p>
+            <h2 id="pricing-title">{{ tariffsSection.title }} <span>{{ tariffsSection.title_accent }}</span></h2>
+            <p>{{ tariffsSection.description }}</p>
           </div>
           <div class="pricing-tabs" role="tablist" aria-label="Период оплаты">
             <button v-for="tab in pricingTabs" :key="tab.id" type="button" :class="{ active: activePricingDuration === tab.id }" @click="activePricingDuration = tab.id">
@@ -453,45 +434,46 @@ onUnmounted(() => {
           </div>
           <div class="pricing-grid">
             <article v-for="plan in visiblePlans" :key="`${plan.duration}-${plan.title}`" class="pricing-card" :class="{ featured: plan.featured }">
-              <span v-if="plan.featured" class="popular">Популярный</span>
+              <span v-if="plan.featured" class="popular">{{ tariffsSection.popular_label }}</span>
               <p class="pricing-label">{{ plan.title }}</p>
               <div class="price"><strong>{{ plan.price }} ₽</strong><small>{{ plan.period }}</small></div>
-              <p>{{ plan.featured ? 'Полный набор инструментов для роста сайта и бизнеса.' : 'Надёжная техническая основа для вашего сайта.' }}</p>
-              <ul><li v-for="item in planFeatures[plan.title]" :key="item"><CheckCircle2 :size="18" />{{ item }}</li></ul>
-              <RouterLink :class="plan.featured ? 'primary-button' : 'secondary-button'" to="/register">Подключиться <ArrowRight :size="17" /></RouterLink>
+              <p>{{ plan.description }}</p>
+              <ul><li v-for="item in plan.features" :key="item.label"><CheckCircle2 :size="18" />{{ item.label }}</li></ul>
+              <a :class="plan.featured ? 'primary-button' : 'secondary-button'" :href="tariffsSection.cta_route">{{ tariffsSection.cta_label }} <ArrowRight :size="17" /></a>
             </article>
           </div>
         </div>
       </section>
 
-      <section id="faq" class="section faq-section" aria-labelledby="faq-title">
+      <section v-if="hasSection('faq')" id="faq" class="section faq-section" aria-labelledby="faq-title" :style="{ order: sectionOrder('faq') }">
         <div class="landing-container faq-layout">
-          <div class="faq-heading"><p class="eyebrow">FAQ</p><h2 id="faq-title">Ответы на частые вопросы</h2><p>Не нашли ответ? Напишите нам — поможем разобраться.</p></div>
+          <div class="faq-heading"><p class="eyebrow">{{ faqSection.eyebrow }}</p><h2 id="faq-title">{{ faqSection.title }}</h2><p>{{ faqSection.description }}</p></div>
           <div class="faq-list">
-            <article v-for="([question, answer], index) in faqItems" :key="question" :class="{ open: openFaq === index }">
-              <button type="button" :aria-expanded="openFaq === index" @click="openFaq = openFaq === index ? -1 : index"><span>{{ question }}</span><span>+</span></button>
-              <div v-show="openFaq === index"><p>{{ answer }}</p></div>
+            <article v-for="(item, index) in faqItems" :key="item.question" :class="{ open: openFaq === index }">
+              <button type="button" :aria-expanded="openFaq === index" @click="openFaq = openFaq === index ? -1 : index"><span>{{ item.question }}</span><span>+</span></button>
+              <div v-show="openFaq === index"><p>{{ item.answer }}</p></div>
             </article>
           </div>
         </div>
       </section>
 
-      <section class="final-cta">
+      <section v-if="hasSection('final_cta')" class="final-cta" :style="{ order: sectionOrder('final_cta') }">
         <div class="landing-container final-cta-inner">
-          <div><p>Один сервис — вся аналитика</p><h2>Начните принимать решения на основе данных</h2></div>
-          <RouterLink class="cta-white" to="/register">Регистрация <ArrowRight :size="18" /></RouterLink>
+          <div><p>{{ finalCta.eyebrow }}</p><h2>{{ finalCta.title }}</h2></div>
+          <a class="cta-white" :href="finalCta.button_route">{{ finalCta.button_label }} <ArrowRight :size="18" /></a>
         </div>
       </section>
     </main>
 
-    <footer class="landing-footer">
+    <footer v-if="hasSection('footer')" class="landing-footer">
       <div class="landing-container footer-grid">
-        <a class="footer-brand" href="#top"><span><img src="/images/landing/cube.png" alt="" /></span>TrackNode</a>
-        <p>Аналитика, SEO и инсайты для роста сайта в одном сервисе.</p>
-        <div><a href="#features">Возможности</a><a href="#pricing">Тарифы</a><a href="#faq">FAQ</a><RouterLink to="/login">Войти</RouterLink></div>
-        <small>© {{ new Date().getFullYear() }} TrackNode</small>
+        <a class="footer-brand" href="#top"><span><img src="/images/landing/cube.png" :alt="footer.cube_alt" /></span>{{ footer.brand_name }}</a>
+        <p>{{ footer.description }}</p>
+        <div><a v-for="link in footer.links" :key="link.href" :href="link.href">{{ link.label }}</a></div>
+        <small>© {{ new Date().getFullYear() }} {{ footer.copyright }}</small>
       </div>
     </footer>
+    </template>
   </div>
 </template>
 
@@ -510,6 +492,10 @@ onUnmounted(() => {
   color: var(--ink);
   background: #fdfdff;
 }
+
+.landing-main { display: flex; flex-direction: column; }
+.landing-state { min-height: 100vh; display: grid; place-content: center; gap: 8px; padding: 24px; text-align: center; color: var(--muted); }
+.landing-state-error strong { color: var(--ink); font-size: 1.1rem; }
 
 .landing-container { width: min(100% - 40px, 1440px); margin-inline: auto; }
 .section { position: relative; padding: 112px 0; scroll-margin-top: 112px; }
@@ -620,7 +606,7 @@ onUnmounted(() => {
 .visual-funnel .feature-mini { display: grid; justify-items: center; gap: 5px; }
 .funnel-layer { display: block; height: 22px; clip-path: polygon(10% 0,90% 0,72% 100%,28% 100%); background: linear-gradient(90deg,#bfb4ff,#5436fa); }
 .funnel-layer:nth-child(1) { width: 125px; }.funnel-layer:nth-child(2){width:100px}.funnel-layer:nth-child(3){width:75px}.funnel-layer:nth-child(4){width:48px}
-.score-ring, .device-donut { display: grid; width: 92px; height: 92px; margin: auto; place-items: center; border-radius: 50%; background: conic-gradient(#23c48a 0 87%,#eceafb 87%); -webkit-mask: radial-gradient(circle,transparent 54%,#000 56%); mask: radial-gradient(circle,transparent 54%,#000 56%); }
+.score-ring, .device-donut { display: grid; width: 92px; height: 92px; margin: auto; place-items: center; border-radius: 50%; background: conic-gradient(#23c48a 0 var(--health-score, 87%),#eceafb var(--health-score, 87%)); -webkit-mask: radial-gradient(circle,transparent 54%,#000 56%); mask: radial-gradient(circle,transparent 54%,#000 56%); }
 .score-ring strong { font-size: 1.35rem; }
 .score-ring small { font-size: .62rem; }
 .visual-compare .feature-mini > span { height: 10px; }
@@ -661,7 +647,7 @@ onUnmounted(() => {
 .browser-bar { display: flex; align-items: center; gap: 7px; height: 53px; padding: 0 17px; border-bottom: 1px solid var(--line); background: #f7f6fd; color: var(--purple); }.browser-bar i{width:8px;height:8px;border-radius:50%;background:#ff777f}.browser-bar i:nth-child(2){background:#f7bd43}.browser-bar i:nth-child(3){background:#3bd28f}.browser-bar span{flex:1;margin-left:10px;padding:7px 12px;border-radius:8px;color:#73788e;background:#fff;font-size:.68rem}
 .seo-dashboard-body { padding: 22px; background: linear-gradient(145deg,#fff,#faf9ff); }
 .health-card { display: grid; grid-template-columns: 135px 1fr; align-items:center;gap:18px;padding:18px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 10px 25px rgba(61,43,132,.06)}
-.health-ring { display:grid;width:120px;height:120px;place-items:center;border-radius:50%;background:conic-gradient(#4b2cff 0 87%,#e9e7fa 87%);position:relative}.health-ring::after{position:absolute;inset:12px;border-radius:50%;background:#fff;content:''}.health-ring span{position:relative;z-index:2;text-align:center}.health-ring strong,.health-ring small{display:block}.health-ring strong{font-size:2rem}.health-card > div:last-child > small{color:var(--purple);font-weight:800;text-transform:uppercase}.health-card > div:last-child > strong{display:block;margin-top:5px;font-size:1.1rem}.health-card p{margin:7px 0 0;color:var(--muted);font-size:.73rem;line-height:1.55}
+.health-ring { display:grid;width:120px;height:120px;place-items:center;border-radius:50%;background:conic-gradient(#4b2cff 0 var(--health-score, 87%),#e9e7fa var(--health-score, 87%));position:relative}.health-ring::after{position:absolute;inset:12px;border-radius:50%;background:#fff;content:''}.health-ring span{position:relative;z-index:2;text-align:center}.health-ring strong,.health-ring small{display:block}.health-ring strong{font-size:2rem}.health-card > div:last-child > small{color:var(--purple);font-weight:800;text-transform:uppercase}.health-card > div:last-child > strong{display:block;margin-top:5px;font-size:1.1rem}.health-card p{margin:7px 0 0;color:var(--muted);font-size:.73rem;line-height:1.55}
 .seo-checks { display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin:12px 0}.seo-checks > div{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:9px;padding:10px;border:1px solid var(--line);border-radius:11px;background:#fff}.seo-checks > div > span{display:grid;width:29px;height:29px;place-items:center;border-radius:8px}.seo-checks strong{font-size:.7rem}.seo-checks small{font-size:.6rem}.status-ok > span,.status-ok small{color:#0da777;background:#e8fbf4}.status-warn > span,.status-warn small{color:#c78109;background:#fff6dd}.status-error > span,.status-error small{color:#dc4755;background:#fff0f1}.seo-checks small{padding:4px 6px;border-radius:6px;background:transparent}
 .ai-recommendation { display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:13px;padding:15px;border-radius:15px;color:white;background:linear-gradient(130deg,#271174,#5a31e8);box-shadow:0 14px 28px rgba(63,31,199,.22)}.ai-recommendation > span{display:grid;width:42px;height:42px;place-items:center;border-radius:12px;background:rgba(255,255,255,.14)}.ai-recommendation small,.ai-recommendation strong{display:block}.ai-recommendation small{color:#c9bdff;font-size:.6rem;text-transform:uppercase}.ai-recommendation strong{margin-top:3px;font-size:.8rem}.ai-recommendation p{margin:4px 0 0;color:#ded8ff;font-size:.63rem}
 

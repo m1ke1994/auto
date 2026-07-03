@@ -31,32 +31,7 @@ const routes = [
     path: '/',
     name: 'landing',
     component: LandingPage,
-    meta: {
-      public: true,
-      seoTitle: 'TrackNode — аналитика сайта, заявки, SEO-аудит и конкуренты в одном кабинете',
-      description:
-        'TrackNode объединяет веб-аналитику, тепловые карты, записи сессий, заявки, SEO-аудит, анализ конкурентов и отчёты для роста сайта и бизнеса.',
-      canonicalUrl: 'https://tracknode.ru/',
-      keywords:
-        'аналитика сайта, поведенческая аналитика, тепловые карты, записи сессий, заявки с сайта, SEO-аудит сайта, анализ конкурентов, отчёты PDF, Telegram-уведомления, мультисайтовая платформа, TrackNode',
-      ogType: 'website',
-      twitterCard: 'summary_large_image',
-      jsonLd: {
-        '@context': 'https://schema.org',
-        '@type': 'SoftwareApplication',
-        name: 'TrackNode',
-        applicationCategory: 'BusinessApplication',
-        operatingSystem: 'Web',
-        url: 'https://tracknode.ru/',
-        description:
-          'TrackNode объединяет веб-аналитику, тепловые карты, записи сессий, заявки, SEO-аудит, анализ конкурентов и отчёты для роста сайта и бизнеса.',
-        offers: {
-          '@type': 'Offer',
-          price: '2990',
-          priceCurrency: 'RUB',
-        },
-      },
-    },
+    meta: { public: true },
   },
   {
     path: '/login',

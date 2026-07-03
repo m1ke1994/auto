@@ -45,6 +45,7 @@
       DJANGO_SERVE_MEDIA_FILES: "1"
       RUN_SEED_DEMO_DATA: "${RUN_SEED_DEMO_DATA:-0}"
       RUN_SEED_VOLGA_SITE: "${RUN_SEED_VOLGA_SITE:-0}"
+      RUN_SEED_TRACKNODE_SITE: "${RUN_SEED_TRACKNODE_SITE:-1}"
       VOLGA_PUBLIC_DIR: "${VOLGA_PUBLIC_DIR:-/volga-public}"
     depends_on:
       postgres:
@@ -81,6 +82,7 @@
       RUN_MIGRATIONS: 0
       RUN_COLLECTSTATIC: 0
       RUN_SEED_DEMO_DATA: 0
+      RUN_SEED_TRACKNODE_SITE: 0
     depends_on:
       postgres:
         condition: service_healthy
@@ -107,6 +109,7 @@
       RUN_MIGRATIONS: 0
       RUN_COLLECTSTATIC: 0
       RUN_SEED_DEMO_DATA: 0
+      RUN_SEED_TRACKNODE_SITE: 0
     depends_on:
       postgres:
         condition: service_healthy
@@ -131,6 +134,7 @@
       RUN_MIGRATIONS: 0
       RUN_COLLECTSTATIC: 0
       RUN_SEED_DEMO_DATA: 0
+      RUN_SEED_TRACKNODE_SITE: 0
     depends_on:
       postgres:
         condition: service_healthy
