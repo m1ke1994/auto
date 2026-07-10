@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   X,
   Zap,
+  Crown,
 } from '@lucide/vue'
 
 import { useAuthStore } from '../stores/auth'
@@ -58,6 +59,9 @@ const navItems = computed(() => {
   }
   items.push({ label: 'Оплата', to: '/billing', icon: CreditCard })
   items.push({ label: 'Безопасность', to: '/security', icon: ShieldCheck })
+  if (authStore.user?.permissions?.platform_access) {
+    items.unshift({ label: 'Управление платформой', to: '/platform', icon: Crown })
+  }
   return items.filter((item) => accessStore.can(item.feature))
 })
 

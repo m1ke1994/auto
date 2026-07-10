@@ -159,6 +159,7 @@ class UserMeSerializer(serializers.Serializer):
     is_superuser = serializers.BooleanField(read_only=True)
     profile = serializers.SerializerMethodField()
     sites_count = serializers.SerializerMethodField()
+    permissions = serializers.SerializerMethodField()
 
     def get_profile(self, obj):
         profile = getattr(obj, "client_profile", None)
@@ -168,6 +169,16 @@ class UserMeSerializer(serializers.Serializer):
 
     def get_sites_count(self, obj):
         return obj.sites.count()
+
+    def get_permissions(self, obj):
+        return {
+            "platform_access": obj.has_perm("platform_admin.access_platform"),
+            "view_all_sites": obj.has_perm("platform_admin.access_platform"),
+            "view_all_analytics": obj.has_perm("platform_admin.access_platform"),
+            "view_all_leads": obj.has_perm("platform_admin.view_platform_personal_data"),
+            "view_tracker_key": obj.has_perm("platform_admin.view_platform_tracker_key"),
+            "manage_recommendations": obj.has_perm("platform_admin.manage_platform_recommendations"),
+        }
 
 
 class EmailOrUsernameTokenObtainPairSerializer(TokenObtainPairSerializer):

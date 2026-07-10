@@ -25,7 +25,7 @@ class BaseView(APIView):
     required_feature = FEATURE_AI_RECOMMENDATIONS
 
     def jobs(self):
-        queryset = AIRecommendationJob.objects.filter(user=self.request.user, site__owner=self.request.user, deleted_at__isnull=True)
+        queryset = AIRecommendationJob.objects.filter(user=self.request.user, site__owner=self.request.user, deleted_at__isnull=True, platform_hidden_at__isnull=True)
         return queryset
 
 

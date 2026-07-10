@@ -108,6 +108,7 @@ INSTALLED_APPS = [
     "subscriptions",
     "telegram_logs",
     "ai_recommendations.apps.AiRecommendationsConfig",
+    "platform_admin.apps.PlatformAdminConfig",
 ]
 
 MIDDLEWARE = [

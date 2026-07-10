@@ -12,6 +12,9 @@ def sync_job(self, job_id):
     if not job or job.status in (job.Status.COMPLETED, job.Status.FAILED, job.Status.CANCELLED) or not job.remote_job_id: return
     remote = AIRecommendationsClient().get_job(job.remote_job_id)
     job.poll_attempts += 1
+    job.openai_model = remote.get("openai_model") or job.openai_model
+    job.input_tokens = remote.get("input_tokens")
+    job.output_tokens = remote.get("output_tokens")
     remote_status = remote["status"]
     if job.status == job.Status.COMPLETED: return
     job.status = remote_status

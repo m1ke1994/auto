@@ -57,7 +57,7 @@ def ready(db: Session = Depends(get_db)):
 
 
 def response(job):
-    return JobResponse(job_id=job.id, external_job_id=job.external_job_id, status=job.status.value, recommendation_type=job.recommendation_type, created_at=job.created_at, started_at=job.started_at, completed_at=job.completed_at, result=job.result, error=job.error_message)
+    return JobResponse(job_id=job.id, external_job_id=job.external_job_id, status=job.status.value, recommendation_type=job.recommendation_type, created_at=job.created_at, started_at=job.started_at, completed_at=job.completed_at, result=job.result, error=job.error_message, openai_model=job.openai_model, input_tokens=job.input_tokens, output_tokens=job.output_tokens)
 
 
 @app.post("/api/v1/recommendations/jobs", response_model=JobAccepted, status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(verify_request)])
@@ -103,4 +103,3 @@ def delete_job(job_id: uuid.UUID, db: Session = Depends(get_db)):
     job.deleted_at = datetime.now(timezone.utc)
     if job.status in (JobStatus.queued, JobStatus.processing): job.status = JobStatus.cancelled
     db.commit()
-

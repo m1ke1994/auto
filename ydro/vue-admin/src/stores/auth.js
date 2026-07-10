@@ -9,6 +9,7 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
 
   const isAuthenticated = computed(() => Boolean(accessToken.value))
+  const isPlatformOwner = computed(() => Boolean(user.value?.permissions?.platform_access))
 
   function setTokens({ access, refresh }) {
     accessToken.value = access || ''
@@ -68,6 +69,7 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken,
     user,
     isAuthenticated,
+    isPlatformOwner,
     setTokens,
     login,
     register,

@@ -140,3 +140,6 @@ class JobResponse(JobAccepted):
     completed_at: datetime | None
     result: RecommendationResult | None
     error: str | None
+    openai_model: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None

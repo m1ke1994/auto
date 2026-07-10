@@ -5,6 +5,14 @@ import DashboardView from '../views/DashboardView.vue'
 import SiteOverviewView from '../views/SiteOverviewView.vue'
 import AnalyticsView from '../views/AnalyticsView.vue'
 import AIRecommendationsView from '../views/AIRecommendationsView.vue'
+import PlatformLayout from '../layouts/PlatformLayout.vue'
+import PlatformOverviewView from '../views/platform/PlatformOverviewView.vue'
+import PlatformTableView from '../views/platform/PlatformTableView.vue'
+import PlatformAnalyticsView from '../views/platform/PlatformAnalyticsView.vue'
+import PlatformSiteDetailView from '../views/platform/PlatformSiteDetailView.vue'
+import PlatformClientDetailView from '../views/platform/PlatformClientDetailView.vue'
+import PlatformRecommendationDetailView from '../views/platform/PlatformRecommendationDetailView.vue'
+import PlatformHealthView from '../views/platform/PlatformHealthView.vue'
 import CompetitorAnalysisView from '../views/CompetitorAnalysisView.vue'
 import LandingPage from '../views/LandingPage.vue'
 import LoginView from '../views/LoginView.vue'
@@ -26,6 +34,7 @@ import MiniSettingsView from '../views/mini/MiniSettingsView.vue'
 import MiniIntegrationView from '../views/mini/MiniIntegrationView.vue'
 import { applyRouteSeo } from '../config/seo'
 import { useAccessStore } from '../stores/access'
+import { useAuthStore } from '../stores/auth'
 
 const routes = [
   {
@@ -61,6 +70,26 @@ const routes = [
       { path: 'sites/:siteId/sections', name: 'sections', component: SectionsView, props: true, meta: { title: 'Разделы сайта', requiredFeature: 'site_edit' } },
       { path: 'sites/:siteId/analytics', name: 'analytics', component: AnalyticsView, props: true, meta: { title: 'Аналитика', requiredFeature: 'analytics' } },
       { path: 'sites/:siteId/ai-recommendations', name: 'ai-recommendations', component: AIRecommendationsView, props: true, meta: { title: 'AI-рекомендации', requiredFeature: 'ai_recommendations' } },
+      {
+        path: 'platform',
+        component: PlatformLayout,
+        meta: { requiresPlatformOwner: true, billingExempt: true },
+        children: [
+          { path: '', name: 'platform-overview', component: PlatformOverviewView, meta: { title: 'Обзор платформы', requiresPlatformOwner: true, billingExempt: true } },
+          { path: 'sites', name: 'platform-sites', component: PlatformTableView, meta: { title: 'Все сайты', requiresPlatformOwner: true, billingExempt: true } },
+          { path: 'sites/:siteId', name: 'platform-site-detail', component: PlatformSiteDetailView, meta: { title: 'Сайт платформы', requiresPlatformOwner: true, billingExempt: true } },
+          { path: 'analytics', name: 'platform-analytics', component: PlatformAnalyticsView, meta: { title: 'Общая аналитика', requiresPlatformOwner: true, billingExempt: true } },
+          { path: 'clients', name: 'platform-clients', component: PlatformTableView, meta: { title: 'Клиенты', requiresPlatformOwner: true, billingExempt: true } },
+          { path: 'clients/:clientId', name: 'platform-client-detail', component: PlatformClientDetailView, meta: { title: 'Клиент', requiresPlatformOwner: true, billingExempt: true } },
+          { path: 'leads', name: 'platform-leads', component: PlatformTableView, meta: { title: 'Все заявки', requiresPlatformOwner: true, billingExempt: true } },
+          { path: 'seo', name: 'platform-seo', component: PlatformTableView, meta: { title: 'SEO платформы', requiresPlatformOwner: true, billingExempt: true } },
+          { path: 'recommendations', name: 'platform-recommendations', component: PlatformTableView, meta: { title: 'AI-рекомендации платформы', requiresPlatformOwner: true, billingExempt: true } },
+          { path: 'recommendations/:jobId', name: 'platform-recommendation-detail', component: PlatformRecommendationDetailView, meta: { title: 'Технические данные AI', requiresPlatformOwner: true, billingExempt: true } },
+          { path: 'subscriptions', name: 'platform-subscriptions', component: PlatformTableView, meta: { title: 'Тарифы и подписки', requiresPlatformOwner: true, billingExempt: true } },
+          { path: 'health', name: 'platform-health', component: PlatformHealthView, meta: { title: 'Доступность', requiresPlatformOwner: true, billingExempt: true } },
+          { path: 'events', name: 'platform-events', component: PlatformTableView, meta: { title: 'Системные события', requiresPlatformOwner: true, billingExempt: true } },
+        ],
+      },
       { path: 'sites/:siteId/leads', name: 'leads', component: LeadsView, props: true, meta: { title: 'Лиды', requiredFeature: 'leads' } },
       { path: 'sites/:siteId/seo', name: 'site-seo', component: MiniSeoAuditView, props: true, meta: { title: 'SEO-аудит', requiredFeature: 'seo_audit' } },
       { path: 'sites/:siteId/competitors', name: 'competitor-analysis', component: CompetitorAnalysisView, props: true, meta: { title: 'Анализ конкурентов', requiredFeature: 'competitors' } },
@@ -110,6 +139,11 @@ router.beforeEach(async (to) => {
 
   if (to.meta.requiresAuth && token) {
     try {
+      const authStore = useAuthStore()
+      if (!authStore.user) await authStore.getCurrentUser()
+      if (to.meta.requiresPlatformOwner && !authStore.user?.permissions?.platform_access) {
+        return { name: 'dashboard' }
+      }
       const accessStore = useAccessStore()
       await accessStore.fetchAccess({ force: true, timeout: 4000 })
       if (to.meta.requiredFeature && !accessStore.can(to.meta.requiredFeature)) {

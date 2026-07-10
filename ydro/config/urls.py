@@ -104,6 +104,7 @@ urlpatterns = [
     path("api/client/media/", include("apps.mediafiles.client_urls")),
     path("api/client/news/", include("apps.notifications.urls")),
     path("api/client/ai-recommendations/", include("ai_recommendations.urls")),
+    path("api/platform/", include("platform_admin.urls")),
 ]
 
 if settings.DEBUG:
