@@ -49,6 +49,7 @@ def api_root(_request):
                 "subscription": "/api/subscription/",
                 "mini": "/api/mini/",
                 "health": "/api/health/",
+                "ai_recommendations": "/api/client/ai-recommendations/",
             },
         }
     )
@@ -102,6 +103,7 @@ urlpatterns = [
     path("api/uploads/", UploadFileView.as_view(), name="upload-file"),
     path("api/client/media/", include("apps.mediafiles.client_urls")),
     path("api/client/news/", include("apps.notifications.urls")),
+    path("api/client/ai-recommendations/", include("ai_recommendations.urls")),
 ]
 
 if settings.DEBUG:

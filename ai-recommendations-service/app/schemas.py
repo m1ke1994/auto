@@ -1,0 +1,92 @@
+import re
+import uuid
+from datetime import date, datetime
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class Period(BaseModel):
+    date_from: date
+    date_to: date
+
+    @model_validator(mode="after")
+    def valid_range(self):
+        if self.date_from > self.date_to:
+            raise ValueError("date_from must not exceed date_to")
+        if (self.date_to - self.date_from).days > 366:
+            raise ValueError("period must not exceed 366 days")
+        return self
+
+
+class SiteContext(BaseModel):
+    site_name: str = Field("", max_length=200)
+    business_type: str = Field("", max_length=200)
+    description: str = Field("", max_length=2000)
+
+
+class JobOptions(BaseModel):
+    max_recommendations: int = Field(10, ge=1, le=25)
+    include_summary: bool = True
+
+
+class JobCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    external_job_id: uuid.UUID
+    site_id: int = Field(gt=0)
+    site_domain: str = Field(min_length=1, max_length=253)
+    recommendation_type: Literal["seo", "conversion", "combined"]
+    language: str = Field("ru", pattern=r"^[a-z]{2}$")
+    period: Period
+    site_context: SiteContext = Field(default_factory=SiteContext)
+    analytics: dict[str, Any] = Field(default_factory=dict)
+    seo: dict[str, Any] = Field(default_factory=dict)
+    options: JobOptions = Field(default_factory=JobOptions)
+
+    @field_validator("site_domain")
+    @classmethod
+    def normalize_domain(cls, value):
+        value = value.strip().lower().rstrip(".")
+        value = re.sub(r"^https?://", "", value).split("/", 1)[0]
+        if not re.fullmatch(r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", value):
+            raise ValueError("invalid domain")
+        return value
+
+
+class Recommendation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(max_length=100)
+    category: Literal["seo", "conversion", "content", "performance", "ux", "technical"]
+    priority: Literal["critical", "high", "medium", "low"]
+    title: str = Field(min_length=3, max_length=300)
+    problem: str = Field(min_length=3, max_length=2000)
+    evidence: list[str] = Field(max_length=10)
+    action: str = Field(min_length=3, max_length=3000)
+    expected_impact: str = Field(min_length=3, max_length=1000)
+    effort: Literal["low", "medium", "high"]
+    confidence: float = Field(ge=0, le=1)
+    quick_win: bool
+    limitations: list[str] = Field(default_factory=list, max_length=10)
+
+
+class RecommendationResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    summary: str = Field(max_length=2000)
+    score: int = Field(ge=0, le=100)
+    recommendations: list[Recommendation] = Field(max_length=25)
+
+
+class JobAccepted(BaseModel):
+    job_id: uuid.UUID
+    external_job_id: uuid.UUID
+    status: str
+    created_at: datetime
+
+
+class JobResponse(JobAccepted):
+    recommendation_type: str
+    started_at: datetime | None
+    completed_at: datetime | None
+    result: RecommendationResult | None
+    error: str | None
+

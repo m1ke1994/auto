@@ -4,6 +4,7 @@ import AdminLayout from '../layouts/AdminLayout.vue'
 import DashboardView from '../views/DashboardView.vue'
 import SiteOverviewView from '../views/SiteOverviewView.vue'
 import AnalyticsView from '../views/AnalyticsView.vue'
+import AIRecommendationsView from '../views/AIRecommendationsView.vue'
 import CompetitorAnalysisView from '../views/CompetitorAnalysisView.vue'
 import LandingPage from '../views/LandingPage.vue'
 import LoginView from '../views/LoginView.vue'
@@ -59,6 +60,7 @@ const routes = [
       { path: 'sites/:siteId/overview', name: 'site-overview', component: SiteOverviewView, props: true, meta: { title: 'Обзор сайта', requiredFeature: 'dashboard_overview' } },
       { path: 'sites/:siteId/sections', name: 'sections', component: SectionsView, props: true, meta: { title: 'Разделы сайта', requiredFeature: 'site_edit' } },
       { path: 'sites/:siteId/analytics', name: 'analytics', component: AnalyticsView, props: true, meta: { title: 'Аналитика', requiredFeature: 'analytics' } },
+      { path: 'sites/:siteId/ai-recommendations', name: 'ai-recommendations', component: AIRecommendationsView, props: true, meta: { title: 'AI-рекомендации', requiredFeature: 'ai_recommendations' } },
       { path: 'sites/:siteId/leads', name: 'leads', component: LeadsView, props: true, meta: { title: 'Лиды', requiredFeature: 'leads' } },
       { path: 'sites/:siteId/seo', name: 'site-seo', component: MiniSeoAuditView, props: true, meta: { title: 'SEO-аудит', requiredFeature: 'seo_audit' } },
       { path: 'sites/:siteId/competitors', name: 'competitor-analysis', component: CompetitorAnalysisView, props: true, meta: { title: 'Анализ конкурентов', requiredFeature: 'competitors' } },
