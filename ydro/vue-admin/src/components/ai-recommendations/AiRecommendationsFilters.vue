@@ -1,0 +1,5 @@
+<script setup>
+defineProps({ priorities: { type: String, default: 'all' }, category: { type: String, default: 'all' }, categories: { type: Array, default: () => [] } })
+defineEmits(['update:priorities', 'update:category'])
+</script>
+<template><div class="flex max-w-full flex-wrap gap-2 rounded-2xl border border-brand-100 bg-white/90 p-2 shadow-soft" role="group" aria-label="Фильтры рекомендаций"><button v-for="item in [['all','Все'],['high','Высокий'],['medium','Средний'],['low','Низкий']]" :key="item[0]" type="button" class="min-h-10 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" :class="priorities === item[0] ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-brand-50'" @click="$emit('update:priorities', item[0])">{{ item[1] }}</button><select :value="category" class="input min-h-10 min-w-0 flex-1 sm:ml-auto sm:max-w-64" aria-label="Фильтр по категории" @change="$emit('update:category', $event.target.value)"><option value="all">Все категории</option><option v-for="item in categories" :key="item" :value="item">{{ item }}</option></select></div></template>

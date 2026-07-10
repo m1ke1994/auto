@@ -50,7 +50,7 @@ const navItems = computed(() => {
       { label: 'Главная', to: `/sites/${siteId.value}/overview`, icon: CircleGauge, feature: 'dashboard_overview' },
       { label: 'Заявки', to: `/sites/${siteId.value}/leads`, icon: Inbox, feature: 'leads' },
       { label: 'Аналитика', to: `/sites/${siteId.value}/analytics`, icon: BarChart3, feature: 'analytics' },
-      { label: 'AI-рекомендации', to: `/sites/${siteId.value}/ai-recommendations`, icon: Sparkles, feature: 'ai_recommendations' },
+      { label: 'AI-рекомендации', to: `/sites/${siteId.value}/ai-recommendations`, icon: Sparkles, feature: 'ai_recommendations', showWhenLocked: true },
       { label: 'Редактирование сайта', to: `/sites/${siteId.value}/sections`, icon: Blocks, feature: 'site_edit' },
       { label: 'SEO-аудит', to: `/sites/${siteId.value}/seo`, icon: SearchCheck, feature: 'seo_audit' },
       { label: 'Анализ конкурентов', to: `/sites/${siteId.value}/competitors`, icon: FileSearch, feature: 'competitors' },
@@ -62,7 +62,7 @@ const navItems = computed(() => {
   if (authStore.user?.permissions?.platform_access) {
     items.unshift({ label: 'Управление платформой', to: '/platform', icon: Crown })
   }
-  return items.filter((item) => accessStore.can(item.feature))
+  return items.filter((item) => item.showWhenLocked || accessStore.can(item.feature))
 })
 
 function isActive(item) {

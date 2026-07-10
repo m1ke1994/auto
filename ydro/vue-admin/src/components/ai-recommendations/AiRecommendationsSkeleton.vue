@@ -1,0 +1,2 @@
+<template><div class="space-y-5" aria-label="Загрузка рекомендаций" aria-busy="true"><div class="h-48 animate-pulse rounded-[1.75rem] bg-gradient-to-r from-slate-100 via-brand-50 to-slate-100" /><div class="grid grid-cols-2 gap-3 lg:grid-cols-4"><div v-for="item in 4" :key="item" class="h-28 animate-pulse rounded-2xl bg-slate-100" /></div><div class="grid gap-4 lg:grid-cols-2"><div v-for="item in 4" :key="item" class="h-72 animate-pulse rounded-[1.6rem] bg-slate-100" /></div></div></template>
+

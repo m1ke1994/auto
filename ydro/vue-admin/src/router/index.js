@@ -69,7 +69,7 @@ const routes = [
       { path: 'sites/:siteId/overview', name: 'site-overview', component: SiteOverviewView, props: true, meta: { title: 'Обзор сайта', requiredFeature: 'dashboard_overview' } },
       { path: 'sites/:siteId/sections', name: 'sections', component: SectionsView, props: true, meta: { title: 'Разделы сайта', requiredFeature: 'site_edit' } },
       { path: 'sites/:siteId/analytics', name: 'analytics', component: AnalyticsView, props: true, meta: { title: 'Аналитика', requiredFeature: 'analytics' } },
-      { path: 'sites/:siteId/ai-recommendations', name: 'ai-recommendations', component: AIRecommendationsView, props: true, meta: { title: 'AI-рекомендации', requiredFeature: 'ai_recommendations' } },
+      { path: 'sites/:siteId/ai-recommendations', name: 'ai-recommendations', component: AIRecommendationsView, props: true, meta: { title: 'AI-рекомендации', requiredFeature: 'ai_recommendations', showLockedFeature: true } },
       {
         path: 'platform',
         component: PlatformLayout,
@@ -146,7 +146,7 @@ router.beforeEach(async (to) => {
       }
       const accessStore = useAccessStore()
       await accessStore.fetchAccess({ force: true, timeout: 4000 })
-      if (to.meta.requiredFeature && !accessStore.can(to.meta.requiredFeature)) {
+      if (to.meta.requiredFeature && !accessStore.can(to.meta.requiredFeature) && !to.meta.showLockedFeature) {
         return {
           name: 'access-restricted',
           query: { feature: to.meta.requiredFeature, from: to.fullPath },
