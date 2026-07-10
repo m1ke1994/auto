@@ -28,7 +28,7 @@ class MediaUploadTests(APITestCase):
             password="test-test",
         )
         self.site = Site.objects.create(
-            name="A Meditation",
+            name="Leelabird",
             slug="a-meditation",
             domain="localhost:5173",
             owner=self.user,

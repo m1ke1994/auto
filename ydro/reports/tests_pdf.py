@@ -13,7 +13,7 @@ class ReportPdfGeneratorTests(TestCase):
             email="pdf-owner@example.com",
             password="test-pass-123",
         )
-        self.client_obj = Client.objects.create(owner=self.user, name="A Meditation / Амедиа", is_active=True)
+        self.client_obj = Client.objects.create(owner=self.user, name="Leelabird", is_active=True)
 
     def test_build_pdf_generates_document(self):
         pdf_bytes, filename = build_pdf_for_client(client=self.client_obj, user=self.user)

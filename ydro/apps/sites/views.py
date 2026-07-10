@@ -1,6 +1,11 @@
 ﻿from django.db.models import Count, Q
+import re
+from urllib.error import URLError
+from urllib.request import urlopen
+
 from django.conf import settings
 from django.db import transaction
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, serializers, status
@@ -15,6 +20,7 @@ from subscriptions.access import FEATURE_LEADS, FEATURE_SITE_EDIT, FEATURE_TELEG
 from subscriptions.permissions import HasFeatureAccess
 
 from .models import Site, SiteLead, SiteSection
+from .seo import build_public_site_seo, render_public_site_seo_head
 from .serializers import (
     AdminLeadSerializer,
     AdminLeadStatusPatchSerializer,
@@ -36,6 +42,70 @@ def _normalize_domain(value):
     normalized = str(value).strip().lower()
     normalized = normalized.replace("http://", "").replace("https://", "")
     return normalized.strip("/")
+
+
+_SEO_TITLE_RE = re.compile(r"\s*<title>.*?</title>", re.IGNORECASE | re.DOTALL)
+_SEO_CANONICAL_RE = re.compile(
+    r"\s*<link\b(?=[^>]*\brel=[\"']canonical[\"'])[^>]*>",
+    re.IGNORECASE,
+)
+_SEO_JSON_LD_RE = re.compile(
+    r"\s*<script\b(?=[^>]*\btype=[\"']application/ld\+json[\"'])[^>]*>.*?</script>",
+    re.IGNORECASE | re.DOTALL,
+)
+_SEO_META_NAME_RE = re.compile(
+    r"\s*<meta\b(?=[^>]*\bname=[\"']"
+    r"(?:description|twitter:card|twitter:title|twitter:description|twitter:image)"
+    r"[\"'])[^>]*>",
+    re.IGNORECASE,
+)
+_SEO_META_PROPERTY_RE = re.compile(
+    r"\s*<meta\b(?=[^>]*\bproperty=[\"']"
+    r"(?:og:type|og:site_name|og:title|og:description|og:image|og:url)"
+    r"[\"'])[^>]*>",
+    re.IGNORECASE,
+)
+
+
+def _load_public_site_index_html():
+    index_url = str(getattr(settings, "PUBLIC_SITE_STATIC_INDEX_URL", "") or "").strip()
+    if index_url:
+        try:
+            with urlopen(index_url, timeout=2) as response:
+                charset = response.headers.get_content_charset() or "utf-8"
+                return response.read().decode(charset)
+        except (OSError, URLError, UnicodeDecodeError):
+            pass
+
+    return (
+        "<!doctype html>\n"
+        '<html lang="ru">\n'
+        "  <head>\n"
+        '    <meta charset="UTF-8">\n'
+        '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+        "  </head>\n"
+        '  <body><div id="app"></div></body>\n'
+        "</html>\n"
+    )
+
+
+def _inject_public_site_seo(index_html, seo):
+    html = _SEO_TITLE_RE.sub("", index_html)
+    html = _SEO_CANONICAL_RE.sub("", html)
+    html = _SEO_JSON_LD_RE.sub("", html)
+    html = _SEO_META_NAME_RE.sub("", html)
+    html = _SEO_META_PROPERTY_RE.sub("", html)
+
+    seo_head = render_public_site_seo_head(seo)
+    if re.search(r"</head\s*>", html, flags=re.IGNORECASE):
+        return re.sub(
+            r"</head\s*>",
+            f"    {seo_head}\n  </head>",
+            html,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+    return f"{seo_head}\n{html}"
 
 
 class PublicSiteDetailView(generics.RetrieveAPIView):
@@ -127,6 +197,22 @@ class PublicSiteBundleBySlugView(APIView):
                 "sections": PublicSiteSectionSerializer(sections, many=True).data,
             }
         )
+
+
+class PublicSiteHtmlView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request, *args, **kwargs):
+        site = Site.objects.filter(slug=self.kwargs["site_slug"], is_active=True).first()
+        if site is None:
+            raise NotFound(detail="Active site was not found.")
+
+        index_html = _load_public_site_index_html()
+        html = _inject_public_site_seo(index_html, build_public_site_seo(site))
+        response = HttpResponse(html, content_type="text/html; charset=utf-8")
+        response["Cache-Control"] = "no-store"
+        return response
 
 
 class PublicLeadCreateView(APIView):

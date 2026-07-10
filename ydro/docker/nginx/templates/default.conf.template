@@ -180,6 +180,16 @@ server {
         return 404;
     }
 
+    location = / {
+        proxy_pass http://yadro_backend/api/public/sites/a-meditation/html/;
+        include /etc/nginx/proxy_params;
+    }
+
+    location = /index.html {
+        proxy_pass http://yadro_backend/api/public/sites/a-meditation/html/;
+        include /etc/nginx/proxy_params;
+    }
+
     location / {
         proxy_pass http://a_meditation_public;
         include /etc/nginx/proxy_params;

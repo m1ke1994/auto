@@ -7,7 +7,7 @@ upstream tracknode_backend {
     server backend:8000;
 }
 
-upstream ameditation_frontend {
+upstream leelabird_frontend {
     server a-meditation-public:3000;
 }
 
@@ -31,7 +31,7 @@ server {
     server_name leelabird.ru www.leelabird.ru;
 
     location / {
-        proxy_pass http://ameditation_frontend;
+        proxy_pass http://leelabird_frontend;
         include /etc/nginx/proxy_params;
     }
 }

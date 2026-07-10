@@ -22,7 +22,7 @@ class SEOAuditViewsExtendedTests(TestCase):
         )
         self.client_obj = Client.objects.create(owner=self.user, name="SEO Views Client")
         self.site = Site.objects.create(
-            name="A Meditation / Амедиа",
+            name="Leelabird",
             slug="a-meditation",
             domain="leelabird.ru",
             owner=self.user,
@@ -131,7 +131,7 @@ class SEOAuditViewsExtendedTests(TestCase):
             password="pass12345",
         )
         site_without_client = Site.objects.create(
-            name="A Meditation / Амедиа",
+            name="Leelabird",
             slug="a-meditation-no-client",
             domain="leelabird.ru",
             owner=owner_without_client,

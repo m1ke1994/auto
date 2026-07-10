@@ -1,6 +1,6 @@
 import { computed, onMounted, ref } from 'vue'
 
-import { buildApiUrl, buildBackendUrl, siteSlug } from '../config/api'
+import { buildApiUrl, buildBackendUrl, buildPublicUrl, siteSlug } from '../config/api'
 
 const mediaKeyPattern = /(image|video|avatar|poster|photo|src|file)$/i
 const siteContentCacheTtlMs = 5 * 60 * 1000
@@ -125,21 +125,80 @@ function setPropertyMeta(property, value) {
   meta.setAttribute('content', value)
 }
 
+function setCanonicalLink(value) {
+  if (!value) return
+
+  let link = document.head.querySelector('link[rel="canonical"]')
+  if (!link) {
+    link = document.createElement('link')
+    link.setAttribute('rel', 'canonical')
+    document.head.appendChild(link)
+  }
+  link.setAttribute('href', value)
+}
+
+function setJsonLd(value) {
+  if (!value) return
+
+  let script = document.getElementById('public-site-json-ld')
+  if (!script) {
+    script = document.createElement('script')
+    script.id = 'public-site-json-ld'
+    script.type = 'application/ld+json'
+    document.head.appendChild(script)
+  }
+
+  script.textContent = typeof value === 'string' ? value : JSON.stringify(value)
+}
+
+function absolutizeSeoUrl(value) {
+  if (typeof value !== 'string' || !value.trim()) return ''
+  const trimmed = value.trim()
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  if (trimmed.startsWith('/media/')) return buildBackendUrl(trimmed)
+  return buildPublicUrl(trimmed)
+}
+
+function firstSeoValue(seo, keys) {
+  for (const key of keys) {
+    const value = seo?.[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return ''
+}
+
 function applySiteSeo(site) {
   const seo = site?.seo
   if (!seo || typeof seo !== 'object') return
 
-  if (seo.title) {
-    document.title = seo.title
-    setPropertyMeta('og:title', seo.title)
-    setNamedMeta('twitter:title', seo.title)
+  const title = firstSeoValue(seo, ['title', 'og_title', 'twitter_title'])
+  const description = firstSeoValue(seo, ['description', 'og_description', 'twitter_description'])
+  const siteName = firstSeoValue(seo, ['site_name', 'og_site_name']) || site?.name || 'Leelabird'
+  const canonical = absolutizeSeoUrl(firstSeoValue(seo, ['canonical', 'url', 'og_url']) || '/')
+  const image = absolutizeSeoUrl(firstSeoValue(seo, ['image', 'og_image', 'twitter_image']))
+  const ogTitle = firstSeoValue(seo, ['og_title']) || title
+  const ogDescription = firstSeoValue(seo, ['og_description']) || description
+  const twitterTitle = firstSeoValue(seo, ['twitter_title']) || title
+  const twitterDescription = firstSeoValue(seo, ['twitter_description']) || description
+  const twitterCard = firstSeoValue(seo, ['twitter_card']) || (image ? 'summary_large_image' : 'summary')
+
+  if (title) {
+    document.title = title
   }
 
-  setMetaDescription(seo.description)
-  setPropertyMeta('og:description', seo.description)
-  setNamedMeta('twitter:description', seo.description)
+  setMetaDescription(description)
   setPropertyMeta('og:type', 'website')
-  setNamedMeta('twitter:card', 'summary')
+  setPropertyMeta('og:site_name', siteName)
+  setPropertyMeta('og:title', ogTitle)
+  setPropertyMeta('og:description', ogDescription)
+  setPropertyMeta('og:url', canonical)
+  setPropertyMeta('og:image', image)
+  setNamedMeta('twitter:card', twitterCard)
+  setNamedMeta('twitter:title', twitterTitle)
+  setNamedMeta('twitter:description', twitterDescription)
+  setNamedMeta('twitter:image', image)
+  setCanonicalLink(canonical)
+  setJsonLd(seo.json_ld)
 }
 
 function ensureTrackerScript(site) {

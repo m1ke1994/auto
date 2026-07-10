@@ -155,7 +155,7 @@ class SitesApiTests(APITestCase):
 
     def test_a_meditation_sections_have_russian_display_titles(self):
         meditation_site = Site.objects.create(
-            name="A Meditation",
+            name="Leelabird",
             slug="a-meditation",
             domain="localhost:5173",
             owner=self.user,
@@ -269,7 +269,7 @@ class SitesApiTests(APITestCase):
             is_active=True,
         )
         meditation_site = Site.objects.create(
-            name="A Meditation",
+            name="Leelabird",
             slug="a-meditation",
             domain="localhost:5173",
             owner=self.user,
@@ -291,7 +291,7 @@ class SitesApiTests(APITestCase):
             section_type="hero",
             order=1,
             schema={"fields": [{"key": "title", "type": "text"}]},
-            content={"title": "A Meditation"},
+            content={"title": "Leelabird"},
         )
 
         self.client.force_authenticate(user=self.user)

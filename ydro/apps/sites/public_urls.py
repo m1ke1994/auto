@@ -3,12 +3,14 @@
 from .views import (
     PublicSiteByDomainView,
     PublicSiteDetailView,
+    PublicSiteHtmlView,
     PublicSiteLeadCreateBySlugView,
     PublicSiteSectionDetailView,
     PublicSiteSectionsListView,
 )
 
 urlpatterns = [
+    path("sites/<slug:site_slug>/html/", PublicSiteHtmlView.as_view(), name="public-site-html"),
     path("sites/<slug:site_slug>/", PublicSiteDetailView.as_view(), name="public-site-detail"),
     path(
         "sites/<slug:site_slug>/sections/",

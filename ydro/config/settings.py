@@ -335,6 +335,10 @@ if IS_PRODUCTION and parsed_public_site_default_url.hostname in {"localhost", "1
     raise ImproperlyConfigured("PUBLIC_SITE_DEFAULT_URL cannot use a local address in production")
 if IS_PRODUCTION and REQUIRE_HTTPS and parsed_public_site_default_url.scheme != "https":
     raise ImproperlyConfigured("PUBLIC_SITE_DEFAULT_URL must use HTTPS when DJANGO_REQUIRE_HTTPS=true")
+PUBLIC_SITE_STATIC_INDEX_URL = env(
+    "PUBLIC_SITE_STATIC_INDEX_URL",
+    "http://public_site:3000/index.html" if IS_PRODUCTION else "",
+).strip()
 FRONTEND_URL = public_url("FRONTEND_URL", SITE_BASE_URL)
 API_URL = public_url("API_URL", f"{SITE_BASE_URL}/api")
 ADMIN_URL = public_url("ADMIN_URL", f"{SITE_BASE_URL}/admin")

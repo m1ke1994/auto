@@ -37,7 +37,7 @@ class ReportViewsTests(TestCase):
             password="test-pass-123",
         )
         site = Site.objects.create(
-            name="A Meditation / Амедиа",
+            name="Leelabird",
             slug="reports-a-meditation-no-client",
             domain="leelabird.ru",
             owner=owner_without_client,

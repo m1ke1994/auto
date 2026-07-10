@@ -4,7 +4,7 @@ from importlib import import_module
 
 from django.apps import apps as django_apps
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.analytics.models import TrackingEvent, Visit
@@ -22,7 +22,7 @@ class PublicApiAccessTests(TestCase):
             password="test-pass-123",
         )
         self.site = Site.objects.create(
-            name="A Meditation",
+            name="Leelabird",
             slug="a-meditation",
             domain="leelabird.ru",
             owner=self.owner,
@@ -46,7 +46,52 @@ class PublicApiAccessTests(TestCase):
         self.assertEqual(site_payload["tracker_key"], self.site.api_key)
         self.assert_public_cors(response)
 
-    @patch.dict(os.environ, {"PUBLIC_SITE_DEFAULT_DOMAIN": "ameditation.example"})
+    @override_settings(PUBLIC_SITE_DEFAULT_DOMAIN="leelabird.ru", PUBLIC_SITE_DEFAULT_URL="https://leelabird.ru")
+    def test_public_site_bundle_returns_normalized_backend_seo(self):
+        self.site.seo = {
+            "title": "Custom Leelabird title",
+            "description": "Custom Leelabird description",
+            "image": "/images/card.jpg",
+        }
+        self.site.save(update_fields=["seo"])
+
+        response = self.client.get(reverse("public-site-bundle", kwargs={"site_slug": self.site.slug}))
+
+        self.assertEqual(response.status_code, 200)
+        seo = response.json()["site"]["seo"]
+        self.assertEqual(seo["title"], "Custom Leelabird title")
+        self.assertEqual(seo["description"], "Custom Leelabird description")
+        self.assertEqual(seo["canonical"], "https://leelabird.ru/")
+        self.assertEqual(seo["og_title"], "Custom Leelabird title")
+        self.assertEqual(seo["twitter_title"], "Custom Leelabird title")
+        self.assertEqual(seo["og_image"], "https://leelabird.ru/images/card.jpg")
+        self.assertEqual(seo["json_ld"]["name"], "Leelabird")
+
+    @override_settings(
+        PUBLIC_SITE_DEFAULT_DOMAIN="leelabird.ru",
+        PUBLIC_SITE_DEFAULT_URL="https://leelabird.ru",
+        PUBLIC_SITE_STATIC_INDEX_URL="",
+    )
+    def test_public_site_html_uses_backend_seo(self):
+        self.site.seo = {
+            "title": "Custom Leelabird HTML title",
+            "description": "Custom Leelabird HTML description",
+        }
+        self.site.save(update_fields=["seo"])
+
+        response = self.client.get(reverse("public-site-html", kwargs={"site_slug": self.site.slug}))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode("utf-8")
+        self.assertIn("<title>Custom Leelabird HTML title</title>", html)
+        self.assertIn('name="description" content="Custom Leelabird HTML description"', html)
+        self.assertIn('property="og:title" content="Custom Leelabird HTML title"', html)
+        self.assertIn('name="twitter:title" content="Custom Leelabird HTML title"', html)
+        self.assertIn('rel="canonical" href="https://leelabird.ru/"', html)
+        self.assertIn('type="application/ld+json"', html)
+        self.assertNotIn("A" + " Meditation", html)
+
+    @patch.dict(os.environ, {"PUBLIC_SITE_DEFAULT_DOMAIN": "leelabird.example"})
     def test_domain_migration_updates_only_local_a_meditation_domain(self):
         self.site.domain = "localhost:5173"
         self.site.save(update_fields=["domain"])
@@ -55,7 +100,7 @@ class PublicApiAccessTests(TestCase):
         migration.update_a_meditation_public_domain(django_apps, None)
 
         self.site.refresh_from_db()
-        self.assertEqual(self.site.domain, "ameditation.example")
+        self.assertEqual(self.site.domain, "leelabird.example")
 
     def test_public_lead_preflight_allows_external_origin_without_credentials(self):
         response = self.client.options(

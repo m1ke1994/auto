@@ -14,7 +14,7 @@
 Тестовые данные:
 - Email: значение `AMEDIA_OWNER_EMAIL`
 - Пароль: значение `AMEDIA_OWNER_PASSWORD`
-- Сайт: `A Meditation / Амедиа`
+- Сайт: `Leelabird`
 
 ## 2. QA Чек-лист (ручная проверка в браузере)
 
@@ -22,7 +22,7 @@
 
 - [ ] Открыть Vue Admin: `http://localhost:5173/login`
 - [ ] Войти с учётными данными из `AMEDIA_OWNER_EMAIL` и `AMEDIA_OWNER_PASSWORD`
-- [ ] Пользователь видит только 1 сайт: `A Meditation / Амедиа`
+- [ ] Пользователь видит только 1 сайт: `Leelabird`
 - [ ] Ошибка `Client dashboard access is available only for active client users.` не появляется
 
 ### 2.2 Подписка и доступы MVP

@@ -9,6 +9,7 @@ from leads.services import send_lead_telegram_notification
 
 from .models import SectionSchema, Site, SiteLead, SiteSection
 from .a_meditation import SECTION_TITLES
+from .seo import build_public_site_seo
 from .volga_site import SECTION_TITLES as VOLGA_SECTION_TITLES
 from .tracker_utils import build_tracker_script_tag
 from .tasks import send_site_lead_push_notification_task
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class PublicSiteSerializer(serializers.ModelSerializer):
+    seo = serializers.SerializerMethodField()
     sections_count = serializers.SerializerMethodField()
     tracker_key = serializers.CharField(source="api_key", read_only=True)
 
@@ -29,6 +31,9 @@ class PublicSiteSerializer(serializers.ModelSerializer):
         if annotated_count is not None:
             return annotated_count
         return obj.sections.filter(is_active=True).count()
+
+    def get_seo(self, obj):
+        return build_public_site_seo(obj)
 
 
 class PublicSiteSectionSerializer(serializers.ModelSerializer):

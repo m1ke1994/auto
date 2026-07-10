@@ -1,4 +1,4 @@
-# Production deploy: TrackNode + A Meditation
+# Production deploy: TrackNode + Leelabird
 
 This deploy expects two sibling folders on the server:
 
@@ -10,7 +10,7 @@ This deploy expects two sibling folders on the server:
 Upload both folders with WinSCP preserving this layout. The recommended production entry point is `ydro`; its nginx serves both domains:
 
 - `tracknode.ru` and `www.tracknode.ru`: TrackNode/Vue Admin plus Django `/admin/`, `/api/`, `/static/`, `/media/`, `/tracker.js`.
-- `leelabird.ru` and `www.leelabird.ru`: only the A Meditation public site. It requests API data from `tracknode.ru`.
+- `leelabird.ru` and `www.leelabird.ru`: only the Leelabird public site. It requests API data from `tracknode.ru`.
 
 ## 1. Prepare env files
 
@@ -50,14 +50,14 @@ PUBLIC_SITE_VITE_PUBLIC_SITE_URL=https://leelabird.ru
 
 Edit `ydro/vue-admin/.env` with HTTP values from `vue-admin/production.env.example`.
 
-For standalone A Meditation builds, use:
+For standalone Leelabird builds, use:
 
 ```bash
 cd ~/projects/v2/a-meditation/frontend
 cp .env.example .env
 ```
 
-The unified `ydro` compose does not require standalone A Meditation compose.
+The unified `ydro` compose does not require standalone Leelabird compose.
 
 ## 2. First HTTP launch
 
@@ -165,7 +165,7 @@ Do not run `docker compose down -v` on production unless you intentionally want 
 
 The backend entrypoint waits for PostgreSQL, runs migrations, and runs `collectstatic` by default.
 
-## 5. Optional standalone A Meditation
+## 5. Optional standalone Leelabird
 
 Only use this if you do not want `ydro` nginx to serve `leelabird.ru`:
 

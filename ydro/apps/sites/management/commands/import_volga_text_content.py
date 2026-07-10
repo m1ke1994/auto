@@ -342,7 +342,7 @@ class Command(BaseCommand):
         if not requested_slug:
             raise CommandError("--site-slug cannot be empty.")
         if requested_slug.casefold() in PROTECTED_SITE_SLUGS:
-            raise CommandError("A Meditation / Amedia is protected and cannot be targeted by this command.")
+            raise CommandError("Leelabird / Amedia is protected and cannot be targeted by this command.")
 
         queryset = Site.objects.select_for_update()
         site = queryset.filter(slug=requested_slug).first()
@@ -359,7 +359,7 @@ class Command(BaseCommand):
 
         domain = (site.domain or "").strip().casefold()
         if site.slug.casefold() in PROTECTED_SITE_SLUGS or domain in PROTECTED_SITE_DOMAINS:
-            raise CommandError("A Meditation / Amedia is protected and cannot be targeted by this command.")
+            raise CommandError("Leelabird / Amedia is protected and cannot be targeted by this command.")
 
         is_volga_site = (
             site.slug == VOLGA_SITE_SLUG

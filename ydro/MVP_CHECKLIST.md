@@ -28,7 +28,7 @@ docker compose exec backend python manage.py migrate
 ```bash
 docker compose exec backend python manage.py seed_amedia_owner
 ```
-- [ ] Убедиться, что пользователь видит только сайт `A Meditation / Амедиа`.
+- [ ] Убедиться, что пользователь видит только сайт `Leelabird`.
 - [ ] Убедиться, что при `ENABLE_BILLING=false` нет блокировок Mini CRM.
 - [ ] Проверить отсутствие ошибки `Client dashboard access is available only for active client users.`.
 

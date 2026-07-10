@@ -83,7 +83,7 @@ class CompetitorAnalysisApiTests(TestCase):
             password="pass12345",
         )
         site_without_client = Site.objects.create(
-            name="A Meditation / Амедиа",
+            name="Leelabird",
             slug="a-meditation-no-client",
             domain="leelabird.ru",
             owner=owner_without_client,

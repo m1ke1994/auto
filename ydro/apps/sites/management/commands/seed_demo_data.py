@@ -16,6 +16,7 @@ from apps.sites.a_meditation import (
     A_MEDITATION_SECTION_SEEDS,
     merge_content_defaults,
 )
+from apps.sites.seo import PUBLIC_SITE_DEFAULT_DESCRIPTION, PUBLIC_SITE_DEFAULT_TITLE
 
 MEDIA_KEY_HINTS = ("image", "video", "avatar", "poster", "photo", "background")
 SECTION_MEDIA_FOLDER_ALIAS = {
@@ -42,7 +43,7 @@ SECTION_SEEDS = [
             ]
         },
         "content": {
-            "title": "A Meditation",
+            "title": "Leelabird",
             "subtitle": "Пространство практик и бережного внимания к себе",
             "description": "Практика, где игра становится проводником к ясности, спокойствию и внутренним ответам.",
             "button_text": "Записаться на игру",
@@ -541,7 +542,7 @@ SECTION_SEEDS = [
             ]
         },
         "content": {
-            "text": "A Meditation — практики осознанности, медитации и игра Лила для мягких изменений в жизни.",
+            "text": "Leelabird — практики осознанности, медитации и игра Лила для мягких изменений в жизни.",
             "links": [
                 {"label": "Записаться", "href": "#contacts", "target": "_self"},
                 {"label": "Telegram", "href": "https://t.me/leelabirdcase", "target": "_blank"},
@@ -554,7 +555,7 @@ SECTION_SEEDS = [
 
 
 class Command(BaseCommand):
-    help = "Create and refresh full demo data for the public A Meditation site with media in Django MEDIA."
+    help = "Create and refresh full demo data for the public Leelabird site with media in Django MEDIA."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -629,7 +630,7 @@ class Command(BaseCommand):
     def _upsert_site(self, owner):
         api_key = os.getenv("DEMO_SITE_API_KEY", "").strip()
         defaults = {
-            "name": os.getenv("DEMO_SITE_NAME", "A Meditation"),
+            "name": os.getenv("DEMO_SITE_NAME", "Leelabird"),
             "domain": os.getenv(
                 "DEMO_SITE_DOMAIN",
                 settings.PUBLIC_SITE_DEFAULT_DOMAIN,
@@ -637,8 +638,10 @@ class Command(BaseCommand):
             "owner": owner,
             "is_active": True,
             "seo": {
-                "title": "A Meditation",
-                "description": "Публичный демо-сайт практик медитации и игры Лила",
+                "title": PUBLIC_SITE_DEFAULT_TITLE,
+                "description": PUBLIC_SITE_DEFAULT_DESCRIPTION,
+                "site_name": "Leelabird",
+                "image": "/images/Lila_Olga_2.2.poster.jpg",
             },
         }
         if api_key:
@@ -794,7 +797,7 @@ class Command(BaseCommand):
                         "demo": True,
                     },
                     "seo": {
-                        "title": f"A Meditation | {section_seed['title']}",
+                        "title": f"Leelabird | {section_seed['title']}",
                     },
                 },
             )

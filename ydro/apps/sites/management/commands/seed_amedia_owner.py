@@ -8,7 +8,7 @@ from django.db import transaction
 from apps.sites.models import Site
 from clients.models import Client
 
-TARGET_SITE_NAME = "A Meditation / Амедиа"
+TARGET_SITE_NAME = "Leelabird"
 TARGET_SITE_SLUG = "a-meditation"
 TARGET_SITE_DOMAIN = os.getenv(
     "AMEDIA_SITE_DOMAIN",
@@ -17,7 +17,7 @@ TARGET_SITE_DOMAIN = os.getenv(
 
 
 class Command(BaseCommand):
-    help = "Create or update amedia owner user and link the user to A Meditation site."
+    help = "Create or update amedia owner user and link the user to Leelabird site."
 
     @transaction.atomic
     def handle(self, *args, **options):

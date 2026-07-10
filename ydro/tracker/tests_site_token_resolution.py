@@ -18,7 +18,7 @@ class TrackerSiteTokenResolutionTests(TestCase):
         )
         self.client_obj = Client.objects.create(owner=self.owner, name="Tracker Client", is_active=True)
         self.site = CoreSite.objects.create(
-            name="A Meditation / Амедиа",
+            name="Leelabird",
             slug="a-meditation",
             domain="localhost",
             owner=self.owner,
@@ -50,7 +50,7 @@ class TrackerSiteTokenResolutionTests(TestCase):
         self.api.post("/api/mini/track/visit-start/", payload, format="json")
         self.api.post(
             "/api/mini/track/pageview/",
-            {**payload, "url": "https://leelabird.ru/", "title": "A Meditation"},
+            {**payload, "url": "https://leelabird.ru/", "title": "Leelabird"},
             format="json",
         )
         self.api.post(

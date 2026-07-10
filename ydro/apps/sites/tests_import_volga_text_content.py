@@ -55,7 +55,7 @@ class ImportVolgaTextContentTests(TestCase):
             owner=self.owner,
         )
         self.meditation_site = Site.objects.create(
-            name="A Meditation",
+            name="Leelabird",
             slug="a-meditation",
             domain="leelabird.ru",
             owner=self.owner,
@@ -74,7 +74,7 @@ class ImportVolgaTextContentTests(TestCase):
                 ]
             },
             content={
-                "title": "A Meditation",
+                "title": "Leelabird",
                 "description": "Protected",
                 "background_image": "/protected/background.jpg",
                 "avatar": "/protected/avatar.jpg",
@@ -134,7 +134,7 @@ class ImportVolgaTextContentTests(TestCase):
             )
 
         self.meditation_hero.refresh_from_db()
-        self.assertEqual(self.meditation_hero.content["title"], "A Meditation")
+        self.assertEqual(self.meditation_hero.content["title"], "Leelabird")
 
     def test_missing_section_aborts_before_any_content_is_saved(self):
         hero = self.create_volga_sections({"hero"})["hero"]
@@ -176,7 +176,7 @@ class ImportVolgaTextContentTests(TestCase):
                 )
 
         self.meditation_hero.refresh_from_db()
-        self.assertEqual(self.meditation_hero.content["title"], "A Meditation")
+        self.assertEqual(self.meditation_hero.content["title"], "Leelabird")
 
     def test_full_export_import_is_idempotent_and_preserves_current_media(self):
         sections = self.create_volga_sections()

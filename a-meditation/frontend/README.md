@@ -1,4 +1,4 @@
-# AMeditation Frontend
+# Leelabird Frontend
 
 Public Vue site connected to Yadro through HTTP API.
 
