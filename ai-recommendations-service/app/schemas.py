@@ -5,6 +5,48 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+FORBIDDEN_PRESENTATION_TERMS = (
+    "analytics.page_views",
+    "analytics.events",
+    "seo.pages",
+    "seo.score",
+    "canonical",
+    "robots.txt",
+    "json-ld",
+    "structured data",
+    "crawl",
+    "crawler",
+    " schema",
+    "meta robots",
+    "core web vitals",
+    " lcp",
+    " cls",
+    " fid",
+    " inp",
+    "redirect",
+    " 5xx",
+    " 4xx",
+    " h1",
+    "meta description",
+    " title",
+    "sitemap",
+    "search console",
+    "google tag manager",
+    "google analytics",
+    "ga4",
+    "яндекс метрика",
+    "данных нет",
+    "невозможно определить",
+)
+
+
+def validate_business_language(value: str) -> str:
+    normalized = f" {value.casefold()}"
+    term = next((item for item in FORBIDDEN_PRESENTATION_TERMS if item in normalized), None)
+    if term:
+        raise ValueError("user-facing text contains forbidden technical language")
+    return value
+
 
 class Period(BaseModel):
     date_from: date
@@ -56,17 +98,21 @@ class JobCreate(BaseModel):
 class Recommendation(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str = Field(max_length=100)
-    category: Literal["seo", "conversion", "content", "performance", "ux", "technical"]
-    priority: Literal["critical", "high", "medium", "low"]
-    title: str = Field(min_length=3, max_length=300)
-    problem: str = Field(min_length=3, max_length=2000)
-    evidence: list[str] = Field(max_length=10)
-    action: str = Field(min_length=3, max_length=3000)
-    expected_impact: str = Field(min_length=3, max_length=1000)
-    effort: Literal["low", "medium", "high"]
-    confidence: float = Field(ge=0, le=1)
-    quick_win: bool
-    limitations: list[str] = Field(default_factory=list, max_length=10)
+    priority: Literal["very_important", "recommended", "later"]
+    title: str = Field(min_length=3, max_length=160)
+    why_important: str = Field(min_length=10, max_length=1000)
+    actions: list[str] = Field(min_length=1, max_length=5)
+    benefit: str = Field(min_length=10, max_length=500)
+
+    @field_validator("title", "why_important", "benefit")
+    @classmethod
+    def human_text(cls, value):
+        return validate_business_language(value)
+
+    @field_validator("actions")
+    @classmethod
+    def human_actions(cls, value):
+        return [validate_business_language(item) for item in value]
 
 
 class RecommendationResult(BaseModel):
@@ -74,6 +120,11 @@ class RecommendationResult(BaseModel):
     summary: str = Field(max_length=2000)
     score: int = Field(ge=0, le=100)
     recommendations: list[Recommendation] = Field(max_length=25)
+
+    @field_validator("summary")
+    @classmethod
+    def human_summary(cls, value):
+        return validate_business_language(value)
 
 
 class JobAccepted(BaseModel):
@@ -89,4 +140,3 @@ class JobResponse(JobAccepted):
     completed_at: datetime | None
     result: RecommendationResult | None
     error: str | None
-

@@ -1,6 +1,6 @@
 # TrackNode AI Recommendations Service
 
-Автономный сервис формирования SEO- и conversion-рекомендаций для TrackNode. Django Core передаёт по HTTPS только агрегированные обезличенные данные, сервис сохраняет задание в PostgreSQL, Celery worker вызывает OpenAI Responses API со строгой Pydantic-схемой, а Core получает результат фоновым polling. Ключ OpenAI хранится только здесь.
+Автономный сервис формирования рекомендаций для владельцев бизнеса в TrackNode. Django Core передаёт по HTTPS только агрегированные обезличенные данные, сервис сохраняет задание в PostgreSQL, Celery worker вызывает OpenAI Responses API со строгой Pydantic-схемой, а Core получает результат фоновым polling. Ключ OpenAI хранится только здесь. Пользовательский ответ не содержит профессиональной лексики: каждая рекомендация объясняет важность, предлагает до пяти понятных действий и описывает пользу для бизнеса.
 
 ## Требования и быстрый запуск
 
@@ -93,4 +93,3 @@ docker compose exec -T postgres pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 - 422: payload не соответствует схеме или содержит неверный домен/период.
 - задания остаются queued: проверьте worker и broker; после восстановления безопасно используйте retry только для `failed`.
 - OpenAI timeout/rate limit повторяются с backoff; пользователю возвращается безопасная ошибка без prompt, ключей и stack trace.
-

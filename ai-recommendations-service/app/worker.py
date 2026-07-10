@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from celery import Celery
 from celery.exceptions import SoftTimeLimitExceeded
 from openai import APIConnectionError, APITimeoutError, RateLimitError
+from pydantic import ValidationError
 from sqlalchemy import select
 
 from app.config import get_settings
@@ -38,6 +39,11 @@ def process_job(self, job_id: str):
             if self.request.retries < settings.MAX_RETRIES:
                 raise self.retry(exc=exc, countdown=(30, 90, 270)[min(self.request.retries, 2)])
             _fail(db, job_id, "Временная ошибка сервиса OpenAI. Повторите запрос позже.")
+        except (ValidationError, ValueError) as exc:
+            db.rollback()
+            if self.request.retries < settings.MAX_RETRIES:
+                raise self.retry(exc=exc, countdown=(30, 90, 270)[min(self.request.retries, 2)])
+            _fail(db, job_id, "Не удалось подготовить понятные рекомендации. Попробуйте повторить анализ.")
         except Exception:
             logger.exception("recommendation_generation_failed", extra={"job_id": job_id})
             db.rollback()
@@ -49,4 +55,3 @@ def _fail(db, job_id, message):
     if job:
         job.status, job.error_message, job.completed_at = JobStatus.failed, message, datetime.now(timezone.utc)
         db.commit()
-
