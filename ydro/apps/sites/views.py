@@ -20,6 +20,7 @@ from subscriptions.access import FEATURE_LEADS, FEATURE_SITE_EDIT, FEATURE_TELEG
 from subscriptions.permissions import HasFeatureAccess
 
 from .models import Site, SiteLead, SiteSection
+from .public_renderer import inject_subscription_lock, public_billing_url, site_requires_subscription_lock
 from .seo import build_public_site_seo, render_public_site_seo_head
 from .serializers import (
     AdminLeadSerializer,
@@ -210,7 +211,14 @@ class PublicSiteHtmlView(APIView):
 
         index_html = _load_public_site_index_html()
         html = _inject_public_site_seo(index_html, build_public_site_seo(site))
+        subscription_required = site_requires_subscription_lock(site)
+        if subscription_required:
+            html = inject_subscription_lock(html, public_billing_url())
         response = HttpResponse(html, content_type="text/html; charset=utf-8")
+        response["X-TrackNode-Site-Status"] = "suspended" if subscription_required else "active"
+        response["X-TrackNode-Subscription-Required"] = str(subscription_required).lower()
+        if subscription_required:
+            response["X-TrackNode-Billing-Url"] = public_billing_url()
         response["Cache-Control"] = "no-store"
         return response
 
