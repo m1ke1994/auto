@@ -28,6 +28,7 @@ class PublicSiteSubscriptionLockTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('id="tracknode-subscription-lock"', html)
         self.assertIn("Перейти в личный кабинет", html)
+        self.assertIn("https://tracknode.test/login?redirect=/billing", html)
         self.assertEqual(response["X-TrackNode-Site-Status"], "suspended")
         self.assertEqual(response["X-TrackNode-Subscription-Required"], "true")
 
@@ -56,6 +57,10 @@ class PublicSiteSubscriptionLockTests(TestCase):
         self.assertTrue(rendered.startswith("<main>Site</main>"))
         self.assertIn("tracknode-subscription-lock", rendered)
         self.assertIn("a=1&amp;b=2", rendered)
+
+    def test_existing_lock_is_not_injected_twice(self):
+        source = '<html><body><div id="tracknode-subscription-lock"></div></body></html>'
+        self.assertEqual(inject_subscription_lock(source, "https://tracknode.test/billing"), source)
 
     @override_settings(ENABLE_BILLING=False)
     def test_disabled_billing_preserves_existing_public_site_behavior(self):

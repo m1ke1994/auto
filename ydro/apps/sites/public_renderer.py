@@ -20,6 +20,9 @@ def site_requires_subscription_lock(site) -> bool:
 
 
 def inject_subscription_lock(index_html: str, billing_url: str) -> str:
+    if "tracknode-subscription-lock" in index_html:
+        return index_html
+
     safe_billing_url = escape(str(billing_url), quote=True)
     markup = f"""
 <style id="tracknode-subscription-lock-style">
@@ -27,12 +30,13 @@ def inject_subscription_lock(index_html: str, billing_url: str) -> str:
   #tracknode-subscription-lock {{
     position: fixed; inset: 0; z-index: 2147483647; display: flex;
     align-items: center; justify-content: center; box-sizing: border-box;
-    width: 100vw; min-height: 100vh; min-height: 100dvh; padding: 20px;
-    background: rgba(15, 23, 42, .76); backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px); overflow: auto; overscroll-behavior: contain;
+    width: 100%; min-height: 100vh; min-height: 100dvh; padding: 20px;
+    background: rgba(15, 23, 42, .78); backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px); pointer-events: auto;
   }}
+  #tracknode-subscription-lock, #tracknode-subscription-lock * {{ box-sizing: border-box; }}
   #tracknode-subscription-lock .tracknode-lock-card {{
-    box-sizing: border-box; width: min(100%, 520px); padding: 32px;
+    width: min(100%, 540px); max-height: calc(100vh - 40px); overflow: auto; padding: 32px;
     border-radius: 24px; background: #fff; color: #0f172a; text-align: center;
     box-shadow: 0 24px 80px rgba(0, 0, 0, .28); font-family: Arial, sans-serif;
   }}
@@ -41,25 +45,26 @@ def inject_subscription_lock(index_html: str, billing_url: str) -> str:
     height: 64px; margin: 0 auto 20px; border-radius: 50%; background: #fff7ed;
     color: #ea580c; font-size: 32px; font-weight: 700;
   }}
-  #tracknode-subscription-lock h1 {{ margin: 0 0 16px; font-size: clamp(24px, 4vw, 32px); line-height: 1.2; }}
+  #tracknode-subscription-lock h1 {{ margin: 0 0 16px; color: #0f172a; font-size: clamp(24px, 5vw, 32px); line-height: 1.2; }}
   #tracknode-subscription-lock p {{ margin: 0 0 24px; color: #475569; font-size: 16px; line-height: 1.6; }}
-  #tracknode-subscription-lock a {{
-    display: inline-flex; align-items: center; justify-content: center; min-height: 48px;
+  #tracknode-subscription-lock .tracknode-lock-button {{
+    display: inline-flex; align-items: center; justify-content: center; min-height: 50px;
     padding: 0 24px; border-radius: 14px; background: #2563eb; color: #fff;
-    text-decoration: none; font-weight: 700;
+    text-decoration: none; font-size: 16px; font-weight: 700;
   }}
-  #tracknode-subscription-lock small {{ display: block; margin-top: 18px; color: #94a3b8; }}
-  @media (max-width: 480px) {{
+  #tracknode-subscription-lock .tracknode-lock-button:hover {{ background: #1d4ed8; }}
+  #tracknode-subscription-lock small {{ display: block; margin-top: 18px; color: #94a3b8; font-size: 13px; }}
+  @media (max-width: 600px) {{
     #tracknode-subscription-lock {{ padding: 14px; }}
-    #tracknode-subscription-lock .tracknode-lock-card {{ padding: 24px 20px; }}
+    #tracknode-subscription-lock .tracknode-lock-card {{ padding: 24px 20px; border-radius: 20px; }}
   }}
 </style>
 <div id="tracknode-subscription-lock" role="dialog" aria-modal="true" aria-labelledby="tracknode-subscription-lock-title">
   <div class="tracknode-lock-card">
     <div class="tracknode-lock-icon" aria-hidden="true">!</div>
     <h1 id="tracknode-subscription-lock-title">Работа сайта временно приостановлена</h1>
-    <p>Доступ к сайту ограничен, поскольку срок действия тарифа истёк или он не был оплачен.<br><br>Для восстановления полноценной работы сайта владельцу необходимо войти в личный кабинет TrackNode и продлить подписку.</p>
-    <a href="{safe_billing_url}">Перейти в личный кабинет</a>
+    <p>Срок действия тарифа истёк либо тариф не был оплачен. Для восстановления работы сайта владельцу необходимо войти в личный кабинет TrackNode и продлить подписку.</p>
+    <a class="tracknode-lock-button" href="{safe_billing_url}">Перейти в личный кабинет</a>
     <small>Сайт работает на платформе TrackNode</small>
   </div>
 </div>
@@ -68,7 +73,9 @@ def inject_subscription_lock(index_html: str, billing_url: str) -> str:
     document.documentElement.style.setProperty('overflow', 'hidden', 'important');
     if (document.body) document.body.style.setProperty('overflow', 'hidden', 'important');
     document.addEventListener('keydown', function (event) {{
-      if (event.key === 'Escape') {{ event.preventDefault(); event.stopImmediatePropagation(); }}
+      if (event.key === 'Escape') {{
+        event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation();
+      }}
     }}, true);
   }})();
 </script>
