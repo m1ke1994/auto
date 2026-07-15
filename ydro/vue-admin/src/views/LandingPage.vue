@@ -1,753 +1,260 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { ArrowRight, Check, Menu, X } from '@lucide/vue'
+
 import {
-  ArrowRight,
-  BarChart3,
-  BellRing,
-  Blocks,
-  CheckCircle2,
-  FileSearch,
-  FileText,
-  Flame,
-  Funnel,
-  Inbox,
-  Menu,
-  MousePointerClick,
-  Route,
-  SearchCheck,
-  Smartphone,
-  Sparkles,
-  X,
-  Zap,
-} from '@lucide/vue'
+  applyPublicSiteSeo,
+  ensurePublicSiteTracker,
+  loadTrackNodePublicSite,
+  submitPublicSiteLead,
+} from '../api/publicSite'
 
-import { applyPublicSiteSeo, ensurePublicSiteTracker, loadTrackNodePublicSite, submitPublicSiteLead } from '../api/publicSite'
-
-const mobileMenuOpen = ref(false)
-const activeSection = ref('features')
-const activePricingDuration = ref('')
-const openFaq = ref(0)
 const site = ref(null)
 const sections = ref([])
 const loading = ref(true)
 const loadError = ref('')
-const leadForm = reactive({ name: '', contact: '', message: '', consent: false, website: '' })
-const leadState = reactive({ submitting: false, success: '', error: '', touched: false })
-let sectionObserver
-let statsAnimationFrame
-let statsUpdateTimer
+const menuOpen = ref(false)
+const openFaq = ref(0)
+const form = reactive({ name: '', contact: '', message: '', consent: false, website: '' })
+const formState = reactive({ submitting: false, success: '', error: '', started: false })
+let revealObserver
 
-const liveStats = reactive({
-  visitors: 0,
-  views: 0,
-  leads: 0,
-  conversion: 0,
+const sectionsByKey = computed(() => Object.fromEntries(sections.value.map((item) => [item.key, item.content || {}])))
+const backendPlans = computed(() => sectionsByKey.value.tariffs?.plans || [])
+const plans = computed(() => {
+  const seen = new Set()
+  return backendPlans.value.filter((plan) => {
+    const key = plan.title || plan.name
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  }).slice(0, 2)
 })
 
-const iconMap = {
-  analytics: BarChart3,
-  bell: BellRing,
-  blocks: Blocks,
-  check: CheckCircle2,
-  click: MousePointerClick,
-  device: Smartphone,
-  funnel: Funnel,
-  inbox: Inbox,
-  report: FileText,
-  route: Route,
-  search: FileSearch,
-  seo: SearchCheck,
-  sparkles: Sparkles,
-  zap: Zap,
+const problems = [
+  'Неясно, почему посетители не оставляют заявки',
+  'Ошибки на сайте замечают слишком поздно',
+  'После запуска рекламы видны расходы, но не результат',
+  'Обращения клиентов теряются между формой и мессенджерами',
+  'Непонятно, какие страницы действительно работают',
+]
+
+const flow = ['Посетитель', 'Ваш сайт', 'TrackNode', 'Личный кабинет', 'Telegram', 'Решение']
+
+const productStories = [
+  {
+    key: 'analytics', kicker: 'Аналитика', title: 'Сразу видно главное',
+    text: 'Посетители, заявки, конверсия и просмотры собраны на одном экране. TrackNode объясняет ситуацию простыми словами и помогает выбрать следующий шаг.',
+    route: '/dashboard', reverse: false,
+  },
+  {
+    key: 'leads', kicker: 'Заявки', title: 'Ни одно обращение не потеряется',
+    text: 'Имя, контакты, сообщение, источник и статус заявки остаются в кабинете. Команда видит историю и понимает, кому нужно ответить.',
+    route: '/dashboard', reverse: true,
+  },
+  {
+    key: 'seo', kicker: 'SEO и конкуренты', title: 'Проблемы становятся конкретными задачами',
+    text: 'Проверка сайта находит технические и содержательные ошибки. Анализ конкурентов помогает понять, что стоит улучшить — без таблиц на сотни строк.',
+    route: '/dashboard', reverse: false,
+  },
+  {
+    key: 'notifications', kicker: 'Telegram', title: 'О новом клиенте узнаёте сразу',
+    text: 'TrackNode отправляет уведомление после заявки. Не нужно постоянно обновлять почту или держать открытым кабинет.',
+    route: '/dashboard', reverse: true,
+  },
+  {
+    key: 'ai', kicker: 'Рекомендации', title: 'Не просто данные, а понятный следующий шаг',
+    text: 'Рекомендации опираются на аналитику сайта и расставляют приоритеты: что проверить сейчас, а что можно отложить.',
+    route: '/dashboard', reverse: false,
+  },
+  {
+    key: 'sites', kicker: 'Несколько сайтов', title: 'Один кабинет для всей работы',
+    text: 'Переключайтесь между сайтами без смешивания данных. Для каждого сохраняются свои заявки, аналитика, аудит и настройки.',
+    route: '/dashboard', reverse: true,
+  },
+]
+
+const audiences = [
+  ['Малый бизнес', 'Контролировать сайт и обращения без отдельного аналитика.'],
+  ['Веб-студии', 'Следить за сайтами клиентов и показывать результат работы.'],
+  ['Специалисты', 'Понимать, какие услуги интересуют людей и откуда они приходят.'],
+  ['Компании', 'Дать маркетингу и продажам общую картину по сайту.'],
+  ['Несколько сайтов', 'Переключаться между проектами в одном кабинете.'],
+]
+
+const faq = [
+  ['Нужно ли менять существующий сайт?', 'Нет. TrackNode подключается к уже работающему сайту с помощью кода отслеживания.'],
+  ['Нужно ли разбираться в аналитике?', 'Нет. Основные показатели и выводы написаны обычным языком. Подробные данные остаются доступны, когда они нужны.'],
+  ['Где появляются заявки?', 'В личном кабинете TrackNode и в подключённом Telegram.'],
+  ['Можно ли подключить несколько сайтов?', 'Да. Сайты переключаются внутри одного кабинета, а их данные не смешиваются.'],
+  ['Подходит ли сервис малому бизнесу?', 'Да. TrackNode рассчитан на владельца бизнеса, которому важно быстро понять ситуацию и принять решение.'],
+]
+
+function closeMenu() { menuOpen.value = false }
+
+function track(type, payload = {}) {
+  window.tracknode?.track?.(type, { page: window.location.pathname, ...payload })
 }
 
-const sectionsByKey = computed(() => Object.fromEntries(sections.value.map((section) => [section.key, section])))
-const sectionContent = (key) => sectionsByKey.value[key]?.content || {}
-const sectionOrder = (key) => Number(sectionsByKey.value[key]?.order || 0)
-const hasSection = (key) => Boolean(sectionsByKey.value[key])
-const resolveIcon = (name) => iconMap[name] || Blocks
-
-const navigation = computed(() => sectionContent('navigation'))
-const hero = computed(() => sectionContent('hero'))
-const featuresSection = computed(() => sectionContent('features'))
-const analyticsSection = computed(() => sectionContent('analytics'))
-const seoSection = computed(() => sectionContent('seo_analysis'))
-const tariffsSection = computed(() => sectionContent('tariffs'))
-const faqSection = computed(() => sectionContent('faq'))
-const finalCta = computed(() => sectionContent('final_cta'))
-const footer = computed(() => sectionContent('footer'))
-
-const navItems = computed(() => navigation.value.left_links || [])
-const rightNavItems = computed(() => navigation.value.right_links || [])
-const heroBenefits = computed(() => (hero.value.benefits || []).map((item) => ({ ...item, icon: resolveIcon(item.icon) })))
-const heroStats = computed(() => hero.value.stats || [])
-const featurePromises = computed(() => (featuresSection.value.promises || []).map((item) => ({ ...item, icon: resolveIcon(item.icon) })))
-const features = computed(() => (featuresSection.value.items || []).map((item) => ({ ...item, icon: resolveIcon(item.icon), type: item.visual_type })))
-const ecosystemItems = computed(() => (analyticsSection.value.items || []).map((item) => ({ ...item, icon: resolveIcon(item.icon) })))
-const seoChecks = computed(() => seoSection.value.checks || [])
-const pricingTabs = computed(() => tariffsSection.value.tabs || [])
-const pricingPlans = computed(() => tariffsSection.value.plans || [])
-const visiblePlans = computed(() => pricingPlans.value.filter((plan) => plan.duration === activePricingDuration.value))
-const faqItems = computed(() => faqSection.value.items || [])
-
-function closeMobileMenu() {
-  mobileMenuOpen.value = false
-}
-
-function trackLandingEvent(type) {
-  window.tracknode?.track?.(type, { page: window.location.pathname })
-}
-
-function markFormStarted() {
-  if (leadState.touched) return
-  leadState.touched = true
-  trackLandingEvent('lead_form_started')
+function formStarted() {
+  if (formState.started) return
+  formState.started = true
+  track('lead_form_started')
 }
 
 async function submitLead() {
-  if (leadState.submitting) return
-  leadState.error = ''
-  leadState.success = ''
-  if (!leadForm.name.trim() || !leadForm.contact.trim() || !leadForm.consent) {
-    leadState.error = 'Заполните имя, телефон или email и подтвердите согласие.'
+  if (formState.submitting) return
+  formState.error = ''
+  formState.success = ''
+  if (!form.name.trim() || !form.contact.trim() || !form.consent) {
+    formState.error = 'Заполните имя, телефон или email и подтвердите согласие.'
     return
   }
-  leadState.submitting = true
-  const search = new URLSearchParams(window.location.search)
+  formState.submitting = true
+  const query = new URLSearchParams(window.location.search)
   try {
     await submitPublicSiteLead(site.value?.slug, {
-      name: leadForm.name.trim(), contact: leadForm.contact.trim(), message: leadForm.message.trim(),
-      consent: leadForm.consent, website: leadForm.website, source_url: window.location.href,
-      form_name: 'Форма лендинга TrackNode', section_key: 'contact',
+      name: form.name.trim(), contact: form.contact.trim(), message: form.message.trim(),
+      consent: form.consent, website: form.website, source_url: window.location.href,
+      section_key: 'contact', form_name: 'Новый лендинг TrackNode',
       payload: {
-        referrer: document.referrer || '', session_id: sessionStorage.getItem('tracknode_session_id') || '',
-        utm_source: search.get('utm_source') || '', utm_medium: search.get('utm_medium') || '',
-        utm_campaign: search.get('utm_campaign') || '', utm_term: search.get('utm_term') || '',
-        utm_content: search.get('utm_content') || '',
+        referrer: document.referrer || '',
+        utm_source: query.get('utm_source') || '', utm_medium: query.get('utm_medium') || '',
+        utm_campaign: query.get('utm_campaign') || '', utm_term: query.get('utm_term') || '',
+        utm_content: query.get('utm_content') || '',
       },
     })
-    leadState.success = 'Спасибо! Заявка отправлена. Мы свяжемся с вами в ближайшее время.'
-    Object.assign(leadForm, { name: '', contact: '', message: '', consent: false, website: '' })
-    trackLandingEvent('lead_form_success')
+    Object.assign(form, { name: '', contact: '', message: '', consent: false, website: '' })
+    formState.success = 'Спасибо! Заявка отправлена. Мы свяжемся с вами в ближайшее время.'
+    track('lead_form_success')
   } catch {
-    leadState.error = 'Не удалось отправить заявку. Попробуйте ещё раз или напишите нам в Telegram.'
-    trackLandingEvent('lead_form_error')
+    formState.error = 'Не удалось отправить заявку. Попробуйте ещё раз или напишите нам в Telegram.'
+    track('lead_form_error')
   } finally {
-    leadState.submitting = false
+    formState.submitting = false
   }
 }
 
-function formatInteger(value) {
-  return Math.round(value).toLocaleString('ru-RU')
-}
-
-function formatConversion(value) {
-  return Number(value).toFixed(2)
-}
-
-function formatStat(stat) {
-  const value = liveStats[stat.key] || 0
-  return stat.format === 'percent' ? `${formatConversion(value)}%` : formatInteger(value)
-}
-
-function statByKey(key) {
-  return heroStats.value.find((item) => item.key === key) || { key, label: '', delta: '', format: 'integer' }
-}
-
-function startLiveUpdates() {
-  statsUpdateTimer = window.setInterval(() => {
-    liveStats.visitors += 1 + Math.floor(Math.random() * 3)
-    liveStats.views += 3 + Math.floor(Math.random() * 5)
-    if (Math.random() > 0.55) liveStats.leads += 1
-    const conversionTarget = Number(heroStats.value.find((item) => item.key === 'conversion')?.target || 0)
-    liveStats.conversion = Math.min(conversionTarget + 0.12, Math.max(conversionTarget - 0.07, liveStats.conversion + (Math.random() - 0.48) * 0.012))
-  }, 2800)
-}
-
-function animateStats() {
-  const targets = Object.fromEntries(heroStats.value.map((item) => [item.key, Number(item.target || 0)]))
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    Object.assign(liveStats, targets)
-    return
-  }
-
-  const startedAt = performance.now()
-  const duration = 1600
-
-  const update = (now) => {
-    const progress = Math.min((now - startedAt) / duration, 1)
-    const eased = 1 - Math.pow(1 - progress, 3)
-    for (const key of Object.keys(liveStats)) liveStats[key] = Number(targets[key] || 0) * eased
-
-    if (progress < 1) statsAnimationFrame = requestAnimationFrame(update)
-    else startLiveUpdates()
-  }
-
-  statsAnimationFrame = requestAnimationFrame(update)
-}
-
-function setupSectionObserver() {
-  const sections = [...navItems.value, ...rightNavItems.value]
-    .map((item) => document.getElementById(item.section_id))
-    .filter(Boolean)
-
-  sectionObserver = new IntersectionObserver(
-    (entries) => {
-      const visible = entries
-        .filter((entry) => entry.isIntersecting)
-        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
-      if (visible) activeSection.value = visible.target.id
-    },
-    { rootMargin: '-24% 0px -62% 0px', threshold: [0, 0.1, 0.3] },
-  )
-
-  sections.forEach((section) => sectionObserver.observe(section))
+function setupReveal() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => entry.isIntersecting && entry.target.classList.add('is-visible'))
+  }, { threshold: 0.12 })
+  document.querySelectorAll('[data-reveal]').forEach((element) => revealObserver.observe(element))
 }
 
 onMounted(async () => {
   try {
     const payload = await loadTrackNodePublicSite()
     site.value = payload.site
-    sections.value = [...payload.sections].sort((left, right) => Number(left.order) - Number(right.order))
-    activePricingDuration.value = pricingTabs.value[0]?.id || ''
+    sections.value = payload.sections
     applyPublicSiteSeo(site.value)
     ensurePublicSiteTracker(site.value)
-    await nextTick()
-    setupSectionObserver()
-    animateStats()
+    requestAnimationFrame(setupReveal)
   } catch (error) {
-    loadError.value = error?.message || 'Не удалось загрузить данные лендинга из ядра.'
+    loadError.value = error?.message || 'Не удалось загрузить TrackNode.'
   } finally {
     loading.value = false
   }
 })
 
-onUnmounted(() => {
-  sectionObserver?.disconnect()
-  cancelAnimationFrame(statsAnimationFrame)
-  window.clearInterval(statsUpdateTimer)
-})
+onUnmounted(() => revealObserver?.disconnect())
 </script>
 
 <template>
-  <div class="landing-page">
-    <div v-if="loading" class="landing-state" role="status">Загружаем TrackNode…</div>
-    <div v-else-if="loadError" class="landing-state landing-state-error" role="alert">
-      <strong>Лендинг временно недоступен</strong>
-      <span>{{ loadError }}</span>
-    </div>
+  <div class="landing">
+    <div v-if="loading" class="page-state">Загружаем TrackNode…</div>
+    <div v-else-if="loadError" class="page-state"><strong>Сайт временно недоступен</strong><span>{{ loadError }}</span></div>
     <template v-else>
-    <header v-if="hasSection('navigation')" class="landing-header">
-      <nav class="nav-shell" aria-label="Основная навигация">
-        <div class="nav-side nav-left">
-          <a
-            v-for="item in navItems"
-            :key="item.href"
-            :href="item.href"
-            class="nav-link"
-            :class="{ active: activeSection === item.section_id }"
-          >{{ item.label }}</a>
-        </div>
+      <header class="header">
+        <nav class="nav wrap" aria-label="Основная навигация">
+          <a href="#top" class="brand" @click="closeMenu"><span>TN</span>TrackNode</a>
+          <div class="desktop-nav">
+            <a href="#product">Возможности</a><a href="#audience">Для кого</a><a href="#pricing">Тарифы</a><a href="#faq">FAQ</a>
+          </div>
+          <div class="nav-actions"><RouterLink to="/login" class="login" @click="track('login_click')">Войти</RouterLink><RouterLink to="/register" class="button small">Попробовать</RouterLink></div>
+          <button class="menu-button" type="button" :aria-expanded="menuOpen" aria-label="Открыть меню" @click="menuOpen = !menuOpen"><X v-if="menuOpen" /><Menu v-else /></button>
+        </nav>
+        <div v-if="menuOpen" class="mobile-nav"><a href="#product" @click="closeMenu">Возможности</a><a href="#audience" @click="closeMenu">Для кого</a><a href="#pricing" @click="closeMenu">Тарифы</a><a href="#faq" @click="closeMenu">FAQ</a><RouterLink to="/login">Войти</RouterLink></div>
+      </header>
 
-        <a class="brand" href="#top" :aria-label="`${navigation.brand_name} — на главную`">
-          <span class="brand-cube" aria-hidden="true">
-            <img src="/images/landing/cube.png" :alt="navigation.cube_alt" />
-          </span>
-          <span class="brand-copy">
-            <span class="brand-kicker">{{ navigation.brand_kicker }}</span>
-            <span class="brand-line">{{ navigation.brand_name.slice(0, -4) }}<span>{{ navigation.brand_name.slice(-4) }}</span></span>
-          </span>
-        </a>
-
-        <div class="nav-side nav-right">
-          <a
-            v-for="item in rightNavItems"
-            :key="item.href"
-            :href="item.href"
-            class="nav-link"
-            :class="{ active: activeSection === item.section_id }"
-          >{{ item.label }}</a>
-          <a class="login-button" :href="navigation.login_route">{{ navigation.login_label }} <ArrowRight :size="17" /></a>
-        </div>
-
-        <button
-          class="menu-button"
-          type="button"
-          :aria-expanded="mobileMenuOpen"
-          aria-controls="mobile-navigation"
-          aria-label="Открыть меню"
-          @click="mobileMenuOpen = !mobileMenuOpen"
-        >
-          <X v-if="mobileMenuOpen" :size="22" />
-          <Menu v-else :size="22" />
-        </button>
-      </nav>
-
-      <div v-if="mobileMenuOpen" id="mobile-navigation" class="mobile-menu">
-        <a v-for="item in [...navItems, ...rightNavItems]" :key="item.href" :href="item.href" @click="closeMobileMenu">
-          {{ item.label }}
-        </a>
-        <a :href="navigation.login_route" class="login-button" @click="closeMobileMenu">{{ navigation.login_label }} <ArrowRight :size="17" /></a>
-      </div>
-    </header>
-
-    <main id="top" class="landing-main">
-      <section v-if="hasSection('hero')" class="hero-section" aria-labelledby="hero-title" :style="{ order: sectionOrder('hero') }">
-        <div class="ambient ambient-one"></div>
-        <div class="ambient ambient-two"></div>
-        <div class="landing-container hero-grid">
-          <div class="hero-copy">
-            <p class="eyebrow"><BarChart3 :size="15" /> {{ hero.eyebrow }}</p>
-            <h1 id="hero-title">{{ hero.title_line_1 }}<br />{{ hero.title_line_2 }}<br /><span>{{ hero.title_accent }}</span></h1>
-            <p class="hero-lead">{{ hero.description }}</p>
-            <div class="hero-actions">
-              <a class="primary-button" :href="hero.primary_route">{{ hero.primary_label }} <Zap :size="18" /></a>
-              <a class="secondary-button" :href="hero.secondary_href"><span class="play">▶</span> {{ hero.secondary_label }}</a>
+      <main id="top">
+        <section class="hero wrap">
+          <div class="hero-copy" data-reveal>
+            <p class="kicker">Помощник владельца сайта</p>
+            <h1>Управляйте сайтом так, словно рядом работает аналитик</h1>
+            <p class="lead">TrackNode показывает, что происходит с сайтом, где теряются клиенты и что стоит сделать дальше.</p>
+            <div class="hero-actions"><RouterLink to="/register" class="button" @click="track('primary_cta_click')">Подключить TrackNode <ArrowRight :size="18" /></RouterLink><a href="#product" class="text-link">Посмотреть продукт</a></div>
+            <p class="fine">Для малого бизнеса, специалистов, компаний и веб-студий.</p>
+          </div>
+          <a href="#product" class="hero-product product-window" data-reveal aria-label="Посмотреть интерфейс TrackNode">
+            <div class="window-bar"><i /><i /><i /><span>TrackNode · Аналитика</span></div>
+            <div class="live-screen analytics-screen">
+              <aside><b>TN</b><span>Главная</span><strong>Аналитика</strong><span>Заявки</span><span>SEO-аудит</span><span>Telegram</span></aside>
+              <div class="screen-body"><small>АНАЛИТИКА</small><h2>Главное за 14 дней</h2><div class="metrics"><div><span>Посетители</span><b>34</b></div><div><span>Заявки</span><b>2</b></div><div><span>Конверсия</span><b>5,9%</b></div><div><span>Просмотры</span><b>81</b></div></div><div class="insight"><b>Сайт посещают и оставляют заявки.</b><span>Больше всего людей открывают главную страницу.</span></div><div class="trend"><span v-for="height in [28,42,36,58,47,72,62,85,70,96,78,102]" :key="height" :style="{height:`${height}px`}" /></div></div>
             </div>
-            <div class="hero-benefits">
-              <div v-for="item in heroBenefits" :key="item.label" class="hero-benefit">
-                <span><component :is="item.icon" :size="16" /></span>
-                {{ item.label }}
+          </a>
+        </section>
+
+        <section class="problem-section">
+          <div class="wrap problem-layout">
+            <div data-reveal><p class="kicker">Обычная ситуация</p><h2>Сайт работает. Но что происходит внутри — непонятно.</h2></div>
+            <div class="problem-list" data-reveal><p v-for="item in problems" :key="item">{{ item }}</p></div>
+          </div>
+          <p class="solution-line wrap" data-reveal>TrackNode собирает эту картину в одном кабинете и переводит её на понятный язык.</p>
+        </section>
+
+        <section class="flow-section wrap" data-reveal>
+          <p class="kicker">Как это работает</p><h2>От первого посещения — до вашего решения</h2>
+          <div class="flow"><template v-for="(item,index) in flow" :key="item"><span>{{ item }}</span><ArrowRight v-if="index < flow.length - 1" :size="18" /></template></div>
+        </section>
+
+        <section id="product" class="product-stories">
+          <article v-for="story in productStories" :key="story.key" class="story wrap" :class="{ reverse: story.reverse }">
+            <div class="story-copy" data-reveal><p class="kicker">{{ story.kicker }}</p><h2>{{ story.title }}</h2><p>{{ story.text }}</p><RouterLink :to="story.route" class="text-link">Открыть кабинет <ArrowRight :size="16" /></RouterLink></div>
+            <div class="product-window story-window" data-reveal>
+              <div class="window-bar"><i /><i /><i /><span>TrackNode · {{ story.kicker }}</span></div>
+              <div class="live-screen story-screen">
+                <div class="screen-sidebar"><b>TN</b><span>Главная</span><span :class="{selected: story.key === 'analytics'}">Аналитика</span><span :class="{selected: story.key === 'leads'}">Заявки</span><span :class="{selected: story.key === 'seo'}">SEO-аудит</span><span :class="{selected: story.key === 'notifications'}">Telegram</span><span :class="{selected: story.key === 'ai'}">Рекомендации</span></div>
+                <div class="story-content"><small>{{ story.kicker }}</small><h3>{{ story.title }}</h3><div class="content-line wide"/><div class="content-line"/><div class="screen-panel"><b>{{ story.text.split('.')[0] }}.</b><span>{{ story.text.split('.').slice(1).join('.').trim() }}</span></div><div class="content-table"><i v-for="n in 4" :key="n" /></div></div>
               </div>
             </div>
-          </div>
+          </article>
+        </section>
 
-          <div class="hero-visual" aria-label="Визуализация аналитики TrackNode">
-            <div class="hero-orbit orbit-a"></div>
-            <div class="hero-orbit orbit-b"></div>
-            <div class="cube-stage"></div>
-            <img class="hero-cube" src="/images/landing/cube.png" :alt="hero.cube_alt" />
-            <article class="float-card visitors-card">
-              <small>{{ hero.visitors_card_label }}</small><strong class="live-number">{{ formatInteger(liveStats.visitors) }} <em>{{ statByKey('visitors').delta }}</em></strong>
-              <svg viewBox="0 0 190 45" aria-hidden="true"><path d="M2 36 24 26 45 34 66 18 88 29 110 17 134 30 160 20 188 6" /></svg>
-            </article>
-            <article class="float-card conversion-card">
-              <small>{{ hero.conversion_card_label }}</small><strong class="live-number">{{ formatConversion(liveStats.conversion) }}% <em>{{ statByKey('conversion').delta }}</em></strong>
-              <div class="donut"></div>
-            </article>
-            <article class="float-card heat-card">
-              <small>{{ hero.heatmap_card_label }}</small>
-              <div class="mini-heat"><i></i><i></i><i></i><i></i></div>
-            </article>
-            <article class="float-card traffic-card">
-              <small>{{ hero.traffic_card_label }}</small>
-              <span><i style="width: 84%"></i></span><span><i style="width: 61%"></i></span><span><i style="width: 42%"></i></span>
-            </article>
-          </div>
-        </div>
-        <div class="landing-container metrics-strip">
-          <div v-for="stat in heroStats" :key="stat.key"><component :is="resolveIcon(stat.icon)" :size="20" /><span><strong class="live-number">{{ formatStat(stat) }}</strong><small>{{ stat.label }} <em>{{ stat.delta }}</em></small></span></div>
-        </div>
-      </section>
+        <section id="audience" class="audience-section">
+          <div class="wrap"><div class="section-intro" data-reveal><p class="kicker">Для кого</p><h2>Когда сайт — часть ежедневной работы</h2><p>TrackNode подходит тем, кому важно видеть результат без погружения в сложные системы.</p></div><div class="audience-grid" data-reveal><article v-for="item in audiences" :key="item[0]"><h3>{{ item[0] }}</h3><p>{{ item[1] }}</p></article></div></div>
+        </section>
 
-      <section v-if="hasSection('features')" id="features" class="section features-section" aria-labelledby="features-title" :style="{ order: sectionOrder('features') }">
-        <div class="landing-container">
-          <div class="features-heading">
-            <div>
-              <p class="eyebrow"><Zap :size="15" /> {{ featuresSection.eyebrow }}</p>
-              <h2 id="features-title">{{ featuresSection.title }}<br />{{ featuresSection.title_line_2 }} <span>{{ featuresSection.title_accent }}</span></h2>
-              <p>{{ featuresSection.description }}</p>
-            </div>
-            <div class="feature-promises">
-              <div v-for="item in featurePromises" :key="item.title"><component :is="item.icon" :size="22" /><span><strong>{{ item.title }}</strong><small>{{ item.text }}</small></span></div>
-            </div>
-          </div>
+        <section id="pricing" class="pricing-section wrap">
+          <div class="section-intro" data-reveal><p class="kicker">Тарифы</p><h2>Выберите нужный уровень контроля</h2><p>Цены и состав тарифов загружаются из действующей системы TrackNode.</p></div>
+          <div v-if="plans.length" class="plans" data-reveal><article v-for="(plan,index) in plans" :key="plan.title" :class="{primary:index===1}"><p>{{ plan.title }}</p><h3>{{ plan.price }}<small v-if="plan.price_suffix"> {{ plan.price_suffix }}</small></h3><span>{{ plan.description }}</span><ul><li v-for="feature in plan.features" :key="feature"><Check :size="17" />{{ feature }}</li></ul><RouterLink to="/register" class="button">Подключить</RouterLink></article></div>
+          <p v-else class="empty-pricing">Тарифы временно загружаются. Оставьте заявку — подберём подходящий вариант.</p>
+        </section>
 
-          <div class="features-grid">
-            <article v-for="feature in features" :key="feature.number" class="feature-card" :class="`visual-${feature.type}`">
-              <div class="feature-copy">
-                <div class="feature-number">{{ feature.number }}</div>
-                <component :is="feature.icon" :size="23" class="feature-icon" />
-                <h3>{{ feature.title }}</h3>
-                <p>{{ feature.text }}</p>
-              </div>
-              <div class="feature-mini" aria-hidden="true">
-                <template v-if="feature.type === 'chart'">
-                  <strong class="live-number">{{ formatInteger(liveStats.visitors) }} <em>{{ statByKey('visitors').delta }}</em></strong><svg viewBox="0 0 160 60"><path d="M2 48 24 35 46 44 70 25 92 39 115 18 138 31 158 10" /></svg>
-                </template>
-                <template v-else-if="feature.type === 'heatmap'">
-                  <div class="feature-heat"><i></i><i></i><i></i><i></i><i></i></div>
-                </template>
-                <template v-else-if="feature.type === 'funnel'">
-                  <i class="funnel-layer"></i><i class="funnel-layer"></i><i class="funnel-layer"></i><i class="funnel-layer"></i>
-                </template>
-                <template v-else-if="feature.type === 'score'">
-                  <div class="score-ring" :style="{ '--health-score': `${feature.visual_items?.[0]?.label || 0}%` }"><strong>{{ feature.visual_items?.[0]?.label }}</strong><small>{{ feature.visual_items?.[1]?.label }}</small></div>
-                </template>
-                <template v-else-if="feature.type === 'compare'">
-                  <span v-for="width in [92, 74, 58, 41]" :key="width"><i :style="{ width: `${width}%` }"></i></span>
-                </template>
-                <template v-else-if="feature.type === 'alerts'">
-                  <p v-for="(item, index) in feature.visual_items" :key="item.label"><i :class="`alert-${index}`"></i>{{ item.label }}</p>
-                </template>
-                <template v-else-if="feature.type === 'reports'">
-                  <span v-for="(item, index) in feature.visual_items" :key="item.label" class="report-file" :class="{ green: index === 1 }">{{ item.label }}</span>
-                </template>
-                <template v-else-if="feature.type === 'devices'">
-                  <div class="device-donut"></div><p><template v-for="item in feature.visual_items" :key="item.label">{{ item.label }}<br /></template></p>
-                </template>
-                <template v-else>
-                  <strong class="ai-growth">{{ feature.visual_items?.[0]?.label }}</strong><svg viewBox="0 0 160 60"><path d="M2 52 28 42 51 48 78 20 101 36 128 8 158 17" /></svg>
-                </template>
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
+        <section id="faq" class="faq-section wrap">
+          <div class="section-intro" data-reveal><p class="kicker">FAQ</p><h2>Коротко о главном</h2></div>
+          <div class="faq" data-reveal><article v-for="(item,index) in faq" :key="item[0]"><button type="button" :aria-expanded="openFaq===index" @click="openFaq=openFaq===index?-1:index"><span>{{ item[0] }}</span><b>{{ openFaq===index?'−':'+' }}</b></button><p v-show="openFaq===index">{{ item[1] }}</p></article></div>
+        </section>
 
-      <section v-if="hasSection('analytics')" id="ecosystem" class="section ecosystem-section" aria-labelledby="ecosystem-title" :style="{ order: sectionOrder('analytics') }">
-        <div class="landing-container">
-          <div class="section-heading centered">
-            <p class="eyebrow"><Blocks :size="15" /> {{ analyticsSection.eyebrow }}</p>
-            <h2 id="ecosystem-title">{{ analyticsSection.title }} <span>{{ analyticsSection.title_accent }}</span></h2>
-            <p>{{ analyticsSection.description }}</p>
+        <section id="contact" class="contact-section">
+          <div class="wrap contact-layout">
+            <div data-reveal><p class="kicker">Начнём с вашего сайта</p><h2>Расскажите, что хотите улучшить</h2><p>Посмотрим задачу и объясним, как TrackNode может помочь именно в вашем случае.</p></div>
+            <form data-reveal novalidate @submit.prevent="submitLead" @focusin="formStarted"><label>Имя<input v-model="form.name" maxlength="255" autocomplete="name" required /></label><label>Телефон или email<input v-model="form.contact" maxlength="255" autocomplete="email" required /></label><label>Коротко опишите задачу<textarea v-model="form.message" maxlength="2000" rows="4" /></label><label class="honeypot" aria-hidden="true">Сайт<input v-model="form.website" tabindex="-1" autocomplete="off" /></label><label class="consent"><input v-model="form.consent" type="checkbox" required /><span>Я согласен на обработку персональных данных.</span></label><p v-if="formState.success" class="success" role="status">{{ formState.success }}</p><p v-if="formState.error" class="error" role="alert">{{ formState.error }}</p><button class="button" type="submit" :disabled="formState.submitting">{{ formState.submitting ? 'Отправляем…' : 'Оставить заявку' }}</button></form>
           </div>
+        </section>
 
-          <div class="ecosystem-canvas">
-            <div class="orbit-line orbit-line-1"></div>
-            <div class="orbit-line orbit-line-2"></div>
-            <div class="orbit-line orbit-line-3"></div>
-            <div class="orbit-glow"></div>
-            <div class="ecosystem-cube-wrap">
-              <img src="/images/landing/cube.png" :alt="analyticsSection.cube_alt" />
-            </div>
-            <div class="ecosystem-nodes">
-              <article v-for="item in ecosystemItems" :key="item.title" class="ecosystem-node" :class="item.position" tabindex="0">
-                <div class="ecosystem-node-content">
-                  <component :is="item.icon" :size="26" />
-                  <strong>{{ item.title }}</strong>
-                  <span>{{ item.text }}</span>
-                </div>
-              </article>
-            </div>
-          </div>
+        <section class="final-section wrap" data-reveal><p>Ваш сайт может объяснять, что ему мешает.</p><h2>Начните видеть главное.</h2><div><RouterLink to="/register" class="button">Попробовать TrackNode <ArrowRight :size="18" /></RouterLink><a href="#contact" class="text-link">Оставить заявку</a></div></section>
+      </main>
 
-          <div class="ecosystem-mobile-grid">
-            <article v-for="item in ecosystemItems" :key="`mobile-${item.title}`">
-              <component :is="item.icon" :size="22" /><span><strong>{{ item.title }}</strong><small>{{ item.text }}</small></span>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section v-if="hasSection('seo_analysis')" id="seo-audit" class="section seo-section" aria-labelledby="seo-title" :style="{ order: sectionOrder('seo_analysis') }">
-        <div class="landing-container seo-grid">
-          <div class="seo-copy">
-            <p class="eyebrow"><SearchCheck :size="15" /> {{ seoSection.eyebrow }}</p>
-            <h2 id="seo-title">{{ seoSection.title }} <span>{{ seoSection.title_accent }}</span></h2>
-            <p>{{ seoSection.description }}</p>
-            <div class="seo-summary">
-              <div v-for="item in seoSection.summary" :key="item.label"><strong>{{ item.value }}</strong><small>{{ item.label }}</small></div>
-            </div>
-            <a class="primary-button" :href="seoSection.cta_route">{{ seoSection.cta_label }} <ArrowRight :size="18" /></a>
-          </div>
-
-          <div class="seo-dashboard">
-            <div class="browser-bar"><i></i><i></i><i></i><span>{{ seoSection.dashboard_domain }}</span><SearchCheck :size="17" /></div>
-            <div class="seo-dashboard-body">
-              <div class="health-card">
-                <div class="health-ring" :style="{ '--health-score': `${seoSection.health_value}%` }"><span><strong>{{ seoSection.health_value }}</strong><small>{{ seoSection.health_scale }}</small></span></div>
-                <div><small>{{ seoSection.health_label }}</small><strong>{{ seoSection.health_status }}</strong><p>{{ seoSection.health_description }}</p></div>
-              </div>
-              <div class="seo-checks">
-                <div v-for="item in seoChecks" :key="item.label" :class="`status-${item.status}`">
-                  <span><CheckCircle2 v-if="item.status === 'ok'" :size="17" /><Zap v-else-if="item.status === 'warn'" :size="17" /><X v-else :size="17" /></span>
-                  <strong>{{ item.label }}</strong><small>{{ item.result }}</small>
-                </div>
-              </div>
-              <div class="ai-recommendation">
-                <span><Sparkles :size="22" /></span>
-                <div><small>{{ seoSection.recommendation_label }}</small><strong>{{ seoSection.recommendation_title }}</strong><p>{{ seoSection.recommendation_text }}</p></div>
-                <ArrowRight :size="20" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section v-if="hasSection('tariffs')" id="pricing" class="section pricing-section" aria-labelledby="pricing-title" :style="{ order: sectionOrder('tariffs') }">
-        <div class="landing-container">
-          <div class="section-heading centered">
-            <p class="eyebrow"><Zap :size="15" /> {{ tariffsSection.eyebrow }}</p>
-            <h2 id="pricing-title">{{ tariffsSection.title }} <span>{{ tariffsSection.title_accent }}</span></h2>
-            <p>{{ tariffsSection.description }}</p>
-          </div>
-          <div class="pricing-tabs" role="tablist" aria-label="Период оплаты">
-            <button v-for="tab in pricingTabs" :key="tab.id" type="button" :class="{ active: activePricingDuration === tab.id }" @click="activePricingDuration = tab.id">
-              {{ tab.label }} <small v-if="tab.saving">{{ tab.saving }}</small>
-            </button>
-          </div>
-          <div class="pricing-grid">
-            <article v-for="plan in visiblePlans" :key="`${plan.duration}-${plan.title}`" class="pricing-card" :class="{ featured: plan.featured }">
-              <span v-if="plan.featured" class="popular">{{ tariffsSection.popular_label }}</span>
-              <p class="pricing-label">{{ plan.title }}</p>
-              <div class="price"><strong>{{ plan.price }} ₽</strong><small>{{ plan.period }}</small></div>
-              <p>{{ plan.description }}</p>
-              <ul><li v-for="item in plan.features" :key="item.label"><CheckCircle2 :size="18" />{{ item.label }}</li></ul>
-              <a :class="plan.featured ? 'primary-button' : 'secondary-button'" :href="tariffsSection.cta_route">{{ tariffsSection.cta_label }} <ArrowRight :size="17" /></a>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section v-if="hasSection('faq')" id="faq" class="section faq-section" aria-labelledby="faq-title" :style="{ order: sectionOrder('faq') }">
-        <div class="landing-container faq-layout">
-          <div class="faq-heading"><p class="eyebrow">{{ faqSection.eyebrow }}</p><h2 id="faq-title">{{ faqSection.title }}</h2><p>{{ faqSection.description }}</p></div>
-          <div class="faq-list">
-            <article v-for="(item, index) in faqItems" :key="item.question" :class="{ open: openFaq === index }">
-              <button type="button" :aria-expanded="openFaq === index" @click="openFaq = openFaq === index ? -1 : index"><span>{{ item.question }}</span><span>+</span></button>
-              <div v-show="openFaq === index"><p>{{ item.answer }}</p></div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section id="contact" class="section contact-section" aria-labelledby="contact-title">
-        <div class="landing-container contact-layout">
-          <div><p class="eyebrow">Обратная связь</p><h2 id="contact-title">Расскажите о вашем сайте</h2><p>Оставьте заявку. Мы посмотрим вашу задачу и расскажем, как TrackNode может помочь.</p></div>
-          <form class="contact-form" novalidate @submit.prevent="submitLead" @focusin="markFormStarted">
-            <label>Имя<input v-model="leadForm.name" maxlength="255" autocomplete="name" required /></label>
-            <label>Телефон или email<input v-model="leadForm.contact" maxlength="255" autocomplete="email" required /></label>
-            <label>Коротко опишите задачу<textarea v-model="leadForm.message" maxlength="2000" rows="4" /></label>
-            <label class="honeypot" aria-hidden="true">Ваш сайт<input v-model="leadForm.website" tabindex="-1" autocomplete="off" /></label>
-            <label class="consent"><input v-model="leadForm.consent" type="checkbox" required /> <span>Я согласен на обработку персональных данных.</span></label>
-            <p v-if="leadState.success" class="form-success" role="status">{{ leadState.success }}</p>
-            <p v-if="leadState.error" class="form-error" role="alert">{{ leadState.error }}</p>
-            <button class="primary-button" type="submit" :disabled="leadState.submitting">{{ leadState.submitting ? 'Отправляем...' : 'Отправить заявку' }}</button>
-          </form>
-        </div>
-      </section>
-
-      <section v-if="hasSection('final_cta')" class="final-cta" :style="{ order: sectionOrder('final_cta') }">
-        <div class="landing-container final-cta-inner">
-          <div><p>{{ finalCta.eyebrow }}</p><h2>{{ finalCta.title }}</h2></div>
-          <a class="cta-white" :href="finalCta.button_route">{{ finalCta.button_label }} <ArrowRight :size="18" /></a>
-        </div>
-      </section>
-    </main>
-
-    <footer v-if="hasSection('footer')" class="landing-footer">
-      <div class="landing-container footer-grid">
-        <a class="footer-brand" href="#top"><span><img src="/images/landing/cube.png" :alt="footer.cube_alt" /></span>{{ footer.brand_name }}</a>
-        <p>{{ footer.description }}</p>
-        <div><a v-for="link in footer.links" :key="link.href" :href="link.href">{{ link.label }}</a></div>
-        <small>© {{ new Date().getFullYear() }} {{ footer.copyright }}</small>
-      </div>
-    </footer>
+      <footer><div class="wrap footer-inner"><a href="#top" class="brand"><span>TN</span>TrackNode</a><p>Аналитика, заявки и управление сайтом — без лишней сложности.</p><div><RouterLink to="/login">Войти</RouterLink><a href="#pricing">Тарифы</a><a href="#contact">Контакты</a></div><small>© {{ new Date().getFullYear() }} TrackNode</small></div></footer>
     </template>
   </div>
 </template>
 
 <style scoped>
-:global(html) { scroll-behavior: smooth; scroll-padding-top: 118px; }
-:global(body) { background: #fdfdff; }
-
-.landing-page {
-  --ink: #11152d;
-  --muted: #626985;
-  --purple: #4b2cff;
-  --violet: #7856ff;
-  --line: rgba(92, 67, 255, 0.12);
-  min-height: 100vh;
-  overflow: clip;
-  color: var(--ink);
-  background: #fdfdff;
-}
-
-.landing-main { display: flex; flex-direction: column; }
-.landing-state { min-height: 100vh; display: grid; place-content: center; gap: 8px; padding: 24px; text-align: center; color: var(--muted); }
-.landing-state-error strong { color: var(--ink); font-size: 1.1rem; }
-
-.landing-container { width: min(100% - 40px, 1440px); margin-inline: auto; }
-.section { position: relative; padding: 112px 0; scroll-margin-top: 112px; }
-.section h2 { margin: 14px 0 18px; font-size: clamp(2.2rem, 4vw, 4rem); line-height: 1.04; letter-spacing: -0.05em; }
-.section h2 span { color: var(--purple); }
-.section-heading { max-width: 900px; margin-bottom: 56px; }
-.section-heading.centered { margin-inline: auto; text-align: center; }
-.section-heading.centered .eyebrow { margin-inline: auto; }
-.section-heading > p:last-child { max-width: 720px; margin: 0 auto; color: var(--muted); font-size: 1.08rem; line-height: 1.75; }
-.eyebrow { display: inline-flex; align-items: center; gap: 7px; width: max-content; margin: 0; padding: 8px 13px; border: 1px solid rgba(89, 56, 255, 0.11); border-radius: 999px; color: var(--purple); background: rgba(255, 255, 255, 0.72); box-shadow: 0 8px 28px rgba(70, 38, 220, 0.08); font-size: .74rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
-
-.landing-header { position: fixed; z-index: 100; top: max(14px, env(safe-area-inset-top)); left: 50%; width: min(calc(100% - 32px), 1480px); transform: translateX(-50%); }
-.nav-shell { position: relative; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 88px; padding: 10px 16px 10px 24px; border: 1px solid rgba(255,255,255,.84); border-radius: 25px; background: rgba(255,255,255,.74); box-shadow: 0 18px 60px rgba(70,51,165,.13), inset 0 0 0 1px rgba(84,57,255,.05); backdrop-filter: blur(24px) saturate(150%); }
-.nav-side { display: flex; align-items: center; gap: clamp(14px, 2vw, 34px); }
-.nav-right { justify-content: flex-end; }
-.nav-link { position: relative; padding: 13px 2px; color: #282a3c; font-size: .88rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
-.nav-link::after { position: absolute; right: 0; bottom: 6px; left: 0; height: 2px; border-radius: 99px; background: var(--purple); content: ''; opacity: 0; transform: scaleX(.3); transition: .25s ease; }
-.nav-link:hover, .nav-link.active { color: var(--purple); }
-.nav-link.active::after { opacity: 1; transform: scaleX(1); }
-.brand { display: flex; min-width: 230px; align-items: center; justify-content: center; gap: 10px; padding: 0 24px; color: var(--ink); text-align: left; text-decoration: none; }
-.brand-copy { display: grid; align-content: center; }
-.brand-kicker { color: #777c91; font-size: .68rem; font-weight: 800; letter-spacing: .09em; line-height: 1; text-transform: uppercase; }
-.brand-line { display: block; margin-top: 3px; font-size: 1.78rem; font-weight: 900; letter-spacing: -.055em; line-height: 1; }
-.brand-line > span { color: var(--purple); }
-.brand-cube { position: relative; display: block; width: 46px; height: 46px; flex: 0 0 46px; overflow: hidden; }
-.brand-cube img { position: absolute; top: 50%; left: 50%; width: 66px; max-width: none; height: 66px; object-fit: cover; transform: translate(-50%,-50%); }
-.login-button, .primary-button, .secondary-button, .cta-white { display: inline-flex; min-height: 50px; align-items: center; justify-content: center; gap: 9px; border-radius: 14px; padding: 0 21px; font-weight: 800; text-decoration: none; transition: .25s ease; }
-.login-button, .primary-button { color: white; background: linear-gradient(135deg, #5c38ff, #3518ee); box-shadow: 0 12px 26px rgba(66,37,238,.28), inset 0 1px 1px rgba(255,255,255,.25); }
-.login-button { min-height: 48px; padding-inline: 19px; font-size: .85rem; }
-.login-button:hover, .primary-button:hover { transform: translateY(-2px); box-shadow: 0 17px 34px rgba(66,37,238,.36); }
-.menu-button { display: none; width: 46px; height: 46px; place-items: center; border: 1px solid var(--line); border-radius: 14px; color: var(--purple); background: white; }
-.mobile-menu { display: none; }
-
-.hero-section { position: relative; min-height: 900px; padding: 188px 0 56px; background: radial-gradient(circle at 70% 42%, rgba(114,73,255,.17), transparent 28%), radial-gradient(circle at 10% 12%, rgba(114,73,255,.09), transparent 26%), linear-gradient(180deg, #fff 0%, #faf9ff 72%, #fff 100%); }
-.ambient { position: absolute; border-radius: 50%; filter: blur(3px); pointer-events: none; }
-.ambient-one { top: 100px; right: -180px; width: 620px; height: 620px; background: radial-gradient(circle, rgba(85,47,255,.12), transparent 66%); }
-.ambient-two { bottom: 80px; left: -240px; width: 520px; height: 520px; background: radial-gradient(circle, rgba(153,116,255,.1), transparent 65%); }
-.hero-grid { position: relative; z-index: 1; display: grid; grid-template-columns: .88fr 1.12fr; align-items: center; gap: 30px; min-height: 590px; }
-.hero-copy { position: relative; z-index: 5; padding-left: 12px; }
-.hero-copy h1 { margin: 28px 0 22px; font-size: clamp(3.1rem, 5.25vw, 5.3rem); line-height: 1.01; letter-spacing: -.064em; }
-.hero-copy h1 span { color: var(--purple); }
-.hero-lead { max-width: 690px; color: var(--muted); font-size: 1.08rem; line-height: 1.8; }
-.hero-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 32px; }
-.primary-button { min-height: 56px; padding-inline: 26px; }
-.secondary-button { min-height: 56px; border: 1px solid var(--line); color: var(--purple); background: rgba(255,255,255,.8); box-shadow: 0 10px 30px rgba(58,34,150,.08); }
-.secondary-button:hover { transform: translateY(-2px); border-color: rgba(75,44,255,.3); }
-.play { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 50%; color: white; background: var(--purple); font-size: .65rem; }
-.hero-benefits { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px 18px; max-width: 620px; margin-top: 34px; }
-.hero-benefit { display: flex; align-items: center; gap: 9px; color: #545b77; font-size: .8rem; font-weight: 650; }
-.hero-benefit > span { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--purple); background: white; box-shadow: 0 7px 19px rgba(70,42,180,.08); }
-.hero-visual { position: relative; min-height: 600px; perspective: 1000px; }
-.hero-cube { position: absolute; z-index: 2; top: 50%; left: 50%; width: min(520px, 68%); aspect-ratio: 1; object-fit: contain; pointer-events: none; filter: saturate(1.06) drop-shadow(0 0 34px rgba(103,66,255,.35)) drop-shadow(0 30px 28px rgba(71,38,230,.16)); transform: translate(-48%,-49%); -webkit-mask-image: radial-gradient(circle, #000 42%, rgba(0,0,0,.92) 57%, transparent 74%); mask-image: radial-gradient(circle, #000 42%, rgba(0,0,0,.92) 57%, transparent 74%); }
-.cube-stage { position: absolute; z-index: 1; left: 50%; bottom: 70px; width: 370px; height: 120px; border: 2px solid rgba(90,56,255,.28); border-radius: 50%; background: radial-gradient(ellipse, rgba(87,51,255,.38), rgba(255,255,255,.3) 46%, transparent 72%); box-shadow: 0 20px 55px rgba(67,36,227,.22), inset 0 0 25px white; transform: translateX(-50%); }
-.hero-orbit { position: absolute; top: 50%; left: 50%; border: 1px solid rgba(93,62,255,.17); border-radius: 50%; transform: translate(-50%,-50%) rotate(-10deg); }
-.orbit-a { width: 96%; height: 49%; }
-.orbit-b { width: 78%; height: 38%; transform: translate(-50%,-50%) rotate(18deg); }
-.float-card { position: absolute; z-index: 4; min-width: 180px; padding: 16px 18px; border: 1px solid rgba(255,255,255,.9); border-radius: 18px; cursor: default; background: rgba(255,255,255,.72); box-shadow: 0 18px 50px rgba(63,43,145,.13), inset 0 0 0 1px rgba(84,58,255,.06); backdrop-filter: blur(15px); transition: border-color .25s ease, box-shadow .25s ease; animation: cardFloat 5s ease-in-out infinite; }
-.float-card:hover { border-color: rgba(93,59,255,.28); box-shadow: 0 22px 58px rgba(63,43,145,.2),0 0 24px rgba(99,64,255,.12); animation-play-state: paused; }
-.float-card small { display: block; margin-bottom: 9px; color: #666c84; font-weight: 700; }
-.float-card strong { font-size: 1.25rem; }
-.live-number { display: inline-block; min-width: 3ch; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
-.float-card em, .metrics-strip em, .feature-mini em { color: #0cab79; font-size: .66rem; font-style: normal; }
-.visitors-card { top: 40px; left: 6%; }
-.visitors-card svg, .feature-mini svg { display: block; width: 100%; margin-top: 8px; fill: none; stroke: #5535ff; stroke-width: 3; }
-.visitors-card svg path, .feature-mini svg path { stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 300; stroke-dashoffset: 300; animation: chartDraw 4.2s ease-in-out infinite; }
-.conversion-card { bottom: 120px; left: 2%; animation-delay: -2s; }
-.donut { width: 54px; height: 54px; margin-top: 9px; border-radius: 50%; background: conic-gradient(var(--purple) 0 72%, #e7e4ff 72%); -webkit-mask: radial-gradient(circle, transparent 45%, #000 47%); mask: radial-gradient(circle, transparent 45%, #000 47%); animation: ringGlow 2.8s ease-in-out infinite; }
-.heat-card { top: 70px; right: 0; width: 218px; animation-delay: -1.2s; }
-.mini-heat, .feature-heat { position: relative; height: 82px; overflow: hidden; border-radius: 11px; background: linear-gradient(135deg, #e6e4ff, #eff8ff); }
-.mini-heat i, .feature-heat i { position: absolute; width: 32px; height: 32px; border-radius: 50%; background: #ffdf36; filter: blur(8px); }
-.mini-heat i:nth-child(1), .feature-heat i:nth-child(1) { top: 32%; left: 44%; background: #ff432f; }
-.mini-heat i:nth-child(2), .feature-heat i:nth-child(2) { top: 10%; left: 20%; background: #5ce070; }
-.mini-heat i:nth-child(3), .feature-heat i:nth-child(3) { right: 13%; bottom: 5%; }
-.mini-heat i:nth-child(4), .feature-heat i:nth-child(4) { bottom: 4%; left: 32%; background: #72de77; }
-.mini-heat i, .feature-heat i { animation: heatPoint 2.6s ease-in-out infinite; }.mini-heat i:nth-child(2),.feature-heat i:nth-child(2){animation-delay:-.65s}.mini-heat i:nth-child(3),.feature-heat i:nth-child(3){animation-delay:-1.3s}.mini-heat i:nth-child(4),.feature-heat i:nth-child(4){animation-delay:-1.95s}
-.traffic-card { right: 4%; bottom: 72px; width: 210px; animation-delay: -3.1s; }
-.traffic-card > span, .visual-compare .feature-mini > span { display: block; height: 7px; margin: 9px 0; overflow: hidden; border-radius: 99px; background: #e9e7fa; }
-.traffic-card i, .visual-compare .feature-mini i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #826aff, #4b2cff, #9b87ff, #4b2cff); background-size: 220% 100%; animation: barFlow 2.8s linear infinite; }
-.metrics-strip { position: relative; z-index: 6; display: grid; grid-template-columns: repeat(4,1fr); margin-top: 16px; padding: 24px 8px; border-top: 1px solid var(--line); }
-.metrics-strip > div { display: flex; align-items: center; gap: 15px; padding: 4px 26px; border-right: 1px solid var(--line); border-radius: 14px; color: var(--purple); transition: background-color .25s ease, box-shadow .25s ease, transform .25s ease; }
-.metrics-strip > div:hover { background: rgba(255,255,255,.74); box-shadow: 0 12px 30px rgba(61,43,132,.09); transform: translateY(-3px); }
-.metrics-strip > div:last-child { border: 0; }
-.metrics-strip span, .metrics-strip strong, .metrics-strip small { display: block; }
-.metrics-strip strong { color: var(--ink); font-size: 1.5rem; }
-.metrics-strip small { margin-top: 3px; color: #5e657d; }
-
-.features-section { background: linear-gradient(180deg,#fff,#fbfaff); }
-.features-heading { display: grid; grid-template-columns: .9fr 1.1fr; align-items: end; gap: 60px; margin-bottom: 46px; }
-.features-heading h2 { font-size: clamp(2.45rem, 4vw, 4.1rem); }
-.features-heading > div:first-child > p:last-child { max-width: 570px; color: var(--muted); line-height: 1.75; }
-.feature-promises { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; padding-bottom: 12px; }
-.feature-promises > div { display: flex; gap: 12px; min-height: 76px; padding: 14px; border-left: 1px solid var(--line); color: var(--purple); }
-.feature-promises strong, .feature-promises small { display: block; }
-.feature-promises strong { color: var(--ink); font-size: .83rem; }
-.feature-promises small { margin-top: 7px; color: var(--muted); font-size: .72rem; }
-.features-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 15px; }
-.feature-card { display: grid; grid-template-columns: minmax(0,1fr) minmax(130px,.78fr); min-height: 230px; padding: 24px; overflow: hidden; border: 1px solid rgba(89,58,225,.11); border-radius: 20px; background: rgba(255,255,255,.76); box-shadow: 0 12px 34px rgba(66,43,145,.065); transition: .3s ease; }
-.feature-card:hover { z-index: 2; border-color: rgba(75,44,255,.25); box-shadow: 0 24px 55px rgba(66,43,145,.14); transform: translateY(-6px); }
-.feature-copy { position: relative; z-index: 2; }
-.feature-number { display: inline-grid; width: 38px; height: 38px; margin-right: 8px; place-items: center; border-radius: 11px; color: #765cff; background: #f0edff; font-weight: 850; }
-.feature-icon { display: inline; color: var(--purple); vertical-align: middle; }
-.feature-card h3 { margin: 28px 0 9px; font-size: 1.08rem; }
-.feature-card p { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.65; }
-.feature-mini { align-self: center; min-width: 0; margin-left: 13px; }
-.feature-mini > strong { display: block; font-size: 1.15rem; }
-.feature-heat { height: 112px; }
-.feature-heat i:nth-child(5) { top: 18%; right: 9%; background: #55d886; }
-.visual-funnel .feature-mini { display: grid; justify-items: center; gap: 5px; }
-.funnel-layer { display: block; height: 22px; clip-path: polygon(10% 0,90% 0,72% 100%,28% 100%); background: linear-gradient(90deg,#bfb4ff,#5436fa); }
-.funnel-layer:nth-child(1) { width: 125px; }.funnel-layer:nth-child(2){width:100px}.funnel-layer:nth-child(3){width:75px}.funnel-layer:nth-child(4){width:48px}
-.score-ring, .device-donut { display: grid; width: 92px; height: 92px; margin: auto; place-items: center; border-radius: 50%; background: conic-gradient(#23c48a 0 var(--health-score, 87%),#eceafb var(--health-score, 87%)); -webkit-mask: radial-gradient(circle,transparent 54%,#000 56%); mask: radial-gradient(circle,transparent 54%,#000 56%); }
-.score-ring strong { font-size: 1.35rem; }
-.score-ring small { font-size: .62rem; }
-.visual-compare .feature-mini > span { height: 10px; }
-.visual-alerts .feature-mini p { display: flex; align-items: center; gap: 7px; margin: 7px 0; padding: 8px; border-radius: 9px; background: #f8f7ff; color: #4a5068; font-size: .65rem; }
-.visual-alerts .feature-mini p i { width: 8px; height: 8px; border-radius: 50%; background: #18bf8a; }.visual-alerts .feature-mini p i.alert-1{background:#f3ad26}.visual-alerts .feature-mini p i.alert-2{background:#ef5b65}
-.visual-reports .feature-mini { display: flex; gap: 8px; }.report-file { display: grid; width: 58px; height: 70px; place-items: center; border-radius: 10px; color: #e94d5c; background: #fff0f1; font-size: .72rem; font-weight: 900; }.report-file.green{color:#12ad7f;background:#e9fbf5}
-.visual-devices .feature-mini { display: flex; align-items: center; gap: 10px; }.device-donut{width:75px;height:75px;flex:0 0 auto;background:conic-gradient(#4b2cff 0 55%,#3295ff 55% 90%,#20c7ad 90%)}.visual-devices .feature-mini p{font-size:.62rem;line-height:1.9}
-.visual-ai .feature-mini { padding: 14px; border-radius: 14px; color: white; background: linear-gradient(145deg,#22116b,#5229d9); }.visual-ai .feature-mini .ai-growth{color:#30deb2;font-size:1.6rem}.visual-ai .feature-mini svg{stroke:#9f8cff}
-
-.ecosystem-section { min-height: 980px; background: radial-gradient(circle at 50% 55%,rgba(101,61,255,.17),transparent 30%), linear-gradient(180deg,#fbfaff,#f7f5ff 62%,#fff); }
-.ecosystem-canvas { position: relative; height: 660px; max-width: 1340px; margin: 0 auto; perspective: 1200px; }
-.orbit-line { position: absolute; top: 50%; left: 50%; border: 1px solid rgba(93,62,255,.19); border-radius: 50%; box-shadow: 0 0 14px rgba(87,50,255,.07); transform: translate(-50%,-50%) rotate(-7deg); }
-.orbit-line::after { position: absolute; top: 50%; left: -5px; width: 10px; height: 10px; border-radius: 50%; background: white; box-shadow: 0 0 14px 5px #9a85ff; content: ''; }
-.orbit-line-1 { width: 52%; height: 37%; }.orbit-line-2{width:76%;height:57%;transform:translate(-50%,-50%) rotate(7deg)}.orbit-line-3{width:96%;height:78%;transform:translate(-50%,-50%) rotate(-4deg)}
-.orbit-glow { position: absolute; top: 50%; left: 50%; width: 470px; height: 170px; border: 2px solid rgba(95,61,255,.25); border-radius: 50%; background: radial-gradient(ellipse,rgba(99,58,255,.25),transparent 68%); box-shadow: 0 20px 55px rgba(75,39,239,.2),inset 0 0 30px white; transform: translate(-50%,55%); }
-.ecosystem-cube-wrap { position: absolute; z-index: 3; top: 50%; left: 50%; width: 350px; height: 350px; pointer-events: none; transform: translate(-50%,-55%); }
-.ecosystem-cube-wrap img { display: block; width: 100%; height: 100%; object-fit: contain; filter: saturate(1.08) drop-shadow(0 0 30px rgba(103,66,255,.38)) drop-shadow(0 23px 28px rgba(71,38,230,.18)); -webkit-mask-image: radial-gradient(circle, #000 42%, rgba(0,0,0,.92) 57%, transparent 74%); mask-image: radial-gradient(circle, #000 42%, rgba(0,0,0,.92) 57%, transparent 74%); }
-.ecosystem-nodes { position: absolute; z-index: 5; inset: 0; }
-.ecosystem-node { position: absolute; width: 176px; height: 142px; outline: none; }
-.ecosystem-node-content { position: relative; display: grid; width: 100%; height: 100%; place-items: center; padding: 20px 18px; border: 1px solid rgba(255,255,255,.92); border-radius: 20px; color: var(--purple); text-align: center; background: rgba(255,255,255,.78); box-shadow: 0 15px 43px rgba(61,43,132,.12),inset 0 0 0 1px rgba(83,56,230,.06); backdrop-filter: blur(14px); transition: border-color .3s ease, box-shadow .3s ease, transform .3s ease; animation: nodePulse 3.8s ease-in-out infinite; }
-.ecosystem-node strong { display: block; max-width: 100%; color: var(--ink); font-size: .84rem; line-height: 1.25; overflow-wrap: anywhere; }
-.ecosystem-node span { position: absolute; z-index: 4; top: calc(100% - 6px); left: 50%; width: 210px; max-width: min(210px, calc(100vw - 32px)); padding: 11px 13px; border-radius: 11px; color: white; background: #21175b; box-shadow: 0 12px 30px rgba(33,23,91,.22); font-size: .7rem; line-height: 1.45; overflow-wrap: anywhere; opacity: 0; pointer-events: none; transform: translate(-50%,8px); transition: .25s ease; }
-.ecosystem-node:hover, .ecosystem-node:focus { z-index: 8; }
-.ecosystem-node:hover .ecosystem-node-content, .ecosystem-node:focus .ecosystem-node-content { border-color: rgba(91,56,255,.32); box-shadow: 0 20px 52px rgba(61,43,132,.2),0 0 30px rgba(99,64,255,.18); transform: translateY(-6px) scale(1.04); animation: none; }
-.ecosystem-node:hover span, .ecosystem-node:focus span { opacity: 1; transform: translate(-50%,0); }
-.p1{top:0;left:calc(50% - 88px)}.p2{top:8%;right:18%}.p3{top:29%;right:2%}.p4{right:2%;bottom:23%}.p5{right:18%;bottom:1%}.p6{bottom:-2%;left:calc(50% - 88px)}.p7{bottom:1%;left:18%}.p8{bottom:23%;left:2%}.p9{top:29%;left:2%}.p10{top:8%;left:18%}
-.p8 strong{font-size:.72rem;letter-spacing:-.02em;overflow-wrap:normal}
-.p2 .ecosystem-node-content,.p7 .ecosystem-node-content{animation-delay:-.75s}.p3 .ecosystem-node-content,.p8 .ecosystem-node-content{animation-delay:-1.5s}.p4 .ecosystem-node-content,.p9 .ecosystem-node-content{animation-delay:-2.25s}.p5 .ecosystem-node-content,.p10 .ecosystem-node-content{animation-delay:-3s}
-.ecosystem-mobile-grid { display: none; }
-
-.seo-section { background: #fff; }
-.seo-grid { display: grid; grid-template-columns: .74fr 1.26fr; align-items: center; gap: 70px; }
-.seo-copy > p:not(.eyebrow) { max-width: 580px; color: var(--muted); line-height: 1.78; }
-.seo-summary { display: grid; grid-template-columns: repeat(3,1fr); max-width: 530px; margin: 32px 0; border: 1px solid var(--line); border-radius: 16px; background: #fbfaff; }
-.seo-summary > div { padding: 16px 18px; border-right: 1px solid var(--line); }.seo-summary > div:last-child{border:0}
-.seo-summary strong,.seo-summary small { display:block }.seo-summary strong{font-size:1.45rem}.seo-summary small{margin-top:4px;color:var(--muted);font-size:.68rem}
-.seo-dashboard { overflow: hidden; border: 1px solid rgba(83,52,222,.13); border-radius: 25px; background: rgba(255,255,255,.9); box-shadow: 0 35px 80px rgba(61,43,132,.14); }
-.browser-bar { display: flex; align-items: center; gap: 7px; height: 53px; padding: 0 17px; border-bottom: 1px solid var(--line); background: #f7f6fd; color: var(--purple); }.browser-bar i{width:8px;height:8px;border-radius:50%;background:#ff777f}.browser-bar i:nth-child(2){background:#f7bd43}.browser-bar i:nth-child(3){background:#3bd28f}.browser-bar span{flex:1;margin-left:10px;padding:7px 12px;border-radius:8px;color:#73788e;background:#fff;font-size:.68rem}
-.seo-dashboard-body { padding: 22px; background: linear-gradient(145deg,#fff,#faf9ff); }
-.health-card { display: grid; grid-template-columns: 135px 1fr; align-items:center;gap:18px;padding:18px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 10px 25px rgba(61,43,132,.06)}
-.health-ring { display:grid;width:120px;height:120px;place-items:center;border-radius:50%;background:conic-gradient(#4b2cff 0 var(--health-score, 87%),#e9e7fa var(--health-score, 87%));position:relative}.health-ring::after{position:absolute;inset:12px;border-radius:50%;background:#fff;content:''}.health-ring span{position:relative;z-index:2;text-align:center}.health-ring strong,.health-ring small{display:block}.health-ring strong{font-size:2rem}.health-card > div:last-child > small{color:var(--purple);font-weight:800;text-transform:uppercase}.health-card > div:last-child > strong{display:block;margin-top:5px;font-size:1.1rem}.health-card p{margin:7px 0 0;color:var(--muted);font-size:.73rem;line-height:1.55}
-.seo-checks { display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin:12px 0}.seo-checks > div{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:9px;padding:10px;border:1px solid var(--line);border-radius:11px;background:#fff}.seo-checks > div > span{display:grid;width:29px;height:29px;place-items:center;border-radius:8px}.seo-checks strong{font-size:.7rem}.seo-checks small{font-size:.6rem}.status-ok > span,.status-ok small{color:#0da777;background:#e8fbf4}.status-warn > span,.status-warn small{color:#c78109;background:#fff6dd}.status-error > span,.status-error small{color:#dc4755;background:#fff0f1}.seo-checks small{padding:4px 6px;border-radius:6px;background:transparent}
-.ai-recommendation { display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:13px;padding:15px;border-radius:15px;color:white;background:linear-gradient(130deg,#271174,#5a31e8);box-shadow:0 14px 28px rgba(63,31,199,.22)}.ai-recommendation > span{display:grid;width:42px;height:42px;place-items:center;border-radius:12px;background:rgba(255,255,255,.14)}.ai-recommendation small,.ai-recommendation strong{display:block}.ai-recommendation small{color:#c9bdff;font-size:.6rem;text-transform:uppercase}.ai-recommendation strong{margin-top:3px;font-size:.8rem}.ai-recommendation p{margin:4px 0 0;color:#ded8ff;font-size:.63rem}
-
-.pricing-section { background: linear-gradient(180deg,#faf9ff,#fff); }
-.pricing-tabs { display:flex;width:max-content;max-width:100%;margin:-20px auto 38px;padding:5px;border:1px solid var(--line);border-radius:15px;background:white;box-shadow:0 10px 30px rgba(61,43,132,.08)}
-.pricing-tabs button { min-height:44px;padding:0 20px;border:0;border-radius:11px;color:var(--muted);background:transparent;font-weight:750}.pricing-tabs button.active{color:white;background:var(--purple);box-shadow:0 8px 18px rgba(75,44,255,.25)}.pricing-tabs small{margin-left:4px;padding:3px 5px;border-radius:5px;color:#0a9b71;background:#e8fbf4}.pricing-tabs button.active small{color:white;background:rgba(255,255,255,.18)}
-.pricing-grid { display:grid;grid-template-columns:repeat(2,minmax(0,480px));justify-content:center;gap:20px}.pricing-card{position:relative;padding:32px;border:1px solid var(--line);border-radius:23px;background:rgba(255,255,255,.84);box-shadow:0 18px 50px rgba(61,43,132,.09)}.pricing-card.featured{color:white;border-color:transparent;background:linear-gradient(145deg,#271174,#5430df);box-shadow:0 25px 60px rgba(63,31,199,.25)}.popular{position:absolute;top:20px;right:20px;padding:6px 9px;border-radius:99px;color:#4b2cff;background:#fff;font-size:.62rem;font-weight:850;text-transform:uppercase}.pricing-label{margin:0;font-weight:850}.price{margin:20px 0}.price strong,.price small{display:block}.price strong{font-size:2.5rem;letter-spacing:-.04em}.price small{margin-top:4px;color:var(--muted)}.featured .price small,.featured > p{color:#d8d1ff}.pricing-card ul{display:grid;gap:12px;margin:25px 0;padding:0;list-style:none}.pricing-card li{display:flex;gap:9px;font-size:.84rem}.pricing-card li svg{flex:0 0 auto;color:#6f54ff}.featured li svg{color:#bcb0ff}.pricing-card .primary-button,.pricing-card .secondary-button{width:100%;margin-top:5px}.pricing-card.featured .primary-button{color:var(--purple);background:white;box-shadow:none}
-
-.faq-section { background:#fff }.faq-layout{display:grid;grid-template-columns:.65fr 1.35fr;gap:80px}.faq-heading h2{margin:17px 0;font-size:clamp(2.2rem,3.5vw,3.4rem);letter-spacing:-.05em}.faq-heading > p:last-child{color:var(--muted);line-height:1.65}.faq-list{display:grid;gap:10px}.faq-list article{border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 8px 26px rgba(61,43,132,.05)}.faq-list article.open{border-color:rgba(75,44,255,.25)}.faq-list button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:20px;padding:20px 22px;border:0;color:var(--ink);text-align:left;background:transparent;font-weight:800}.faq-list button span:last-child{display:grid;width:31px;height:31px;flex:0 0 auto;place-items:center;border-radius:50%;color:var(--purple);background:#f0edff;font-size:1.25rem;transition:.25s ease}.faq-list article.open button span:last-child{color:white;background:var(--purple);transform:rotate(45deg)}.faq-list article > div p{margin:0;padding:0 22px 20px;color:var(--muted);line-height:1.7}
-.final-cta{padding:35px 0 70px;background:#fff}.final-cta-inner{display:flex;align-items:center;justify-content:space-between;gap:30px;padding:40px 45px;border-radius:24px;color:white;background:radial-gradient(circle at 18% 0,rgba(145,121,255,.55),transparent 35%),linear-gradient(110deg,#241072,#4c28d5);box-shadow:0 25px 60px rgba(63,31,199,.23)}.final-cta p{margin:0;color:#cfc7ff;font-weight:750}.final-cta h2{max-width:800px;margin:8px 0 0;font-size:clamp(1.8rem,3vw,2.8rem);line-height:1.1;letter-spacing:-.04em}.cta-white{flex:0 0 auto;color:var(--purple);background:white;box-shadow:0 12px 26px rgba(20,10,70,.18)}.cta-white:hover{transform:translateY(-2px)}
-.landing-footer{padding:48px 0 30px;color:#c6c9d7;background:#0d1022}.footer-grid{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:30px}.footer-brand{display:flex;align-items:center;gap:10px;color:white;font-size:1.35rem;font-weight:900;text-decoration:none}.footer-brand span{position:relative;width:36px;height:36px;overflow:hidden}.footer-brand img{position:absolute;top:50%;left:50%;width:52px;max-width:none;height:52px;object-fit:cover;transform:translate(-50%,-50%)}.footer-grid p{font-size:.82rem}.footer-grid > div{display:flex;gap:20px}.footer-grid a{color:#dfe1eb;text-decoration:none;font-size:.78rem}.footer-grid a:hover{color:white}.footer-grid > small{grid-column:1/-1;padding-top:25px;border-top:1px solid rgba(255,255,255,.1);color:#777d94}
-
-.contact-section{background:#faf9ff}.contact-layout{display:grid;grid-template-columns:.85fr 1.15fr;align-items:start;gap:48px}.contact-layout>div>p:last-child{max-width:560px;color:var(--muted);font-size:1.05rem;line-height:1.7}.contact-form{display:grid;gap:16px;padding:28px;border:1px solid var(--line);border-radius:24px;background:#fff;box-shadow:0 18px 50px rgba(61,43,132,.09)}.contact-form label{display:grid;gap:7px;font-weight:750}.contact-form input,.contact-form textarea{width:100%;min-height:48px;padding:12px 14px;border:1px solid #d9d8e8;border-radius:12px;color:var(--ink);background:#fff;font:inherit}.contact-form textarea{min-height:112px;resize:vertical}.contact-form input:focus,.contact-form textarea:focus{outline:3px solid rgba(75,44,255,.14);border-color:var(--purple)}.contact-form .consent{display:flex;align-items:flex-start;font-size:.9rem;font-weight:600;line-height:1.5}.contact-form .consent input{width:20px;min-height:20px;flex:0 0 20px}.honeypot{position:absolute!important;left:-10000px!important}.form-success{color:#087a58}.form-error{color:#b42318}.contact-form button{min-height:50px;border:0}.contact-form button:disabled{cursor:wait;opacity:.7}
-
-@keyframes cardFloat { 0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)} }
-@keyframes chartDraw { 0%{stroke-dashoffset:300;opacity:.35}45%,82%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:-24;opacity:.55} }
-@keyframes barFlow { to{background-position:-220% 0} }
-@keyframes heatPoint { 0%,100%{opacity:.55;transform:scale(.82)}50%{opacity:1;transform:scale(1.18)} }
-@keyframes ringGlow { 0%,100%{filter:drop-shadow(0 0 0 rgba(75,44,255,0))}50%{filter:drop-shadow(0 0 7px rgba(75,44,255,.35))} }
-@keyframes nodePulse { 0%,100%{border-color:rgba(255,255,255,.92);box-shadow:0 15px 43px rgba(61,43,132,.1),inset 0 0 0 1px rgba(83,56,230,.05)}50%{border-color:rgba(112,82,255,.27);box-shadow:0 18px 48px rgba(61,43,132,.16),0 0 26px rgba(99,64,255,.13),inset 0 0 0 1px rgba(83,56,230,.1)} }
-
-@media (max-width: 1180px) {
-  .nav-shell{grid-template-columns:1fr auto}.nav-side{display:none}.brand{justify-self:start;padding:0;min-width:0}.menu-button{display:grid;justify-self:end}.mobile-menu{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;padding:16px;border:1px solid rgba(255,255,255,.9);border-radius:20px;background:rgba(255,255,255,.92);box-shadow:0 18px 50px rgba(61,43,132,.15);backdrop-filter:blur(20px)}.mobile-menu > a:not(.login-button){padding:13px;border-radius:10px;color:var(--ink);font-weight:750;text-align:center;text-decoration:none}.mobile-menu .login-button{grid-column:1/-1}.hero-grid{grid-template-columns:1fr 1fr}.float-card{transform:scale(.88)}.heat-card{right:-3%}.traffic-card{right:-5%}.features-heading{grid-template-columns:1fr}.feature-card{grid-template-columns:1fr}.feature-mini{min-height:90px;margin:20px 0 0}.features-grid{grid-template-columns:repeat(3,1fr)}.ecosystem-node{width:156px;height:132px}.ecosystem-node-content{padding:16px}.seo-grid{gap:35px}.footer-grid{grid-template-columns:auto 1fr}.footer-grid > div{grid-column:1/-1;grid-row:2}.footer-grid > small{grid-row:3}
-}
-
-@media (max-width: 900px) {
-  .contact-layout{grid-template-columns:1fr;gap:24px}.contact-form{padding:20px}
-  .section{padding:82px 0}.hero-section{min-height:0;padding-top:155px}.hero-grid{grid-template-columns:1fr}.hero-copy{text-align:center}.hero-copy .eyebrow{margin-inline:auto}.hero-lead{margin-inline:auto}.hero-actions,.hero-benefits{justify-content:center;margin-inline:auto}.hero-visual{min-height:570px}.metrics-strip{grid-template-columns:repeat(2,1fr)}.metrics-strip > div:nth-child(2){border-right:0}.features-grid{grid-template-columns:repeat(2,1fr)}.feature-promises{grid-template-columns:repeat(3,1fr)}.ecosystem-canvas{display:none}.ecosystem-section{min-height:0}.ecosystem-mobile-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.ecosystem-mobile-grid article{display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--line);border-radius:15px;color:var(--purple);background:rgba(255,255,255,.8);box-shadow:0 10px 30px rgba(61,43,132,.07)}.ecosystem-mobile-grid strong,.ecosystem-mobile-grid small{display:block}.ecosystem-mobile-grid strong{color:var(--ink);font-size:.82rem}.ecosystem-mobile-grid small{margin-top:4px;color:var(--muted);font-size:.68rem}.seo-grid{grid-template-columns:1fr}.seo-copy{text-align:center}.seo-copy .eyebrow,.seo-copy > p:not(.eyebrow),.seo-summary{margin-inline:auto}.faq-layout{grid-template-columns:1fr;gap:35px}.final-cta-inner{display:grid;text-align:center;justify-items:center}.footer-grid{display:flex;flex-direction:column;align-items:flex-start}.footer-grid > small{width:100%}
-}
-
-@media (max-width: 640px) {
-  :global(html){scroll-padding-top:96px}.landing-container{width:min(100% - 24px,1440px)}.section{padding:68px 0}.landing-header{top:max(8px,env(safe-area-inset-top));width:calc(100% - 16px)}.nav-shell{min-height:66px;padding:8px 10px 8px 14px;border-radius:19px}.brand-line{font-size:1.26rem}.brand-kicker{font-size:.57rem}.brand-cube{width:34px;height:34px;flex-basis:34px}.brand-cube img{width:50px;height:50px}.mobile-menu{grid-template-columns:1fr 1fr;padding:10px}.mobile-menu > a:not(.login-button){padding:11px 5px;font-size:.82rem}.hero-section{padding:125px 0 36px}.hero-copy{padding:0}.hero-copy h1{margin-top:23px;font-size:clamp(2.55rem,12vw,3.65rem)}.hero-lead{font-size:.94rem;line-height:1.7}.hero-actions{display:grid}.hero-actions > a{width:100%}.hero-benefits{grid-template-columns:1fr 1fr;gap:10px}.hero-benefit{align-items:flex-start;text-align:left;font-size:.7rem}.hero-visual{min-height:430px;margin-top:5px}.hero-cube{width:80%}.cube-stage{bottom:35px;width:250px;height:85px}.float-card{min-width:130px;padding:10px 11px;border-radius:13px;animation:none}.float-card small{margin-bottom:5px;font-size:.6rem}.float-card strong{font-size:.85rem}.visitors-card{top:23px;left:-7%;width:148px}.heat-card{top:50px;right:-9%;width:145px}.mini-heat{height:60px}.conversion-card{bottom:58px;left:-5%}.donut{width:38px;height:38px}.traffic-card{right:-6%;bottom:35px;width:143px}.metrics-strip{gap:0;padding-top:16px}.metrics-strip > div{padding:12px 8px;gap:8px}.metrics-strip strong{font-size:1.08rem}.metrics-strip small{font-size:.65rem}.features-heading{gap:28px}.section h2,.features-heading h2{font-size:2.35rem}.feature-promises{grid-template-columns:1fr}.feature-promises > div{min-height:0}.features-grid{grid-template-columns:1fr}.feature-card{grid-template-columns:minmax(0,1fr) minmax(115px,.72fr);min-height:210px;padding:20px}.feature-mini{min-height:0;margin:0 0 0 10px}.feature-card h3{margin-top:22px}.ecosystem-mobile-grid{grid-template-columns:1fr}.seo-summary{grid-template-columns:repeat(3,1fr)}.seo-summary > div{padding:13px 8px}.seo-summary strong{font-size:1.15rem}.seo-dashboard-body{padding:12px}.health-card{grid-template-columns:95px 1fr;padding:12px}.health-ring{width:84px;height:84px}.health-ring::after{inset:9px}.health-ring strong{font-size:1.4rem}.seo-checks{grid-template-columns:1fr}.ai-recommendation{grid-template-columns:auto 1fr}.ai-recommendation > svg{display:none}.pricing-tabs{width:100%}.pricing-tabs button{flex:1;padding:0 7px;font-size:.72rem}.pricing-grid{grid-template-columns:1fr}.pricing-card{padding:25px 20px}.faq-list button{padding:17px}.faq-list article > div p{padding:0 17px 17px}.final-cta{padding-bottom:45px}.final-cta-inner{padding:32px 20px}.cta-white{width:100%}.footer-grid > div{flex-wrap:wrap}
-}
-
-@media (max-width: 390px) {
-  .hero-benefits{grid-template-columns:1fr}.feature-card{grid-template-columns:1fr}.feature-mini{margin:18px 0 0}.metrics-strip{grid-template-columns:1fr}.metrics-strip > div{border-right:0;border-bottom:1px solid var(--line)}.metrics-strip > div:last-child{border-bottom:0}.seo-summary small{font-size:.58rem}.health-card{grid-template-columns:1fr;text-align:center}.health-ring{margin:auto}.brand-cube{width:31px;height:31px;flex-basis:31px}.brand-cube img{width:46px;height:46px}
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
-}
+:global(*){box-sizing:border-box}:global(html){scroll-behavior:smooth;scroll-padding-top:90px}:global(body){margin:0;background:#fff}.landing{--ink:#11182d;--muted:#687086;--soft:#f5f6f9;--accent:#6547e8;min-height:100vh;overflow:hidden;color:var(--ink);background:#fff;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.wrap{width:min(calc(100% - 48px),1180px);margin-inline:auto}.page-state{display:grid;min-height:100vh;place-content:center;gap:8px;text-align:center}.header{position:fixed;z-index:50;top:0;width:100%;border-bottom:1px solid rgba(17,24,45,.06);background:rgba(255,255,255,.9);backdrop-filter:blur(18px)}.nav{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;min-height:74px}.brand{display:inline-flex;align-items:center;gap:10px;color:var(--ink);font-size:1rem;font-weight:780;letter-spacing:-.02em;text-decoration:none}.brand>span{display:grid;width:32px;height:32px;place-items:center;border-radius:10px;color:#fff;background:var(--ink);font-size:.72rem;letter-spacing:-.04em}.desktop-nav{display:flex;gap:30px}.desktop-nav a,.login,.mobile-nav a,footer a{color:#4b5369;text-decoration:none;font-size:.88rem;font-weight:600}.desktop-nav a:hover,.login:hover,footer a:hover{color:var(--ink)}.nav-actions{display:flex;align-items:center;justify-content:flex-end;gap:20px}.button{display:inline-flex;min-height:50px;align-items:center;justify-content:center;gap:9px;padding:0 22px;border:0;border-radius:13px;color:#fff;background:var(--ink);box-shadow:0 10px 28px rgba(17,24,45,.13);font:inherit;font-weight:700;text-decoration:none;transition:transform .2s,box-shadow .2s,background .2s}.button:hover{background:#262f49;box-shadow:0 15px 34px rgba(17,24,45,.18);transform:translateY(-2px)}.button.small{min-height:40px;padding-inline:16px;font-size:.86rem}.button:disabled{cursor:wait;opacity:.65}.menu-button,.mobile-nav{display:none}.hero{display:grid;grid-template-columns:.83fr 1.17fr;align-items:center;gap:64px;min-height:820px;padding-top:110px}.kicker{margin:0 0 22px;color:var(--accent);font-size:.76rem;font-weight:800;letter-spacing:.11em;text-transform:uppercase}.hero h1{max-width:670px;margin:0;font-size:clamp(3.4rem,5.9vw,5.8rem);font-weight:740;line-height:.98;letter-spacing:-.067em}.lead{max-width:610px;margin:28px 0 0;color:var(--muted);font-size:1.12rem;line-height:1.7}.hero-actions{display:flex;align-items:center;gap:24px;margin-top:34px}.text-link{display:inline-flex;align-items:center;gap:7px;color:var(--ink);font-weight:700;text-decoration:none}.text-link:hover{color:var(--accent)}.fine{margin:26px 0 0;color:#8b91a2;font-size:.82rem}.product-window{display:block;overflow:hidden;border:1px solid rgba(22,30,54,.08);border-radius:20px;background:#fff;box-shadow:0 35px 90px rgba(25,31,55,.16);text-decoration:none;transform:perspective(1300px) rotateY(-4deg) rotateX(1deg)}.window-bar{display:flex;height:42px;align-items:center;gap:6px;padding:0 14px;border-bottom:1px solid #eceef3;background:#f8f9fb}.window-bar i{width:8px;height:8px;border-radius:50%;background:#d8dbe3}.window-bar span{margin-left:8px;color:#8a90a0;font-size:.66rem}.live-screen{display:grid;min-height:430px;color:var(--ink);background:#f7f8fb}.analytics-screen{grid-template-columns:120px 1fr}.analytics-screen aside,.screen-sidebar{display:flex;flex-direction:column;gap:18px;padding:22px 16px;color:#8a90a0;background:#fff;font-size:.62rem}.analytics-screen aside b,.screen-sidebar b{margin-bottom:10px;color:var(--accent);font-size:1rem}.analytics-screen aside strong,.screen-sidebar .selected{color:var(--ink)}.screen-body{padding:34px}.screen-body small,.story-content small{color:var(--accent);font-size:.58rem;font-weight:800;letter-spacing:.1em}.screen-body h2{margin:7px 0 22px;font-size:1.35rem}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.metrics>div{padding:12px;border-radius:10px;background:#fff}.metrics span,.metrics b{display:block}.metrics span{color:#81889a;font-size:.54rem}.metrics b{margin-top:8px;font-size:1.15rem}.insight{display:grid;gap:5px;margin-top:12px;padding:14px;border-radius:10px;background:#eeeafd}.insight b{font-size:.7rem}.insight span{color:#696f81;font-size:.58rem}.trend{display:flex;height:118px;align-items:flex-end;gap:7px;margin-top:14px;padding:10px 15px;border-radius:10px;background:#fff}.trend span{flex:1;max-height:100%;border-radius:4px 4px 1px 1px;background:linear-gradient(#8c75ef,#dcd6fa)}.problem-section{padding:150px 0 120px;background:var(--soft)}.problem-layout{display:grid;grid-template-columns:1fr 1fr;gap:100px}.problem-layout h2,.flow-section h2,.section-intro h2,.contact-layout h2{margin:0;font-size:clamp(2.5rem,4.5vw,4.5rem);line-height:1.04;letter-spacing:-.055em}.problem-list{border-top:1px solid #dfe2e9}.problem-list p{margin:0;padding:19px 0;border-bottom:1px solid #dfe2e9;color:#4f576c;font-size:1.05rem}.solution-line{margin-top:100px!important;font-size:clamp(1.6rem,3vw,2.7rem);font-weight:650;line-height:1.25;letter-spacing:-.035em}.flow-section{padding:150px 0;text-align:center}.flow-section .kicker{margin-inline:auto}.flow{display:flex;align-items:center;justify-content:center;gap:15px;margin-top:62px}.flow span{padding:14px 18px;border-radius:999px;background:var(--soft);font-size:.86rem;font-weight:700}.flow svg{color:#a1a6b3}.product-stories{background:#fbfbfc}.story{display:grid;grid-template-columns:.72fr 1.28fr;align-items:center;gap:90px;min-height:760px;padding-block:120px}.story.reverse{grid-template-columns:1.28fr .72fr}.story.reverse .story-copy{order:2}.story-copy h2{margin:0;font-size:clamp(2.5rem,4.4vw,4.2rem);line-height:1.02;letter-spacing:-.055em}.story-copy>p:not(.kicker){margin:25px 0;color:var(--muted);font-size:1.04rem;line-height:1.75}.story-window{transform:none}.story-window:hover{box-shadow:0 42px 100px rgba(25,31,55,.2);transform:translateY(-4px)}.story-screen{grid-template-columns:115px 1fr;min-height:440px}.story-content{padding:38px}.story-content h3{margin:8px 0 25px;font-size:1.35rem}.content-line{width:54%;height:8px;margin:8px 0;border-radius:4px;background:#e9eaf0}.content-line.wide{width:82%}.screen-panel{display:grid;gap:8px;margin-top:28px;padding:24px;border-radius:14px;background:#f0edfd}.screen-panel b{font-size:.78rem}.screen-panel span{color:#686e80;font-size:.65rem;line-height:1.6}.content-table{display:grid;gap:8px;margin-top:20px}.content-table i{height:32px;border-radius:7px;background:#f1f2f5}.audience-section{padding:150px 0;background:var(--ink);color:#fff}.section-intro{max-width:760px}.section-intro>p:last-child{color:var(--muted);font-size:1.06rem;line-height:1.7}.audience-section .section-intro>p:last-child{color:#a9afbd}.audience-grid{display:grid;grid-template-columns:repeat(6,1fr);margin-top:80px;border-top:1px solid rgba(255,255,255,.15)}.audience-grid article{grid-column:span 2;min-height:210px;padding:28px 24px;border-bottom:1px solid rgba(255,255,255,.15)}.audience-grid article:not(:nth-child(3n)){border-right:1px solid rgba(255,255,255,.15)}.audience-grid article:nth-child(4){grid-column:2/span 2}.audience-grid h3{margin:0;font-size:1.25rem}.audience-grid p{color:#aeb4c1;line-height:1.65}.pricing-section{padding-block:150px}.plans{display:grid;grid-template-columns:repeat(2,minmax(0,460px));gap:28px;margin-top:70px}.plans article{padding:42px;border-radius:24px;background:var(--soft)}.plans article.primary{color:#fff;background:var(--ink)}.plans article>p{font-weight:750}.plans h3{margin:25px 0 10px;font-size:2.8rem;letter-spacing:-.05em}.plans h3 small{font-size:.9rem}.plans article>span{color:var(--muted)}.plans .primary>span{color:#acb2c0}.plans ul{display:grid;gap:13px;margin:30px 0;padding:0;list-style:none}.plans li{display:flex;gap:9px;font-size:.88rem}.plans .primary .button{color:var(--ink);background:#fff}.empty-pricing{margin-top:45px;padding:28px;border-radius:18px;background:var(--soft)}.faq-section{display:grid;grid-template-columns:.7fr 1.3fr;gap:90px;padding-block:150px}.faq{border-top:1px solid #e1e3e9}.faq article{border-bottom:1px solid #e1e3e9}.faq button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:20px;padding:24px 0;border:0;color:var(--ink);text-align:left;background:none;font:inherit;font-weight:700}.faq button b{font-size:1.35rem;font-weight:400}.faq article p{margin:0;padding:0 40px 24px 0;color:var(--muted);line-height:1.7}.contact-section{padding:150px 0;background:var(--soft)}.contact-layout{display:grid;grid-template-columns:1fr 1fr;gap:100px}.contact-layout>div>p:last-child{max-width:550px;color:var(--muted);font-size:1.05rem;line-height:1.7}.contact-layout form{display:grid;gap:17px;padding:35px;border-radius:22px;background:#fff;box-shadow:0 20px 65px rgba(25,31,55,.08)}.contact-layout label{display:grid;gap:8px;font-size:.86rem;font-weight:700}.contact-layout input,.contact-layout textarea{width:100%;min-height:50px;padding:13px 14px;border:1px solid #dfe1e7;border-radius:11px;color:var(--ink);background:#fff;font:inherit}.contact-layout textarea{min-height:110px;resize:vertical}.contact-layout input:focus,.contact-layout textarea:focus{border-color:var(--accent);outline:3px solid rgba(101,71,232,.12)}.contact-layout .consent{display:flex;align-items:flex-start;font-weight:500;line-height:1.5}.consent input{width:19px;min-height:19px;flex:0 0 19px}.honeypot{position:absolute!important;left:-10000px!important}.success{color:#08775a}.error{color:#b42318}.final-section{padding-block:170px;text-align:center}.final-section>p{color:var(--accent);font-weight:750}.final-section h2{margin:15px 0 40px;font-size:clamp(3.3rem,7vw,7rem);line-height:.95;letter-spacing:-.07em}.final-section>div{display:flex;align-items:center;justify-content:center;gap:25px}footer{padding:50px 0;color:#aeb4c1;background:var(--ink)}.footer-inner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:35px}.footer-inner .brand{color:#fff}.footer-inner p{font-size:.83rem}.footer-inner>div{display:flex;gap:20px}.footer-inner small{grid-column:1/-1;padding-top:28px;border-top:1px solid rgba(255,255,255,.1)}[data-reveal]{opacity:0;transform:translateY(24px);transition:opacity .7s ease,transform .7s ease}[data-reveal].is-visible{opacity:1;transform:none}
+@media(max-width:1000px){.desktop-nav,.nav-actions{display:none}.nav{grid-template-columns:1fr auto}.menu-button{display:grid;width:42px;height:42px;place-items:center;border:0;border-radius:11px;background:var(--soft)}.mobile-nav{display:grid;position:fixed;top:74px;width:100%;gap:0;padding:12px 24px 20px;border-bottom:1px solid #e8e9ed;background:#fff}.mobile-nav a{padding:13px 0}.hero{grid-template-columns:1fr;gap:50px;padding-block:160px 90px}.hero-copy{text-align:center}.hero h1,.lead{margin-inline:auto}.hero-actions{justify-content:center}.hero-product{width:min(100%,780px);margin-inline:auto}.problem-layout,.contact-layout{grid-template-columns:1fr;gap:55px}.story,.story.reverse{grid-template-columns:1fr;gap:55px;min-height:0}.story.reverse .story-copy{order:0}.story-copy{max-width:720px}.audience-grid article{grid-column:span 3}.audience-grid article:nth-child(4){grid-column:span 3}.audience-grid article:not(:nth-child(3n)){border-right:0}.audience-grid article:nth-child(odd){border-right:1px solid rgba(255,255,255,.15)}.faq-section{grid-template-columns:1fr;gap:55px}.footer-inner{grid-template-columns:1fr}.footer-inner small{grid-column:auto}}
+@media(max-width:680px){.wrap{width:min(calc(100% - 36px),1180px)}.hero{min-height:0;padding-top:130px}.hero h1{font-size:clamp(3rem,14vw,4.5rem)}.lead{font-size:1rem}.hero-actions{flex-direction:column}.product-window{border-radius:14px;transform:none}.live-screen{min-height:300px}.analytics-screen,.story-screen{grid-template-columns:1fr}.analytics-screen aside,.screen-sidebar{display:none}.screen-body,.story-content{padding:22px}.metrics{grid-template-columns:repeat(2,1fr)}.trend{height:80px}.problem-section,.flow-section,.audience-section,.pricing-section,.faq-section,.contact-section{padding-block:100px}.problem-layout h2,.flow-section h2,.section-intro h2,.contact-layout h2{font-size:2.7rem}.solution-line{margin-top:65px!important}.flow{display:grid;grid-template-columns:1fr;gap:8px}.flow svg{margin:auto;transform:rotate(90deg)}.story{padding-block:85px}.story-copy h2{font-size:2.8rem}.story-screen{min-height:330px}.audience-grid{grid-template-columns:1fr;margin-top:50px}.audience-grid article,.audience-grid article:nth-child(4){grid-column:auto;min-height:0;padding-inline:0;border-right:0!important}.plans{grid-template-columns:1fr}.plans article{padding:30px 24px}.contact-layout form{padding:24px 18px}.final-section{padding-block:110px}.final-section h2{font-size:3.8rem}.final-section>div{flex-direction:column}.footer-inner>div{flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){:global(html){scroll-behavior:auto}[data-reveal]{opacity:1;transform:none;transition:none}.button{transition:none}}
 </style>
