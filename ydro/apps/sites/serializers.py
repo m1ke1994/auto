@@ -212,13 +212,16 @@ class PublicLeadCreateSerializer(serializers.Serializer):
     section_key = serializers.CharField(max_length=100, required=False, allow_blank=True)
     form_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
     name = serializers.CharField(max_length=255)
-    phone = serializers.CharField(max_length=100)
+    phone = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    contact = serializers.CharField(max_length=255, required=False, allow_blank=True, write_only=True)
     email = serializers.EmailField(required=False, allow_blank=True)
     message = serializers.CharField(required=False, allow_blank=True)
     service_type = serializers.CharField(max_length=100, required=False, allow_blank=True)
     service_title = serializers.CharField(max_length=255, required=False, allow_blank=True)
     source_url = serializers.URLField(required=False, allow_blank=True)
     payload = serializers.JSONField(required=False)
+    consent = serializers.BooleanField(required=False, default=False, write_only=True)
+    website = serializers.CharField(required=False, allow_blank=True, write_only=True, max_length=255)
 
     default_error_messages = {
         "required_fields": "Заполните обязательные поля",
@@ -226,13 +229,28 @@ class PublicLeadCreateSerializer(serializers.Serializer):
     }
 
     def validate(self, attrs):
-        required_fields = ("site_slug", "name", "phone")
+        required_fields = ("site_slug", "name")
         if any(not str(attrs.get(field, "")).strip() for field in required_fields):
             self.fail("required_fields")
+        if str(attrs.get("website", "")).strip():
+            raise serializers.ValidationError({"website": "Некорректная отправка формы."})
+
+        contact = str(attrs.pop("contact", "") or "").strip()
+        phone = str(attrs.get("phone", "") or "").strip()
+        email = str(attrs.get("email", "") or "").strip()
+        if contact and not phone and not email:
+            if "@" in contact:
+                attrs["email"] = contact
+            else:
+                attrs["phone"] = contact
+        if not str(attrs.get("phone", "")).strip() and not str(attrs.get("email", "")).strip():
+            raise serializers.ValidationError({"contact": "Укажите телефон или email."})
+        attrs.pop("website", None)
         return attrs
 
     def create(self, validated_data):
         site_slug = validated_data.pop("site_slug")
+        validated_data.pop("consent", None)
         site = Site.objects.filter(slug=site_slug, is_active=True).first()
         if site is None:
             self.fail("site_not_found")
@@ -251,7 +269,7 @@ class PublicLeadCreateSerializer(serializers.Serializer):
             section_key=validated_data.get("section_key", ""),
             form_name=validated_data.get("form_name", ""),
             name=validated_data["name"],
-            phone=validated_data["phone"],
+            phone=validated_data.get("phone", ""),
             email=validated_data.get("email", ""),
             message=validated_data.get("message", ""),
             service_type=validated_data.get("service_type", ""),
@@ -305,6 +323,18 @@ class AdminLeadSerializer(serializers.ModelSerializer):
     site_slug = serializers.CharField(source="site.slug", read_only=True)
     site_name = serializers.CharField(source="site.name", read_only=True)
     status_label = serializers.CharField(source="get_status_display", read_only=True)
+    attribution = serializers.SerializerMethodField()
+
+    def get_attribution(self, obj):
+        payload = obj.payload if isinstance(obj.payload, dict) else {}
+        return {
+            "referrer": payload.get("referrer", ""),
+            "utm_source": payload.get("utm_source", ""),
+            "utm_medium": payload.get("utm_medium", ""),
+            "utm_campaign": payload.get("utm_campaign", ""),
+            "utm_term": payload.get("utm_term", ""),
+            "utm_content": payload.get("utm_content", ""),
+        }
 
     class Meta:
         model = SiteLead
@@ -324,6 +354,7 @@ class AdminLeadSerializer(serializers.ModelSerializer):
             "source_url",
             "status",
             "status_label",
+            "attribution",
             "created_at",
             "updated_at",
         )

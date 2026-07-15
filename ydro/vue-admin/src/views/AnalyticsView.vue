@@ -117,7 +117,7 @@ const overviewMetricCards = computed(() => {
   const leads = Number(summary.value?.leads_count ?? 0)
   const conversion = Number(summary.value?.conversion ?? 0)
   const avgDuration = Number(summary.value?.avg_duration ?? 0)
-  return [
+  const cards = [
     {
       label: 'Посещения',
       value: visits,
@@ -166,6 +166,12 @@ const overviewMetricCards = computed(() => {
       status: durationStatus(avgDuration, visits),
       recommendation: avgDuration < 30 ? 'Проверьте скорость загрузки и понятность первого экрана.' : 'Посмотрите пути пользователей и страницы с хорошим удержанием.',
     },
+  ]
+  return [
+    { ...cards[1], label: 'Посетители' },
+    cards[3],
+    { ...cards[4], label: 'Конверсия в заявку' },
+    cards[2],
   ]
 })
 
@@ -706,24 +712,14 @@ onMounted(async () => {
       </template>
 
       <template v-if="activeTab === 'overview'">
-        <AnalyticsSummaryCard :text="periodSummaryText" :attention-items="attentionItems" />
-
-        <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <article v-for="metric in overviewMetricCards" :key="metric.label" class="surface">
-            <div class="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
-              <div class="min-w-0">
-                <div class="flex items-center gap-2">
-                  <h2 class="text-base font-semibold text-[#17223B]">{{ metric.label }}</h2>
-                  <MetricHelpTooltip :text="metric.tooltip" />
-                </div>
-                <p class="mt-1 text-sm leading-6 text-slate-500">{{ metric.description }}</p>
-              </div>
-              <MetricStatusBadge :status="metric.status" />
-            </div>
-            <p class="mt-4 text-3xl font-bold text-[#17223B]">{{ metric.value }}</p>
-            <p class="mt-3 rounded-2xl border border-brand-100 bg-[#F5F7FD] p-3 text-sm leading-6 text-slate-600">{{ metric.recommendation }}</p>
+        <section class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <article v-for="metric in overviewMetricCards" :key="metric.label" class="surface min-h-[96px] p-4">
+            <div class="flex items-center gap-2"><h2 class="text-sm font-semibold text-slate-600">{{ metric.label }}</h2><MetricHelpTooltip :text="metric.tooltip" /></div>
+            <p class="mt-3 text-2xl font-bold text-[#17223B] sm:text-3xl">{{ metric.value }}</p>
           </article>
         </section>
+
+        <AnalyticsSummaryCard :text="periodSummaryText" :attention-items="attentionItems.slice(0, 2)" />
 
         <section class="surface">
           <div class="section-heading">

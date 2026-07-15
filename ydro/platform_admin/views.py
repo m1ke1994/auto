@@ -17,6 +17,7 @@ from apps.sites.models import Site, SiteLead
 from clients.models import Client
 from seo_audit.models import SiteSEOAudit
 from subscriptions.models import Subscription
+from tracker.models import Site as LegacySite, Visit as LegacyVisit
 
 from platform_admin.models import PlatformAuditLog
 from platform_admin.pagination import PlatformPagination
@@ -90,7 +91,12 @@ class OverviewView(PlatformView):
         start, end = period_bounds(request); today = timezone.localdate()
         visits = Visit.objects.filter(started_at__range=(start, end), is_bot=False)
         sites = Site.objects.all(); subscriptions = Subscription.objects.all()
-        sites_with_traffic = visits.values("site_id").distinct()
+        sites_with_traffic = set(visits.values_list("site_id", flat=True))
+        legacy_tokens_with_traffic = LegacyVisit.objects.filter(
+            started_at__range=(start, end), is_bot=False,
+            site__token__in=sites.values("api_key"), site__is_active=True,
+        ).values_list("site__token", flat=True)
+        sites_with_traffic.update(sites.filter(api_key__in=legacy_tokens_with_traffic).values_list("id", flat=True))
         errors = TrackingEvent.objects.filter(timestamp__range=(start, end), type__in=ERROR_TYPES)
         ai_jobs = AIRecommendationJob.objects.filter(created_at__range=(start, end), deleted_at__isnull=True)
         critical = sum(1 for result in ai_jobs.exclude(result=None).values_list("result", flat=True) for item in (result or {}).get("recommendations", []) if item.get("priority") in {"very_important", "critical"})
@@ -136,7 +142,15 @@ class AnalyticsView(PlatformView):
         site_id, owner_id = request.query_params.get("site"), request.query_params.get("owner")
         if site_id: visits = visits.filter(site_id=site_id)
         if owner_id: visits = visits.filter(site__owner_id=owner_id)
-        site_ids = visits.values_list("site_id", flat=True)
+        scoped_sites = Site.objects.all()
+        if site_id: scoped_sites = scoped_sites.filter(id=site_id)
+        if owner_id: scoped_sites = scoped_sites.filter(owner_id=owner_id)
+        site_ids = set(visits.values_list("site_id", flat=True))
+        legacy_tokens = LegacyVisit.objects.filter(
+            started_at__range=(start, end), is_bot=False,
+            site__token__in=scoped_sites.values("api_key"), site__is_active=True,
+        ).values_list("site__token", flat=True)
+        site_ids.update(scoped_sites.filter(api_key__in=legacy_tokens).values_list("id", flat=True))
         pages = PageView.objects.filter(timestamp__range=(start, end), visit__in=visits)
         events = TrackingEvent.objects.filter(timestamp__range=(start, end), visit__in=visits)
         leads = SiteLead.objects.filter(created_at__range=(start, end), site_id__in=site_ids)
@@ -144,7 +158,7 @@ class AnalyticsView(PlatformView):
         sources = visits.values("referrer").annotate(count=Count("id")).order_by("-count")[:15]
         popular = visits.values("site_id", "site__name").annotate(visits=Count("id")).order_by("-visits")[:15]
         visit_count, lead_count = visits.count(), leads.count()
-        return Response({"period": {"date_from": start.date(), "date_to": end.date()}, "totals": {"visits": visit_count, "unique_visitors": visits.exclude(visitor_id="").values("site_id", "visitor_id").distinct().count(), "page_views": pages.count(), "leads": lead_count, "events": events.count(), "conversion": round(lead_count / visit_count * 100, 2) if visit_count else 0, "errors": events.filter(type__in=ERROR_TYPES).count()}, "daily": list(daily), "sources": list(sources), "popular_sites": list(popular), "sites_without_traffic": list(Site.objects.exclude(id__in=site_ids).values("id", "name")[:50])})
+        return Response({"period": {"date_from": start.date(), "date_to": end.date()}, "totals": {"visits": visit_count, "unique_visitors": visits.exclude(visitor_id="").values("site_id", "visitor_id").distinct().count(), "page_views": pages.count(), "leads": lead_count, "events": events.count(), "conversion": round(lead_count / visit_count * 100, 2) if visit_count else 0, "errors": events.filter(type__in=ERROR_TYPES).count()}, "daily": list(daily), "sources": list(sources), "popular_sites": list(popular), "sites_without_traffic": list(scoped_sites.exclude(id__in=site_ids).values("id", "name")[:50])})
 
 
 class ClientsView(PlatformView):

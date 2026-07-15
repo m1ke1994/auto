@@ -435,6 +435,27 @@ class SitesApiTests(APITestCase):
         self.assertEqual(lead.form_name, "Slug endpoint form")
         mocked_telegram.assert_called_once()
 
+    @patch("apps.sites.serializers.send_lead_telegram_notification", return_value=True)
+    def test_slug_endpoint_accepts_email_as_single_contact(self, mocked_telegram):
+        response = self.client.post(
+            reverse("public-site-lead-create", kwargs={"site_slug": self.site.slug}),
+            {"name": "Анна", "contact": "anna@example.com", "message": "Нужна аналитика", "consent": True},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        lead = SiteLead.objects.get()
+        self.assertEqual(lead.email, "anna@example.com")
+        self.assertEqual(lead.phone, "")
+
+    def test_slug_endpoint_rejects_honeypot(self):
+        response = self.client.post(
+            reverse("public-site-lead-create", kwargs={"site_slug": self.site.slug}),
+            {"name": "Bot", "contact": "bot@example.com", "website": "spam.example"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(SiteLead.objects.exists())
+
     @patch("leads.services.send_telegram_message", return_value=True)
     def test_one_site_lead_sends_one_detailed_message_to_its_site_chat(self, mocked_telegram):
         Client.objects.create(

@@ -9,6 +9,7 @@ from rest_framework.test import APIClient
 
 from apps.analytics.models import Visit
 from apps.sites.models import Site, SiteLead
+from tracker.models import Site as LegacySite, Visit as LegacyVisit
 
 
 class PlatformAccessTests(TestCase):
@@ -53,6 +54,18 @@ class PlatformAccessTests(TestCase):
         response = self.api.get("/api/platform/analytics/?period=7d")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["totals"]["visits"], 1)
+
+    def test_legacy_tracker_traffic_is_not_reported_as_no_traffic(self):
+        legacy_site = LegacySite.objects.create(token=self.site.api_key, domain=self.site.domain)
+        LegacyVisit.objects.create(site=legacy_site, session_id="legacy", visitor_id="legacy-user")
+        self.api.force_authenticate(self.owner)
+        response = self.api.get("/api/platform/analytics/?period=7d")
+        self.assertNotIn(self.site.id, [item["id"] for item in response.data["sites_without_traffic"]])
+
+    def test_site_filter_scopes_sites_without_traffic(self):
+        self.api.force_authenticate(self.owner)
+        response = self.api.get(f"/api/platform/analytics/?period=7d&site={self.site.id}")
+        self.assertEqual([item["id"] for item in response.data["sites_without_traffic"]], [self.site.id])
 
     def test_personal_leads_need_separate_permission(self):
         SiteLead.objects.create(site=self.site, name="Person", phone="+70000000000")

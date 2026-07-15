@@ -226,6 +226,7 @@ class PublicSiteHtmlView(APIView):
 class PublicLeadCreateView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_scope = "public_lead"
 
     def post(self, request, *args, **kwargs):
         serializer = PublicLeadCreateSerializer(data=request.data, context={"request": request})

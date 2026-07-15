@@ -133,3 +133,21 @@ export async function loadTrackNodePublicSite({ force = false } = {}) {
 
   return pendingRequest
 }
+
+export async function submitPublicSiteLead(siteSlug, payload) {
+  const slug = String(siteSlug || '').trim()
+  if (!slug) throw new Error('Не удалось определить сайт для заявки.')
+  const response = await fetch(`${API_URL}/public/sites/${encodeURIComponent(slug)}/leads/`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    credentials: 'omit',
+    body: JSON.stringify(payload),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const error = new Error(data?.message || 'Не удалось отправить заявку.')
+    error.details = data?.errors || {}
+    throw error
+  }
+  return data
+}

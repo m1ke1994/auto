@@ -21,7 +21,7 @@ import {
   Zap,
 } from '@lucide/vue'
 
-import { applyPublicSiteSeo, ensurePublicSiteTracker, loadTrackNodePublicSite } from '../api/publicSite'
+import { applyPublicSiteSeo, ensurePublicSiteTracker, loadTrackNodePublicSite, submitPublicSiteLead } from '../api/publicSite'
 
 const mobileMenuOpen = ref(false)
 const activeSection = ref('features')
@@ -31,6 +31,8 @@ const site = ref(null)
 const sections = ref([])
 const loading = ref(true)
 const loadError = ref('')
+const leadForm = reactive({ name: '', contact: '', message: '', consent: false, website: '' })
+const leadState = reactive({ submitting: false, success: '', error: '', touched: false })
 let sectionObserver
 let statsAnimationFrame
 let statsUpdateTimer
@@ -90,6 +92,49 @@ const faqItems = computed(() => faqSection.value.items || [])
 
 function closeMobileMenu() {
   mobileMenuOpen.value = false
+}
+
+function trackLandingEvent(type) {
+  window.tracknode?.track?.(type, { page: window.location.pathname })
+}
+
+function markFormStarted() {
+  if (leadState.touched) return
+  leadState.touched = true
+  trackLandingEvent('lead_form_started')
+}
+
+async function submitLead() {
+  if (leadState.submitting) return
+  leadState.error = ''
+  leadState.success = ''
+  if (!leadForm.name.trim() || !leadForm.contact.trim() || !leadForm.consent) {
+    leadState.error = 'Заполните имя, телефон или email и подтвердите согласие.'
+    return
+  }
+  leadState.submitting = true
+  const search = new URLSearchParams(window.location.search)
+  try {
+    await submitPublicSiteLead(site.value?.slug, {
+      name: leadForm.name.trim(), contact: leadForm.contact.trim(), message: leadForm.message.trim(),
+      consent: leadForm.consent, website: leadForm.website, source_url: window.location.href,
+      form_name: 'Форма лендинга TrackNode', section_key: 'contact',
+      payload: {
+        referrer: document.referrer || '', session_id: sessionStorage.getItem('tracknode_session_id') || '',
+        utm_source: search.get('utm_source') || '', utm_medium: search.get('utm_medium') || '',
+        utm_campaign: search.get('utm_campaign') || '', utm_term: search.get('utm_term') || '',
+        utm_content: search.get('utm_content') || '',
+      },
+    })
+    leadState.success = 'Спасибо! Заявка отправлена. Мы свяжемся с вами в ближайшее время.'
+    Object.assign(leadForm, { name: '', contact: '', message: '', consent: false, website: '' })
+    trackLandingEvent('lead_form_success')
+  } catch {
+    leadState.error = 'Не удалось отправить заявку. Попробуйте ещё раз или напишите нам в Telegram.'
+    trackLandingEvent('lead_form_error')
+  } finally {
+    leadState.submitting = false
+  }
 }
 
 function formatInteger(value) {
@@ -457,6 +502,22 @@ onUnmounted(() => {
         </div>
       </section>
 
+      <section id="contact" class="section contact-section" aria-labelledby="contact-title">
+        <div class="landing-container contact-layout">
+          <div><p class="eyebrow">Обратная связь</p><h2 id="contact-title">Расскажите о вашем сайте</h2><p>Оставьте заявку. Мы посмотрим вашу задачу и расскажем, как TrackNode может помочь.</p></div>
+          <form class="contact-form" novalidate @submit.prevent="submitLead" @focusin="markFormStarted">
+            <label>Имя<input v-model="leadForm.name" maxlength="255" autocomplete="name" required /></label>
+            <label>Телефон или email<input v-model="leadForm.contact" maxlength="255" autocomplete="email" required /></label>
+            <label>Коротко опишите задачу<textarea v-model="leadForm.message" maxlength="2000" rows="4" /></label>
+            <label class="honeypot" aria-hidden="true">Ваш сайт<input v-model="leadForm.website" tabindex="-1" autocomplete="off" /></label>
+            <label class="consent"><input v-model="leadForm.consent" type="checkbox" required /> <span>Я согласен на обработку персональных данных.</span></label>
+            <p v-if="leadState.success" class="form-success" role="status">{{ leadState.success }}</p>
+            <p v-if="leadState.error" class="form-error" role="alert">{{ leadState.error }}</p>
+            <button class="primary-button" type="submit" :disabled="leadState.submitting">{{ leadState.submitting ? 'Отправляем...' : 'Отправить заявку' }}</button>
+          </form>
+        </div>
+      </section>
+
       <section v-if="hasSection('final_cta')" class="final-cta" :style="{ order: sectionOrder('final_cta') }">
         <div class="landing-container final-cta-inner">
           <div><p>{{ finalCta.eyebrow }}</p><h2>{{ finalCta.title }}</h2></div>
@@ -660,6 +721,8 @@ onUnmounted(() => {
 .final-cta{padding:35px 0 70px;background:#fff}.final-cta-inner{display:flex;align-items:center;justify-content:space-between;gap:30px;padding:40px 45px;border-radius:24px;color:white;background:radial-gradient(circle at 18% 0,rgba(145,121,255,.55),transparent 35%),linear-gradient(110deg,#241072,#4c28d5);box-shadow:0 25px 60px rgba(63,31,199,.23)}.final-cta p{margin:0;color:#cfc7ff;font-weight:750}.final-cta h2{max-width:800px;margin:8px 0 0;font-size:clamp(1.8rem,3vw,2.8rem);line-height:1.1;letter-spacing:-.04em}.cta-white{flex:0 0 auto;color:var(--purple);background:white;box-shadow:0 12px 26px rgba(20,10,70,.18)}.cta-white:hover{transform:translateY(-2px)}
 .landing-footer{padding:48px 0 30px;color:#c6c9d7;background:#0d1022}.footer-grid{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:30px}.footer-brand{display:flex;align-items:center;gap:10px;color:white;font-size:1.35rem;font-weight:900;text-decoration:none}.footer-brand span{position:relative;width:36px;height:36px;overflow:hidden}.footer-brand img{position:absolute;top:50%;left:50%;width:52px;max-width:none;height:52px;object-fit:cover;transform:translate(-50%,-50%)}.footer-grid p{font-size:.82rem}.footer-grid > div{display:flex;gap:20px}.footer-grid a{color:#dfe1eb;text-decoration:none;font-size:.78rem}.footer-grid a:hover{color:white}.footer-grid > small{grid-column:1/-1;padding-top:25px;border-top:1px solid rgba(255,255,255,.1);color:#777d94}
 
+.contact-section{background:#faf9ff}.contact-layout{display:grid;grid-template-columns:.85fr 1.15fr;align-items:start;gap:48px}.contact-layout>div>p:last-child{max-width:560px;color:var(--muted);font-size:1.05rem;line-height:1.7}.contact-form{display:grid;gap:16px;padding:28px;border:1px solid var(--line);border-radius:24px;background:#fff;box-shadow:0 18px 50px rgba(61,43,132,.09)}.contact-form label{display:grid;gap:7px;font-weight:750}.contact-form input,.contact-form textarea{width:100%;min-height:48px;padding:12px 14px;border:1px solid #d9d8e8;border-radius:12px;color:var(--ink);background:#fff;font:inherit}.contact-form textarea{min-height:112px;resize:vertical}.contact-form input:focus,.contact-form textarea:focus{outline:3px solid rgba(75,44,255,.14);border-color:var(--purple)}.contact-form .consent{display:flex;align-items:flex-start;font-size:.9rem;font-weight:600;line-height:1.5}.contact-form .consent input{width:20px;min-height:20px;flex:0 0 20px}.honeypot{position:absolute!important;left:-10000px!important}.form-success{color:#087a58}.form-error{color:#b42318}.contact-form button{min-height:50px;border:0}.contact-form button:disabled{cursor:wait;opacity:.7}
+
 @keyframes cardFloat { 0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)} }
 @keyframes chartDraw { 0%{stroke-dashoffset:300;opacity:.35}45%,82%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:-24;opacity:.55} }
 @keyframes barFlow { to{background-position:-220% 0} }
@@ -672,6 +735,7 @@ onUnmounted(() => {
 }
 
 @media (max-width: 900px) {
+  .contact-layout{grid-template-columns:1fr;gap:24px}.contact-form{padding:20px}
   .section{padding:82px 0}.hero-section{min-height:0;padding-top:155px}.hero-grid{grid-template-columns:1fr}.hero-copy{text-align:center}.hero-copy .eyebrow{margin-inline:auto}.hero-lead{margin-inline:auto}.hero-actions,.hero-benefits{justify-content:center;margin-inline:auto}.hero-visual{min-height:570px}.metrics-strip{grid-template-columns:repeat(2,1fr)}.metrics-strip > div:nth-child(2){border-right:0}.features-grid{grid-template-columns:repeat(2,1fr)}.feature-promises{grid-template-columns:repeat(3,1fr)}.ecosystem-canvas{display:none}.ecosystem-section{min-height:0}.ecosystem-mobile-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.ecosystem-mobile-grid article{display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--line);border-radius:15px;color:var(--purple);background:rgba(255,255,255,.8);box-shadow:0 10px 30px rgba(61,43,132,.07)}.ecosystem-mobile-grid strong,.ecosystem-mobile-grid small{display:block}.ecosystem-mobile-grid strong{color:var(--ink);font-size:.82rem}.ecosystem-mobile-grid small{margin-top:4px;color:var(--muted);font-size:.68rem}.seo-grid{grid-template-columns:1fr}.seo-copy{text-align:center}.seo-copy .eyebrow,.seo-copy > p:not(.eyebrow),.seo-summary{margin-inline:auto}.faq-layout{grid-template-columns:1fr;gap:35px}.final-cta-inner{display:grid;text-align:center;justify-items:center}.footer-grid{display:flex;flex-direction:column;align-items:flex-start}.footer-grid > small{width:100%}
 }
 
