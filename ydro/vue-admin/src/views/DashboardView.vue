@@ -26,7 +26,13 @@ function publicSiteUrl(domain) {
 
 onMounted(async () => {
   if (!authStore.user) await authStore.getCurrentUser()
-  await siteStore.fetchSites()
+  if (!siteStore.loaded) {
+    try {
+      await siteStore.fetchSites()
+    } catch {
+      // The dashboard template shows a safe error state below.
+    }
+  }
 })
 </script>
 
@@ -50,6 +56,12 @@ onMounted(async () => {
     <section v-if="siteStore.loading" class="empty-state">
       <span class="loading-dot" />
       <p>Загружаем ваши сайты...</p>
+    </section>
+
+    <section v-else-if="siteStore.error" class="empty-state">
+      <Globe2 :size="28" />
+      <h2>Не удалось загрузить сайты</h2>
+      <p>Проверьте соединение и обновите страницу. Мы не будем считать ошибку отсутствием сайтов.</p>
     </section>
 
     <section v-else-if="siteStore.sites.length === 0" class="empty-state">

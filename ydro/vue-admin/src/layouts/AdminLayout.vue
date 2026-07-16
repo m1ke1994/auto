@@ -28,7 +28,7 @@ onMounted(async () => {
 
   newsStore.startPolling()
 
-  if (!siteStore.sites.length) {
+  if (!siteStore.loaded && !siteStore.loading) {
     try {
       await siteStore.fetchSites()
     } catch {

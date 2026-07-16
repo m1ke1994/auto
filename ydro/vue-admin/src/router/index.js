@@ -16,6 +16,8 @@ import PlatformHealthView from '../views/platform/PlatformHealthView.vue'
 import CompetitorAnalysisView from '../views/CompetitorAnalysisView.vue'
 import LandingPage from '../views/LandingPage.vue'
 import LoginView from '../views/LoginView.vue'
+import OnboardingView from '../views/OnboardingView.vue'
+import OnboardingPlaceholderView from '../views/OnboardingPlaceholderView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import SecurityView from '../views/SecurityView.vue'
 import BillingView from '../views/BillingView.vue'
@@ -35,6 +37,7 @@ import MiniIntegrationView from '../views/mini/MiniIntegrationView.vue'
 import { applyRouteSeo } from '../config/seo'
 import { useAccessStore } from '../stores/access'
 import { useAuthStore } from '../stores/auth'
+import { useSiteStore } from '../stores/site'
 
 const routes = [
   {
@@ -54,6 +57,24 @@ const routes = [
     name: 'register',
     component: RegisterView,
     meta: { guestOnly: true, title: 'Регистрация' },
+  },
+  {
+    path: '/onboarding',
+    name: 'onboarding',
+    component: OnboardingView,
+    meta: { requiresAuth: true, title: 'Начало работы', onboardingRoute: true },
+  },
+  {
+    path: '/onboarding/create-site',
+    name: 'onboarding-create-site',
+    component: OnboardingPlaceholderView,
+    meta: { requiresAuth: true, title: 'Создание сайта', onboardingRoute: true },
+  },
+  {
+    path: '/onboarding/connect-site',
+    name: 'onboarding-connect-site',
+    component: OnboardingPlaceholderView,
+    meta: { requiresAuth: true, title: 'Подключение сайта', onboardingRoute: true },
   },
   {
     path: '/',
@@ -142,6 +163,22 @@ router.beforeEach(async (to) => {
       const authStore = useAuthStore()
       if (!authStore.user) await authStore.getCurrentUser()
       if (to.meta.requiresPlatformOwner && !authStore.user?.permissions?.platform_access) {
+        return { name: 'dashboard' }
+      }
+      const siteStore = useSiteStore()
+      if (!siteStore.loaded && !siteStore.loading) {
+        try {
+          await siteStore.fetchSites()
+        } catch {
+          // Do not treat a failed sites request as an empty account.
+        }
+      }
+      const hasSites = siteStore.loaded && !siteStore.error && siteStore.sites.length > 0
+      const shouldCheckOnboarding = !to.meta.billingExempt && !to.meta.requiresPlatformOwner
+      if (shouldCheckOnboarding && siteStore.loaded && !siteStore.error && siteStore.sites.length === 0 && !to.meta.onboardingRoute) {
+        return { name: 'onboarding' }
+      }
+      if (to.name === 'onboarding' && hasSites) {
         return { name: 'dashboard' }
       }
       const accessStore = useAccessStore()

@@ -7,18 +7,25 @@ export const useSiteStore = defineStore('site', () => {
   const sites = ref([])
   const currentSiteId = ref(null)
   const loading = ref(false)
+  const loaded = ref(false)
+  const error = ref(null)
 
   const currentSite = computed(() => sites.value.find((site) => site.id === currentSiteId.value) || null)
 
   async function fetchSites() {
     loading.value = true
+    error.value = null
     try {
       const { data } = await getMySitesRequest()
       sites.value = Array.isArray(data) ? data : []
       if (sites.value.length === 1) {
         currentSiteId.value = sites.value[0].id
       }
+      loaded.value = true
       return sites.value
+    } catch (fetchError) {
+      error.value = fetchError
+      throw fetchError
     } finally {
       loading.value = false
     }
@@ -46,6 +53,8 @@ export const useSiteStore = defineStore('site', () => {
   function reset() {
     sites.value = []
     currentSiteId.value = null
+    loaded.value = false
+    error.value = null
   }
 
   return {
@@ -53,6 +62,8 @@ export const useSiteStore = defineStore('site', () => {
     currentSiteId,
     currentSite,
     loading,
+    loaded,
+    error,
     fetchSites,
     fetchSite,
     selectSite,
