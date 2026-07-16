@@ -140,6 +140,12 @@ function isCurrentPlan(plan) {
   return Number(currentPlan.value?.id) === Number(plan?.id)
 }
 
+function featureLabel(feature) {
+  if (typeof feature === 'string') return feature
+  if (!feature || typeof feature !== 'object') return ''
+  return feature.label || feature.title || feature.text || feature.name || ''
+}
+
 async function loadSubscription() {
   subscriptionLoading.value = true
   subscriptionError.value = ''
@@ -337,38 +343,43 @@ onMounted(() => {
         <article
           v-for="plan in visiblePlans"
           :key="plan.id"
-          class="relative flex min-h-full flex-col overflow-hidden rounded-3xl border bg-white/92 p-5 shadow-soft transition hover:-translate-y-1 hover:shadow-[0_20px_52px_rgba(32,40,70,0.13)] sm:p-6"
+          class="group relative grid h-full min-h-[35rem] overflow-hidden rounded-[1.75rem] border bg-white/92 p-5 shadow-[0_18px_52px_rgba(32,40,70,0.10)] backdrop-blur transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_64px_rgba(32,40,70,0.16)] sm:p-6"
           :class="plan.recommended ? 'border-brand-300 ring-1 ring-brand-200' : 'border-brand-100'"
+          style="grid-template-rows: auto minmax(6rem, 6rem) auto 1fr auto;"
         >
-          <div v-if="plan.recommended" class="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white">
+          <div class="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-brand-50/80 to-transparent opacity-80 transition group-hover:opacity-100" />
+          <div v-if="plan.recommended" class="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white shadow-[0_12px_26px_rgba(109,93,246,0.22)]">
             <Sparkles :size="13" /> Рекомендуем
           </div>
-          <div class="pr-24">
+          <div class="relative pr-24">
             <p class="text-xs font-semibold uppercase tracking-wide text-brand-600">{{ periodLabel(plan) }}</p>
-            <h3 class="mt-2 text-xl font-bold text-[#17223B]">{{ plan.name }}</h3>
+            <h3 class="mt-2 break-words text-2xl font-bold leading-tight text-[#17223B]">{{ plan.name }}</h3>
           </div>
-          <p v-if="plan.short_description || plan.description" class="mt-3 text-sm leading-6 text-slate-600">{{ plan.short_description || plan.description }}</p>
+          <p class="relative mt-4 line-clamp-4 text-sm leading-6 text-slate-600">{{ plan.short_description || plan.description || 'Подключите тариф TrackNode для стабильной работы сайта и панели управления.' }}</p>
 
-          <div class="mt-5 flex flex-wrap items-end gap-x-3 gap-y-1">
-            <span class="text-3xl font-bold tracking-tight text-[#17223B]">{{ formatPrice(plan.price, plan.currency) }}</span>
+          <div class="relative mt-6 border-y border-brand-100/80 py-5">
+            <div class="flex flex-wrap items-end gap-x-3 gap-y-1">
+              <span class="text-4xl font-bold tracking-tight text-[#17223B]">{{ formatPrice(plan.price, plan.currency) }}</span>
             <span v-if="plan.old_price && discountPercent(plan)" class="pb-1 text-sm text-slate-400 line-through">{{ formatPrice(plan.old_price, plan.currency) }}</span>
             <span v-if="discountPercent(plan)" class="mb-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
               Скидка {{ discountPercent(plan) }}%
             </span>
+            </div>
+            <p class="mt-1 text-xs font-medium text-slate-500">за выбранный период</p>
           </div>
 
-          <ul v-if="Array.isArray(plan.features) && plan.features.length" class="mt-5 space-y-3">
-            <li v-for="feature in plan.features" :key="feature" class="flex gap-2.5 text-sm leading-5 text-slate-700">
-              <span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700">
-                <Check :size="13" stroke-width="2.5" />
+          <ul v-if="Array.isArray(plan.features) && plan.features.length" class="relative mt-6 space-y-3">
+            <li v-for="(feature, index) in plan.features" :key="`${plan.id}-feature-${index}`" class="flex gap-3 text-sm leading-5 text-slate-700">
+              <span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+                <Check :size="13" stroke-width="3" />
               </span>
-              {{ feature }}
+              <span class="min-w-0 break-words">{{ featureLabel(feature) }}</span>
             </li>
           </ul>
 
           <button
             type="button"
-            class="action-button-primary mt-6 w-full md:mt-auto"
+            class="action-button-primary relative mt-7 min-h-12 w-full"
             :disabled="!billingEnabled || payingPlanId !== null"
             @click="createPayment(plan)"
           >
