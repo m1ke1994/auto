@@ -167,6 +167,7 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertNotEqual(copy.id, self.source_site.id)
         self.assertEqual(copy.owner, self.user)
         self.assertEqual(copy.name, "New Site")
+        self.assertEqual(copy.source, Site.SOURCE_TEMPLATE)
         self.assertEqual(response.data["status"], "draft")
         self.assertEqual(response.data["created_from_template"], self.template.slug)
         self.assertTrue(response.data["success"])

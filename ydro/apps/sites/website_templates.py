@@ -116,6 +116,7 @@ def clone_site_for_user(
                 name=name,
                 slug=slug,
                 domain="",
+                source=Site.SOURCE_TEMPLATE,
                 is_active=False,
                 seo=_replace_company_name(_snapshot_site_seo(snapshot), source_name, company or name),
             )

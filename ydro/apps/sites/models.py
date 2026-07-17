@@ -228,9 +228,13 @@ def _validate_settings(settings):
 
 
 class Site(models.Model):
+    SOURCE_MANUAL = "manual"
+    SOURCE_TEMPLATE = "template"
+
     name = models.CharField(max_length=255, verbose_name="Название сайта")
     slug = models.SlugField(max_length=255, unique=True, verbose_name="Slug сайта")
     domain = models.CharField(max_length=255, blank=True, verbose_name="Домен")
+    source = models.CharField(max_length=32, default=SOURCE_MANUAL, verbose_name="Источник создания")
     api_key = models.CharField(
         max_length=128,
         unique=True,

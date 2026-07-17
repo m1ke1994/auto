@@ -1,4 +1,4 @@
-from django.db import migrations
+from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
@@ -7,4 +7,10 @@ class Migration(migrations.Migration):
         ("sites", "0017_site_builder"),
     ]
 
-    operations = []
+    operations = [
+        migrations.AddField(
+            model_name="site",
+            name="source",
+            field=models.CharField(default="manual", max_length=32, verbose_name="Источник создания"),
+        ),
+    ]
