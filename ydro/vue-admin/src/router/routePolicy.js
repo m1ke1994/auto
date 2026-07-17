@@ -1,6 +1,5 @@
 export const REGISTER_SUCCESS_ROUTE = Object.freeze({
   name: 'dashboard',
-  query: Object.freeze({ registered: '1' }),
 })
 
 export function resolvePostSiteLoadRedirect(to, siteState) {

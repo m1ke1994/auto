@@ -4,7 +4,7 @@ import { REGISTER_SUCCESS_ROUTE, resolvePostSiteLoadRedirect } from '../src/rout
 
 assert.deepEqual(
   REGISTER_SUCCESS_ROUTE,
-  { name: 'dashboard', query: { registered: '1' } },
+  { name: 'dashboard' },
   'successful registration must target dashboard',
 )
 
@@ -52,11 +52,29 @@ assert.deepEqual(
 
 assert.equal(
   resolvePostSiteLoadRedirect(
+    { name: 'onboarding', meta: { requiresAuth: true, onboardingRoute: true } },
+    { loaded: true, error: '', sites: [] },
+  ),
+  null,
+  'manual onboarding route remains available and is not treated as a required step',
+)
+
+assert.equal(
+  resolvePostSiteLoadRedirect(
     { name: 'dashboard', meta: { requiresAuth: true } },
     { loaded: false, error: '', sites: [] },
   ),
   null,
   'failed or unfinished registration must not trigger a dashboard redirect from the guard',
+)
+
+assert.equal(
+  resolvePostSiteLoadRedirect(
+    { name: 'dashboard', meta: { requiresAuth: true } },
+    { loaded: true, error: '', sites: [] },
+  ),
+  null,
+  'restored authenticated session must stay on dashboard and not be sent to onboarding',
 )
 
 console.log('registration routing policy tests passed')
