@@ -13,4 +13,9 @@ class Migration(migrations.Migration):
             name="source",
             field=models.CharField(default="manual", max_length=32, verbose_name="Источник создания"),
         ),
+        migrations.AddField(
+            model_name="site",
+            name="render_mode",
+            field=models.CharField(default="builder", max_length=32, verbose_name="Режим рендера"),
+        ),
     ]
