@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.db import IntegrityError
+from django.db.models import NOT_PROVIDED
 from django.urls import reverse
 from unittest.mock import patch
 
@@ -40,6 +41,9 @@ class SiteTemplateCatalogTests(APITestCase):
             telegram_chat_id="12345",
             send_to_telegram=True,
             seo={"title": "Leelabird"},
+            design_preset=Site.DesignPreset.WARM_NATURE,
+            builder_template_key="services-landing",
+            builder_config={"theme": {"primary": "#176b45"}, "pages": [{"slug": "home"}]},
         )
         self.source_section = SiteSection.objects.create(
             site=self.source_site,
@@ -180,6 +184,18 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertGreaterEqual(copy.generation_progress, 0)
         self.assertLessEqual(copy.generation_progress, 100)
         self.assertEqual(copy.generation_error, "")
+        self.assertEqual(copy.design_preset, Site.DesignPreset.WARM_NATURE)
+        self.assertEqual(copy.builder_template_key, "services-landing")
+        self.assertEqual(copy.builder_config, self.source_site.builder_config)
+        self.assertIsNotNone(copy.public_id)
+        copy.full_clean()
+        for field in Site._meta.concrete_fields:
+            if field.primary_key or field.auto_created or field.null:
+                continue
+            self.assertIsNotNone(
+                getattr(copy, field.attname, None),
+                f"Required Site field {field.name} must not be None",
+            )
         self.assertEqual(response.data["status"], "draft")
         self.assertEqual(response.data["created_from_template"], self.template.slug)
         self.assertTrue(response.data["success"])
@@ -215,12 +231,14 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertEqual(site.generation_progress, 0)
         self.assertIsNotNone(site.generation_progress)
         self.assertEqual(site.generation_error, "")
+        self.assertEqual(site.design_preset, Site.DesignPreset.CLEAN_BUSINESS)
+        self.assertEqual(site.builder_config, {})
 
     def test_clone_integrity_error_does_not_leak_raw_database_error(self):
         self.client.raise_request_exception = False
 
         with patch(
-            "apps.sites.website_templates.Site.objects.create",
+            "apps.sites.website_templates.Site.save",
             side_effect=IntegrityError('null value in column "status" violates not-null constraint'),
         ):
             response = self.create_from_template(company_name="Broken", key="integrity-error")
@@ -229,6 +247,66 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertEqual(response.data["code"], "template_clone_failed")
         self.assertNotIn("IntegrityError", response.data["detail"])
         self.assertNotIn("null value in column", response.data["detail"])
+
+    def test_old_snapshot_without_new_site_fields_is_normalized(self):
+        self.template.snapshot_config = {
+            "version": 1,
+            "sections": [
+                {
+                    "title": "Hero",
+                    "key": "hero",
+                    "section_type": "hero",
+                    "content": {"title": "Legacy snapshot"},
+                }
+            ],
+        }
+        self.template.save(update_fields=["snapshot_config", "updated_at"])
+
+        response = self.create_from_template(company_name="Legacy Company", key="legacy-snapshot")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        copy = Site.objects.get(pk=response.data["id"])
+        self.assertEqual(copy.design_preset, Site.DesignPreset.WARM_NATURE)
+        self.assertEqual(copy.builder_config, {})
+        self.assertEqual(copy.builder_template_key, "")
+        self.assertEqual(copy.generation_status, Site.GenerationStatus.COMPLETED)
+        self.assertEqual(copy.generation_progress, 100)
+        self.assertEqual(copy.generation_error, "")
+
+    def test_site_model_has_no_unhandled_required_fields(self):
+        server_fields = {
+            "name",
+            "slug",
+            "domain",
+            "owner",
+            "source",
+            "render_mode",
+            "status",
+            "generation_status",
+            "generation_progress",
+            "generation_error",
+            "design_preset",
+            "public_id",
+            "builder_template_key",
+            "builder_config",
+            "api_key",
+            "send_to_telegram",
+            "seo",
+            "is_active",
+        }
+        required_without_default = {
+            field.name
+            for field in Site._meta.concrete_fields
+            if not field.primary_key
+            and not field.auto_created
+            and not getattr(field, "auto_now", False)
+            and not getattr(field, "auto_now_add", False)
+            and not field.null
+            and field.default is NOT_PROVIDED
+        }
+
+        self.assertEqual(required_without_default, {"name", "slug", "domain", "owner"})
+        self.assertTrue(required_without_default.issubset(server_fields))
 
     def test_copy_and_source_do_not_change_each_other(self):
         response = self.create_from_template(company_name="Independent")

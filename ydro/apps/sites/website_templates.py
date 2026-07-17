@@ -1,5 +1,6 @@
 from copy import deepcopy
 import logging
+import uuid
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
@@ -32,12 +33,79 @@ SENSITIVE_TEXT_KEYS = {
 }
 
 
-def completed_template_generation_fields() -> dict:
+def normalize_template_snapshot(template: WebsiteTemplate, snapshot: dict) -> dict:
+    normalized = deepcopy(snapshot) if isinstance(snapshot, dict) else {}
+    site_config = normalized.get("site") if isinstance(normalized.get("site"), dict) else {}
+
+    preset = site_config.get("design_preset") or normalized.get("design_preset")
+    allowed_presets = {value for value, _label in Site.DesignPreset.choices}
+    if preset not in allowed_presets:
+        source_preset = getattr(template.source_site, "design_preset", "")
+        preset = source_preset if source_preset in allowed_presets else Site.DesignPreset.CLEAN_BUSINESS
+
+    builder_config = site_config.get("builder_config", normalized.get("builder_config", {}))
+    if not isinstance(builder_config, dict):
+        builder_config = {}
+    builder_template_key = site_config.get("builder_template_key", normalized.get("builder_template_key", ""))
+
+    normalized["site"] = {
+        **site_config,
+        "design_preset": preset,
+        "builder_config": deepcopy(builder_config),
+        "builder_template_key": str(builder_template_key or "")[:120],
+    }
+    normalized.setdefault("pages", [])
+    return normalized
+
+
+def build_template_site_fields(
+    *,
+    template: WebsiteTemplate,
+    target_user,
+    name: str,
+    company_name: str,
+    slug: str,
+    snapshot: dict,
+) -> dict:
+    site_config = snapshot["site"]
+    snapshot_source = snapshot.get("source") if isinstance(snapshot.get("source"), dict) else {}
+    source_name = str(snapshot_source.get("site_name") or template.source_site.name or "").strip()
     return {
+        "owner": target_user,
+        "name": name,
+        "slug": slug,
+        "domain": "",
+        "source": Site.Source.TEMPLATE,
+        "render_mode": Site.RenderMode.BUILDER,
+        "status": Site.Status.DRAFT,
         "generation_status": Site.GenerationStatus.COMPLETED,
         "generation_progress": 100,
         "generation_error": "",
+        "design_preset": site_config["design_preset"],
+        "generation_job_id": None,
+        "generation_started_at": None,
+        "generation_completed_at": None,
+        "public_id": uuid.uuid4(),
+        "builder_template_key": site_config["builder_template_key"],
+        "builder_config": deepcopy(site_config["builder_config"]),
+        "is_active": False,
+        "send_to_telegram": False,
+        "telegram_chat_id": None,
+        "telegram_connected_at": None,
+        "seo": _replace_company_name(_snapshot_site_seo(snapshot), source_name, company_name or name),
     }
+
+
+def validate_required_site_fields(site: Site) -> None:
+    missing = []
+    for field in Site._meta.concrete_fields:
+        if field.primary_key or field.auto_created or getattr(field, "auto_now", False) or getattr(field, "auto_now_add", False) or field.null:
+            continue
+        if getattr(site, field.attname, None) is None:
+            missing.append(field.name)
+    if missing:
+        logger.error("Template clone has missing required Site fields: %s", ", ".join(missing))
+        raise WebsiteTemplateCloneError("template_clone_invalid", "Template site configuration is invalid.")
 
 
 def unique_site_slug(base_value: str) -> str:
@@ -78,7 +146,9 @@ def build_site_snapshot(source_site: Site) -> dict:
         },
         "site": {
             "seo": _sanitize_seo(source_site.seo),
-            "builder_config": {},
+            "design_preset": source_site.design_preset or Site.DesignPreset.CLEAN_BUSINESS,
+            "builder_template_key": source_site.builder_template_key,
+            "builder_config": deepcopy(source_site.builder_config),
             "site_settings": {},
             "theme": {},
             "design": {},
@@ -115,6 +185,7 @@ def clone_site_for_user(
 
         snapshot = template.snapshot_config if isinstance(template.snapshot_config, dict) else {}
         _validate_snapshot(snapshot)
+        snapshot = normalize_template_snapshot(template, snapshot)
         snapshot_source = snapshot.get("source") if isinstance(snapshot.get("source"), dict) else {}
         source_name = str(snapshot_source.get("site_name") or template.source_site.name or "").strip()
         company = str(company_name or "").strip()
@@ -122,18 +193,18 @@ def clone_site_for_user(
         slug = unique_site_slug(name)
 
         with transaction.atomic():
-            site = Site.objects.create(
-                owner=target_user,
+            site_fields = build_template_site_fields(
+                template=template,
+                target_user=target_user,
                 name=name,
+                company_name=company,
                 slug=slug,
-                domain="",
-                source=Site.SOURCE_TEMPLATE,
-                render_mode=Site.RENDER_MODE_BUILDER,
-                status=Site.Status.DRAFT,
-                **completed_template_generation_fields(),
-                is_active=False,
-                seo=_replace_company_name(_snapshot_site_seo(snapshot), source_name, company or name),
+                snapshot=snapshot,
             )
+            site = Site(**site_fields)
+            validate_required_site_fields(site)
+            site.full_clean()
+            site.save(force_insert=True)
 
             for index, section_data in enumerate(_snapshot_sections(snapshot), start=1):
                 content = _replace_company_name(deepcopy(section_data.get("content") or {}), source_name, company or name)

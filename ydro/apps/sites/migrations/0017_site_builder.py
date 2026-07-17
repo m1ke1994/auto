@@ -1,4 +1,5 @@
 from django.db import migrations, models
+import uuid
 
 
 class Migration(migrations.Migration):
@@ -8,6 +9,21 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.AddField(
+            model_name="site",
+            name="public_id",
+            field=models.UUIDField(db_index=True, default=uuid.uuid4, editable=False, unique=True, verbose_name="Публичный ID preview"),
+        ),
+        migrations.AddField(
+            model_name="site",
+            name="builder_template_key",
+            field=models.SlugField(blank=True, default="", max_length=120, verbose_name="Ключ builder-шаблона"),
+        ),
+        migrations.AddField(
+            model_name="site",
+            name="builder_config",
+            field=models.JSONField(blank=True, default=dict, verbose_name="Builder config"),
+        ),
         migrations.CreateModel(
             name="SiteTemplate",
             fields=[

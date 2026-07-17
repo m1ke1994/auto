@@ -6,6 +6,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.text import slugify
 import secrets
+import uuid
 
 from .presets import (
     ABOUT_SCHEMA,
@@ -229,26 +230,60 @@ def _validate_settings(settings):
 
 
 class Site(models.Model):
+    class Source(models.TextChoices):
+        LEGACY = "legacy", "Legacy"
+        MANUAL = "manual", "Manual"
+        AI_GENERATED = "ai_generated", "AI generated"
+        CONNECTED = "connected", "Connected"
+        TEMPLATE = "template", "Template"
+
+    class RenderMode(models.TextChoices):
+        LEGACY = "legacy", "Legacy"
+        SECTION_BUILDER = "section_builder", "Section builder"
+        BUILDER = "builder", "Builder"
+
     class Status(models.TextChoices):
         DRAFT = "draft", "Черновик"
         ACTIVE = "active", "Активен"
+        GENERATING = "generating", "Генерируется"
+        READY = "ready", "Готов"
+        PUBLISHED = "published", "Опубликован"
+        SUSPENDED = "suspended", "Приостановлен"
+        FAILED = "failed", "Ошибка"
 
     class GenerationStatus(models.TextChoices):
+        NOT_STARTED = "not_started", "Не запущена"
         PENDING = "pending", "Ожидает"
+        QUEUED = "queued", "В очереди"
+        ANALYZING = "analyzing", "Анализ"
         RUNNING = "running", "Выполняется"
+        GENERATING_STRUCTURE = "generating_structure", "Генерация структуры"
+        SAVING_SECTIONS = "saving_sections", "Сохранение секций"
         COMPLETED = "completed", "Завершена"
         FAILED = "failed", "Ошибка"
 
-    SOURCE_MANUAL = "manual"
-    SOURCE_TEMPLATE = "template"
-    RENDER_MODE_BUILDER = "builder"
-    RENDER_MODE_STATIC = "static"
+    class DesignPreset(models.TextChoices):
+        PREMIUM_GLASS = "premium-glass", "Premium Glass"
+        CLEAN_BUSINESS = "clean-business", "Clean Business"
+        MODERN_DARK = "modern-dark", "Modern Dark"
+        WARM_NATURE = "warm-nature", "Warm Nature"
+        MINIMAL_LIGHT = "minimal-light", "Minimal Light"
+
+    SOURCE_MANUAL = Source.MANUAL
+    SOURCE_TEMPLATE = Source.TEMPLATE
+    RENDER_MODE_BUILDER = RenderMode.BUILDER
+    RENDER_MODE_STATIC = RenderMode.LEGACY
 
     name = models.CharField(max_length=255, verbose_name="Название сайта")
     slug = models.SlugField(max_length=255, unique=True, verbose_name="Slug сайта")
     domain = models.CharField(max_length=255, blank=True, verbose_name="Домен")
-    source = models.CharField(max_length=32, default=SOURCE_MANUAL, verbose_name="Источник создания")
-    render_mode = models.CharField(max_length=32, default=RENDER_MODE_BUILDER, verbose_name="Режим рендера")
+    source = models.CharField(max_length=32, choices=Source.choices, default=Source.MANUAL, verbose_name="Источник создания")
+    render_mode = models.CharField(
+        max_length=32,
+        choices=RenderMode.choices,
+        default=RenderMode.BUILDER,
+        verbose_name="Режим рендера",
+    )
     status = models.CharField(
         max_length=32,
         choices=Status.choices,
@@ -266,7 +301,19 @@ class Site(models.Model):
         validators=[MinValueValidator(0), MaxValueValidator(100)],
         verbose_name="Прогресс генерации",
     )
-    generation_error = models.TextField(blank=True, default="", verbose_name="Ошибка генерации")
+    generation_error = models.CharField(max_length=500, blank=True, default="", verbose_name="Ошибка генерации")
+    design_preset = models.CharField(
+        max_length=64,
+        choices=DesignPreset.choices,
+        default=DesignPreset.CLEAN_BUSINESS,
+        verbose_name="Дизайн-пресет",
+    )
+    generation_job_id = models.UUIDField(null=True, blank=True, db_index=True, verbose_name="ID задачи генерации")
+    generation_started_at = models.DateTimeField(null=True, blank=True, verbose_name="Генерация начата")
+    generation_completed_at = models.DateTimeField(null=True, blank=True, verbose_name="Генерация завершена")
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, db_index=True, editable=False, verbose_name="Публичный ID preview")
+    builder_template_key = models.SlugField(max_length=120, blank=True, default="", verbose_name="Ключ builder-шаблона")
+    builder_config = models.JSONField(default=dict, blank=True, verbose_name="Builder config")
     api_key = models.CharField(
         max_length=128,
         unique=True,
