@@ -7,7 +7,8 @@ from rest_framework import serializers
 
 from leads.services import send_lead_telegram_notification
 
-from .models import SectionSchema, Site, SiteLead, SiteSection
+from .models import SectionSchema, Site, SiteLead, SiteSection, SiteTemplate, SiteTemplateCategory
+from .template_clone import clone_site_for_user
 from .a_meditation import SECTION_TITLES
 from .seo import build_public_site_seo
 from .volga_site import SECTION_TITLES as VOLGA_SECTION_TITLES
@@ -92,6 +93,61 @@ class AdminMySiteSerializer(serializers.ModelSerializer):
 
     def get_tracker_script_tag(self, obj):
         return build_tracker_script_tag(obj.api_key)
+
+
+class SiteTemplateCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SiteTemplateCategory
+        fields = ("id", "name", "slug", "sort_order")
+
+
+class SiteTemplateSerializer(serializers.ModelSerializer):
+    category = SiteTemplateCategorySerializer(read_only=True)
+    source_site_slug = serializers.CharField(source="source_site.slug", read_only=True)
+
+    class Meta:
+        model = SiteTemplate
+        fields = (
+            "id",
+            "name",
+            "slug",
+            "category",
+            "description",
+            "preview_image",
+            "source_site_slug",
+            "is_featured",
+            "sort_order",
+        )
+
+
+class SiteTemplateCreateSiteSerializer(serializers.Serializer):
+    company_name = serializers.CharField(max_length=255)
+    template_slug = serializers.SlugField()
+
+    def validate_company_name(self, value):
+        value = str(value or "").strip()
+        if not value:
+            raise serializers.ValidationError("Укажите название компании или сайта.")
+        return value
+
+    def validate_template_slug(self, value):
+        template = SiteTemplate.objects.filter(slug=value, is_active=True, category__is_active=True).select_related(
+            "source_site",
+            "category",
+        ).first()
+        if template is None:
+            raise serializers.ValidationError("Шаблон не найден или отключен.")
+        self.context["template"] = template
+        return value
+
+    def create(self, validated_data):
+        request = self.context["request"]
+        return clone_site_for_user(
+            template=self.context["template"],
+            target_user=request.user,
+            company_name=validated_data["company_name"],
+            idempotency_key=str(request.headers.get("Idempotency-Key") or ""),
+        )
 
 
 class AdminMySiteSectionSerializer(serializers.ModelSerializer):

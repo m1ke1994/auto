@@ -50,6 +50,15 @@ export const useSiteStore = defineStore('site', () => {
     currentSiteId.value = Number(siteId)
   }
 
+  function upsertSite(site) {
+    if (!site?.id) return
+    const index = sites.value.findIndex((item) => item.id === site.id)
+    if (index >= 0) sites.value[index] = site
+    else sites.value.push(site)
+    currentSiteId.value = site.id
+    loaded.value = true
+  }
+
   function reset() {
     sites.value = []
     currentSiteId.value = null
@@ -67,6 +76,7 @@ export const useSiteStore = defineStore('site', () => {
     fetchSites,
     fetchSite,
     selectSite,
+    upsertSite,
     reset,
   }
 })

@@ -278,6 +278,73 @@ class Site(models.Model):
         super().save(*args, **kwargs)
 
 
+class SiteTemplateCategory(models.Model):
+    name = models.CharField(max_length=120, verbose_name="Название")
+    slug = models.SlugField(max_length=80, unique=True, verbose_name="Slug")
+    sort_order = models.PositiveIntegerField(default=100, verbose_name="Сортировка")
+    is_active = models.BooleanField(default=True, verbose_name="Активна")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Категория шаблонов"
+        verbose_name_plural = "Категории шаблонов"
+        ordering = ["sort_order", "name"]
+
+    def __str__(self):
+        return self.name
+
+
+class SiteTemplate(models.Model):
+    name = models.CharField(max_length=160, verbose_name="Название")
+    slug = models.SlugField(max_length=120, unique=True, verbose_name="Slug")
+    category = models.ForeignKey(
+        SiteTemplateCategory,
+        on_delete=models.PROTECT,
+        related_name="templates",
+        verbose_name="Категория",
+    )
+    description = models.TextField(blank=True, verbose_name="Описание")
+    preview_image = models.CharField(max_length=500, blank=True, verbose_name="Preview image")
+    source_site = models.ForeignKey(
+        Site,
+        on_delete=models.PROTECT,
+        related_name="template_sources",
+        verbose_name="Исходный сайт",
+    )
+    is_active = models.BooleanField(default=True, verbose_name="Активен")
+    is_featured = models.BooleanField(default=False, verbose_name="Featured")
+    sort_order = models.PositiveIntegerField(default=100, verbose_name="Сортировка")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Шаблон сайта"
+        verbose_name_plural = "Шаблоны сайтов"
+        ordering = ["sort_order", "name"]
+
+    def __str__(self):
+        return self.name
+
+
+class SiteTemplateCloneRequest(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="site_template_clone_requests")
+    template = models.ForeignKey(SiteTemplate, on_delete=models.CASCADE, related_name="clone_requests")
+    idempotency_key = models.CharField(max_length=120)
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Запрос клонирования шаблона"
+        verbose_name_plural = "Запросы клонирования шаблонов"
+        constraints = [
+            models.UniqueConstraint(fields=("user", "idempotency_key"), name="unique_site_template_clone_request"),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id}:{self.template_id}:{self.idempotency_key}"
+
+
 class SectionSchema(models.Model):
     section_key = models.SlugField(max_length=100, unique=True, verbose_name="Section key")
     title = models.CharField(max_length=255, verbose_name="Schema title")

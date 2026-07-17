@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.utils.html import format_html, format_html_join
 
 from clients.services import get_user_client
-from .models import SectionSchema, Site, SiteLead, SiteSection
+from .models import SectionSchema, Site, SiteLead, SiteSection, SiteTemplate, SiteTemplateCategory
 
 SectionSchema._meta.verbose_name = "Схема секции"
 SectionSchema._meta.verbose_name_plural = "Схемы секций"
@@ -106,6 +106,31 @@ class SectionSchemaAdmin(admin.ModelAdmin):
             "<ul style='margin:0; padding-left:18px;'>{}</ul>",
             format_html_join("", "<li><code>{}</code> - {} <strong>({})</strong></li>", rows),
         )
+
+
+@admin.register(SiteTemplateCategory)
+class SiteTemplateCategoryAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug", "sort_order", "is_active", "updated_at")
+    list_filter = ("is_active",)
+    search_fields = ("name", "slug")
+    prepopulated_fields = {"slug": ("name",)}
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(SiteTemplate)
+class SiteTemplateAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug", "category", "source_site", "is_active", "is_featured", "sort_order", "updated_at")
+    list_filter = ("category", "is_active", "is_featured")
+    search_fields = ("name", "slug", "description", "source_site__name", "source_site__slug")
+    prepopulated_fields = {"slug": ("name",)}
+    autocomplete_fields = ("source_site", "category")
+    readonly_fields = ("created_at", "updated_at")
+    fieldsets = (
+        ("Каталог", {"fields": ("name", "slug", "category", "description", "preview_image")}),
+        ("Источник", {"fields": ("source_site",)}),
+        ("Публикация", {"fields": ("is_active", "is_featured", "sort_order")}),
+        ("Служебное", {"fields": ("created_at", "updated_at")}),
+    )
 
 
 @admin.register(SiteSection)

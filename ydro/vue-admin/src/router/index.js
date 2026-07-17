@@ -14,6 +14,7 @@ import PlatformClientDetailView from '../views/platform/PlatformClientDetailView
 import PlatformRecommendationDetailView from '../views/platform/PlatformRecommendationDetailView.vue'
 import PlatformHealthView from '../views/platform/PlatformHealthView.vue'
 import CompetitorAnalysisView from '../views/CompetitorAnalysisView.vue'
+import CreateSiteView from '../views/CreateSiteView.vue'
 import LandingPage from '../views/LandingPage.vue'
 import LoginView from '../views/LoginView.vue'
 import OnboardingView from '../views/OnboardingView.vue'
@@ -88,6 +89,7 @@ const routes = [
       { path: 'access-restricted', name: 'access-restricted', component: AccessRestrictedView, meta: { title: 'Ограничение доступа', billingExempt: true } },
       { path: 'billing', name: 'billing', component: BillingView, meta: { title: 'Оплата', billingExempt: true } },
       { path: 'security', name: 'security', component: SecurityView, meta: { title: 'Безопасность' } },
+      { path: 'sites/create', name: 'site-create', component: CreateSiteView, meta: { title: 'Создание сайта', requiredFeature: 'site_edit' } },
       { path: 'sites/:siteId/overview', name: 'site-overview', component: SiteOverviewView, props: true, meta: { title: 'Обзор сайта', requiredFeature: 'dashboard_overview' } },
       { path: 'sites/:siteId/sections', name: 'sections', component: SectionsView, props: true, meta: { title: 'Разделы сайта', requiredFeature: 'site_edit' } },
       { path: 'sites/:siteId/analytics', name: 'analytics', component: AnalyticsView, props: true, meta: { title: 'Аналитика', requiredFeature: 'analytics' } },

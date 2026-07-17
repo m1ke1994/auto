@@ -9,6 +9,8 @@ from .views import (
     AdminMySiteSectionDetailView,
     AdminMySiteSectionsListCreateView,
     AdminMySitesListView,
+    AdminSiteTemplateCatalogView,
+    AdminSiteTemplateCreateSiteView,
     AdminSiteTelegramDisconnectView,
     AdminSiteTelegramSendTestView,
     AdminSiteTelegramStatusView,
@@ -18,6 +20,8 @@ from .views import (
 urlpatterns = [
     path("push-subscriptions/", PushSubscriptionView.as_view(), name="admin-push-subscriptions"),
     path("my-sites/", AdminMySitesListView.as_view(), name="admin-my-sites"),
+    path("site-templates/", AdminSiteTemplateCatalogView.as_view(), name="admin-site-template-catalog"),
+    path("site-templates/create-site/", AdminSiteTemplateCreateSiteView.as_view(), name="admin-site-template-create-site"),
     path("my-sites/<int:site_id>/", AdminMySiteDetailView.as_view(), name="admin-my-site-detail"),
     path("my-sites/<int:site_id>/telegram/", AdminSiteTelegramStatusView.as_view(), name="admin-site-telegram-status"),
     path(

@@ -19,7 +19,7 @@ from tracker.models import Site as TrackerSite
 from subscriptions.access import FEATURE_LEADS, FEATURE_SITE_EDIT, FEATURE_TELEGRAM
 from subscriptions.permissions import HasFeatureAccess
 
-from .models import Site, SiteLead, SiteSection
+from .models import Site, SiteLead, SiteSection, SiteTemplate, SiteTemplateCategory
 from .public_renderer import inject_subscription_lock, public_billing_url, site_requires_subscription_lock
 from .seo import build_public_site_seo, render_public_site_seo_head
 from .serializers import (
@@ -29,6 +29,9 @@ from .serializers import (
     AdminMySiteSectionPatchSerializer,
     AdminMySiteSectionSerializer,
     AdminMySiteSerializer,
+    SiteTemplateCategorySerializer,
+    SiteTemplateCreateSiteSerializer,
+    SiteTemplateSerializer,
     PublicLeadCreateSerializer,
     PublicSiteSectionSerializer,
     PublicSiteSerializer,
@@ -421,6 +424,39 @@ class AdminMySitesListView(AdminSiteAccessMixin, generics.ListAPIView):
         return self.get_sites_queryset().annotate(
             sections_count=Count("sections", filter=Q(sections__is_active=True))
         ).order_by("id")
+
+
+class AdminSiteTemplateCatalogView(APIView):
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_SITE_EDIT
+
+    def get(self, request):
+        category_slug = request.query_params.get("category")
+        categories = SiteTemplateCategory.objects.filter(is_active=True).order_by("sort_order", "name")
+        templates = SiteTemplate.objects.filter(is_active=True, category__is_active=True).select_related("category", "source_site")
+        if category_slug:
+            templates = templates.filter(category__slug=category_slug)
+        return Response(
+            {
+                "categories": SiteTemplateCategorySerializer(categories, many=True).data,
+                "templates": SiteTemplateSerializer(
+                    templates.order_by("-is_featured", "sort_order", "name"),
+                    many=True,
+                ).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminSiteTemplateCreateSiteView(APIView):
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_SITE_EDIT
+
+    def post(self, request):
+        serializer = SiteTemplateCreateSiteSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        site = serializer.save()
+        return Response(AdminMySiteSerializer(site).data, status=status.HTTP_201_CREATED)
 
 
 class AdminMySiteDetailView(AdminSiteAccessMixin, generics.RetrieveAPIView):

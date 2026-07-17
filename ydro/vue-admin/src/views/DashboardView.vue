@@ -51,6 +51,10 @@ onMounted(async () => {
         <h1>Мои сайты</h1>
         <p>Выберите сайт, чтобы посмотреть заявки, аналитику и изменить содержимое.</p>
       </div>
+      <RouterLink to="/sites/create" class="action-button-primary">
+        Создать сайт
+        <ArrowRight :size="17" />
+      </RouterLink>
     </header>
 
     <section v-if="siteStore.loading" class="empty-state">
@@ -66,8 +70,12 @@ onMounted(async () => {
 
     <section v-else-if="siteStore.sites.length === 0" class="empty-state">
       <Globe2 :size="28" />
-      <h2>Сайт ещё не подключён</h2>
-      <p>Ваш аккаунт готов. Обратитесь к администратору, чтобы подключить первый сайт.</p>
+      <h2>У вас пока нет сайтов</h2>
+      <p>Выберите готовый шаблон и настройте его под свою компанию.</p>
+      <RouterLink to="/sites/create" class="action-button-primary mt-4">
+        Создать сайт
+        <ArrowRight :size="17" />
+      </RouterLink>
     </section>
 
     <section v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
