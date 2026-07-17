@@ -35,6 +35,7 @@ import MiniReportsView from '../views/mini/MiniReportsView.vue'
 import MiniSettingsView from '../views/mini/MiniSettingsView.vue'
 import MiniIntegrationView from '../views/mini/MiniIntegrationView.vue'
 import { applyRouteSeo } from '../config/seo'
+import { resolvePostSiteLoadRedirect } from './routePolicy'
 import { useAccessStore } from '../stores/access'
 import { useAuthStore } from '../stores/auth'
 import { useSiteStore } from '../stores/site'
@@ -173,14 +174,8 @@ router.beforeEach(async (to) => {
           // Do not treat a failed sites request as an empty account.
         }
       }
-      const hasSites = siteStore.loaded && !siteStore.error && siteStore.sites.length > 0
-      const shouldCheckOnboarding = !to.meta.billingExempt && !to.meta.requiresPlatformOwner
-      if (shouldCheckOnboarding && siteStore.loaded && !siteStore.error && siteStore.sites.length === 0 && !to.meta.onboardingRoute) {
-        return { name: 'onboarding' }
-      }
-      if (to.name === 'onboarding' && hasSites) {
-        return { name: 'dashboard' }
-      }
+      const postSiteLoadRedirect = resolvePostSiteLoadRedirect(to, siteStore)
+      if (postSiteLoadRedirect) return postSiteLoadRedirect
       const accessStore = useAccessStore()
       await accessStore.fetchAccess({ force: true, timeout: 4000 })
       if (to.meta.requiredFeature && !accessStore.can(to.meta.requiredFeature) && !to.meta.showLockedFeature) {

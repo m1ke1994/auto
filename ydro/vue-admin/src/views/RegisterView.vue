@@ -3,6 +3,7 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { BarChart3, ShieldCheck, UserPlus, Zap } from '@lucide/vue'
 
+import { REGISTER_SUCCESS_ROUTE } from '../router/routePolicy'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
@@ -104,7 +105,7 @@ async function submit() {
       contact: form.contact.trim(),
       accepted_terms: form.acceptedTerms,
     })
-    await router.push({ name: 'dashboard', query: { registered: '1' } })
+    await router.replace(REGISTER_SUCCESS_ROUTE)
   } catch (error) {
     applyBackendErrors(error?.response?.data)
   } finally {
