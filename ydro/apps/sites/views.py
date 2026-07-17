@@ -31,6 +31,7 @@ from .serializers import (
     AdminMySiteSerializer,
     WebsiteTemplateCategorySerializer,
     WebsiteTemplateCreateSiteSerializer,
+    WebsiteTemplateCreatedSiteSerializer,
     WebsiteTemplateSerializer,
     PublicLeadCreateSerializer,
     PublicSiteSectionSerializer,
@@ -471,7 +472,10 @@ class WebsiteTemplateCreateSiteView(APIView):
         serializer = WebsiteTemplateCreateSiteSerializer(data=data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         site = serializer.save()
-        return Response(AdminMySiteSerializer(site).data, status=status.HTTP_201_CREATED)
+        return Response(
+            WebsiteTemplateCreatedSiteSerializer(site, context={"template": serializer.context["template"]}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 AdminWebsiteTemplateCatalogView = WebsiteTemplateCatalogView

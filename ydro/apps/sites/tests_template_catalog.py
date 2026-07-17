@@ -1,5 +1,8 @@
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.urls import reverse
+from unittest.mock import patch
+
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -7,6 +10,7 @@ from apps.analytics.models import TrackingEvent, Visit
 from apps.sites.models import Site, SiteLead, SiteSection, SiteTemplate, WebsiteTemplate, WebsiteTemplateCategory
 from apps.sites.website_templates import build_site_snapshot
 from clients.models import Client
+from subscriptions.models import Subscription
 from subscriptions.test_utils import grant_business_analytics
 
 
@@ -91,6 +95,52 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertEqual([item["slug"] for item in response.data["templates"]], [self.template.slug])
         self.assertEqual(response.data["templates"][0]["source_site_slug"], self.source_site.slug)
 
+    def test_unauthenticated_user_gets_401_for_catalog(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(reverse("website-template-catalog"))
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_catalog_category_filter_works(self):
+        tourism = WebsiteTemplateCategory.objects.get(slug="tourism")
+        tourism_site = Site.objects.create(owner=self.source_owner, name="Tour", slug="tour-source")
+        SiteSection.objects.create(site=tourism_site, title="Hero", key="hero", section_type="hero")
+        tourism_template = WebsiteTemplate.objects.create(
+            name="Tour template",
+            slug="tour-template",
+            category=tourism,
+            source_site=tourism_site,
+            snapshot_config=build_site_snapshot(tourism_site),
+            is_published=True,
+        )
+
+        response = self.client.get(reverse("website-template-catalog"), {"category": "tourism"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([item["slug"] for item in response.data["templates"]], [tourism_template.slug])
+
+    def test_catalog_returns_three_published_templates(self):
+        WebsiteTemplate.objects.all().delete()
+        for index, category_slug in enumerate(("business", "services", "tourism"), start=1):
+            category = WebsiteTemplateCategory.objects.get(slug=category_slug)
+            source = Site.objects.create(owner=self.source_owner, name=f"Source {index}", slug=f"source-{index}")
+            SiteSection.objects.create(site=source, title="Hero", key="hero", section_type="hero")
+            WebsiteTemplate.objects.create(
+                name=f"Template {index}",
+                slug=f"template-{index}",
+                category=category,
+                source_site=source,
+                snapshot_config=build_site_snapshot(source),
+                is_published=True,
+                sort_order=index,
+            )
+
+        response = self.client.get(reverse("website-template-catalog"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["templates"]), 3)
+
     def test_legacy_site_template_model_remains_available(self):
         legacy_template = SiteTemplate.objects.create(
             key="legacy-hero",
@@ -109,6 +159,7 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertFalse(WebsiteTemplate.objects.filter(slug="legacy-hero").exists())
 
     def test_selecting_template_creates_independent_site_copy(self):
+        subscription_count = Subscription.objects.count()
         response = self.create_from_template(site_name="New Site")
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -116,6 +167,9 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertNotEqual(copy.id, self.source_site.id)
         self.assertEqual(copy.owner, self.user)
         self.assertEqual(copy.name, "New Site")
+        self.assertEqual(response.data["status"], "draft")
+        self.assertEqual(response.data["created_from_template"], self.template.slug)
+        self.assertEqual(response.data["editor_url"], f"/sites/{copy.id}/sections")
         self.assertEqual(self.source_site.owner, self.source_owner)
         self.assertNotEqual(copy.slug, self.source_site.slug)
         self.assertEqual(copy.domain, "")
@@ -133,6 +187,8 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertFalse(SiteLead.objects.filter(site=copy).exists())
         self.assertFalse(Visit.objects.filter(site=copy).exists())
         self.assertFalse(TrackingEvent.objects.filter(visit__site=copy).exists())
+
+        self.assertEqual(Subscription.objects.count(), subscription_count)
 
     def test_copy_and_source_do_not_change_each_other(self):
         response = self.create_from_template(company_name="Independent")
@@ -195,6 +251,21 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertEqual(first.data["id"], second.data["id"])
         self.assertEqual(Site.objects.filter(owner=self.user, name="Idempotent").count(), 1)
 
+    def test_body_idempotency_key_does_not_create_duplicate_site(self):
+        payload = {
+            "template_slug": self.template.slug,
+            "company_name": "Body key",
+            "site_name": "Body key site",
+            "idempotency_key": "body-idempotency-key",
+        }
+
+        first = self.client.post(reverse("website-template-create-site", kwargs={"slug": self.template.slug}), payload, format="json")
+        second = self.client.post(reverse("website-template-create-site", kwargs={"slug": self.template.slug}), payload, format="json")
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(first.data["id"], second.data["id"])
+
     def test_inactive_template_cannot_be_used(self):
         self.template.is_published = False
         self.template.save(update_fields=["is_published"])
@@ -203,3 +274,55 @@ class SiteTemplateCatalogTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(Site.objects.filter(owner=self.user).count(), 0)
+
+    def test_inactive_category_hides_and_blocks_template(self):
+        self.category.is_active = False
+        self.category.save(update_fields=["is_active"])
+
+        catalog = self.client.get(reverse("website-template-catalog"))
+        create = self.create_from_template()
+
+        self.assertEqual(catalog.status_code, status.HTTP_200_OK)
+        self.assertEqual(catalog.data["templates"], [])
+        self.assertEqual(create.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_clone_error_rolls_back_created_site(self):
+        initial_count = Site.objects.filter(owner=self.user).count()
+        self.client.raise_request_exception = False
+
+        with patch("apps.sites.website_templates.SiteSection.objects.bulk_create", side_effect=RuntimeError("boom")):
+            response = self.create_from_template(company_name="Rollback", key="rollback")
+
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertEqual(Site.objects.filter(owner=self.user).count(), initial_count)
+
+    def test_seed_website_templates_uses_real_source_slugs_and_is_idempotent(self):
+        WebsiteTemplate.objects.all().delete()
+        for slug in ("tracknode", "a-meditation", "novaya-konakova"):
+            site = Site.objects.create(owner=self.source_owner, name=slug, slug=slug)
+            SiteSection.objects.create(site=site, title="Hero", key="hero", section_type="hero")
+
+        call_command("seed_website_templates")
+        call_command("seed_website_templates")
+
+        self.assertEqual(WebsiteTemplate.objects.count(), 3)
+        self.assertTrue(WebsiteTemplate.objects.filter(slug="saas-digital-service", source_site__slug="tracknode").exists())
+        self.assertTrue(
+            WebsiteTemplate.objects.filter(slug="expert-practice-consulting", source_site__slug="a-meditation").exists()
+        )
+        self.assertTrue(
+            WebsiteTemplate.objects.filter(slug="country-retreat-events", source_site__slug="novaya-konakova").exists()
+        )
+
+        for slug in ("saas-digital-service", "expert-practice-consulting", "country-retreat-events"):
+            response = self.client.post(
+                reverse("website-template-create-site", kwargs={"slug": slug}),
+                {
+                    "company_name": f"Company {slug}",
+                    "site_name": f"Site {slug}",
+                    "idempotency_key": f"create-{slug}",
+                },
+                format="json",
+            )
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+            self.assertEqual(Site.objects.get(id=response.data["id"]).owner, self.user)

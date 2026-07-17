@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Eye, Plus, RefreshCw } from '@lucide/vue'
 
@@ -17,13 +17,16 @@ const templates = ref([])
 const activeCategory = ref('')
 const selectedTemplate = ref(null)
 const companyName = ref('')
+const siteName = ref('')
 const idempotencyKey = ref('')
+const success = ref('')
 
 const visibleTemplates = computed(() => templates.value)
 
 async function loadCatalog(category = '') {
   loading.value = true
   error.value = ''
+  success.value = ''
   try {
     const { data } = await getSiteTemplateCatalogRequest(category)
     categories.value = Array.isArray(data.categories) ? data.categories : []
@@ -43,33 +46,68 @@ function selectCategory(slug) {
 function chooseTemplate(template) {
   selectedTemplate.value = template
   companyName.value = ''
+  siteName.value = ''
+  idempotencyKey.value = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+  error.value = ''
+  success.value = ''
 }
 
 async function createSite() {
-  if (!selectedTemplate.value || creating.value) return
+  if (!selectedTemplate.value || creating.value || !companyName.value || !siteName.value) return
   creating.value = true
   error.value = ''
+  success.value = ''
   idempotencyKey.value = idempotencyKey.value || `${Date.now()}-${Math.random().toString(16).slice(2)}`
   try {
     const { data } = await createSiteFromTemplateRequest(
       {
         template_slug: selectedTemplate.value.slug,
         company_name: companyName.value,
-        site_name: companyName.value,
+        site_name: siteName.value,
+        idempotency_key: idempotencyKey.value,
       },
       { headers: { 'Idempotency-Key': idempotencyKey.value } },
     )
     siteStore.upsertSite(data)
-    await router.replace(`/sites/${data.id}/sections`)
+    await siteStore.fetchSites()
+    siteStore.selectSite(data.id)
+    selectedTemplate.value = null
+    success.value = 'Сайт успешно создан'
+    await router.replace(data.editor_url || `/sites/${data.id}/sections`)
   } catch (requestError) {
-    error.value = requestError?.response?.data?.company_name?.[0]
-      || requestError?.response?.data?.template_slug?.[0]
-      || requestError?.response?.data?.detail
-      || 'Не удалось создать сайт.'
+    idempotencyKey.value = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    error.value = creationErrorMessage(requestError)
   } finally {
     creating.value = false
   }
 }
+
+function creationErrorMessage(requestError) {
+  const status = requestError?.response?.status
+  const data = requestError?.response?.data || {}
+  if (data?.code === 'subscription_required') return data.detail || 'Для создания нового сайта необходимо выбрать тариф.'
+  if (status === 401) return 'Сессия истекла. Войдите снова.'
+  if (status === 403) return 'Недостаточно прав для создания сайта.'
+  if (status === 404) return 'Шаблон не найден.'
+  if (status === 409) return 'Такой запрос уже был обработан.'
+  if (status >= 500) return 'Ошибка сервера при создании сайта.'
+  return data?.company_name?.[0]
+    || data?.site_name?.[0]
+    || data?.template_slug?.[0]
+    || data?.detail
+    || 'Не удалось создать сайт. Повторите попытку.'
+}
+
+function fallbackClass(template) {
+  const slug = String(template?.slug || '')
+  if (slug.includes('expert')) return 'expert'
+  if (slug.includes('country') || slug.includes('retreat')) return 'tourism'
+  return 'business'
+}
+
+watch(companyName, (value, oldValue) => {
+  if (!siteName.value || siteName.value === oldValue) siteName.value = value
+})
 
 onMounted(() => loadCatalog())
 </script>
@@ -87,7 +125,8 @@ onMounted(() => loadCatalog())
       </button>
     </header>
 
-    <p v-if="error" class="notice-error">{{ error }}</p>
+    <p v-if="error" class="notice-error" role="alert">{{ error }}</p>
+    <p v-if="success" class="notice-success" role="status">{{ success }}</p>
 
     <nav class="surface flex flex-wrap gap-2 p-3">
       <button type="button" class="template-category" :class="{ active: !activeCategory }" @click="selectCategory('')">Все</button>
@@ -103,29 +142,39 @@ onMounted(() => loadCatalog())
       </button>
     </nav>
 
-    <section v-if="loading" class="empty-state">
-      <span class="loading-dot" />
-      <p>Загружаем шаблоны...</p>
+    <section v-if="loading" class="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+      <article v-for="index in 3" :key="index" class="template-card skeleton-template-card">
+        <div class="template-skeleton-media" />
+        <div class="template-skeleton-line short" />
+        <div class="template-skeleton-line" />
+        <div class="template-skeleton-line mid" />
+        <div class="template-skeleton-actions" />
+      </article>
     </section>
 
     <section v-else-if="!visibleTemplates.length" class="empty-state">
       <h2>Шаблоны пока не добавлены</h2>
       <p>Администратор может зарегистрировать существующий сайт как источник шаблона.</p>
+      <button v-if="error" type="button" class="action-button-secondary mt-3" @click="loadCatalog(activeCategory)">Повторить</button>
     </section>
 
     <section v-else class="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-      <article v-for="template in visibleTemplates" :key="template.slug" class="site-card">
+      <article v-for="template in visibleTemplates" :key="template.slug" class="template-card site-card">
         <img
+          v-if="template.preview_image"
           :src="template.preview_image || '/favicon.svg'"
           alt=""
-          class="h-44 w-full rounded-xl object-cover"
+          class="template-preview-image"
         >
-        <div class="mt-4">
+        <div v-else class="template-preview-fallback" :class="fallbackClass(template)">
+          <span>{{ template.category?.name || 'Шаблон' }}</span>
+        </div>
+        <div class="template-card-body">
           <p class="eyebrow">{{ template.category?.name || 'Шаблон' }}</p>
           <h2 class="mt-2 text-xl font-bold text-[#17223B]">{{ template.name }}</h2>
           <p class="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">{{ template.description || 'Готовая структура сайта для быстрого старта.' }}</p>
         </div>
-        <div class="mt-5 flex flex-wrap gap-2">
+        <div class="template-card-actions">
           <a
             :href="`/api/public/sites/${template.source_site_slug}/html/`"
             target="_blank"
@@ -149,13 +198,18 @@ onMounted(() => loadCatalog())
           <p class="eyebrow">Создание сайта</p>
           <h2>{{ selectedTemplate.name }}</h2>
           <label>
-            <span>Название компании или сайта</span>
+            <span>Название компании</span>
             <input v-model.trim="companyName" class="form-control" required maxlength="255" placeholder="Например: Волга Тур">
           </label>
+          <label>
+            <span>Название сайта</span>
+            <input v-model.trim="siteName" class="form-control" required maxlength="255" placeholder="Например: Новый сайт">
+          </label>
+          <p v-if="error" class="notice-error" role="alert">{{ error }}</p>
           <div class="flex flex-col gap-2 sm:flex-row">
-            <button type="submit" class="action-button-primary" :disabled="creating">
+            <button type="submit" class="action-button-primary" :disabled="creating || !companyName || !siteName">
               <span v-if="creating" class="button-spinner" />
-              {{ creating ? 'Создаём...' : 'Создать сайт' }}
+              {{ creating ? 'Создаём сайт из шаблона...' : 'Создать сайт' }}
             </button>
             <button type="button" class="action-button-secondary" :disabled="creating" @click="selectedTemplate = null">Отмена</button>
           </div>
@@ -166,6 +220,116 @@ onMounted(() => loadCatalog())
 </template>
 
 <style scoped>
+.template-card {
+  display: flex;
+  min-height: 31rem;
+  flex-direction: column;
+}
+
+.template-preview-image,
+.template-preview-fallback,
+.template-skeleton-media {
+  height: 11rem;
+  width: 100%;
+  border-radius: 0.75rem;
+}
+
+.template-preview-image {
+  object-fit: cover;
+}
+
+.template-preview-fallback {
+  display: grid;
+  place-items: end start;
+  overflow: hidden;
+  padding: 1rem;
+  color: #fff;
+  font-weight: 800;
+  background: linear-gradient(135deg, #6d5df6, #17223b);
+}
+
+.template-preview-fallback.expert {
+  background: linear-gradient(135deg, #10b981, #17223b);
+}
+
+.template-preview-fallback.tourism {
+  background: linear-gradient(135deg, #0f766e, #84cc16);
+}
+
+.template-card-body {
+  display: flex;
+  min-height: 12.5rem;
+  flex: 1;
+  flex-direction: column;
+  margin-top: 1rem;
+}
+
+.template-card-body h2 {
+  line-height: 1.25;
+}
+
+.template-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 1.25rem;
+}
+
+.template-card-actions > * {
+  flex: 1 1 0;
+  white-space: nowrap;
+}
+
+.skeleton-template-card {
+  pointer-events: none;
+}
+
+.template-skeleton-media,
+.template-skeleton-line,
+.template-skeleton-actions {
+  position: relative;
+  overflow: hidden;
+  background: #eef2ff;
+}
+
+.template-skeleton-line {
+  height: 1rem;
+  margin-top: 1rem;
+  border-radius: 999px;
+}
+
+.template-skeleton-line.short {
+  width: 34%;
+}
+
+.template-skeleton-line.mid {
+  width: 68%;
+}
+
+.template-skeleton-actions {
+  height: 2.75rem;
+  margin-top: auto;
+  border-radius: 1rem;
+}
+
+.template-skeleton-media::after,
+.template-skeleton-line::after,
+.template-skeleton-actions::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  transform: translateX(-100%);
+  animation: template-shimmer 1.4s infinite;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+}
+
+@keyframes template-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 .template-category {
   min-height: 2.4rem;
   border: 1px solid rgba(109, 93, 246, 0.14);
@@ -216,5 +380,16 @@ onMounted(() => loadCatalog())
   color: #334155;
   font-size: 0.9rem;
   font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .template-card-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .template-card-actions > * {
+    width: 100%;
+  }
 }
 </style>

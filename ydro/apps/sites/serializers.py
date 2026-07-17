@@ -95,6 +95,25 @@ class AdminMySiteSerializer(serializers.ModelSerializer):
         return build_tracker_script_tag(obj.api_key)
 
 
+class WebsiteTemplateCreatedSiteSerializer(AdminMySiteSerializer):
+    status = serializers.SerializerMethodField()
+    created_from_template = serializers.SerializerMethodField()
+    editor_url = serializers.SerializerMethodField()
+
+    class Meta(AdminMySiteSerializer.Meta):
+        fields = AdminMySiteSerializer.Meta.fields + ("status", "created_from_template", "editor_url")
+
+    def get_status(self, obj):
+        return "active" if obj.is_active else "draft"
+
+    def get_created_from_template(self, obj):
+        template = self.context.get("template")
+        return getattr(template, "slug", "")
+
+    def get_editor_url(self, obj):
+        return f"/sites/{obj.id}/sections"
+
+
 class WebsiteTemplateCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = WebsiteTemplateCategory
@@ -124,6 +143,7 @@ class WebsiteTemplateCreateSiteSerializer(serializers.Serializer):
     company_name = serializers.CharField(max_length=255)
     site_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
     template_slug = serializers.SlugField()
+    idempotency_key = serializers.CharField(max_length=120, required=False, allow_blank=True, write_only=True)
 
     def validate_company_name(self, value):
         value = str(value or "").strip()
@@ -151,7 +171,7 @@ class WebsiteTemplateCreateSiteSerializer(serializers.Serializer):
             target_user=request.user,
             company_name=validated_data["company_name"],
             site_name=validated_data.get("site_name", ""),
-            idempotency_key=str(request.headers.get("Idempotency-Key") or ""),
+            idempotency_key=str(request.headers.get("Idempotency-Key") or validated_data.get("idempotency_key") or ""),
         )
 
 
