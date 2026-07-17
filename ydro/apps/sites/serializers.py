@@ -8,7 +8,7 @@ from rest_framework import serializers
 from leads.services import send_lead_telegram_notification
 
 from .models import SectionSchema, Site, SiteLead, SiteSection, WebsiteTemplate, WebsiteTemplateCategory
-from .website_templates import clone_site_for_user
+from .website_templates import WebsiteTemplateCloneError, clone_site_for_user
 from .a_meditation import SECTION_TITLES
 from .seo import build_public_site_seo
 from .volga_site import SECTION_TITLES as VOLGA_SECTION_TITLES
@@ -96,12 +96,23 @@ class AdminMySiteSerializer(serializers.ModelSerializer):
 
 
 class WebsiteTemplateCreatedSiteSerializer(AdminMySiteSerializer):
+    success = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
     created_from_template = serializers.SerializerMethodField()
+    dashboard_url = serializers.SerializerMethodField()
     editor_url = serializers.SerializerMethodField()
 
     class Meta(AdminMySiteSerializer.Meta):
-        fields = AdminMySiteSerializer.Meta.fields + ("status", "created_from_template", "editor_url")
+        fields = AdminMySiteSerializer.Meta.fields + (
+            "success",
+            "status",
+            "created_from_template",
+            "dashboard_url",
+            "editor_url",
+        )
+
+    def get_success(self, obj):
+        return True
 
     def get_status(self, obj):
         return "active" if obj.is_active else "draft"
@@ -109,6 +120,9 @@ class WebsiteTemplateCreatedSiteSerializer(AdminMySiteSerializer):
     def get_created_from_template(self, obj):
         template = self.context.get("template")
         return getattr(template, "slug", "")
+
+    def get_dashboard_url(self, obj):
+        return f"/sites/{obj.id}"
 
     def get_editor_url(self, obj):
         return f"/sites/{obj.id}/sections"
@@ -166,13 +180,16 @@ class WebsiteTemplateCreateSiteSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         request = self.context["request"]
-        return clone_site_for_user(
-            template=self.context["template"],
-            target_user=request.user,
-            company_name=validated_data["company_name"],
-            site_name=validated_data.get("site_name", ""),
-            idempotency_key=str(request.headers.get("Idempotency-Key") or validated_data.get("idempotency_key") or ""),
-        )
+        try:
+            return clone_site_for_user(
+                template=self.context["template"],
+                target_user=request.user,
+                company_name=validated_data["company_name"],
+                site_name=validated_data.get("site_name", ""),
+                idempotency_key=str(request.headers.get("Idempotency-Key") or validated_data.get("idempotency_key") or ""),
+            )
+        except WebsiteTemplateCloneError as exc:
+            raise serializers.ValidationError({"code": exc.code, "detail": exc.detail}) from exc
 
 
 class AdminMySiteSectionSerializer(serializers.ModelSerializer):

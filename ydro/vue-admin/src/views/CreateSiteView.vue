@@ -85,17 +85,24 @@ async function createSite() {
 function creationErrorMessage(requestError) {
   const status = requestError?.response?.status
   const data = requestError?.response?.data || {}
-  if (data?.code === 'subscription_required') return data.detail || 'Для создания нового сайта необходимо выбрать тариф.'
+  const detail = responseText(data?.detail)
+  if (data?.code === 'subscription_required') return detail || 'Для создания нового сайта необходимо выбрать тариф.'
   if (status === 401) return 'Сессия истекла. Войдите снова.'
   if (status === 403) return 'Недостаточно прав для создания сайта.'
-  if (status === 404) return 'Шаблон не найден.'
-  if (status === 409) return 'Такой запрос уже был обработан.'
-  if (status >= 500) return 'Ошибка сервера при создании сайта.'
-  return data?.company_name?.[0]
-    || data?.site_name?.[0]
-    || data?.template_slug?.[0]
-    || data?.detail
+  if (status === 404) return detail || 'Шаблон не найден.'
+  if (status === 409) return detail || 'Такой запрос уже был обработан.'
+  if (status >= 500) return detail || 'Ошибка сервера при создании сайта.'
+  return responseText(data?.company_name)
+    || responseText(data?.site_name)
+    || responseText(data?.template_slug)
+    || detail
     || 'Не удалось создать сайт. Повторите попытку.'
+}
+
+function responseText(value) {
+  if (Array.isArray(value)) return value.filter(Boolean).join(' ')
+  if (typeof value === 'string') return value
+  return ''
 }
 
 function fallbackClass(template) {

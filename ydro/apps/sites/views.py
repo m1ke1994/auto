@@ -1,4 +1,5 @@
 ﻿from django.db.models import Count, Q
+import logging
 import re
 from urllib.error import URLError
 from urllib.request import urlopen
@@ -39,6 +40,9 @@ from .serializers import (
 )
 from .telegram_binding import build_site_start_payload
 from .tracker_utils import build_tracker_script_tag
+
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_domain(value):
@@ -471,7 +475,19 @@ class WebsiteTemplateCreateSiteView(APIView):
             data["template_slug"] = slug
         serializer = WebsiteTemplateCreateSiteSerializer(data=data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        site = serializer.save()
+        try:
+            site = serializer.save()
+        except serializers.ValidationError:
+            raise
+        except Exception:
+            logger.exception("Unexpected website template clone failure template_slug=%s user_id=%s", slug, request.user.id)
+            return Response(
+                {
+                    "code": "template_clone_failed",
+                    "detail": "Ошибка сервера при создании сайта. Проверьте снимок шаблона и повторите попытку.",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
         return Response(
             WebsiteTemplateCreatedSiteSerializer(site, context={"template": serializer.context["template"]}).data,
             status=status.HTTP_201_CREATED,

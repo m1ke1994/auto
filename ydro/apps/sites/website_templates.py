@@ -1,9 +1,17 @@
 from copy import deepcopy
 
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils.text import slugify
 
 from .models import Site, SiteSection, WebsiteTemplate, WebsiteTemplateCloneRequest
+
+
+class WebsiteTemplateCloneError(Exception):
+    def __init__(self, code: str, detail: str):
+        self.code = code
+        self.detail = detail
+        super().__init__(detail)
 
 
 SENSITIVE_TEXT_KEYS = {
@@ -60,8 +68,13 @@ def build_site_snapshot(source_site: Site) -> dict:
         "site": {
             "seo": _sanitize_seo(source_site.seo),
             "builder_config": {},
+            "site_settings": {},
+            "theme": {},
             "design": {},
-            "menu": [],
+            "navigation": _extract_section_payload(sections, "navigation"),
+            "header": _extract_section_payload(sections, "header"),
+            "footer": _extract_section_payload(sections, "footer"),
+            "menu": _extract_section_payload(sections, "navigation"),
         },
         "pages": [],
         "sections": sections,
@@ -89,6 +102,7 @@ def clone_site_for_user(
             return existing.site
 
     snapshot = template.snapshot_config if isinstance(template.snapshot_config, dict) else {}
+    _validate_snapshot(snapshot)
     snapshot_source = snapshot.get("source") if isinstance(snapshot.get("source"), dict) else {}
     source_name = str(snapshot_source.get("site_name") or template.source_site.name or "").strip()
     company = str(company_name or "").strip()
@@ -105,24 +119,27 @@ def clone_site_for_user(
             seo=_replace_company_name(_snapshot_site_seo(snapshot), source_name, company or name),
         )
 
-        sections = []
-        for section_data in _snapshot_sections(snapshot):
-            sections.append(
-                SiteSection(
-                    site=site,
-                    title=section_data.get("title", ""),
-                    key=section_data.get("key", ""),
-                    section_type=section_data.get("section_type", ""),
-                    order=section_data.get("order", 0),
-                    is_active=bool(section_data.get("is_active", True)),
-                    schema=deepcopy(section_data.get("schema") or {}),
-                    content=_replace_company_name(deepcopy(section_data.get("content") or {}), source_name, company or name),
-                    component_key=section_data.get("component_key", ""),
-                    settings=deepcopy(section_data.get("settings") or {}),
-                    seo=_replace_company_name(deepcopy(section_data.get("seo") or {}), source_name, company or name),
-                )
+        for index, section_data in enumerate(_snapshot_sections(snapshot), start=1):
+            section = SiteSection(
+                site=site,
+                title=str(section_data.get("title") or section_data.get("key") or f"Section {index}"),
+                key=_section_key(section_data, index),
+                section_type=str(section_data.get("section_type") or ""),
+                order=_safe_int(section_data.get("order"), index),
+                is_active=bool(section_data.get("is_active", True)),
+                schema=deepcopy(section_data.get("schema") or {}),
+                content=_replace_company_name(deepcopy(section_data.get("content") or {}), source_name, company or name),
+                component_key=str(section_data.get("component_key") or ""),
+                settings=deepcopy(section_data.get("settings") or {}),
+                seo=_replace_company_name(deepcopy(section_data.get("seo") or {}), source_name, company or name),
             )
-        SiteSection.objects.bulk_create(sections)
+            try:
+                section.save()
+            except (ValidationError, IntegrityError, ValueError, TypeError) as exc:
+                raise WebsiteTemplateCloneError(
+                    "section_clone_failed",
+                    f"Section clone failed for '{section.key or section.title}': {exc}",
+                ) from exc
 
         if key:
             try:
@@ -137,9 +154,40 @@ def clone_site_for_user(
     return site
 
 
+def _validate_snapshot(snapshot: dict) -> None:
+    if not snapshot:
+        raise WebsiteTemplateCloneError("template_snapshot_missing", "Template snapshot missing.")
+    if not isinstance(snapshot, dict):
+        raise WebsiteTemplateCloneError("template_snapshot_invalid", "Template snapshot invalid.")
+    if not isinstance(snapshot.get("sections"), list) or not snapshot["sections"]:
+        raise WebsiteTemplateCloneError("template_snapshot_missing", "Template snapshot has no sections.")
+    for index, section in enumerate(snapshot["sections"], start=1):
+        if not isinstance(section, dict):
+            raise WebsiteTemplateCloneError("template_snapshot_invalid", f"Section #{index} is invalid.")
+
+
 def _snapshot_sections(snapshot: dict) -> list:
     sections = snapshot.get("sections", [])
     return sections if isinstance(sections, list) else []
+
+
+def _extract_section_payload(sections: list, key: str) -> dict:
+    for section in sections:
+        if section.get("key") == key:
+            return deepcopy(section.get("content") or {})
+    return {}
+
+
+def _section_key(section_data: dict, index: int) -> str:
+    raw_key = str(section_data.get("key") or section_data.get("section_type") or f"section-{index}")
+    return slugify(raw_key)[:100] or f"section-{index}"
+
+
+def _safe_int(value, fallback: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
 
 
 def _snapshot_site_seo(snapshot: dict) -> dict:

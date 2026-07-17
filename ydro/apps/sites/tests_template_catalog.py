@@ -169,6 +169,8 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertEqual(copy.name, "New Site")
         self.assertEqual(response.data["status"], "draft")
         self.assertEqual(response.data["created_from_template"], self.template.slug)
+        self.assertTrue(response.data["success"])
+        self.assertEqual(response.data["dashboard_url"], f"/sites/{copy.id}")
         self.assertEqual(response.data["editor_url"], f"/sites/{copy.id}/sections")
         self.assertEqual(self.source_site.owner, self.source_owner)
         self.assertNotEqual(copy.slug, self.source_site.slug)
@@ -290,11 +292,21 @@ class SiteTemplateCatalogTests(APITestCase):
         initial_count = Site.objects.filter(owner=self.user).count()
         self.client.raise_request_exception = False
 
-        with patch("apps.sites.website_templates.SiteSection.objects.bulk_create", side_effect=RuntimeError("boom")):
+        with patch("apps.sites.website_templates.SiteSection.save", side_effect=RuntimeError("boom")):
             response = self.create_from_template(company_name="Rollback", key="rollback")
 
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertEqual(response.data["code"], "template_clone_failed")
         self.assertEqual(Site.objects.filter(owner=self.user).count(), initial_count)
+
+    def test_invalid_snapshot_returns_readable_error(self):
+        self.template.snapshot_config = {"version": 1, "sections": [None]}
+        self.template.save(update_fields=["snapshot_config", "updated_at"])
+
+        response = self.create_from_template(company_name="Invalid snapshot")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("detail", response.data)
 
     def test_seed_website_templates_uses_real_source_slugs_and_is_idempotent(self):
         WebsiteTemplate.objects.all().delete()
@@ -313,6 +325,7 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertTrue(
             WebsiteTemplate.objects.filter(slug="country-retreat-events", source_site__slug="novaya-konakova").exists()
         )
+        self.assertFalse(WebsiteTemplate.objects.filter(preview_image__startswith="data:image").exists())
 
         for slug in ("saas-digital-service", "expert-practice-consulting", "country-retreat-events"):
             response = self.client.post(
