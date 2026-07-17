@@ -32,6 +32,13 @@ SENSITIVE_TEXT_KEYS = {
 }
 
 
+def completed_template_generation_fields() -> dict:
+    return {
+        "generation_status": Site.GenerationStatus.COMPLETED,
+        "generation_progress": 100,
+    }
+
+
 def unique_site_slug(base_value: str) -> str:
     base_slug = slugify(base_value)[:80] or "site"
     slug = base_slug
@@ -122,7 +129,7 @@ def clone_site_for_user(
                 source=Site.SOURCE_TEMPLATE,
                 render_mode=Site.RENDER_MODE_BUILDER,
                 status=Site.Status.DRAFT,
-                generation_status=Site.GenerationStatus.COMPLETED,
+                **completed_template_generation_fields(),
                 is_active=False,
                 seo=_replace_company_name(_snapshot_site_seo(snapshot), source_name, company or name),
             )

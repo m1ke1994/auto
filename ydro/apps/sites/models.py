@@ -2,6 +2,7 @@
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.text import slugify
 import secrets
@@ -259,6 +260,11 @@ class Site(models.Model):
         choices=GenerationStatus.choices,
         default=GenerationStatus.PENDING,
         verbose_name="Статус генерации",
+    )
+    generation_progress = models.PositiveSmallIntegerField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        verbose_name="Прогресс генерации",
     )
     api_key = models.CharField(
         max_length=128,

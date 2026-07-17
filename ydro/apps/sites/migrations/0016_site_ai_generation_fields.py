@@ -1,3 +1,4 @@
+import django.core.validators
 from django.db import migrations, models
 
 
@@ -21,6 +22,15 @@ class Migration(migrations.Migration):
                 default="pending",
                 max_length=32,
                 verbose_name="Статус генерации",
+            ),
+        ),
+        migrations.AddField(
+            model_name="site",
+            name="generation_progress",
+            field=models.PositiveSmallIntegerField(
+                default=0,
+                validators=[django.core.validators.MinValueValidator(0), django.core.validators.MaxValueValidator(100)],
+                verbose_name="Прогресс генерации",
             ),
         ),
     ]
