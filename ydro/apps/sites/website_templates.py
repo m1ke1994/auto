@@ -122,6 +122,7 @@ def clone_site_for_user(
                 source=Site.SOURCE_TEMPLATE,
                 render_mode=Site.RENDER_MODE_BUILDER,
                 status=Site.Status.DRAFT,
+                generation_status=Site.GenerationStatus.COMPLETED,
                 is_active=False,
                 seo=_replace_company_name(_snapshot_site_seo(snapshot), source_name, company or name),
             )

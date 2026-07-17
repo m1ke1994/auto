@@ -232,6 +232,12 @@ class Site(models.Model):
         DRAFT = "draft", "Черновик"
         ACTIVE = "active", "Активен"
 
+    class GenerationStatus(models.TextChoices):
+        PENDING = "pending", "Ожидает"
+        RUNNING = "running", "Выполняется"
+        COMPLETED = "completed", "Завершена"
+        FAILED = "failed", "Ошибка"
+
     SOURCE_MANUAL = "manual"
     SOURCE_TEMPLATE = "template"
     RENDER_MODE_BUILDER = "builder"
@@ -247,6 +253,12 @@ class Site(models.Model):
         choices=Status.choices,
         default=Status.DRAFT,
         verbose_name="Статус",
+    )
+    generation_status = models.CharField(
+        max_length=32,
+        choices=GenerationStatus.choices,
+        default=GenerationStatus.PENDING,
+        verbose_name="Статус генерации",
     )
     api_key = models.CharField(
         max_length=128,
