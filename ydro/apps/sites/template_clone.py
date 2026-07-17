@@ -3,7 +3,7 @@ from copy import deepcopy
 from django.db import IntegrityError, transaction
 from django.utils.text import slugify
 
-from .models import Site, SiteSection, SiteTemplate, SiteTemplateCloneRequest
+from .models import Site, SiteSection, WebsiteTemplate, WebsiteTemplateCloneRequest
 
 
 COPY_SITE_FIELDS = ("seo",)
@@ -44,10 +44,10 @@ def unique_site_slug(base_value: str) -> str:
     return slug
 
 
-def clone_site_for_user(*, template: SiteTemplate, target_user, company_name: str, idempotency_key: str = "") -> Site:
+def clone_site_for_user(*, template: WebsiteTemplate, target_user, company_name: str, idempotency_key: str = "") -> Site:
     key = str(idempotency_key or "").strip()
     if key:
-        existing = SiteTemplateCloneRequest.objects.filter(user=target_user, idempotency_key=key).select_related("site").first()
+        existing = WebsiteTemplateCloneRequest.objects.filter(user=target_user, idempotency_key=key).select_related("site").first()
         if existing is not None:
             return existing.site
 
@@ -85,10 +85,10 @@ def clone_site_for_user(*, template: SiteTemplate, target_user, company_name: st
 
         if key:
             try:
-                SiteTemplateCloneRequest.objects.create(user=target_user, template=template, idempotency_key=key, site=site)
+                WebsiteTemplateCloneRequest.objects.create(user=target_user, template=template, idempotency_key=key, site=site)
             except IntegrityError:
                 site.delete()
-                return SiteTemplateCloneRequest.objects.select_related("site").get(
+                return WebsiteTemplateCloneRequest.objects.select_related("site").get(
                     user=target_user,
                     idempotency_key=key,
                 ).site
@@ -114,4 +114,3 @@ def _replace_company_name(value, source_name: str, target_name: str):
     if isinstance(value, dict):
         return {key: _replace_company_name(item, source_name, target_name) for key, item in value.items()}
     return value
-

@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand, CommandError
 from django.utils.text import slugify
 
-from apps.sites.models import Site, SiteTemplate, SiteTemplateCategory
+from apps.sites.models import Site, WebsiteTemplate, WebsiteTemplateCategory
 
 
 class Command(BaseCommand):
@@ -22,7 +22,7 @@ class Command(BaseCommand):
         if site is None:
             raise CommandError(f"Site with slug={options['site_slug']} was not found.")
 
-        category = SiteTemplateCategory.objects.filter(slug=options["category"], is_active=True).first()
+        category = WebsiteTemplateCategory.objects.filter(slug=options["category"], is_active=True).first()
         if category is None:
             raise CommandError(f"Active template category slug={options['category']} was not found.")
 
@@ -30,7 +30,7 @@ class Command(BaseCommand):
         if not template_slug:
             raise CommandError("Template slug is empty.")
 
-        template, created = SiteTemplate.objects.update_or_create(
+        template, created = WebsiteTemplate.objects.update_or_create(
             slug=template_slug,
             defaults={
                 "name": options["name"],
@@ -49,4 +49,3 @@ class Command(BaseCommand):
                 f"template={template.slug} {'created' if created else 'updated'} source_site={site.slug}"
             )
         )
-

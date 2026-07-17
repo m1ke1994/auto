@@ -3,21 +3,21 @@ from django.db import migrations, models
 import django.db.models.deletion
 
 
-def seed_categories(apps, schema_editor):
-    SiteTemplateCategory = apps.get_model("sites", "SiteTemplateCategory")
+def seed_website_template_categories(apps, schema_editor):
+    WebsiteTemplateCategory = apps.get_model("sites", "WebsiteTemplateCategory")
     categories = [
-        ("tourism", "Туризм и отдых", 10),
+        ("tourism", "Туризм", 10),
         ("services", "Услуги", 20),
         ("construction", "Строительство", 30),
-        ("beauty", "Красота и здоровье", 40),
+        ("beauty", "Красота", 40),
         ("education", "Образование", 50),
-        ("restaurant", "Рестораны и кафе", 60),
-        ("business", "Бизнес и IT", 70),
-        ("ecommerce", "Интернет-магазины", 80),
+        ("restaurant", "Рестораны", 60),
+        ("business", "Бизнес", 70),
+        ("ecommerce", "Интернет-магазин", 80),
         ("other", "Другое", 100),
     ]
     for slug, name, sort_order in categories:
-        SiteTemplateCategory.objects.get_or_create(
+        WebsiteTemplateCategory.objects.get_or_create(
             slug=slug,
             defaults={"name": name, "sort_order": sort_order, "is_active": True},
         )
@@ -27,12 +27,12 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ("sites", "0015_rebrand_a_meditation_public_name"),
+        ("sites", "0018_site_status"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name="SiteTemplateCategory",
+            name="WebsiteTemplateCategory",
             fields=[
                 ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("name", models.CharField(max_length=120, verbose_name="Название")),
@@ -43,13 +43,13 @@ class Migration(migrations.Migration):
                 ("updated_at", models.DateTimeField(auto_now=True)),
             ],
             options={
-                "verbose_name": "Категория шаблонов",
-                "verbose_name_plural": "Категории шаблонов",
+                "verbose_name": "Категория шаблонов сайтов",
+                "verbose_name_plural": "Категории шаблонов сайтов",
                 "ordering": ["sort_order", "name"],
             },
         ),
         migrations.CreateModel(
-            name="SiteTemplate",
+            name="WebsiteTemplate",
             fields=[
                 ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("name", models.CharField(max_length=160, verbose_name="Название")),
@@ -63,37 +63,67 @@ class Migration(migrations.Migration):
                 ("updated_at", models.DateTimeField(auto_now=True)),
                 (
                     "category",
-                    models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="templates", to="sites.sitetemplatecategory", verbose_name="Категория"),
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="templates",
+                        to="sites.websitetemplatecategory",
+                        verbose_name="Категория",
+                    ),
                 ),
                 (
                     "source_site",
-                    models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="template_sources", to="sites.site", verbose_name="Исходный сайт"),
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="website_template_sources",
+                        to="sites.site",
+                        verbose_name="Исходный сайт",
+                    ),
                 ),
             ],
             options={
-                "verbose_name": "Шаблон сайта",
-                "verbose_name_plural": "Шаблоны сайтов",
+                "verbose_name": "Шаблон клиентского сайта",
+                "verbose_name_plural": "Шаблоны клиентских сайтов",
                 "ordering": ["sort_order", "name"],
             },
         ),
         migrations.CreateModel(
-            name="SiteTemplateCloneRequest",
+            name="WebsiteTemplateCloneRequest",
             fields=[
                 ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("idempotency_key", models.CharField(max_length=120)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
-                ("site", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="+", to="sites.site")),
-                ("template", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="clone_requests", to="sites.sitetemplate")),
-                ("user", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="site_template_clone_requests", to=settings.AUTH_USER_MODEL)),
+                (
+                    "site",
+                    models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="+", to="sites.site"),
+                ),
+                (
+                    "template",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="clone_requests",
+                        to="sites.websitetemplate",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="website_template_clone_requests",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                "verbose_name": "Запрос клонирования шаблона",
-                "verbose_name_plural": "Запросы клонирования шаблонов",
+                "verbose_name": "Запрос клонирования шаблона сайта",
+                "verbose_name_plural": "Запросы клонирования шаблонов сайтов",
             },
         ),
         migrations.AddConstraint(
-            model_name="sitetemplateclonerequest",
-            constraint=models.UniqueConstraint(fields=("user", "idempotency_key"), name="unique_site_template_clone_request"),
+            model_name="websitetemplateclonerequest",
+            constraint=models.UniqueConstraint(
+                fields=("user", "idempotency_key"),
+                name="unique_website_template_clone_request",
+            ),
         ),
-        migrations.RunPython(seed_categories, migrations.RunPython.noop),
+        migrations.RunPython(seed_website_template_categories, migrations.RunPython.noop),
     ]

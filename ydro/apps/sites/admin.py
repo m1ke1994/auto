@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.utils.html import format_html, format_html_join
 
 from clients.services import get_user_client
-from .models import SectionSchema, Site, SiteLead, SiteSection, SiteTemplate, SiteTemplateCategory
+from .models import SectionSchema, Site, SiteLead, SiteSection, SiteTemplate, WebsiteTemplate, WebsiteTemplateCategory
 
 SectionSchema._meta.verbose_name = "Схема секции"
 SectionSchema._meta.verbose_name_plural = "Схемы секций"
@@ -108,8 +108,21 @@ class SectionSchemaAdmin(admin.ModelAdmin):
         )
 
 
-@admin.register(SiteTemplateCategory)
-class SiteTemplateCategoryAdmin(admin.ModelAdmin):
+@admin.register(SiteTemplate)
+class SiteTemplateAdmin(admin.ModelAdmin):
+    list_display = ("key", "title", "category", "component_key", "is_active", "updated_at")
+    list_filter = ("category", "is_active")
+    search_fields = ("key", "title", "category", "description", "component_key")
+    readonly_fields = ("created_at", "updated_at")
+    fieldsets = (
+        ("Main", {"fields": ("key", "title", "category", "description", "preview_image", "component_key", "is_active")}),
+        ("Config", {"fields": ("schema", "default_config")}),
+        ("Meta", {"fields": ("created_at", "updated_at")}),
+    )
+
+
+@admin.register(WebsiteTemplateCategory)
+class WebsiteTemplateCategoryAdmin(admin.ModelAdmin):
     list_display = ("name", "slug", "sort_order", "is_active", "updated_at")
     list_filter = ("is_active",)
     search_fields = ("name", "slug")
@@ -117,8 +130,8 @@ class SiteTemplateCategoryAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at", "updated_at")
 
 
-@admin.register(SiteTemplate)
-class SiteTemplateAdmin(admin.ModelAdmin):
+@admin.register(WebsiteTemplate)
+class WebsiteTemplateAdmin(admin.ModelAdmin):
     list_display = ("name", "slug", "category", "source_site", "is_active", "is_featured", "sort_order", "updated_at")
     list_filter = ("category", "is_active", "is_featured")
     search_fields = ("name", "slug", "description", "source_site__name", "source_site__slug")

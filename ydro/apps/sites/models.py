@@ -278,7 +278,29 @@ class Site(models.Model):
         super().save(*args, **kwargs)
 
 
-class SiteTemplateCategory(models.Model):
+class SiteTemplate(models.Model):
+    key = models.SlugField(max_length=100, unique=True, verbose_name="Template key")
+    title = models.CharField(max_length=255, verbose_name="Title")
+    category = models.CharField(max_length=100, blank=True, default="", verbose_name="Category")
+    description = models.TextField(blank=True, default="", verbose_name="Description")
+    preview_image = models.CharField(max_length=500, blank=True, default="", verbose_name="Preview image")
+    component_key = models.CharField(max_length=100, blank=True, default="", verbose_name="Component key")
+    schema = models.JSONField(default=dict, blank=True, verbose_name="Schema")
+    default_config = models.JSONField(default=dict, blank=True, verbose_name="Default config")
+    is_active = models.BooleanField(default=True, verbose_name="Is active")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Created at")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated at")
+
+    class Meta:
+        verbose_name = "Site template"
+        verbose_name_plural = "Site templates"
+        ordering = ["category", "title"]
+
+    def __str__(self):
+        return self.title
+
+
+class WebsiteTemplateCategory(models.Model):
     name = models.CharField(max_length=120, verbose_name="Название")
     slug = models.SlugField(max_length=80, unique=True, verbose_name="Slug")
     sort_order = models.PositiveIntegerField(default=100, verbose_name="Сортировка")
@@ -287,19 +309,19 @@ class SiteTemplateCategory(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "Категория шаблонов"
-        verbose_name_plural = "Категории шаблонов"
+        verbose_name = "Категория шаблонов сайтов"
+        verbose_name_plural = "Категории шаблонов сайтов"
         ordering = ["sort_order", "name"]
 
     def __str__(self):
         return self.name
 
 
-class SiteTemplate(models.Model):
+class WebsiteTemplate(models.Model):
     name = models.CharField(max_length=160, verbose_name="Название")
     slug = models.SlugField(max_length=120, unique=True, verbose_name="Slug")
     category = models.ForeignKey(
-        SiteTemplateCategory,
+        WebsiteTemplateCategory,
         on_delete=models.PROTECT,
         related_name="templates",
         verbose_name="Категория",
@@ -309,7 +331,7 @@ class SiteTemplate(models.Model):
     source_site = models.ForeignKey(
         Site,
         on_delete=models.PROTECT,
-        related_name="template_sources",
+        related_name="website_template_sources",
         verbose_name="Исходный сайт",
     )
     is_active = models.BooleanField(default=True, verbose_name="Активен")
@@ -319,26 +341,26 @@ class SiteTemplate(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "Шаблон сайта"
-        verbose_name_plural = "Шаблоны сайтов"
+        verbose_name = "Шаблон клиентского сайта"
+        verbose_name_plural = "Шаблоны клиентских сайтов"
         ordering = ["sort_order", "name"]
 
     def __str__(self):
         return self.name
 
 
-class SiteTemplateCloneRequest(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="site_template_clone_requests")
-    template = models.ForeignKey(SiteTemplate, on_delete=models.CASCADE, related_name="clone_requests")
+class WebsiteTemplateCloneRequest(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="website_template_clone_requests")
+    template = models.ForeignKey(WebsiteTemplate, on_delete=models.CASCADE, related_name="clone_requests")
     idempotency_key = models.CharField(max_length=120)
     site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "Запрос клонирования шаблона"
-        verbose_name_plural = "Запросы клонирования шаблонов"
+        verbose_name = "Запрос клонирования шаблона сайта"
+        verbose_name_plural = "Запросы клонирования шаблонов сайтов"
         constraints = [
-            models.UniqueConstraint(fields=("user", "idempotency_key"), name="unique_site_template_clone_request"),
+            models.UniqueConstraint(fields=("user", "idempotency_key"), name="unique_website_template_clone_request"),
         ]
 
     def __str__(self):

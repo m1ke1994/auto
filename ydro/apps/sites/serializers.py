@@ -7,7 +7,7 @@ from rest_framework import serializers
 
 from leads.services import send_lead_telegram_notification
 
-from .models import SectionSchema, Site, SiteLead, SiteSection, SiteTemplate, SiteTemplateCategory
+from .models import SectionSchema, Site, SiteLead, SiteSection, WebsiteTemplate, WebsiteTemplateCategory
 from .template_clone import clone_site_for_user
 from .a_meditation import SECTION_TITLES
 from .seo import build_public_site_seo
@@ -95,18 +95,18 @@ class AdminMySiteSerializer(serializers.ModelSerializer):
         return build_tracker_script_tag(obj.api_key)
 
 
-class SiteTemplateCategorySerializer(serializers.ModelSerializer):
+class WebsiteTemplateCategorySerializer(serializers.ModelSerializer):
     class Meta:
-        model = SiteTemplateCategory
+        model = WebsiteTemplateCategory
         fields = ("id", "name", "slug", "sort_order")
 
 
-class SiteTemplateSerializer(serializers.ModelSerializer):
-    category = SiteTemplateCategorySerializer(read_only=True)
+class WebsiteTemplateSerializer(serializers.ModelSerializer):
+    category = WebsiteTemplateCategorySerializer(read_only=True)
     source_site_slug = serializers.CharField(source="source_site.slug", read_only=True)
 
     class Meta:
-        model = SiteTemplate
+        model = WebsiteTemplate
         fields = (
             "id",
             "name",
@@ -120,7 +120,7 @@ class SiteTemplateSerializer(serializers.ModelSerializer):
         )
 
 
-class SiteTemplateCreateSiteSerializer(serializers.Serializer):
+class WebsiteTemplateCreateSiteSerializer(serializers.Serializer):
     company_name = serializers.CharField(max_length=255)
     template_slug = serializers.SlugField()
 
@@ -131,7 +131,7 @@ class SiteTemplateCreateSiteSerializer(serializers.Serializer):
         return value
 
     def validate_template_slug(self, value):
-        template = SiteTemplate.objects.filter(slug=value, is_active=True, category__is_active=True).select_related(
+        template = WebsiteTemplate.objects.filter(slug=value, is_active=True, category__is_active=True).select_related(
             "source_site",
             "category",
         ).first()
