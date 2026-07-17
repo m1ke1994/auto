@@ -1,8 +1,10 @@
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.db import IntegrityError
 from django.db.models import NOT_PROVIDED
 from django.urls import reverse
+from io import StringIO
 from unittest.mock import patch
 
 from rest_framework import status
@@ -221,6 +223,113 @@ class SiteTemplateCatalogTests(APITestCase):
 
         self.assertEqual(Subscription.objects.count(), subscription_count)
 
+    def test_full_visual_snapshot_is_cloned_and_exposed_to_editor(self):
+        source_builder_config = {
+            "theme": {"colors": {"primary": "#176b45", "background": "#f7fbf8"}},
+            "design_tokens": {
+                "fonts": {"heading": "Manrope", "body": "Inter"},
+                "spacing": {"section": 96},
+            },
+            "pages_config": {"home": {"title": "Главная", "path": "/"}},
+            "pages": [{"key": "home", "title": "Главная", "path": "/"}],
+            "site_settings": {"button_radius": 6},
+        }
+        self.source_site.builder_config = source_builder_config
+        self.source_site.save(update_fields=["builder_config", "updated_at"])
+        second_source_section = SiteSection.objects.create(
+            site=self.source_site,
+            title="Services",
+            key="services",
+            section_type="services",
+            component_key="services-grid",
+            order=2,
+            schema={
+                "fields": [
+                    {"key": "title", "type": "text"},
+                    {"key": "image", "type": "image"},
+                ]
+            },
+            content={"title": "Наши услуги", "image": "/static/templates/services.webp"},
+            settings={"styles": {"background": "#f7fbf8", "gap": 24}, "responsive": {"columns": 2}},
+            seo={"title": "Услуги"},
+        )
+        self.template.snapshot_config = build_site_snapshot(self.source_site)
+        self.template.save(update_fields=["snapshot_config", "updated_at"])
+
+        response = self.create_from_template(company_name="Visual Company", key="full-visual")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        copy = Site.objects.get(pk=response.data["id"])
+        self.assertEqual(copy.design_preset, self.source_site.design_preset)
+        self.assertEqual(copy.builder_config, source_builder_config)
+        self.assertIsNot(copy.builder_config, self.template.snapshot_config["site"]["builder_config"])
+        self.assertEqual(
+            list(copy.sections.order_by("order").values_list("key", "order")),
+            [("hero", 1), ("services", 2)],
+        )
+        copied_services = copy.sections.get(key="services")
+        self.assertNotEqual(copied_services.pk, second_source_section.pk)
+        self.assertEqual(copied_services.component_key, "services-grid")
+        self.assertEqual(copied_services.content, second_source_section.content)
+        self.assertEqual(copied_services.settings, second_source_section.settings)
+        self.assertEqual(copied_services.seo, second_source_section.seo)
+
+        editor_response = self.client.get(reverse("admin-my-site-detail", kwargs={"site_id": copy.pk}))
+        sections_response = self.client.get(reverse("admin-my-site-sections", kwargs={"site_id": copy.pk}))
+        self.assertEqual(editor_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(editor_response.data["design_preset"], self.source_site.design_preset)
+        self.assertEqual(editor_response.data["builder_config"], source_builder_config)
+        self.assertEqual([item["key"] for item in sections_response.data], ["hero", "services"])
+
+        copy.builder_config["theme"]["colors"]["primary"] = "#000000"
+        copy.save(update_fields=["builder_config", "updated_at"])
+        copied_services.settings["styles"]["background"] = "#ffffff"
+        copied_services.save(update_fields=["settings", "updated_at"])
+        self.template.refresh_from_db()
+        self.assertEqual(
+            self.template.snapshot_config["site"]["builder_config"]["theme"]["colors"]["primary"],
+            "#176b45",
+        )
+        self.assertEqual(
+            self.template.snapshot_config["sections"][1]["settings"]["styles"]["background"],
+            "#f7fbf8",
+        )
+
+    def test_snapshot_sync_command_validates_and_updates_only_selected_template(self):
+        original_source_config = self.source_site.builder_config
+        self.source_site.builder_config = {
+            "design_tokens": {"colors": {"accent": "#d4a72c"}},
+            "pages": [{"key": "home", "path": "/"}],
+        }
+        self.source_site.save(update_fields=["builder_config", "updated_at"])
+        output = StringIO()
+
+        call_command(
+            "sync_website_template_snapshot",
+            template_id=self.template.pk,
+            source_site_id=self.source_site.pk,
+            dry_run=True,
+            stdout=output,
+        )
+        self.template.refresh_from_db()
+        self.assertNotEqual(self.template.snapshot_config["site"]["builder_config"], self.source_site.builder_config)
+
+        call_command(
+            "sync_website_template_snapshot",
+            template_id=self.template.pk,
+            source_site_id=self.source_site.pk,
+            stdout=output,
+        )
+        self.template.refresh_from_db()
+        self.source_site.refresh_from_db()
+        self.assertEqual(self.template.snapshot_config["site"]["builder_config"], self.source_site.builder_config)
+        self.assertEqual(self.template.snapshot_config["site"]["design_tokens"], {"colors": {"accent": "#d4a72c"}})
+        self.assertEqual(self.template.snapshot_config["pages"], [{"key": "home", "path": "/"}])
+        self.assertNotEqual(self.source_site.builder_config, original_source_config)
+
+        with self.assertRaises(CommandError):
+            call_command("sync_website_template_snapshot", template_id=999999, dry_run=True)
+
     def test_plain_site_create_gets_default_status(self):
         site = Site.objects.create(owner=self.source_owner, name="Plain site", slug="plain-site")
 
@@ -423,6 +532,26 @@ class SiteTemplateCatalogTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("detail", response.data)
+
+    def test_unsupported_snapshot_version_is_rejected(self):
+        self.template.snapshot_config = {
+            "version": 999,
+            "sections": [
+                {
+                    "key": "hero",
+                    "section_type": "hero",
+                    "component_key": "hero-centered",
+                    "content": {},
+                    "settings": {},
+                }
+            ],
+        }
+        self.template.save(update_fields=["snapshot_config", "updated_at"])
+
+        response = self.create_from_template(company_name="Unsupported", key="unsupported-version")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "template_snapshot_version_unsupported")
 
     def test_seed_website_templates_uses_real_source_slugs_and_is_idempotent(self):
         WebsiteTemplate.objects.all().delete()

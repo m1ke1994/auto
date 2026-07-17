@@ -25,7 +25,19 @@ class PublicSiteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Site
-        fields = ("id", "name", "slug", "domain", "seo", "is_active", "sections_count", "tracker_key")
+        fields = (
+            "id",
+            "name",
+            "slug",
+            "domain",
+            "seo",
+            "design_preset",
+            "builder_template_key",
+            "builder_config",
+            "is_active",
+            "sections_count",
+            "tracker_key",
+        )
 
     def get_sections_count(self, obj):
         annotated_count = getattr(obj, "sections_count", None)
@@ -78,6 +90,12 @@ class AdminMySiteSerializer(serializers.ModelSerializer):
             "send_to_telegram",
             "telegram_connected_at",
             "seo",
+            "source",
+            "render_mode",
+            "status",
+            "design_preset",
+            "builder_template_key",
+            "builder_config",
             "is_active",
             "sections_count",
             "tracker_script_tag",

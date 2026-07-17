@@ -35,6 +35,12 @@ SENSITIVE_TEXT_KEYS = {
 
 def normalize_template_snapshot(template: WebsiteTemplate, snapshot: dict) -> dict:
     normalized = deepcopy(snapshot) if isinstance(snapshot, dict) else {}
+    version = normalized.get("version", 0)
+    if version not in (0, 1):
+        raise WebsiteTemplateCloneError(
+            "template_snapshot_version_unsupported",
+            f"Template snapshot version {version} is not supported.",
+        )
     site_config = normalized.get("site") if isinstance(normalized.get("site"), dict) else {}
 
     preset = site_config.get("design_preset") or normalized.get("design_preset")
@@ -46,15 +52,56 @@ def normalize_template_snapshot(template: WebsiteTemplate, snapshot: dict) -> di
     builder_config = site_config.get("builder_config", normalized.get("builder_config", {}))
     if not isinstance(builder_config, dict):
         builder_config = {}
+    design_tokens = site_config.get("design_tokens", normalized.get("design_tokens", {}))
+    if not isinstance(design_tokens, dict):
+        design_tokens = {}
+    pages_config = site_config.get("pages_config", normalized.get("pages_config", {}))
+    if not isinstance(pages_config, (dict, list)):
+        pages_config = {}
+    if design_tokens and "design_tokens" not in builder_config:
+        builder_config["design_tokens"] = deepcopy(design_tokens)
+    if pages_config and "pages_config" not in builder_config:
+        builder_config["pages_config"] = deepcopy(pages_config)
     builder_template_key = site_config.get("builder_template_key", normalized.get("builder_template_key", ""))
 
+    normalized_sections = []
+    raw_sections = normalized.get("sections", [])
+    if not isinstance(raw_sections, list):
+        raw_sections = []
+    for index, section in enumerate(raw_sections, start=1):
+        if not isinstance(section, dict):
+            normalized_sections.append(section)
+            continue
+        section_type = str(section.get("section_type") or section.get("key") or "")
+        normalized_sections.append(
+            {
+                **section,
+                "key": _section_key(section, index),
+                "section_type": section_type,
+                "component_key": str(section.get("component_key") or section_type),
+                "order": _safe_int(section.get("order", section.get("position")), index),
+                "is_active": bool(section.get("is_active", section.get("is_enabled", True))),
+                "schema": deepcopy(section.get("schema")) if isinstance(section.get("schema"), dict) else {},
+                "content": deepcopy(section.get("content")) if isinstance(section.get("content"), dict) else {},
+                "settings": deepcopy(section.get("settings")) if isinstance(section.get("settings"), dict) else {},
+                "seo": deepcopy(section.get("seo")) if isinstance(section.get("seo"), dict) else {},
+            }
+        )
+
+    normalized["version"] = 1
+    normalized["sections"] = normalized_sections
     normalized["site"] = {
         **site_config,
         "design_preset": preset,
         "builder_config": deepcopy(builder_config),
+        "design_tokens": deepcopy(builder_config.get("design_tokens", design_tokens)),
+        "pages_config": deepcopy(builder_config.get("pages_config", pages_config)),
         "builder_template_key": str(builder_template_key or "")[:120],
     }
-    normalized.setdefault("pages", [])
+    pages = normalized.get("pages")
+    if not isinstance(pages, list):
+        pages = builder_config.get("pages", [])
+    normalized["pages"] = deepcopy(pages) if isinstance(pages, list) else []
     return normalized
 
 
@@ -87,7 +134,11 @@ def build_template_site_fields(
         "generation_completed_at": None,
         "public_id": uuid.uuid4(),
         "builder_template_key": site_config["builder_template_key"],
-        "builder_config": deepcopy(site_config["builder_config"]),
+        "builder_config": _replace_company_name(
+            deepcopy(site_config["builder_config"]),
+            source_name,
+            company_name or name,
+        ),
         "is_active": False,
         "send_to_telegram": False,
         "telegram_chat_id": None,
@@ -120,6 +171,7 @@ def unique_site_slug(base_value: str) -> str:
 
 
 def build_site_snapshot(source_site: Site) -> dict:
+    builder_config = _sanitize_snapshot_value(deepcopy(source_site.builder_config))
     sections = []
     for section in SiteSection.objects.filter(site=source_site).order_by("order", "title", "id"):
         sections.append(
@@ -140,7 +192,6 @@ def build_site_snapshot(source_site: Site) -> dict:
     return {
         "version": 1,
         "source": {
-            "site_id": source_site.id,
             "site_slug": source_site.slug,
             "site_name": source_site.name,
         },
@@ -148,22 +199,26 @@ def build_site_snapshot(source_site: Site) -> dict:
             "seo": _sanitize_seo(source_site.seo),
             "design_preset": source_site.design_preset or Site.DesignPreset.CLEAN_BUSINESS,
             "builder_template_key": source_site.builder_template_key,
-            "builder_config": deepcopy(source_site.builder_config),
-            "site_settings": {},
-            "theme": {},
-            "design": {},
+            "builder_config": builder_config,
+            "design_tokens": deepcopy(builder_config.get("design_tokens", {})),
+            "pages_config": deepcopy(builder_config.get("pages_config", {})),
+            "site_settings": deepcopy(builder_config.get("site_settings", {})),
+            "theme": deepcopy(builder_config.get("theme", {})),
+            "design": deepcopy(builder_config.get("design", {})),
             "navigation": _extract_section_payload(sections, "navigation"),
             "header": _extract_section_payload(sections, "header"),
             "footer": _extract_section_payload(sections, "footer"),
             "menu": _extract_section_payload(sections, "navigation"),
         },
-        "pages": [],
+        "pages": deepcopy(builder_config.get("pages", [])) if isinstance(builder_config.get("pages"), list) else [],
         "sections": sections,
     }
 
 
 def refresh_template_snapshot(template: WebsiteTemplate) -> WebsiteTemplate:
-    template.snapshot_config = build_site_snapshot(template.source_site)
+    snapshot = normalize_template_snapshot(template, build_site_snapshot(template.source_site))
+    validate_template_snapshot(snapshot)
+    template.snapshot_config = snapshot
     template.save(update_fields=["snapshot_config", "updated_at"])
     return template
 
@@ -184,8 +239,8 @@ def clone_site_for_user(
                 return existing.site
 
         snapshot = template.snapshot_config if isinstance(template.snapshot_config, dict) else {}
-        _validate_snapshot(snapshot)
         snapshot = normalize_template_snapshot(template, snapshot)
+        validate_template_snapshot(snapshot)
         snapshot_source = snapshot.get("source") if isinstance(snapshot.get("source"), dict) else {}
         source_name = str(snapshot_source.get("site_name") or template.source_site.name or "").strip()
         company = str(company_name or "").strip()
@@ -218,7 +273,11 @@ def clone_site_for_user(
                     schema=deepcopy(section_data.get("schema") or {}),
                     content=content,
                     component_key=str(section_data.get("component_key") or ""),
-                    settings=deepcopy(section_data.get("settings") or {}),
+                    settings=_replace_company_name(
+                        deepcopy(section_data.get("settings") or {}),
+                        source_name,
+                        company or name,
+                    ),
                     seo=_replace_company_name(deepcopy(section_data.get("seo") or {}), source_name, company or name),
                 )
                 try:
@@ -261,7 +320,7 @@ def clone_site_for_user(
         ) from exc
 
 
-def _validate_snapshot(snapshot: dict) -> None:
+def validate_template_snapshot(snapshot: dict) -> None:
     if not snapshot:
         raise WebsiteTemplateCloneError("template_snapshot_missing", "Template snapshot missing.")
     if not isinstance(snapshot, dict):
@@ -271,6 +330,23 @@ def _validate_snapshot(snapshot: dict) -> None:
     for index, section in enumerate(snapshot["sections"], start=1):
         if not isinstance(section, dict):
             raise WebsiteTemplateCloneError("template_snapshot_invalid", f"Section #{index} is invalid.")
+        if not section.get("component_key"):
+            raise WebsiteTemplateCloneError("template_snapshot_invalid", f"Section #{index} has no component key.")
+        for field_name in ("schema", "content", "settings", "seo"):
+            if not isinstance(section.get(field_name), dict):
+                raise WebsiteTemplateCloneError(
+                    "template_snapshot_invalid",
+                    f"Section #{index} field {field_name} must be an object.",
+                )
+        if not isinstance(section.get("order"), int) or section["order"] < 0:
+            raise WebsiteTemplateCloneError("template_snapshot_invalid", f"Section #{index} has invalid order.")
+    site_config = snapshot.get("site")
+    if not isinstance(site_config, dict):
+        raise WebsiteTemplateCloneError("template_snapshot_invalid", "Template site configuration is invalid.")
+    if site_config.get("design_preset") not in {value for value, _label in Site.DesignPreset.choices}:
+        raise WebsiteTemplateCloneError("template_snapshot_invalid", "Template design preset is invalid.")
+    if not isinstance(site_config.get("builder_config"), dict):
+        raise WebsiteTemplateCloneError("template_snapshot_invalid", "Template builder configuration is invalid.")
 
 
 def _snapshot_sections(snapshot: dict) -> list:
@@ -321,7 +397,8 @@ def _sanitize_seo(value) -> dict:
 
 def _sanitize_snapshot_value(value, parent_key: str = ""):
     key = str(parent_key or "").lower()
-    if any(marker in key for marker in SENSITIVE_TEXT_KEYS):
+    is_sensitive = key in SENSITIVE_TEXT_KEYS or key.endswith("_api_key") or key.endswith("_token")
+    if is_sensitive:
         if isinstance(value, list):
             return []
         if isinstance(value, dict):

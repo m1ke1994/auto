@@ -86,12 +86,22 @@ class SitesApiTests(APITestCase):
         )
 
     def test_public_site_detail_and_sections_only_active(self):
+        self.site.design_preset = Site.DesignPreset.MODERN_DARK
+        self.site.builder_template_key = "business-landing"
+        self.site.builder_config = {
+            "design_tokens": {"colors": {"primary": "#121212"}},
+            "pages": [{"key": "home", "path": "/"}],
+        }
+        self.site.save(update_fields=["design_preset", "builder_template_key", "builder_config", "updated_at"])
         detail_url = reverse("public-site-detail", kwargs={"site_slug": self.site.slug})
         sections_url = reverse("public-site-sections", kwargs={"site_slug": self.site.slug})
 
         detail_response = self.client.get(detail_url)
         self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
         self.assertEqual(detail_response.data["slug"], "site-one")
+        self.assertEqual(detail_response.data["design_preset"], Site.DesignPreset.MODERN_DARK)
+        self.assertEqual(detail_response.data["builder_template_key"], "business-landing")
+        self.assertEqual(detail_response.data["builder_config"], self.site.builder_config)
 
         sections_response = self.client.get(sections_url)
         self.assertEqual(sections_response.status_code, status.HTTP_200_OK)
