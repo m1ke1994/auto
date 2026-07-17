@@ -292,11 +292,11 @@ class SiteTemplateCatalogTests(APITestCase):
         initial_count = Site.objects.filter(owner=self.user).count()
         self.client.raise_request_exception = False
 
-        with patch("apps.sites.website_templates.SiteSection.save", side_effect=RuntimeError("boom")):
+        with patch("apps.sites.website_templates.SiteSection.objects.bulk_create", side_effect=RuntimeError("boom")):
             response = self.create_from_template(company_name="Rollback", key="rollback")
 
-        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
-        self.assertEqual(response.data["code"], "template_clone_failed")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "section_clone_failed")
         self.assertEqual(Site.objects.filter(owner=self.user).count(), initial_count)
 
     def test_invalid_snapshot_returns_readable_error(self):

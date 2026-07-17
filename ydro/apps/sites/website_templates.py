@@ -95,63 +95,83 @@ def clone_site_for_user(
     site_name: str = "",
     idempotency_key: str = "",
 ) -> Site:
-    key = str(idempotency_key or "").strip()
-    if key:
-        existing = WebsiteTemplateCloneRequest.objects.filter(user=target_user, idempotency_key=key).select_related("site").first()
-        if existing is not None:
-            return existing.site
-
-    snapshot = template.snapshot_config if isinstance(template.snapshot_config, dict) else {}
-    _validate_snapshot(snapshot)
-    snapshot_source = snapshot.get("source") if isinstance(snapshot.get("source"), dict) else {}
-    source_name = str(snapshot_source.get("site_name") or template.source_site.name or "").strip()
-    company = str(company_name or "").strip()
-    name = str(site_name or "").strip() or company or template.name
-    slug = unique_site_slug(name)
-
-    with transaction.atomic():
-        site = Site.objects.create(
-            owner=target_user,
-            name=name,
-            slug=slug,
-            domain="",
-            is_active=False,
-            seo=_replace_company_name(_snapshot_site_seo(snapshot), source_name, company or name),
-        )
-
-        for index, section_data in enumerate(_snapshot_sections(snapshot), start=1):
-            section = SiteSection(
-                site=site,
-                title=str(section_data.get("title") or section_data.get("key") or f"Section {index}"),
-                key=_section_key(section_data, index),
-                section_type=str(section_data.get("section_type") or ""),
-                order=_safe_int(section_data.get("order"), index),
-                is_active=bool(section_data.get("is_active", True)),
-                schema=deepcopy(section_data.get("schema") or {}),
-                content=_replace_company_name(deepcopy(section_data.get("content") or {}), source_name, company or name),
-                component_key=str(section_data.get("component_key") or ""),
-                settings=deepcopy(section_data.get("settings") or {}),
-                seo=_replace_company_name(deepcopy(section_data.get("seo") or {}), source_name, company or name),
-            )
-            try:
-                section.save()
-            except (ValidationError, IntegrityError, ValueError, TypeError) as exc:
-                raise WebsiteTemplateCloneError(
-                    "section_clone_failed",
-                    f"Section clone failed for '{section.key or section.title}': {exc}",
-                ) from exc
-
+    try:
+        key = str(idempotency_key or "").strip()
         if key:
-            try:
-                WebsiteTemplateCloneRequest.objects.create(user=target_user, template=template, idempotency_key=key, site=site)
-            except IntegrityError:
-                site.delete()
-                return WebsiteTemplateCloneRequest.objects.select_related("site").get(
-                    user=target_user,
-                    idempotency_key=key,
-                ).site
+            existing = WebsiteTemplateCloneRequest.objects.filter(user=target_user, idempotency_key=key).select_related("site").first()
+            if existing is not None:
+                return existing.site
 
-    return site
+        snapshot = template.snapshot_config if isinstance(template.snapshot_config, dict) else {}
+        _validate_snapshot(snapshot)
+        snapshot_source = snapshot.get("source") if isinstance(snapshot.get("source"), dict) else {}
+        source_name = str(snapshot_source.get("site_name") or template.source_site.name or "").strip()
+        company = str(company_name or "").strip()
+        name = str(site_name or "").strip() or company or template.name
+        slug = unique_site_slug(name)
+
+        with transaction.atomic():
+            site = Site.objects.create(
+                owner=target_user,
+                name=name,
+                slug=slug,
+                domain="",
+                is_active=False,
+                seo=_replace_company_name(_snapshot_site_seo(snapshot), source_name, company or name),
+            )
+
+            for index, section_data in enumerate(_snapshot_sections(snapshot), start=1):
+                content = _replace_company_name(deepcopy(section_data.get("content") or {}), source_name, company or name)
+                section = SiteSection(
+                    site=site,
+                    title=str(section_data.get("title") or section_data.get("key") or f"Section {index}"),
+                    key=_section_key(section_data, index),
+                    section_type=str(section_data.get("section_type") or ""),
+                    order=_safe_int(section_data.get("order"), index),
+                    is_active=bool(section_data.get("is_active", True)),
+                    schema=deepcopy(section_data.get("schema") or {}),
+                    content=content,
+                    component_key=str(section_data.get("component_key") or ""),
+                    settings=deepcopy(section_data.get("settings") or {}),
+                    seo=_replace_company_name(deepcopy(section_data.get("seo") or {}), source_name, company or name),
+                )
+                try:
+                    SiteSection.objects.bulk_create([section])
+                except Exception as exc:
+                    raise WebsiteTemplateCloneError(
+                        "section_clone_failed",
+                        f"Section clone failed for '{section.key or section.title}': {_safe_exception_text(exc)}",
+                    ) from exc
+
+            if key:
+                try:
+                    with transaction.atomic():
+                        WebsiteTemplateCloneRequest.objects.create(
+                            user=target_user,
+                            template=template,
+                            idempotency_key=key,
+                            site=site,
+                        )
+                except IntegrityError:
+                    existing = WebsiteTemplateCloneRequest.objects.select_related("site").filter(
+                        user=target_user,
+                        idempotency_key=key,
+                    ).first()
+                    if existing is not None:
+                        raise WebsiteTemplateCloneError(
+                            "idempotency_conflict",
+                            "Такой запрос уже был обработан. Повторите загрузку созданного сайта.",
+                        )
+                    raise
+
+        return site
+    except WebsiteTemplateCloneError:
+        raise
+    except Exception as exc:
+        raise WebsiteTemplateCloneError(
+            "template_clone_failed",
+            f"Template clone failed: {exc.__class__.__name__}: {_safe_exception_text(exc)}",
+        ) from exc
 
 
 def _validate_snapshot(snapshot: dict) -> None:
@@ -188,6 +208,15 @@ def _safe_int(value, fallback: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return fallback
+
+
+def _safe_exception_text(exc: Exception) -> str:
+    text = str(exc).strip()
+    if not text:
+        return "no details"
+    return text[:500]
+
+
 
 
 def _snapshot_site_seo(snapshot: dict) -> dict:
