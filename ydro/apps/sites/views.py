@@ -426,21 +426,21 @@ class AdminMySitesListView(AdminSiteAccessMixin, generics.ListAPIView):
         ).order_by("id")
 
 
-class AdminWebsiteTemplateCatalogView(APIView):
+class WebsiteTemplateCatalogView(APIView):
     permission_classes = [IsAuthenticated, HasFeatureAccess]
     required_feature = FEATURE_SITE_EDIT
 
     def get(self, request):
         category_slug = request.query_params.get("category")
         categories = WebsiteTemplateCategory.objects.filter(is_active=True).order_by("sort_order", "name")
-        templates = WebsiteTemplate.objects.filter(is_active=True, category__is_active=True).select_related("category", "source_site")
+        templates = WebsiteTemplate.objects.filter(is_published=True, category__is_active=True).select_related("category", "source_site")
         if category_slug:
             templates = templates.filter(category__slug=category_slug)
         return Response(
             {
                 "categories": WebsiteTemplateCategorySerializer(categories, many=True).data,
                 "templates": WebsiteTemplateSerializer(
-                    templates.order_by("-is_featured", "sort_order", "name"),
+                    templates.order_by("sort_order", "name"),
                     many=True,
                 ).data,
             },
@@ -448,15 +448,34 @@ class AdminWebsiteTemplateCatalogView(APIView):
         )
 
 
-class AdminWebsiteTemplateCreateSiteView(APIView):
+class WebsiteTemplateDetailView(APIView):
     permission_classes = [IsAuthenticated, HasFeatureAccess]
     required_feature = FEATURE_SITE_EDIT
 
-    def post(self, request):
-        serializer = WebsiteTemplateCreateSiteSerializer(data=request.data, context={"request": request})
+    def get(self, request, slug: str):
+        template = get_object_or_404(
+            WebsiteTemplate.objects.filter(is_published=True, category__is_active=True).select_related("category", "source_site"),
+            slug=slug,
+        )
+        return Response(WebsiteTemplateSerializer(template).data, status=status.HTTP_200_OK)
+
+
+class WebsiteTemplateCreateSiteView(APIView):
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_SITE_EDIT
+
+    def post(self, request, slug: str = ""):
+        data = request.data.copy()
+        if slug:
+            data["template_slug"] = slug
+        serializer = WebsiteTemplateCreateSiteSerializer(data=data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         site = serializer.save()
         return Response(AdminMySiteSerializer(site).data, status=status.HTTP_201_CREATED)
+
+
+AdminWebsiteTemplateCatalogView = WebsiteTemplateCatalogView
+AdminWebsiteTemplateCreateSiteView = WebsiteTemplateCreateSiteView
 
 
 class AdminMySiteDetailView(AdminSiteAccessMixin, generics.RetrieveAPIView):

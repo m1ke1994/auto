@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils.text import slugify
 
 from apps.sites.models import Site, WebsiteTemplate, WebsiteTemplateCategory
+from apps.sites.website_templates import build_site_snapshot
 
 
 class Command(BaseCommand):
@@ -15,6 +16,7 @@ class Command(BaseCommand):
         parser.add_argument("--description", default="")
         parser.add_argument("--preview-image", default="")
         parser.add_argument("--featured", action="store_true")
+        parser.add_argument("--published", action="store_true")
         parser.add_argument("--sort-order", type=int, default=100)
 
     def handle(self, *args, **options):
@@ -38,6 +40,8 @@ class Command(BaseCommand):
                 "description": options["description"],
                 "preview_image": options["preview_image"],
                 "source_site": site,
+                "snapshot_config": build_site_snapshot(site),
+                "is_published": bool(options["published"]),
                 "is_active": True,
                 "is_featured": bool(options["featured"]),
                 "sort_order": options["sort_order"],

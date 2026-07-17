@@ -8,7 +8,7 @@ from rest_framework import serializers
 from leads.services import send_lead_telegram_notification
 
 from .models import SectionSchema, Site, SiteLead, SiteSection, WebsiteTemplate, WebsiteTemplateCategory
-from .template_clone import clone_site_for_user
+from .website_templates import clone_site_for_user
 from .a_meditation import SECTION_TITLES
 from .seo import build_public_site_seo
 from .volga_site import SECTION_TITLES as VOLGA_SECTION_TITLES
@@ -115,13 +115,14 @@ class WebsiteTemplateSerializer(serializers.ModelSerializer):
             "description",
             "preview_image",
             "source_site_slug",
-            "is_featured",
+            "is_published",
             "sort_order",
         )
 
 
 class WebsiteTemplateCreateSiteSerializer(serializers.Serializer):
     company_name = serializers.CharField(max_length=255)
+    site_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
     template_slug = serializers.SlugField()
 
     def validate_company_name(self, value):
@@ -131,12 +132,15 @@ class WebsiteTemplateCreateSiteSerializer(serializers.Serializer):
         return value
 
     def validate_template_slug(self, value):
-        template = WebsiteTemplate.objects.filter(slug=value, is_active=True, category__is_active=True).select_related(
+        template = WebsiteTemplate.objects.filter(slug=value, is_published=True, category__is_active=True).select_related(
             "source_site",
             "category",
         ).first()
         if template is None:
             raise serializers.ValidationError("Шаблон не найден или отключен.")
+        snapshot = template.snapshot_config if isinstance(template.snapshot_config, dict) else {}
+        if not isinstance(snapshot.get("sections"), list) or not snapshot["sections"]:
+            raise serializers.ValidationError("Шаблон не содержит снимок структуры сайта.")
         self.context["template"] = template
         return value
 
@@ -146,6 +150,7 @@ class WebsiteTemplateCreateSiteSerializer(serializers.Serializer):
             template=self.context["template"],
             target_user=request.user,
             company_name=validated_data["company_name"],
+            site_name=validated_data.get("site_name", ""),
             idempotency_key=str(request.headers.get("Idempotency-Key") or ""),
         )
 

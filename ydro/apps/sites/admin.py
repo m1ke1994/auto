@@ -5,6 +5,7 @@ from django.utils.html import format_html, format_html_join
 
 from clients.services import get_user_client
 from .models import SectionSchema, Site, SiteLead, SiteSection, SiteTemplate, WebsiteTemplate, WebsiteTemplateCategory
+from .website_templates import build_site_snapshot, refresh_template_snapshot
 
 SectionSchema._meta.verbose_name = "Схема секции"
 SectionSchema._meta.verbose_name_plural = "Схемы секций"
@@ -49,6 +50,7 @@ class SiteAdmin(admin.ModelAdmin):
     search_fields = ("name", "slug", "domain", "telegram_chat_id", "owner__username", "owner__email")
     prepopulated_fields = {"slug": ("name",)}
     readonly_fields = ("api_key", "telegram_connected_at", "created_at", "updated_at")
+    actions = ("create_website_template_from_site",)
     fieldsets = (
         ("Основное", {"fields": ("name", "slug", "domain", "api_key", "owner", "is_active")}),
         ("Telegram", {"fields": ("telegram_chat_id", "send_to_telegram", "telegram_connected_at")}),
@@ -78,6 +80,34 @@ class SiteAdmin(admin.ModelAdmin):
         url = reverse("admin:clients_client_change", args=[client.id])
         status = "active" if client.is_active else "inactive"
         return format_html('<a href="{}">#{} {}</a>', url, client.id, status)
+
+    @admin.action(description="Создать шаблон из сайта")
+    def create_website_template_from_site(self, request, queryset):
+        category, _ = WebsiteTemplateCategory.objects.get_or_create(
+            slug="other",
+            defaults={"name": "Другое", "sort_order": 100, "is_active": True},
+        )
+        created = 0
+        updated = 0
+        for site in queryset:
+            template, was_created = WebsiteTemplate.objects.update_or_create(
+                slug=f"{site.slug}-template",
+                defaults={
+                    "name": site.name,
+                    "category": category,
+                    "description": "",
+                    "preview_image": "",
+                    "source_site": site,
+                    "snapshot_config": build_site_snapshot(site),
+                    "is_published": False,
+                    "is_active": True,
+                    "is_featured": False,
+                    "sort_order": 100,
+                },
+            )
+            created += int(was_created)
+            updated += int(not was_created)
+        self.message_user(request, f"Шаблоны созданы: {created}, обновлены: {updated}. Проверьте и опубликуйте их.")
 
 
 @admin.register(SectionSchema)
@@ -132,18 +162,34 @@ class WebsiteTemplateCategoryAdmin(admin.ModelAdmin):
 
 @admin.register(WebsiteTemplate)
 class WebsiteTemplateAdmin(admin.ModelAdmin):
-    list_display = ("name", "slug", "category", "source_site", "is_active", "is_featured", "sort_order", "updated_at")
-    list_filter = ("category", "is_active", "is_featured")
+    list_display = ("name", "slug", "category", "source_site", "is_published", "sort_order", "updated_at")
+    list_filter = ("category", "is_published", "is_active")
     search_fields = ("name", "slug", "description", "source_site__name", "source_site__slug")
     prepopulated_fields = {"slug": ("name",)}
     autocomplete_fields = ("source_site", "category")
     readonly_fields = ("created_at", "updated_at")
+    actions = ("refresh_snapshot", "publish_templates", "unpublish_templates")
     fieldsets = (
         ("Каталог", {"fields": ("name", "slug", "category", "description", "preview_image")}),
         ("Источник", {"fields": ("source_site",)}),
-        ("Публикация", {"fields": ("is_active", "is_featured", "sort_order")}),
+        ("Снимок", {"fields": ("snapshot_config",)}),
+        ("Публикация", {"fields": ("is_published", "is_active", "sort_order")}),
         ("Служебное", {"fields": ("created_at", "updated_at")}),
     )
+
+    @admin.action(description="Обновить снимок шаблона из исходного сайта")
+    def refresh_snapshot(self, request, queryset):
+        for template in queryset.select_related("source_site"):
+            refresh_template_snapshot(template)
+        self.message_user(request, f"Снимки обновлены: {queryset.count()}.")
+
+    @admin.action(description="Опубликовать шаблоны")
+    def publish_templates(self, request, queryset):
+        self.message_user(request, f"Опубликовано: {queryset.update(is_published=True)}.")
+
+    @admin.action(description="Скрыть шаблоны")
+    def unpublish_templates(self, request, queryset):
+        self.message_user(request, f"Скрыто: {queryset.update(is_published=False)}.")
 
 
 @admin.register(SiteSection)

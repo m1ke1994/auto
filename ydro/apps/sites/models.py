@@ -328,12 +328,14 @@ class WebsiteTemplate(models.Model):
     )
     description = models.TextField(blank=True, verbose_name="Описание")
     preview_image = models.CharField(max_length=500, blank=True, verbose_name="Preview image")
+    snapshot_config = models.JSONField(default=dict, blank=True, verbose_name="Снимок структуры сайта")
     source_site = models.ForeignKey(
         Site,
         on_delete=models.PROTECT,
         related_name="website_template_sources",
         verbose_name="Исходный сайт",
     )
+    is_published = models.BooleanField(default=False, verbose_name="Опубликован")
     is_active = models.BooleanField(default=True, verbose_name="Активен")
     is_featured = models.BooleanField(default=False, verbose_name="Featured")
     sort_order = models.PositiveIntegerField(default=100, verbose_name="Сортировка")

@@ -55,6 +55,7 @@ async function createSite() {
       {
         template_slug: selectedTemplate.value.slug,
         company_name: companyName.value,
+        site_name: companyName.value,
       },
       { headers: { 'Idempotency-Key': idempotencyKey.value } },
     )

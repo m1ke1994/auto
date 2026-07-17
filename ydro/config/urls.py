@@ -21,7 +21,13 @@ from subscriptions.views import YooKassaWebhookView
 from telegram_logs.views import TelegramRelayBindView, TelegramWebhookView
 
 from apps.mediafiles.views import UploadFileView
-from apps.sites.views import PublicLeadCreateView, PublicSiteBundleBySlugView
+from apps.sites.views import (
+    PublicLeadCreateView,
+    PublicSiteBundleBySlugView,
+    WebsiteTemplateCatalogView,
+    WebsiteTemplateCreateSiteView,
+    WebsiteTemplateDetailView,
+)
 
 admin.site.site_header = "Панель управления"
 admin.site.site_title = "Админка"
@@ -100,6 +106,13 @@ urlpatterns = [
     path("leads", PublicLeadCreateView.as_view(), name="public-leads-create-legacy-no-slash"),
     path("api/admin/", include("apps.sites.admin_urls")),
     path("api/admin/", include("apps.analytics.admin_urls")),
+    path("api/website-templates/", WebsiteTemplateCatalogView.as_view(), name="website-template-catalog"),
+    path("api/website-templates/<slug:slug>/", WebsiteTemplateDetailView.as_view(), name="website-template-detail"),
+    path(
+        "api/website-templates/<slug:slug>/create-site/",
+        WebsiteTemplateCreateSiteView.as_view(),
+        name="website-template-create-site",
+    ),
     path("api/uploads/", UploadFileView.as_view(), name="upload-file"),
     path("api/client/media/", include("apps.mediafiles.client_urls")),
     path("api/client/news/", include("apps.notifications.urls")),
