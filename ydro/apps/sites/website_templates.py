@@ -1,10 +1,13 @@
 from copy import deepcopy
+import logging
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils.text import slugify
 
 from .models import Site, SiteSection, WebsiteTemplate, WebsiteTemplateCloneRequest
+
+logger = logging.getLogger(__name__)
 
 
 class WebsiteTemplateCloneError(Exception):
@@ -118,6 +121,7 @@ def clone_site_for_user(
                 domain="",
                 source=Site.SOURCE_TEMPLATE,
                 render_mode=Site.RENDER_MODE_BUILDER,
+                status=Site.Status.DRAFT,
                 is_active=False,
                 seo=_replace_company_name(_snapshot_site_seo(snapshot), source_name, company or name),
             )
@@ -170,9 +174,10 @@ def clone_site_for_user(
     except WebsiteTemplateCloneError:
         raise
     except Exception as exc:
+        logger.exception("Unexpected website template clone failure template_id=%s user_id=%s", template.id, target_user.id)
         raise WebsiteTemplateCloneError(
             "template_clone_failed",
-            f"Template clone failed: {exc.__class__.__name__}: {_safe_exception_text(exc)}",
+            "Не удалось создать сайт из шаблона. Проверьте снимок шаблона и повторите попытку.",
         ) from exc
 
 

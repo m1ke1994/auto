@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.db import IntegrityError
 from django.urls import reverse
 from unittest.mock import patch
 
@@ -169,6 +170,8 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertEqual(copy.name, "New Site")
         self.assertEqual(copy.source, Site.SOURCE_TEMPLATE)
         self.assertEqual(copy.render_mode, Site.RENDER_MODE_BUILDER)
+        self.assertEqual(copy.status, Site.Status.DRAFT)
+        self.assertIn(copy.status, {choice[0] for choice in Site.Status.choices})
         self.assertEqual(response.data["status"], "draft")
         self.assertEqual(response.data["created_from_template"], self.template.slug)
         self.assertTrue(response.data["success"])
@@ -193,6 +196,26 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertFalse(TrackingEvent.objects.filter(visit__site=copy).exists())
 
         self.assertEqual(Subscription.objects.count(), subscription_count)
+
+    def test_plain_site_create_gets_default_status(self):
+        site = Site.objects.create(owner=self.source_owner, name="Plain site", slug="plain-site")
+
+        self.assertEqual(site.status, Site.Status.DRAFT)
+        self.assertIsNotNone(site.status)
+
+    def test_clone_integrity_error_does_not_leak_raw_database_error(self):
+        self.client.raise_request_exception = False
+
+        with patch(
+            "apps.sites.website_templates.Site.objects.create",
+            side_effect=IntegrityError('null value in column "status" violates not-null constraint'),
+        ):
+            response = self.create_from_template(company_name="Broken", key="integrity-error")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "template_clone_failed")
+        self.assertNotIn("IntegrityError", response.data["detail"])
+        self.assertNotIn("null value in column", response.data["detail"])
 
     def test_copy_and_source_do_not_change_each_other(self):
         response = self.create_from_template(company_name="Independent")

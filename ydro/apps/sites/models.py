@@ -228,6 +228,10 @@ def _validate_settings(settings):
 
 
 class Site(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Черновик"
+        ACTIVE = "active", "Активен"
+
     SOURCE_MANUAL = "manual"
     SOURCE_TEMPLATE = "template"
     RENDER_MODE_BUILDER = "builder"
@@ -238,6 +242,12 @@ class Site(models.Model):
     domain = models.CharField(max_length=255, blank=True, verbose_name="Домен")
     source = models.CharField(max_length=32, default=SOURCE_MANUAL, verbose_name="Источник создания")
     render_mode = models.CharField(max_length=32, default=RENDER_MODE_BUILDER, verbose_name="Режим рендера")
+    status = models.CharField(
+        max_length=32,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        verbose_name="Статус",
+    )
     api_key = models.CharField(
         max_length=128,
         unique=True,

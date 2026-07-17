@@ -18,4 +18,14 @@ class Migration(migrations.Migration):
             name="render_mode",
             field=models.CharField(default="builder", max_length=32, verbose_name="Режим рендера"),
         ),
+        migrations.AddField(
+            model_name="site",
+            name="status",
+            field=models.CharField(
+                choices=[("draft", "Черновик"), ("active", "Активен")],
+                default="draft",
+                max_length=32,
+                verbose_name="Статус",
+            ),
+        ),
     ]

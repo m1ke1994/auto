@@ -115,7 +115,7 @@ class WebsiteTemplateCreatedSiteSerializer(AdminMySiteSerializer):
         return True
 
     def get_status(self, obj):
-        return "active" if obj.is_active else "draft"
+        return getattr(obj, "status", "") or ("active" if obj.is_active else "draft")
 
     def get_created_from_template(self, obj):
         template = self.context.get("template")
