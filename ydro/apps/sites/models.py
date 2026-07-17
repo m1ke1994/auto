@@ -266,6 +266,7 @@ class Site(models.Model):
         validators=[MinValueValidator(0), MaxValueValidator(100)],
         verbose_name="Прогресс генерации",
     )
+    generation_error = models.TextField(blank=True, default="", verbose_name="Ошибка генерации")
     api_key = models.CharField(
         max_length=128,
         unique=True,

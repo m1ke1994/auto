@@ -33,4 +33,9 @@ class Migration(migrations.Migration):
                 verbose_name="Прогресс генерации",
             ),
         ),
+        migrations.AddField(
+            model_name="site",
+            name="generation_error",
+            field=models.TextField(blank=True, default="", verbose_name="Ошибка генерации"),
+        ),
     ]

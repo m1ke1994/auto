@@ -36,6 +36,7 @@ def completed_template_generation_fields() -> dict:
     return {
         "generation_status": Site.GenerationStatus.COMPLETED,
         "generation_progress": 100,
+        "generation_error": "",
     }
 
 

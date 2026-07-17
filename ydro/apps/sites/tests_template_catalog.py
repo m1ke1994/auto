@@ -179,6 +179,7 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertIsNotNone(copy.generation_progress)
         self.assertGreaterEqual(copy.generation_progress, 0)
         self.assertLessEqual(copy.generation_progress, 100)
+        self.assertEqual(copy.generation_error, "")
         self.assertEqual(response.data["status"], "draft")
         self.assertEqual(response.data["created_from_template"], self.template.slug)
         self.assertTrue(response.data["success"])
@@ -213,6 +214,7 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertIsNotNone(site.generation_status)
         self.assertEqual(site.generation_progress, 0)
         self.assertIsNotNone(site.generation_progress)
+        self.assertEqual(site.generation_error, "")
 
     def test_clone_integrity_error_does_not_leak_raw_database_error(self):
         self.client.raise_request_exception = False
