@@ -8,6 +8,7 @@ from rest_framework import serializers
 from leads.services import send_lead_telegram_notification
 
 from .models import SectionSchema, Site, SiteLead, SiteSection, WebsiteTemplate, WebsiteTemplateCategory
+from .template_generation import build_generation_response, generate_site_from_category, regenerate_site_design
 from .website_templates import WebsiteTemplateCloneError, clone_site_for_user
 from .a_meditation import SECTION_TITLES
 from .seo import build_public_site_seo
@@ -208,6 +209,64 @@ class WebsiteTemplateCreateSiteSerializer(serializers.Serializer):
             )
         except WebsiteTemplateCloneError as exc:
             raise serializers.ValidationError({"code": exc.code, "detail": exc.detail}) from exc
+
+
+class WebsiteTemplateGenerateSerializer(serializers.Serializer):
+    category_id = serializers.IntegerField()
+    company_name = serializers.CharField(max_length=255)
+    description = serializers.CharField(required=False, allow_blank=True)
+    phone = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    city = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    idempotency_key = serializers.CharField(max_length=120, required=False, allow_blank=True, write_only=True)
+
+    def validate_company_name(self, value):
+        value = str(value or "").strip()
+        if not value:
+            raise serializers.ValidationError("Укажите название компании.")
+        return value
+
+    def create(self, validated_data):
+        request = self.context["request"]
+        key = str(request.headers.get("Idempotency-Key") or validated_data.pop("idempotency_key", "") or "")
+        try:
+            site, template = generate_site_from_category(
+                user=request.user,
+                category_id=validated_data.pop("category_id"),
+                company_data=validated_data,
+                idempotency_key=key,
+            )
+        except WebsiteTemplateCloneError as exc:
+            raise serializers.ValidationError({"code": exc.code, "detail": exc.detail}) from exc
+        self.context["template"] = template
+        return site
+
+    def to_representation(self, instance):
+        return build_generation_response(instance, self.context["template"])
+
+
+class SiteRegenerateDesignSerializer(serializers.Serializer):
+    exclude_template_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        required=False,
+        allow_empty=True,
+    )
+    idempotency_key = serializers.CharField(max_length=120, required=False, allow_blank=True, write_only=True)
+
+    def create(self, validated_data):
+        try:
+            site, template = regenerate_site_design(
+                site=self.context["site"],
+                exclude_template_ids=validated_data.get("exclude_template_ids", []),
+                idempotency_key=str(self.context["request"].headers.get("Idempotency-Key") or validated_data.get("idempotency_key") or ""),
+            )
+        except WebsiteTemplateCloneError as exc:
+            raise serializers.ValidationError({"code": exc.code, "detail": exc.detail}) from exc
+        self.context["template"] = template
+        return site
+
+    def to_representation(self, instance):
+        return build_generation_response(instance, self.context["template"])
 
 
 class AdminMySiteSectionSerializer(serializers.ModelSerializer):

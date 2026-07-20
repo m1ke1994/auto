@@ -33,10 +33,12 @@ from .serializers import (
     WebsiteTemplateCategorySerializer,
     WebsiteTemplateCreateSiteSerializer,
     WebsiteTemplateCreatedSiteSerializer,
+    WebsiteTemplateGenerateSerializer,
     WebsiteTemplateSerializer,
     PublicLeadCreateSerializer,
     PublicSiteSectionSerializer,
     PublicSiteSerializer,
+    SiteRegenerateDesignSerializer,
 )
 from .telegram_binding import build_site_start_payload
 from .tracker_utils import build_tracker_script_tag
@@ -492,6 +494,56 @@ class WebsiteTemplateCreateSiteView(APIView):
             WebsiteTemplateCreatedSiteSerializer(site, context={"template": serializer.context["template"]}).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class WebsiteTemplateGenerateView(APIView):
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_SITE_EDIT
+
+    def post(self, request):
+        serializer = WebsiteTemplateGenerateSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        try:
+            site = serializer.save()
+        except serializers.ValidationError:
+            raise
+        except Exception:
+            logger.exception("Unexpected website template generation failure user_id=%s", request.user.id)
+            return Response(
+                {
+                    "code": "template_generation_failed",
+                    "detail": "Ошибка сервера при создании сайта. Повторите попытку.",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        return Response(serializer.to_representation(site), status=status.HTTP_201_CREATED)
+
+
+class SiteRegenerateDesignView(APIView):
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_SITE_EDIT
+
+    def post(self, request, site_id: int):
+        sites = Site.objects.all() if request.user.is_superuser else Site.objects.filter(owner=request.user)
+        site = sites.filter(id=site_id).first()
+        if site is None:
+            raise NotFound(detail="Site was not found.")
+        serializer = SiteRegenerateDesignSerializer(data=request.data, context={"request": request, "site": site})
+        serializer.is_valid(raise_exception=True)
+        try:
+            updated_site = serializer.save()
+        except serializers.ValidationError:
+            raise
+        except Exception:
+            logger.exception("Unexpected site design regeneration failure site_id=%s user_id=%s", site.id, request.user.id)
+            return Response(
+                {
+                    "code": "design_regeneration_failed",
+                    "detail": "Ошибка сервера при смене дизайна. Повторите попытку.",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        return Response(serializer.to_representation(updated_site), status=status.HTTP_200_OK)
 
 
 AdminWebsiteTemplateCatalogView = WebsiteTemplateCatalogView

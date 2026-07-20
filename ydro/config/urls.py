@@ -24,9 +24,11 @@ from apps.mediafiles.views import UploadFileView
 from apps.sites.views import (
     PublicLeadCreateView,
     PublicSiteBundleBySlugView,
+    SiteRegenerateDesignView,
     WebsiteTemplateCatalogView,
     WebsiteTemplateCreateSiteView,
     WebsiteTemplateDetailView,
+    WebsiteTemplateGenerateView,
 )
 
 admin.site.site_header = "Панель управления"
@@ -107,12 +109,14 @@ urlpatterns = [
     path("api/admin/", include("apps.sites.admin_urls")),
     path("api/admin/", include("apps.analytics.admin_urls")),
     path("api/website-templates/", WebsiteTemplateCatalogView.as_view(), name="website-template-catalog"),
+    path("api/website-templates/generate/", WebsiteTemplateGenerateView.as_view(), name="website-template-generate"),
     path("api/website-templates/<slug:slug>/", WebsiteTemplateDetailView.as_view(), name="website-template-detail"),
     path(
         "api/website-templates/<slug:slug>/create-site/",
         WebsiteTemplateCreateSiteView.as_view(),
         name="website-template-create-site",
     ),
+    path("api/sites/<int:site_id>/regenerate-design/", SiteRegenerateDesignView.as_view(), name="site-regenerate-design"),
     path("api/uploads/", UploadFileView.as_view(), name="upload-file"),
     path("api/client/media/", include("apps.mediafiles.client_urls")),
     path("api/client/news/", include("apps.notifications.urls")),

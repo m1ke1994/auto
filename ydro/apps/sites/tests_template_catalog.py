@@ -127,6 +127,101 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual([item["slug"] for item in response.data["templates"]], [tourism_template.slug])
 
+    def test_generate_site_chooses_template_from_selected_category(self):
+        tourism = WebsiteTemplateCategory.objects.get(slug="tourism")
+        tourism_site = Site.objects.create(
+            owner=self.source_owner,
+            name="Tour",
+            slug="tour-generate-source",
+            builder_template_key="tourism-landing",
+        )
+        SiteSection.objects.create(site=tourism_site, title="Hero", key="hero", section_type="hero")
+        tourism_template = WebsiteTemplate.objects.create(
+            name="Tour template",
+            slug="tour-generate-template",
+            category=tourism,
+            source_site=tourism_site,
+            snapshot_config=build_site_snapshot(tourism_site),
+            is_published=True,
+            is_active=True,
+        )
+
+        response = self.client.post(
+            reverse("website-template-generate"),
+            {
+                "category_id": tourism.id,
+                "company_name": "Tour Company",
+                "description": "Travel",
+                "phone": "+79990000001",
+                "email": "tour@example.com",
+                "city": "Moscow",
+                "idempotency_key": "generate-tour",
+            },
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="generate-tour",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["selected_template"]["id"], tourism_template.id)
+        self.assertEqual(response.data["site"]["status"], Site.Status.DRAFT)
+
+    def test_generate_site_is_idempotent(self):
+        payload = {
+            "category_id": self.category.id,
+            "company_name": "Repeat Company",
+            "idempotency_key": "generate-repeat",
+        }
+
+        first = self.client.post(reverse("website-template-generate"), payload, format="json", HTTP_IDEMPOTENCY_KEY="generate-repeat")
+        second = self.client.post(reverse("website-template-generate"), payload, format="json", HTTP_IDEMPOTENCY_KEY="generate-repeat")
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(first.data["site"]["id"], second.data["site"]["id"])
+
+    def test_generate_site_returns_error_when_category_has_no_templates(self):
+        empty_category = WebsiteTemplateCategory.objects.create(name="Empty", slug="empty")
+
+        response = self.client.post(
+            reverse("website-template-generate"),
+            {"category_id": empty_category.id, "company_name": "Empty Company"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "category_has_no_templates")
+
+    def test_regenerate_design_excludes_current_template(self):
+        alternate_site = Site.objects.create(
+            owner=self.source_owner,
+            name="Alt",
+            slug="alt-template-source",
+            builder_template_key="services-landing",
+        )
+        SiteSection.objects.create(site=alternate_site, title="Hero", key="hero", section_type="hero")
+        alternate_template = WebsiteTemplate.objects.create(
+            name="Alt template",
+            slug="alt-template",
+            category=self.category,
+            source_site=alternate_site,
+            snapshot_config=build_site_snapshot(alternate_site),
+            is_published=True,
+            is_active=True,
+        )
+        create_response = self.create_from_template(company_name="Regenerate", key="regen-create")
+        site_id = create_response.data["id"]
+
+        response = self.client.post(
+            reverse("site-regenerate-design", kwargs={"site_id": site_id}),
+            {"exclude_template_ids": [self.template.id], "idempotency_key": "regen-design"},
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="regen-design",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["selected_template"]["id"], alternate_template.id)
+        self.assertEqual(Site.objects.filter(owner=self.user, name="Regenerate").count(), 1)
+
     def test_catalog_returns_three_published_templates(self):
         WebsiteTemplate.objects.all().delete()
         for index, category_slug in enumerate(("business", "services", "tourism"), start=1):

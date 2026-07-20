@@ -1,402 +1,340 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Eye, Plus, RefreshCw } from '@lucide/vue'
+import { ArrowLeft, ExternalLink, Monitor, RefreshCw, Smartphone, Tablet, Wand2 } from '@lucide/vue'
 
-import { createSiteFromTemplateRequest, getSiteTemplateCatalogRequest } from '../api/site'
+import SiteGenerationProgress from '../components/SiteGenerationProgress.vue'
+import { generateSiteFromCategoryRequest, getSiteTemplateCatalogRequest, regenerateSiteDesignRequest } from '../api/site'
 import { useSiteStore } from '../stores/site'
 
 const router = useRouter()
 const siteStore = useSiteStore()
 
 const loading = ref(false)
-const creating = ref(false)
+const submitting = ref(false)
+const regenerating = ref(false)
+const phase = ref('form')
 const error = ref('')
 const categories = ref([])
-const templates = ref([])
-const activeCategory = ref('')
-const selectedTemplate = ref(null)
-const companyName = ref('')
-const siteName = ref('')
+const selectedCategoryId = ref(null)
 const idempotencyKey = ref('')
-const success = ref('')
+const regenerateKey = ref('')
+const result = ref(null)
+const previewMode = ref('desktop')
+const form = reactive({ company_name: '', description: '', phone: '', email: '', city: '' })
 
-const visibleTemplates = computed(() => templates.value)
+const selectedCategory = computed(() => categories.value.find((item) => item.id === selectedCategoryId.value))
+const canSubmit = computed(() => selectedCategoryId.value && form.company_name.trim() && !submitting.value)
+const previewWidth = computed(() => ({ desktop: '100%', tablet: '768px', mobile: '390px' }[previewMode.value]))
+const currentTemplateId = computed(() => result.value?.selected_template?.id)
+const previewUrl = computed(() => result.value?.preview_url || '')
 
-async function loadCatalog(category = '') {
+function uuid() {
+  return globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+async function loadCatalog() {
   loading.value = true
   error.value = ''
-  success.value = ''
   try {
-    const { data } = await getSiteTemplateCatalogRequest(category)
+    const { data } = await getSiteTemplateCatalogRequest()
     categories.value = Array.isArray(data.categories) ? data.categories : []
-    templates.value = Array.isArray(data.templates) ? data.templates : []
+    if (!selectedCategoryId.value && categories.value.length) selectedCategoryId.value = categories.value[0].id
   } catch (requestError) {
-    error.value = requestError?.response?.data?.detail || 'Не удалось загрузить каталог шаблонов.'
+    error.value = responseError(requestError, 'Не удалось загрузить категории.')
   } finally {
     loading.value = false
   }
 }
 
-function selectCategory(slug) {
-  activeCategory.value = slug
-  loadCatalog(slug)
-}
-
-function chooseTemplate(template) {
-  selectedTemplate.value = template
-  companyName.value = ''
-  siteName.value = ''
-  idempotencyKey.value = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+async function submitGenerate({ retry = false } = {}) {
+  if (!canSubmit.value && !retry) return
+  if (submitting.value) return
+  submitting.value = true
+  phase.value = 'progress'
   error.value = ''
-  success.value = ''
-}
-
-async function createSite() {
-  if (!selectedTemplate.value || creating.value || !companyName.value || !siteName.value) return
-  creating.value = true
-  error.value = ''
-  success.value = ''
-  idempotencyKey.value = idempotencyKey.value || `${Date.now()}-${Math.random().toString(16).slice(2)}`
+  if (!idempotencyKey.value || !retry) idempotencyKey.value = uuid()
   try {
-    const { data } = await createSiteFromTemplateRequest(
-      {
-        template_slug: selectedTemplate.value.slug,
-        company_name: companyName.value,
-        site_name: siteName.value,
-        idempotency_key: idempotencyKey.value,
-      },
+    const { data } = await generateSiteFromCategoryRequest(
+      { category_id: selectedCategoryId.value, ...form, idempotency_key: idempotencyKey.value },
       { headers: { 'Idempotency-Key': idempotencyKey.value } },
     )
-    siteStore.upsertSite(data)
+    result.value = data
+    siteStore.upsertSite(data.site)
     await siteStore.fetchSites()
-    siteStore.selectSite(data.id)
-    selectedTemplate.value = null
-    success.value = 'Сайт успешно создан'
-    await router.replace(data.editor_url || `/sites/${data.id}/sections`)
+    siteStore.selectSite(data.site.id)
+    phase.value = 'result'
   } catch (requestError) {
-    idempotencyKey.value = `${Date.now()}-${Math.random().toString(16).slice(2)}`
-    error.value = creationErrorMessage(requestError)
+    error.value = responseError(requestError, 'Не удалось создать сайт. Повторите попытку.')
+    phase.value = 'form'
   } finally {
-    creating.value = false
+    submitting.value = false
   }
 }
 
-function creationErrorMessage(requestError) {
-  const status = requestError?.response?.status
+async function regenerateDesign() {
+  if (!result.value?.site?.id || regenerating.value) return
+  regenerating.value = true
+  phase.value = 'progress'
+  error.value = ''
+  regenerateKey.value = uuid()
+  try {
+    const { data } = await regenerateSiteDesignRequest(
+      result.value.site.id,
+      { exclude_template_ids: currentTemplateId.value ? [currentTemplateId.value] : [], idempotency_key: regenerateKey.value },
+      { headers: { 'Idempotency-Key': regenerateKey.value } },
+    )
+    result.value = data
+    phase.value = 'result'
+  } catch (requestError) {
+    error.value = responseError(requestError, 'Не удалось подобрать другой дизайн.')
+    phase.value = 'result'
+  } finally {
+    regenerating.value = false
+  }
+}
+
+function responseError(requestError, fallback) {
   const data = requestError?.response?.data || {}
-  const detail = responseText(data?.detail)
-  if (data?.code === 'subscription_required') return detail || 'Для создания нового сайта необходимо выбрать тариф.'
-  if (status === 401) return 'Сессия истекла. Войдите снова.'
-  if (status === 403) return 'Недостаточно прав для создания сайта.'
-  if (status === 404) return detail || 'Шаблон не найден.'
-  if (status === 409) return detail || 'Такой запрос уже был обработан.'
-  if (status >= 500) return detail || 'Ошибка сервера при создании сайта.'
-  return responseText(data?.company_name)
-    || responseText(data?.site_name)
-    || responseText(data?.template_slug)
-    || detail
-    || 'Не удалось создать сайт. Повторите попытку.'
+  if (data.code === 'category_has_no_templates') return 'Для выбранной категории пока нет доступных дизайнов.'
+  if (data.code === 'no_alternative_templates') return 'В этой категории пока нет другого доступного дизайна.'
+  if (Array.isArray(data.detail)) return data.detail.join(' ')
+  if (typeof data.detail === 'string') return data.detail
+  return fallback
 }
 
-function responseText(value) {
-  if (Array.isArray(value)) return value.filter(Boolean).join(' ')
-  if (typeof value === 'string') return value
-  return ''
-}
-
-function fallbackClass(template) {
-  const slug = String(template?.slug || '')
-  if (slug.includes('expert')) return 'expert'
-  if (slug.includes('country') || slug.includes('retreat')) return 'tourism'
-  return 'business'
-}
-
-watch(companyName, (value, oldValue) => {
-  if (!siteName.value || siteName.value === oldValue) siteName.value = value
-})
-
-onMounted(() => loadCatalog())
+onMounted(loadCatalog)
 </script>
 
 <template>
-  <div class="page-stack">
+  <SiteGenerationProgress v-if="phase === 'progress'" active />
+
+  <div v-else-if="phase === 'result' && result" class="page-stack">
+    <header class="page-heading page-heading-actions">
+      <div>
+        <p class="eyebrow">Готово</p>
+        <h1>Ваш сайт готов</h1>
+        <p>Проверьте черновик в предпросмотре, откройте редактор или подберите другой дизайн в той же категории.</p>
+      </div>
+      <button type="button" class="action-button-secondary" @click="router.push('/dashboard')">
+        <ArrowLeft :size="17" />
+        В личный кабинет
+      </button>
+    </header>
+
+    <p v-if="error" class="notice-error" role="alert">{{ error }}</p>
+
+    <section class="surface result-toolbar">
+      <div class="device-tabs" role="group" aria-label="Размер предпросмотра">
+        <button type="button" :class="{ active: previewMode === 'desktop' }" @click="previewMode = 'desktop'"><Monitor :size="17" />Компьютер</button>
+        <button type="button" :class="{ active: previewMode === 'tablet' }" @click="previewMode = 'tablet'"><Tablet :size="17" />Планшет</button>
+        <button type="button" :class="{ active: previewMode === 'mobile' }" @click="previewMode = 'mobile'"><Smartphone :size="17" />Телефон</button>
+      </div>
+      <div class="result-actions">
+        <button type="button" class="action-button-primary" @click="router.push(result.editor_url)">
+          <ExternalLink :size="17" />
+          Редактировать сайт
+        </button>
+        <button type="button" class="action-button-secondary" :disabled="regenerating" @click="regenerateDesign">
+          <RefreshCw :size="17" :class="{ spinning: regenerating }" />
+          Выбрать другой дизайн
+        </button>
+      </div>
+    </section>
+
+    <section class="preview-stage">
+      <iframe :src="previewUrl" title="Предпросмотр сайта" :style="{ width: previewWidth }" />
+    </section>
+  </div>
+
+  <div v-else class="page-stack">
     <header class="page-heading page-heading-actions">
       <div>
         <p class="eyebrow">Новый сайт</p>
-        <h1>Создать сайт из шаблона</h1>
-        <p>Выберите готовую структуру, укажите название компании и настройте сайт в обычном редакторе.</p>
+        <h1>Создать сайт</h1>
+        <p>Выберите категорию бизнеса, заполните данные компании, и TrackNode подберет подходящий опубликованный дизайн.</p>
       </div>
-      <button type="button" class="icon-button" aria-label="Обновить каталог" @click="loadCatalog(activeCategory)">
+      <button type="button" class="icon-button" aria-label="Обновить категории" @click="loadCatalog">
         <RefreshCw :size="18" />
       </button>
     </header>
 
     <p v-if="error" class="notice-error" role="alert">{{ error }}</p>
-    <p v-if="success" class="notice-success" role="status">{{ success }}</p>
 
-    <nav class="surface flex flex-wrap gap-2 p-3">
-      <button type="button" class="template-category" :class="{ active: !activeCategory }" @click="selectCategory('')">Все</button>
-      <button
-        v-for="category in categories"
-        :key="category.slug"
-        type="button"
-        class="template-category"
-        :class="{ active: activeCategory === category.slug }"
-        @click="selectCategory(category.slug)"
-      >
-        {{ category.name }}
-      </button>
-    </nav>
-
-    <section v-if="loading" class="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-      <article v-for="index in 3" :key="index" class="template-card skeleton-template-card">
-        <div class="template-skeleton-media" />
-        <div class="template-skeleton-line short" />
-        <div class="template-skeleton-line" />
-        <div class="template-skeleton-line mid" />
-        <div class="template-skeleton-actions" />
-      </article>
-    </section>
-
-    <section v-else-if="!visibleTemplates.length" class="empty-state">
-      <h2>Шаблоны пока не добавлены</h2>
-      <p>Администратор может зарегистрировать существующий сайт как источник шаблона.</p>
-      <button v-if="error" type="button" class="action-button-secondary mt-3" @click="loadCatalog(activeCategory)">Повторить</button>
-    </section>
-
-    <section v-else class="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-      <article v-for="template in visibleTemplates" :key="template.slug" class="template-card site-card">
-        <img
-          v-if="template.preview_image"
-          :src="template.preview_image || '/favicon.svg'"
-          alt=""
-          class="template-preview-image"
-        >
-        <div v-else class="template-preview-fallback" :class="fallbackClass(template)">
-          <span>{{ template.category?.name || 'Шаблон' }}</span>
-        </div>
-        <div class="template-card-body">
-          <p class="eyebrow">{{ template.category?.name || 'Шаблон' }}</p>
-          <h2 class="mt-2 text-xl font-bold text-[#17223B]">{{ template.name }}</h2>
-          <p class="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">{{ template.description || 'Готовая структура сайта для быстрого старта.' }}</p>
-        </div>
-        <div class="template-card-actions">
-          <a
-            :href="`/api/public/sites/${template.source_site_slug}/html/`"
-            target="_blank"
-            rel="noreferrer"
-            class="action-button-secondary"
+    <section class="surface create-grid">
+      <div>
+        <h2>Категория бизнеса</h2>
+        <div v-if="loading" class="category-skeleton" />
+        <div v-else class="category-list">
+          <button
+            v-for="category in categories"
+            :key="category.id"
+            type="button"
+            class="category-button"
+            :class="{ active: selectedCategoryId === category.id }"
+            @click="selectedCategoryId = category.id"
           >
-            <Eye :size="17" />
-            Предпросмотр
-          </a>
-          <button type="button" class="action-button-primary" @click="chooseTemplate(template)">
-            <Plus :size="17" />
-            Выбрать шаблон
+            {{ category.name }}
           </button>
         </div>
-      </article>
-    </section>
-
-    <Teleport to="body">
-      <div v-if="selectedTemplate" class="template-modal" @click.self="selectedTemplate = null">
-        <form class="template-dialog" @submit.prevent="createSite">
-          <p class="eyebrow">Создание сайта</p>
-          <h2>{{ selectedTemplate.name }}</h2>
-          <label>
-            <span>Название компании</span>
-            <input v-model.trim="companyName" class="form-control" required maxlength="255" placeholder="Например: Волга Тур">
-          </label>
-          <label>
-            <span>Название сайта</span>
-            <input v-model.trim="siteName" class="form-control" required maxlength="255" placeholder="Например: Новый сайт">
-          </label>
-          <p v-if="error" class="notice-error" role="alert">{{ error }}</p>
-          <div class="flex flex-col gap-2 sm:flex-row">
-            <button type="submit" class="action-button-primary" :disabled="creating || !companyName || !siteName">
-              <span v-if="creating" class="button-spinner" />
-              {{ creating ? 'Создаём сайт из шаблона...' : 'Создать сайт' }}
-            </button>
-            <button type="button" class="action-button-secondary" :disabled="creating" @click="selectedTemplate = null">Отмена</button>
-          </div>
-        </form>
       </div>
-    </Teleport>
+
+      <form class="company-form" @submit.prevent="submitGenerate()">
+        <p v-if="selectedCategory" class="eyebrow">Выбрано: {{ selectedCategory.name }}</p>
+        <label>Название компании<input v-model.trim="form.company_name" class="form-control" maxlength="255" required placeholder="Например: СтройДом"></label>
+        <label>Короткое описание<textarea v-model.trim="form.description" class="form-control" rows="3" placeholder="Чем занимается компания"></textarea></label>
+        <div class="form-row">
+          <label>Телефон<input v-model.trim="form.phone" class="form-control" maxlength="100" placeholder="+7 900 000-00-00"></label>
+          <label>Email<input v-model.trim="form.email" class="form-control" maxlength="255" type="email" placeholder="example@example.com"></label>
+        </div>
+        <label>Город<input v-model.trim="form.city" class="form-control" maxlength="120" placeholder="Москва"></label>
+        <div class="form-actions">
+          <button type="submit" class="action-button-primary" :disabled="!canSubmit">
+            <Wand2 :size="17" />
+            {{ submitting ? 'Создаем сайт...' : 'Создать сайт' }}
+          </button>
+          <button v-if="idempotencyKey && error" type="button" class="action-button-secondary" :disabled="submitting" @click="submitGenerate({ retry: true })">
+            Повторить
+          </button>
+        </div>
+      </form>
+    </section>
   </div>
 </template>
 
 <style scoped>
-.template-card {
-  display: flex;
-  min-height: 31rem;
-  flex-direction: column;
-}
-
-.template-preview-image,
-.template-preview-fallback,
-.template-skeleton-media {
-  height: 11rem;
-  width: 100%;
-  border-radius: 0.75rem;
-}
-
-.template-preview-image {
-  object-fit: cover;
-}
-
-.template-preview-fallback {
+.create-grid {
   display: grid;
-  place-items: end start;
-  overflow: hidden;
-  padding: 1rem;
-  color: #fff;
-  font-weight: 800;
-  background: linear-gradient(135deg, #6d5df6, #17223b);
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 1.5rem;
 }
 
-.template-preview-fallback.expert {
-  background: linear-gradient(135deg, #10b981, #17223b);
+.create-grid h2 {
+  margin: 0 0 1rem;
+  color: #17223b;
+  font-size: 1.2rem;
+  font-weight: 850;
 }
 
-.template-preview-fallback.tourism {
-  background: linear-gradient(135deg, #0f766e, #84cc16);
-}
-
-.template-card-body {
+.category-list {
   display: flex;
-  min-height: 12.5rem;
-  flex: 1;
-  flex-direction: column;
-  margin-top: 1rem;
+  flex-wrap: wrap;
+  gap: 0.65rem;
 }
 
-.template-card-body h2 {
-  line-height: 1.25;
-}
-
-.template-card-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: auto;
-  padding-top: 1.25rem;
-}
-
-.template-card-actions > * {
-  flex: 1 1 0;
-  white-space: nowrap;
-}
-
-.skeleton-template-card {
-  pointer-events: none;
-}
-
-.template-skeleton-media,
-.template-skeleton-line,
-.template-skeleton-actions {
-  position: relative;
-  overflow: hidden;
-  background: #eef2ff;
-}
-
-.template-skeleton-line {
-  height: 1rem;
-  margin-top: 1rem;
-  border-radius: 999px;
-}
-
-.template-skeleton-line.short {
-  width: 34%;
-}
-
-.template-skeleton-line.mid {
-  width: 68%;
-}
-
-.template-skeleton-actions {
-  height: 2.75rem;
-  margin-top: auto;
-  border-radius: 1rem;
-}
-
-.template-skeleton-media::after,
-.template-skeleton-line::after,
-.template-skeleton-actions::after {
-  position: absolute;
-  inset: 0;
-  content: "";
-  transform: translateX(-100%);
-  animation: template-shimmer 1.4s infinite;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
-}
-
-@keyframes template-shimmer {
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-.template-category {
-  min-height: 2.4rem;
-  border: 1px solid rgba(109, 93, 246, 0.14);
+.category-button {
+  min-height: 2.6rem;
+  border: 1px solid rgba(101, 71, 232, 0.18);
   border-radius: 0.8rem;
   background: #fff;
+  padding: 0 1rem;
   color: #475569;
-  padding: 0 0.9rem;
-  font-size: 0.875rem;
-  font-weight: 700;
+  font-size: 0.9rem;
+  font-weight: 750;
 }
 
-.template-category.active {
+.category-button.active {
   border-color: transparent;
-  background: #6d5df6;
+  background: #6547e8;
   color: #fff;
 }
 
-.template-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: grid;
-  place-items: center;
-  padding: 1rem;
-  background: rgba(15, 23, 42, 0.42);
+.category-skeleton {
+  height: 7rem;
+  border-radius: 1rem;
+  background: linear-gradient(90deg, #eef2ff, #f8fafc, #eef2ff);
 }
 
-.template-dialog {
+.company-form {
   display: grid;
-  width: min(100%, 32rem);
   gap: 1rem;
-  border-radius: 1.5rem;
-  background: #fff;
-  padding: 1.5rem;
-  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.24);
 }
 
-.template-dialog h2 {
-  margin: 0;
-  color: #17223b;
-  font-size: 1.35rem;
-  font-weight: 800;
-}
-
-.template-dialog label {
+.company-form label {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.45rem;
   color: #334155;
   font-size: 0.9rem;
-  font-weight: 700;
+  font-weight: 750;
 }
 
-@media (max-width: 640px) {
-  .template-card-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
 
-  .template-card-actions > * {
-    width: 100%;
+.form-actions,
+.result-actions,
+.result-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.result-toolbar {
+  justify-content: space-between;
+}
+
+.device-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  border-radius: 0.9rem;
+  background: #f1f5f9;
+  padding: 0.35rem;
+}
+
+.device-tabs button {
+  display: inline-flex;
+  min-height: 2.35rem;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 0.7rem;
+  padding: 0 0.85rem;
+  color: #475569;
+  font-weight: 750;
+}
+
+.device-tabs button.active {
+  background: #fff;
+  color: #17223b;
+  box-shadow: 0 8px 20px rgba(32, 40, 70, 0.08);
+}
+
+.preview-stage {
+  overflow-x: auto;
+  border-radius: 1rem;
+  background: #e2e8f0;
+  padding: 1rem;
+}
+
+.preview-stage iframe {
+  display: block;
+  min-width: 320px;
+  max-width: 100%;
+  height: 74vh;
+  margin: 0 auto;
+  border: 0;
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 900px) {
+  .create-grid,
+  .form-row {
+    grid-template-columns: 1fr;
   }
 }
 </style>
