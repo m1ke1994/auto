@@ -24,7 +24,7 @@ async function sendRequest() {
       <a class="art-phone" :href="`tel:${contacts.phone || ''}`">{{ contacts.phone }}</a>
     </header>
     <main>
-      <section id="top" class="art-hero" :style="{ backgroundImage: `url(${hero.image || '/art-stroy/images/hero.jpg'})` }">
+      <section id="top" class="art-hero" :style="{ backgroundImage: `url(${hero.image || '/public-site-assets/art-stroy/images/hero.jpg'})` }">
         <div class="art-hero__shade" />
         <div class="art-hero__content">
           <p>Остекление · фасады · металлоконструкции</p>

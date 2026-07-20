@@ -44,7 +44,7 @@ const mobileMenuItems = computed(() => [...leftMenuItems.value, ...rightMenuItem
 const brandLeft = computed(() => sectionContent.value.brand_left || 'ЛИЛА')
 const brandRight = computed(() => sectionContent.value.brand_right || 'МОСКВА')
 
-const modelUrl = '/models/dice.glb'
+const modelUrl = '/public-site-assets/models/dice.glb'
 
 let THREE
 let GLTFLoader

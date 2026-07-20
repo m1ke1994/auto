@@ -76,6 +76,14 @@ server {
         add_header Cache-Control "public";
     }
 
+    location /public-site-assets/ {
+        rewrite ^/public-site-assets/(.*)$ /$1 break;
+        proxy_pass http://a_meditation_public;
+        include /etc/nginx/proxy_params;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
     location /assets/ {
         root /var/www/frontend;
         try_files $uri =404;
@@ -178,6 +186,14 @@ server {
 
     location = /tracker.js {
         return 404;
+    }
+
+    location /public-site-assets/ {
+        rewrite ^/public-site-assets/(.*)$ /$1 break;
+        proxy_pass http://a_meditation_public;
+        include /etc/nginx/proxy_params;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
     }
 
     location = / {

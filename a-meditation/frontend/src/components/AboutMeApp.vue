@@ -11,7 +11,7 @@ const props = defineProps({
 const sectionRef = ref(null)
 const isVisible = ref(false)
 const sectionContent = computed(() => props.section?.content || {})
-const imageUrl = computed(() => sectionContent.value.image || '/images/2025-02-26 12-35-42.JPG')
+const imageUrl = computed(() => sectionContent.value.image || '/public-site-assets/images/2025-02-26 12-35-42.JPG')
 const imageAlt = computed(() => sectionContent.value.image_alt || 'Проводник игры Лила Ольга Бердникова')
 const guideTag = computed(() => sectionContent.value.tag || 'Проводник игры Лила')
 const guideTitle = computed(() => sectionContent.value.subtitle || 'Ольга Бердникова')

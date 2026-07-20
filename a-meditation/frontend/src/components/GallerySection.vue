@@ -10,22 +10,22 @@ const props = defineProps({
 
 const fallbackGalleryItems = [
   {
-    src: '/images/DSC08101.JPG',
+    src: '/public-site-assets/images/DSC08101.JPG',
     alt: 'Атмосфера практики Лила',
     title: 'Пространство встречи',
   },
   {
-    src: '/images/2025-02-26 13-06-17.JPG',
+    src: '/public-site-assets/images/2025-02-26 13-06-17.JPG',
     alt: 'Практика и пространство',
     title: 'Тихая практика',
   },
   {
-    src: '/images/IMG_5131.JPG',
+    src: '/public-site-assets/images/IMG_5131.JPG',
     alt: 'Детали пространства для практик',
     title: 'Детали пространства',
   },
   {
-    src: '/images/Lila_Olga_2.2.poster.jpg',
+    src: '/public-site-assets/images/Lila_Olga_2.2.poster.jpg',
     alt: 'Глубокое состояние практики',
     title: 'Глубокое состояние',
   },

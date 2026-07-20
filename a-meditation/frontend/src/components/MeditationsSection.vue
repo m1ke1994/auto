@@ -13,29 +13,29 @@ const fallbackPractices = [
     number: '01',
     title: 'Глубокое расслабление',
     text: 'Мягкая практика помогает отпустить накопленное напряжение, замедлиться и вернуться в спокойное телесное состояние.',
-    image: '/images/m1.jpg',
+    image: '/public-site-assets/images/m1.jpg',
     type: 'image',
   },
   {
     number: '02',
     title: 'Восстановление ресурса',
     text: 'Дыхание, тишина и бережное внимание к себе создают пространство для отдыха, наполнения и внутренней опоры.',
-    image: '/images/m2.MP4',
-    poster: '/images/Lila_Olga_2.2.poster.jpg',
+    image: '/public-site-assets/images/m2.MP4',
+    poster: '/public-site-assets/images/Lila_Olga_2.2.poster.jpg',
     type: 'video',
   },
   {
     number: '03',
     title: 'Контакт с собой',
     text: 'В спокойном пространстве становится проще услышать свои чувства, потребности и честные внутренние ответы.',
-    image: '/images/m3.jpg',
+    image: '/public-site-assets/images/m3.jpg',
     type: 'image',
   },
   {
     number: '04',
     title: 'Внутренняя настройка',
     text: 'Практика помогает мягко собраться, почувствовать устойчивость и настроиться на важный период жизни.',
-    image: '/images/m4.jpg',
+    image: '/public-site-assets/images/m4.jpg',
     type: 'image',
   },
 ]
@@ -69,7 +69,7 @@ const practices = computed(() => {
     title: item.title || 'Практика',
     text: item.text || '',
     image: item.image || '',
-    poster: item.poster || item.image_poster || sectionContent.value.video_poster || '/images/Lila_Olga_2.2.poster.jpg',
+    poster: item.poster || item.image_poster || sectionContent.value.video_poster || '/public-site-assets/images/Lila_Olga_2.2.poster.jpg',
     type: item.type === 'video' ? 'video' : 'image',
   }))
 })

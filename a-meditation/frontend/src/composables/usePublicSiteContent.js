@@ -72,6 +72,7 @@ function writeCachedPayload(payload) {
 function absolutizeMediaValue(value) {
   if (typeof value !== 'string') return value
   if (value.startsWith('/media/')) return buildBackendUrl(value)
+  if (/^\/(?:images|models|art-stroy)\//.test(value)) return `/public-site-assets${value}`
   return value
 }
 

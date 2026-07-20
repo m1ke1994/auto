@@ -62,7 +62,7 @@ const contactLinks = computed(() => {
 })
 const footerBrand = computed(() => (footerContent.value.brand || props.site?.name || 'ЛИЛА МОСКВА').toUpperCase())
 
-const modelUrl = '/models/dice.glb'
+const modelUrl = '/public-site-assets/models/dice.glb'
 
 let THREE
 let GLTFLoader

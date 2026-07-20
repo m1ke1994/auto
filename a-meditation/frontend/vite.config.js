@@ -73,6 +73,7 @@ export default defineConfig(({ mode }) => {
   ).replace(/\/+$/, '')
 
   return {
+    base: '/public-site-assets/',
     plugins: [
       vue(),
       {

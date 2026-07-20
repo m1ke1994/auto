@@ -57,8 +57,8 @@ def art_stroy_snapshot():
         "hero": {
             "title": "Art Stroy",
             "subtitle": "Стекло, металл и точная инженерия для частных и коммерческих пространств",
-            "image": "/art-stroy/images/hero.jpg",
-            "video": "/art-stroy/videos/video-bg.MP4",
+            "image": "/public-site-assets/art-stroy/images/hero.jpg",
+            "video": "/public-site-assets/art-stroy/videos/video-bg.MP4",
         },
         "navigation": [
             {"label": "Проекты", "href": "#projects"},
@@ -80,7 +80,7 @@ def art_stroy_snapshot():
                 "company_name": "Art Stroy",
                 "title": "Стеклянные конструкции под ключ",
                 "description": "Производим и монтируем душевые, ограждения, зеркальные панели и перегородки.",
-                "image": "/art-stroy/images/hero.jpg",
+                "image": "/public-site-assets/art-stroy/images/hero.jpg",
                 "phone": "+7 900 000-00-00",
             },
             "art-troy-hero",
@@ -103,9 +103,9 @@ def art_stroy_snapshot():
                 "title": "Реализованные проекты",
                 "description": "Душевые перегородки, лестничные ограждения, зеркальные панели и интерьерные решения.",
                 "items": [
-                    {"title": "Стеклянные ограждения", "description": "Безопасное стекло и точная геометрия.", "image": "/art-stroy/projects/bg.webp"},
-                    {"title": "Душевые перегородки", "description": "Индивидуальное изготовление под помещение.", "image": "/art-stroy/showers/1-1.JPG"},
-                    {"title": "Зеркальные панели", "description": "Монтаж панелей сложной конфигурации.", "image": "/art-stroy/mirror-panel/1-1.JPG"},
+                    {"title": "Стеклянные ограждения", "description": "Безопасное стекло и точная геометрия.", "image": "/public-site-assets/art-stroy/projects/bg.webp"},
+                    {"title": "Душевые перегородки", "description": "Индивидуальное изготовление под помещение.", "image": "/public-site-assets/art-stroy/showers/1-1.JPG"},
+                    {"title": "Зеркальные панели", "description": "Монтаж панелей сложной конфигурации.", "image": "/public-site-assets/art-stroy/mirror-panel/1-1.JPG"},
                 ],
             },
             "art-troy-projects",
@@ -160,8 +160,8 @@ def a_meditation_snapshot():
             "fonts": {"heading": "Cormorant Garamond", "body": "Manrope"},
         },
         "assets": {
-            "hero_video": "/images/Lila_Olga_2.2_compressed.mp4",
-            "hero_poster": "/images/Lila_Olga_2.2.poster.jpg",
+            "hero_video": "/public-site-assets/images/Lila_Olga_2.2_compressed.mp4",
+            "hero_poster": "/public-site-assets/images/Lila_Olga_2.2.poster.jpg",
         },
         "pages": [{"key": "home", "title": "Главная", "path": "/"}],
     }

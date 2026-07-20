@@ -17,9 +17,9 @@ const defaultHeroPhrases = [
 ]
 
 const sectionContent = computed(() => props.section?.content || {})
-const heroPosterUrl = computed(() => sectionContent.value.image || '/images/Lila_Olga_2.2.poster.jpg')
-const mobileHeroPosterUrl = '/images/Lila_Olga_2.2.poster.jpg'
-const heroVideoUrl = computed(() => sectionContent.value.background_video || '/images/Lila_Olga_2.2_compressed.mp4')
+const heroPosterUrl = computed(() => sectionContent.value.image || '/public-site-assets/images/Lila_Olga_2.2.poster.jpg')
+const mobileHeroPosterUrl = '/public-site-assets/images/Lila_Olga_2.2.poster.jpg'
+const heroVideoUrl = computed(() => sectionContent.value.background_video || '/public-site-assets/images/Lila_Olga_2.2_compressed.mp4')
 const heroPhrases = computed(() => {
   const phrases = sectionContent.value.phrases
   if (!Array.isArray(phrases) || phrases.length === 0) return defaultHeroPhrases
