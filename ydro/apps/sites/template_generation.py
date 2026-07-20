@@ -20,6 +20,7 @@ SUPPORTED_BUILDER_TEMPLATE_KEYS = {
     "expert-practice-consulting",
     "country-retreat-events",
     "art-troy",
+    "a-meditation",
 }
 
 COMPANY_DATA_KEYS = {
@@ -45,7 +46,7 @@ def build_generation_response(site: Site, template: WebsiteTemplate) -> dict:
             "name": template.name,
             "category_id": template.category_id,
         },
-        "preview_url": f"/api/public/sites/{site.slug}/html/",
+        "preview_url": f"/api/public/sites/{site.slug}/html/?preview=1",
         "editor_url": f"/sites/{site.id}/sections",
     }
 
@@ -72,8 +73,15 @@ def select_random_template(*, category: WebsiteTemplateCategory, exclude_templat
             validate_template_snapshot(snapshot)
         except WebsiteTemplateCloneError:
             continue
-        builder_key = snapshot.get("site", {}).get("builder_template_key", "")
-        if builder_key and (not SUPPORTED_BUILDER_TEMPLATE_KEYS or builder_key in SUPPORTED_BUILDER_TEMPLATE_KEYS):
+        site_config = snapshot.get("site", {})
+        builder_key = site_config.get("builder_template_key", "")
+        builder_config = site_config.get("builder_config", {})
+        if (
+            builder_key
+            and isinstance(builder_config, dict)
+            and builder_config
+            and (not SUPPORTED_BUILDER_TEMPLATE_KEYS or builder_key in SUPPORTED_BUILDER_TEMPLATE_KEYS)
+        ):
             return template
     raise WebsiteTemplateCloneError(
         "category_has_no_templates",

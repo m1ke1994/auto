@@ -28,6 +28,7 @@ const canSubmit = computed(() => selectedCategoryId.value && form.company_name.t
 const previewWidth = computed(() => ({ desktop: '100%', tablet: '768px', mobile: '390px' }[previewMode.value]))
 const currentTemplateId = computed(() => result.value?.selected_template?.id)
 const previewUrl = computed(() => result.value?.preview_url || '')
+const resultStorageKey = 'tracknode:last-generated-site'
 
 function uuid() {
   return globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -60,6 +61,7 @@ async function submitGenerate({ retry = false } = {}) {
       { headers: { 'Idempotency-Key': idempotencyKey.value } },
     )
     result.value = data
+    sessionStorage.setItem(resultStorageKey, JSON.stringify(data))
     siteStore.upsertSite(data.site)
     await siteStore.fetchSites()
     siteStore.selectSite(data.site.id)
@@ -104,6 +106,17 @@ function responseError(requestError, fallback) {
 }
 
 onMounted(loadCatalog)
+onMounted(() => {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(resultStorageKey) || 'null')
+    if (saved?.site?.id && saved?.preview_url && saved?.editor_url) {
+      result.value = saved
+      phase.value = 'result'
+    }
+  } catch {
+    sessionStorage.removeItem(resultStorageKey)
+  }
+})
 </script>
 
 <template>

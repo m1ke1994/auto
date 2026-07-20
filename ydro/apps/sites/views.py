@@ -1,6 +1,7 @@
 ﻿from django.db.models import Count, Q
 import logging
 import re
+from html import escape
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -119,6 +120,16 @@ def _inject_public_site_seo(index_html, seo):
     return f"{seo_head}\n{html}"
 
 
+def _inject_public_site_runtime(index_html, *, site_slug, preview_mode):
+    runtime_meta = (
+        f'<meta name="tracknode-site-slug" content="{escape(str(site_slug), quote=True)}">\n'
+        f'<meta name="tracknode-preview-mode" content="{"true" if preview_mode else "false"}">'
+    )
+    if re.search(r"</head\s*>", index_html, flags=re.IGNORECASE):
+        return re.sub(r"</head\s*>", f"    {runtime_meta}\n  </head>", index_html, count=1, flags=re.IGNORECASE)
+    return f"{runtime_meta}\n{index_html}"
+
+
 class PublicSiteDetailView(generics.RetrieveAPIView):
     serializer_class = PublicSiteSerializer
     permission_classes = [AllowAny]
@@ -221,6 +232,11 @@ class PublicSiteHtmlView(APIView):
 
         index_html = _load_public_site_index_html()
         html = _inject_public_site_seo(index_html, build_public_site_seo(site))
+        html = _inject_public_site_runtime(
+            html,
+            site_slug=site.slug,
+            preview_mode=request.query_params.get("preview") == "1",
+        )
         subscription_required = site_requires_subscription_lock(site)
         if subscription_required:
             html = inject_subscription_lock(html, public_billing_url())

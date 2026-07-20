@@ -1,6 +1,9 @@
-import { buildApiUrl, siteSlug } from '../config/api'
+import { buildApiUrl, isPreviewMode, siteSlug } from '../config/api'
 
 export async function submitLead(payload) {
+  if (isPreviewMode) {
+    return { success: true, preview: true }
+  }
   const requestPayload = {
     site_slug: siteSlug,
     source_url: window.location.href,

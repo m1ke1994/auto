@@ -1,5 +1,10 @@
 const defaultSiteSlug = 'a-meditation'
 
+function runtimeMeta(name) {
+  if (typeof document === 'undefined') return ''
+  return document.head.querySelector(`meta[name="${name}"]`)?.content?.trim() || ''
+}
+
 function requiredEnv(name, rawValue) {
   const value = String(rawValue || '').trim()
   if (!value) {
@@ -17,7 +22,8 @@ export const backendUrl = normalizeUrl(requiredEnv('VITE_BACKEND_URL', import.me
 export const publicSiteUrl = normalizeUrl(
   requiredEnv('VITE_PUBLIC_SITE_URL', import.meta.env.VITE_PUBLIC_SITE_URL || import.meta.env.VITE_SITE_URL),
 )
-export const siteSlug = String(import.meta.env.VITE_SITE_SLUG || defaultSiteSlug).trim()
+export const siteSlug = runtimeMeta('tracknode-site-slug') || String(import.meta.env.VITE_SITE_SLUG || defaultSiteSlug).trim()
+export const isPreviewMode = runtimeMeta('tracknode-preview-mode') === 'true'
 
 export function buildApiUrl(path) {
   return `${apiUrl}/${String(path || '').replace(/^\/+/, '')}`

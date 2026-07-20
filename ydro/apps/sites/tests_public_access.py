@@ -91,6 +91,18 @@ class PublicApiAccessTests(TestCase):
         self.assertIn('type="application/ld+json"', html)
         self.assertNotIn("A" + " Meditation", html)
 
+    @override_settings(PUBLIC_SITE_STATIC_INDEX_URL="")
+    def test_public_site_html_injects_requested_slug_and_preview_mode(self):
+        response = self.client.get(
+            reverse("public-site-html", kwargs={"site_slug": self.site.slug}),
+            {"preview": "1"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode("utf-8")
+        self.assertIn(f'name="tracknode-site-slug" content="{self.site.slug}"', html)
+        self.assertIn('name="tracknode-preview-mode" content="true"', html)
+
     @patch.dict(os.environ, {"PUBLIC_SITE_DEFAULT_DOMAIN": "leelabird.example"})
     def test_domain_migration_updates_only_local_a_meditation_domain(self):
         self.site.domain = "localhost:5173"

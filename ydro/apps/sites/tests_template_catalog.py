@@ -134,6 +134,7 @@ class SiteTemplateCatalogTests(APITestCase):
             name="Tour",
             slug="tour-generate-source",
             builder_template_key="tourism-landing",
+            builder_config={"company_name": "Tour"},
         )
         SiteSection.objects.create(site=tourism_site, title="Hero", key="hero", section_type="hero")
         tourism_template = WebsiteTemplate.objects.create(
@@ -197,6 +198,7 @@ class SiteTemplateCatalogTests(APITestCase):
             name="Alt",
             slug="alt-template-source",
             builder_template_key="services-landing",
+            builder_config={"company_name": "Alt"},
         )
         SiteSection.objects.create(site=alternate_site, title="Hero", key="hero", section_type="hero")
         alternate_template = WebsiteTemplate.objects.create(
@@ -648,26 +650,34 @@ class SiteTemplateCatalogTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["code"], "template_snapshot_version_unsupported")
 
-    def test_seed_website_templates_uses_real_source_slugs_and_is_idempotent(self):
+    def test_seed_website_templates_creates_generation_templates_and_is_idempotent(self):
         WebsiteTemplate.objects.all().delete()
-        for slug in ("tracknode", "a-meditation", "novaya-konakova"):
-            site = Site.objects.create(owner=self.source_owner, name=slug, slug=slug)
-            SiteSection.objects.create(site=site, title="Hero", key="hero", section_type="hero")
 
         call_command("seed_website_templates")
         call_command("seed_website_templates")
 
-        self.assertEqual(WebsiteTemplate.objects.count(), 3)
-        self.assertTrue(WebsiteTemplate.objects.filter(slug="saas-digital-service", source_site__slug="tracknode").exists())
+        self.assertEqual(WebsiteTemplate.objects.count(), 2)
         self.assertTrue(
-            WebsiteTemplate.objects.filter(slug="expert-practice-consulting", source_site__slug="a-meditation").exists()
+            WebsiteTemplate.objects.filter(
+                slug="art-stroy",
+                category__slug="construction",
+                source_site__slug="tracknode-template-art-stroy-source",
+                is_active=True,
+                is_published=True,
+            ).exists()
         )
         self.assertTrue(
-            WebsiteTemplate.objects.filter(slug="country-retreat-events", source_site__slug="novaya-konakova").exists()
+            WebsiteTemplate.objects.filter(
+                slug="a-meditation",
+                category__slug="tourism",
+                source_site__slug="tracknode-template-a-meditation-source",
+                is_active=True,
+                is_published=True,
+            ).exists()
         )
         self.assertFalse(WebsiteTemplate.objects.filter(preview_image__startswith="data:image").exists())
 
-        for slug in ("saas-digital-service", "expert-practice-consulting", "country-retreat-events"):
+        for slug, key in (("art-stroy", "art-troy"), ("a-meditation", "a-meditation")):
             response = self.client.post(
                 reverse("website-template-create-site", kwargs={"slug": slug}),
                 {
@@ -678,4 +688,37 @@ class SiteTemplateCatalogTests(APITestCase):
                 format="json",
             )
             self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-            self.assertEqual(Site.objects.get(id=response.data["id"]).owner, self.user)
+            created_site = Site.objects.get(id=response.data["id"])
+            self.assertEqual(created_site.owner, self.user)
+            self.assertEqual(created_site.status, Site.Status.DRAFT)
+            self.assertEqual(created_site.builder_template_key, key)
+            self.assertNotIn(created_site.slug, {"tracknode", "a-meditation", "novaya-konakova"})
+
+    def test_seeded_generation_no_longer_returns_no_templates_for_construction_and_tourism(self):
+        WebsiteTemplate.objects.all().delete()
+        call_command("seed_website_templates")
+
+        for category_slug, expected_key in (("construction", "art-troy"), ("tourism", "a-meditation")):
+            category = WebsiteTemplateCategory.objects.get(slug=category_slug)
+            response = self.client.post(
+                reverse("website-template-generate"),
+                {
+                    "category_id": category.id,
+                    "company_name": f"Company {category_slug}",
+                    "description": "Generated description",
+                    "phone": "+7 900 000-00-00",
+                    "email": "hello@example.com",
+                    "city": "Москва",
+                    "idempotency_key": f"generate-{category_slug}",
+                },
+                format="json",
+                HTTP_IDEMPOTENCY_KEY=f"generate-{category_slug}",
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+            self.assertEqual(response.data["site"]["builder_template_key"], expected_key)
+            self.assertIn("/api/public/sites/", response.data["preview_url"])
+            self.assertTrue(response.data["preview_url"].endswith("?preview=1"))
+            created_site = Site.objects.get(id=response.data["site"]["id"])
+            self.assertEqual(created_site.owner, self.user)
+            self.assertEqual(created_site.status, Site.Status.DRAFT)

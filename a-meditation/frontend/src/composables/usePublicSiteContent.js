@@ -1,6 +1,6 @@
 import { computed, onMounted, ref } from 'vue'
 
-import { buildApiUrl, buildBackendUrl, buildPublicUrl, siteSlug } from '../config/api'
+import { buildApiUrl, buildBackendUrl, buildPublicUrl, isPreviewMode, siteSlug } from '../config/api'
 
 const mediaKeyPattern = /(image|video|avatar|poster|photo|src|file)$/i
 const siteContentCacheTtlMs = 5 * 60 * 1000
@@ -203,6 +203,7 @@ function applySiteSeo(site) {
 
 function ensureTrackerScript(site) {
   if (typeof document === 'undefined') return
+  if (isPreviewMode) return
 
   const trackerKey = String(site?.tracker_key || '').trim()
   if (!trackerKey) return
