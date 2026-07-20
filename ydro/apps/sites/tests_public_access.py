@@ -100,8 +100,10 @@ class PublicApiAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         html = response.content.decode("utf-8")
-        self.assertIn(f'name="tracknode-site-slug" content="{self.site.slug}"', html)
-        self.assertIn('name="tracknode-preview-mode" content="true"', html)
+        self.assertIn(f'"slug": "{self.site.slug}"', html)
+        self.assertIn(f'"publicId": "{self.site.public_id}"', html)
+        self.assertIn('"preview": true', html)
+        self.assertEqual(response.headers.get("X-Frame-Options"), "SAMEORIGIN")
 
     @patch.dict(os.environ, {"PUBLIC_SITE_DEFAULT_DOMAIN": "leelabird.example"})
     def test_domain_migration_updates_only_local_a_meditation_domain(self):

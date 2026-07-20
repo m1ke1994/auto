@@ -8,6 +8,7 @@ from rest_framework import serializers
 from leads.services import send_lead_telegram_notification
 
 from .models import SectionSchema, Site, SiteLead, SiteSection, WebsiteTemplate, WebsiteTemplateCategory
+from .preview import build_site_preview_url
 from .template_generation import build_generation_response, generate_site_from_category, regenerate_site_design
 from .website_templates import WebsiteTemplateCloneError, clone_site_for_user
 from .a_meditation import SECTION_TITLES
@@ -28,8 +29,10 @@ class PublicSiteSerializer(serializers.ModelSerializer):
         model = Site
         fields = (
             "id",
+            "public_id",
             "name",
             "slug",
+            "status",
             "domain",
             "seo",
             "design_preset",
@@ -78,11 +81,13 @@ class SectionSchemaSerializer(serializers.ModelSerializer):
 class AdminMySiteSerializer(serializers.ModelSerializer):
     sections_count = serializers.SerializerMethodField()
     tracker_script_tag = serializers.SerializerMethodField()
+    preview_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Site
         fields = (
             "id",
+            "public_id",
             "name",
             "slug",
             "domain",
@@ -97,6 +102,7 @@ class AdminMySiteSerializer(serializers.ModelSerializer):
             "design_preset",
             "builder_template_key",
             "builder_config",
+            "preview_url",
             "is_active",
             "sections_count",
             "tracker_script_tag",
@@ -112,6 +118,9 @@ class AdminMySiteSerializer(serializers.ModelSerializer):
 
     def get_tracker_script_tag(self, obj):
         return build_tracker_script_tag(obj.api_key)
+
+    def get_preview_url(self, obj):
+        return build_site_preview_url(obj)
 
 
 class WebsiteTemplateCreatedSiteSerializer(AdminMySiteSerializer):

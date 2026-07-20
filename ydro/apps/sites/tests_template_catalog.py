@@ -6,6 +6,7 @@ from django.db.models import NOT_PROVIDED
 from django.urls import reverse
 from io import StringIO
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
 
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -718,7 +719,37 @@ class SiteTemplateCatalogTests(APITestCase):
             self.assertEqual(response.status_code, status.HTTP_201_CREATED)
             self.assertEqual(response.data["site"]["builder_template_key"], expected_key)
             self.assertIn("/api/public/sites/", response.data["preview_url"])
-            self.assertTrue(response.data["preview_url"].endswith("?preview=1"))
+            self.assertIn("?preview=1&token=", response.data["preview_url"])
             created_site = Site.objects.get(id=response.data["site"]["id"])
             self.assertEqual(created_site.owner, self.user)
             self.assertEqual(created_site.status, Site.Status.DRAFT)
+            self.assertTrue(created_site.builder_config)
+
+            preview_url = response.data["preview_url"]
+            preview_response = self.client.get(preview_url)
+            self.assertEqual(preview_response.status_code, status.HTTP_200_OK)
+            preview_html = preview_response.content.decode("utf-8")
+            self.assertIn(f'"slug": "{created_site.slug}"', preview_html)
+            self.assertIn(f'"publicId": "{created_site.public_id}"', preview_html)
+            self.assertIn('"preview": true', preview_html)
+            self.assertEqual(preview_response.headers.get("X-Frame-Options"), "SAMEORIGIN")
+
+            token = parse_qs(urlparse(preview_url).query)["token"][0]
+            bundle_response = self.client.get(
+                reverse("public-site-bundle", kwargs={"site_slug": created_site.slug}),
+                {"token": token},
+            )
+            self.assertEqual(bundle_response.status_code, status.HTTP_200_OK)
+            bundle = bundle_response.json()
+            self.assertEqual(bundle["site"]["slug"], created_site.slug)
+            self.assertEqual(bundle["site"]["public_id"], str(created_site.public_id))
+            self.assertEqual(bundle["site"]["status"], Site.Status.DRAFT)
+            self.assertEqual(bundle["site"]["builder_template_key"], expected_key)
+            self.assertEqual(bundle["site"]["builder_config"], created_site.builder_config)
+            self.assertEqual(len(bundle["sections"]), created_site.sections.filter(is_active=True).count())
+
+            denied_response = self.client.get(
+                reverse("public-site-html", kwargs={"site_slug": created_site.slug}),
+                {"preview": "1"},
+            )
+            self.assertEqual(denied_response.status_code, status.HTTP_404_NOT_FOUND)

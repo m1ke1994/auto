@@ -5,6 +5,10 @@ function runtimeMeta(name) {
   return document.head.querySelector(`meta[name="${name}"]`)?.content?.trim() || ''
 }
 
+const runtimeSite = typeof window !== 'undefined' && window.__TRACKNODE_SITE__
+  ? window.__TRACKNODE_SITE__
+  : {}
+
 function requiredEnv(name, rawValue) {
   const value = String(rawValue || '').trim()
   if (!value) {
@@ -22,11 +26,15 @@ export const backendUrl = normalizeUrl(requiredEnv('VITE_BACKEND_URL', import.me
 export const publicSiteUrl = normalizeUrl(
   requiredEnv('VITE_PUBLIC_SITE_URL', import.meta.env.VITE_PUBLIC_SITE_URL || import.meta.env.VITE_SITE_URL),
 )
-export const siteSlug = runtimeMeta('tracknode-site-slug') || String(import.meta.env.VITE_SITE_SLUG || defaultSiteSlug).trim()
-export const isPreviewMode = runtimeMeta('tracknode-preview-mode') === 'true'
+export const siteSlug = String(runtimeSite.slug || runtimeMeta('tracknode-site-slug') || import.meta.env.VITE_SITE_SLUG || defaultSiteSlug).trim()
+export const isPreviewMode = runtimeSite.preview === true || runtimeMeta('tracknode-preview-mode') === 'true'
+export const previewToken = isPreviewMode ? String(runtimeSite.token || '').trim() : ''
 
 export function buildApiUrl(path) {
-  return `${apiUrl}/${String(path || '').replace(/^\/+/, '')}`
+  const url = `${apiUrl}/${String(path || '').replace(/^\/+/, '')}`
+  if (!previewToken) return url
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}token=${encodeURIComponent(previewToken)}`
 }
 
 export function buildBackendUrl(path) {

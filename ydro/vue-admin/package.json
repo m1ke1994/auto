@@ -9,6 +9,7 @@
     "build:local": "vite build --mode example",
     "test:ai": "node scripts/test-ai-recommendations.mjs",
     "test:routes": "node scripts/test-registration-routing.mjs",
+    "test:preview": "node scripts/test-site-preview.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

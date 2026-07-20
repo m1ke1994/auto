@@ -1,4 +1,5 @@
 ﻿from django.db.models import Count, Q
+import json
 import logging
 import re
 from html import escape
@@ -10,6 +11,8 @@ from django.db import transaction
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from rest_framework import generics, serializers, status
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -23,6 +26,7 @@ from subscriptions.permissions import HasFeatureAccess
 
 from .models import Site, SiteLead, SiteSection, WebsiteTemplate, WebsiteTemplateCategory
 from .public_renderer import inject_subscription_lock, public_billing_url, site_requires_subscription_lock
+from .preview import site_requires_preview_token, validate_site_preview_token
 from .seo import build_public_site_seo, render_public_site_seo_head
 from .serializers import (
     AdminLeadSerializer,
@@ -120,11 +124,17 @@ def _inject_public_site_seo(index_html, seo):
     return f"{seo_head}\n{html}"
 
 
-def _inject_public_site_runtime(index_html, *, site_slug, preview_mode):
-    runtime_meta = (
-        f'<meta name="tracknode-site-slug" content="{escape(str(site_slug), quote=True)}">\n'
-        f'<meta name="tracknode-preview-mode" content="{"true" if preview_mode else "false"}">'
-    )
+def _inject_public_site_runtime(index_html, *, site, preview_mode, preview_token):
+    runtime_json = json.dumps(
+        {
+            "slug": site.slug,
+            "publicId": str(site.public_id),
+            "preview": preview_mode,
+            "token": preview_token if preview_mode else "",
+        },
+        ensure_ascii=True,
+    ).replace("</", "<\\/")
+    runtime_meta = f'<script>window.__TRACKNODE_SITE__ = {runtime_json};</script>'
     if re.search(r"</head\s*>", index_html, flags=re.IGNORECASE):
         return re.sub(r"</head\s*>", f"    {runtime_meta}\n  </head>", index_html, count=1, flags=re.IGNORECASE)
     return f"{runtime_meta}\n{index_html}"
@@ -205,11 +215,14 @@ class PublicSiteBundleBySlugView(APIView):
 
     def get(self, request, *args, **kwargs):
         site = (
-            Site.objects.filter(slug=self.kwargs["site_slug"], is_active=True)
+            Site.objects.filter(slug=self.kwargs["site_slug"])
             .annotate(sections_count=Count("sections", filter=Q(sections__is_active=True)))
             .first()
         )
         if site is None:
+            raise NotFound(detail="Active site was not found.")
+        preview_token_valid = validate_site_preview_token(site, request.query_params.get("token", ""))
+        if (not site.is_active or site_requires_preview_token(site)) and not preview_token_valid:
             raise NotFound(detail="Active site was not found.")
 
         sections = SiteSection.objects.filter(site=site, is_active=True).order_by("order", "title")
@@ -221,21 +234,30 @@ class PublicSiteBundleBySlugView(APIView):
         )
 
 
+@method_decorator(xframe_options_sameorigin, name="dispatch")
 class PublicSiteHtmlView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
     def get(self, request, *args, **kwargs):
-        site = Site.objects.filter(slug=self.kwargs["site_slug"], is_active=True).first()
+        site = Site.objects.filter(slug=self.kwargs["site_slug"]).first()
         if site is None:
+            raise NotFound(detail="Active site was not found.")
+
+        preview_mode = request.query_params.get("preview") == "1"
+        preview_token = request.query_params.get("token", "")
+        if (not site.is_active or site_requires_preview_token(site)) and not (
+            preview_mode and validate_site_preview_token(site, preview_token)
+        ):
             raise NotFound(detail="Active site was not found.")
 
         index_html = _load_public_site_index_html()
         html = _inject_public_site_seo(index_html, build_public_site_seo(site))
         html = _inject_public_site_runtime(
             html,
-            site_slug=site.slug,
-            preview_mode=request.query_params.get("preview") == "1",
+            site=site,
+            preview_mode=preview_mode,
+            preview_token=preview_token,
         )
         subscription_required = site_requires_subscription_lock(site)
         if subscription_required:

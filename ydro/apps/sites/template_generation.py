@@ -4,6 +4,7 @@ import secrets
 from django.db import transaction
 
 from .models import Site, SiteSection, WebsiteTemplate, WebsiteTemplateCategory, WebsiteTemplateCloneRequest
+from .preview import build_site_preview_url
 from .website_templates import (
     WebsiteTemplateCloneError,
     clone_site_for_user,
@@ -46,7 +47,7 @@ def build_generation_response(site: Site, template: WebsiteTemplate) -> dict:
             "name": template.name,
             "category_id": template.category_id,
         },
-        "preview_url": f"/api/public/sites/{site.slug}/html/?preview=1",
+        "preview_url": build_site_preview_url(site),
         "editor_url": f"/sites/{site.id}/sections",
     }
 
