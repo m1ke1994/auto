@@ -1,6 +1,7 @@
 ﻿import axios from 'axios'
 
 import { API_URL } from '../config/env'
+import { intendedRouteAfterAuth } from '../router/authRedirects'
 
 const http = axios.create({
   baseURL: API_URL,
@@ -29,7 +30,8 @@ http.interceptors.response.use(
       localStorage.removeItem('refresh_token')
 
       if (window.location.pathname !== '/login') {
-        window.location.href = '/login'
+        const redirect = intendedRouteAfterAuth(`${window.location.pathname}${window.location.search}`)
+        window.location.href = `/login?redirect=${encodeURIComponent(redirect)}`
       }
     }
     return Promise.reject(error)
@@ -37,4 +39,3 @@ http.interceptors.response.use(
 )
 
 export default http
-

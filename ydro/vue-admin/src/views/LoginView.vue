@@ -1,14 +1,14 @@
 ﻿<script setup>
 import { reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { BarChart3, ShieldCheck, Zap } from '@lucide/vue'
 
 import { useAuthStore } from '../stores/auth'
-import { useSiteStore } from '../stores/site'
+import { intendedRouteAfterAuth } from '../router/authRedirects'
 
+const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
-const siteStore = useSiteStore()
 
 const form = reactive({
   email: '',
@@ -28,13 +28,7 @@ async function submit() {
       password: form.password,
     })
 
-    const sites = await siteStore.fetchSites()
-
-    if (sites.length === 1) {
-      router.push(`/sites/${sites[0].id}/sections`)
-    } else {
-      router.push('/dashboard')
-    }
+    await router.push(intendedRouteAfterAuth(route.query.redirect))
   } catch (error) {
     errorMessage.value = error?.response?.data?.detail || 'Не удалось войти. Проверьте email и пароль.'
   } finally {

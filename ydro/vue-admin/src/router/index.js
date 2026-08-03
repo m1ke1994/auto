@@ -16,8 +16,6 @@ import PlatformHealthView from '../views/platform/PlatformHealthView.vue'
 import CompetitorAnalysisView from '../views/CompetitorAnalysisView.vue'
 import LandingPage from '../views/LandingPage.vue'
 import LoginView from '../views/LoginView.vue'
-import OnboardingView from '../views/OnboardingView.vue'
-import OnboardingPlaceholderView from '../views/OnboardingPlaceholderView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import SecurityView from '../views/SecurityView.vue'
 import BillingView from '../views/BillingView.vue'
@@ -38,6 +36,7 @@ import { applyRouteSeo } from '../config/seo'
 import { useAccessStore } from '../stores/access'
 import { useAuthStore } from '../stores/auth'
 import { useSiteStore } from '../stores/site'
+import { intendedRouteAfterAuth } from './authRedirects'
 
 const routes = [
   {
@@ -60,21 +59,11 @@ const routes = [
   },
   {
     path: '/onboarding',
-    name: 'onboarding',
-    component: OnboardingView,
-    meta: { requiresAuth: true, title: 'Начало работы', onboardingRoute: true },
+    redirect: '/dashboard',
   },
   {
-    path: '/onboarding/create-site',
-    name: 'onboarding-create-site',
-    component: OnboardingPlaceholderView,
-    meta: { requiresAuth: true, title: 'Создание сайта', onboardingRoute: true },
-  },
-  {
-    path: '/onboarding/connect-site',
-    name: 'onboarding-connect-site',
-    component: OnboardingPlaceholderView,
-    meta: { requiresAuth: true, title: 'Подключение сайта', onboardingRoute: true },
+    path: '/onboarding/:pathMatch(.*)*',
+    redirect: '/dashboard',
   },
   {
     path: '/',
@@ -151,7 +140,7 @@ router.beforeEach(async (to) => {
   const token = localStorage.getItem('access_token')
 
   if (to.meta.requiresAuth && !token) {
-    return { name: 'login' }
+    return { name: 'login', query: { redirect: intendedRouteAfterAuth(to.fullPath) } }
   }
 
   if (to.meta.guestOnly && token) {
@@ -172,14 +161,6 @@ router.beforeEach(async (to) => {
         } catch {
           // Do not treat a failed sites request as an empty account.
         }
-      }
-      const hasSites = siteStore.loaded && !siteStore.error && siteStore.sites.length > 0
-      const shouldCheckOnboarding = !to.meta.billingExempt && !to.meta.requiresPlatformOwner
-      if (shouldCheckOnboarding && siteStore.loaded && !siteStore.error && siteStore.sites.length === 0 && !to.meta.onboardingRoute) {
-        return { name: 'onboarding' }
-      }
-      if (to.name === 'onboarding' && hasSites) {
-        return { name: 'dashboard' }
       }
       const accessStore = useAccessStore()
       await accessStore.fetchAccess({ force: true, timeout: 4000 })
