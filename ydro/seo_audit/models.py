@@ -1,4 +1,5 @@
 ﻿# -*- coding: utf-8 -*-
+from django.conf import settings
 from django.db import models
 
 from clients.models import Client
@@ -13,7 +14,15 @@ class SiteSEOAudit(models.Model):
         STOPPED = "stopped", "Stopped"
 
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="seo_audits")
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="requested_seo_audits",
+    )
     domain = models.CharField(max_length=255, db_index=True)
+    target_url = models.URLField(max_length=2048, null=True, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING, db_index=True)
     seo_score = models.IntegerField(default=0)
     pages_count = models.PositiveIntegerField(default=0)

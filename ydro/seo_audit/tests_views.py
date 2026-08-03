@@ -2,6 +2,7 @@
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -40,6 +41,12 @@ class SEOAuditViewsExtendedTests(TestCase):
             email="seo-admin@example.com",
             password="pass12345",
         )
+        self.platform_owner = user_model.objects.create_user(
+            username="seo-platform-owner",
+            email="seo-platform-owner@example.com",
+            password="pass12345",
+        )
+        self.platform_owner.user_permissions.add(Permission.objects.get(codename="access_platform", content_type__app_label="platform_admin"))
         self.other_user = user_model.objects.create_user(
             username="seo-other",
             email="seo-other@example.com",
@@ -206,6 +213,98 @@ class SEOAuditViewsExtendedTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+    @patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 0))])
+    @patch("seo_audit.tasks.run_site_audit_task.delay")
+    def test_platform_owner_can_start_external_url_audit(self, mocked_delay, _mocked_dns):
+        self.http.force_authenticate(user=self.platform_owner)
+
+        response = self.http.post(
+            "/api/mini/seo/start/",
+            {"target_url": "https://example.com/path/?q=1"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        audit = SiteSEOAudit.objects.get(id=response.json()["audit_id"])
+        self.assertEqual(audit.requested_by_id, self.platform_owner.id)
+        self.assertEqual(audit.domain, "example.com")
+        self.assertEqual(audit.target_url, "https://example.com/path/?q=1")
+        self.assertEqual(audit.client.owner_id, self.platform_owner.id)
+        mocked_delay.assert_called_once_with(audit.id)
+
+    @patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 0))])
+    def test_regular_user_cannot_start_external_url_audit(self, _mocked_dns):
+        response = self.http.post(
+            "/api/mini/seo/start/",
+            {"target_url": "https://example.com/"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_platform_owner_external_url_rejects_localhost(self):
+        self.http.force_authenticate(user=self.platform_owner)
+        response = self.http.post("/api/mini/seo/start/", {"target_url": "http://localhost/"}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_platform_owner_external_url_rejects_loopback_ip(self):
+        self.http.force_authenticate(user=self.platform_owner)
+        response = self.http.post("/api/mini/seo/start/", {"target_url": "http://127.0.0.1/"}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_platform_owner_external_url_rejects_private_ipv4_ranges(self):
+        self.http.force_authenticate(user=self.platform_owner)
+        for url in ("http://10.1.2.3/", "http://172.16.2.3/", "http://192.168.1.10/"):
+            with self.subTest(url=url):
+                response = self.http.post("/api/mini/seo/start/", {"target_url": url}, format="json")
+                self.assertEqual(response.status_code, 400)
+
+    def test_platform_owner_external_url_rejects_link_local_metadata_ip(self):
+        self.http.force_authenticate(user=self.platform_owner)
+        response = self.http.post("/api/mini/seo/start/", {"target_url": "http://169.254.169.254/"}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+
+    @patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("10.0.0.5", 0))])
+    def test_platform_owner_external_url_rejects_dns_to_private_ip(self, _mocked_dns):
+        self.http.force_authenticate(user=self.platform_owner)
+        response = self.http.post("/api/mini/seo/start/", {"target_url": "https://private.example.com/"}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_regular_user_does_not_see_platform_owner_external_audits(self):
+        platform_client = Client.objects.create(owner=self.platform_owner, name="Platform SEO")
+        SiteSEOAudit.objects.create(
+            client=platform_client,
+            requested_by=self.platform_owner,
+            domain="example.com",
+            target_url="https://example.com/",
+            status=SiteSEOAudit.Status.DONE,
+        )
+
+        response = self.http.get("/api/seo/audits/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["rows"], [])
+
+    def test_platform_owner_sees_own_external_audits(self):
+        platform_client = Client.objects.create(owner=self.platform_owner, name="Platform SEO")
+        audit = SiteSEOAudit.objects.create(
+            client=platform_client,
+            requested_by=self.platform_owner,
+            domain="example.com",
+            target_url="https://example.com/",
+            status=SiteSEOAudit.Status.DONE,
+        )
+        self.http.force_authenticate(user=self.platform_owner)
+
+        response = self.http.get("/api/seo/audits/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["rows"][0]["audit_id"], audit.id)
 
     def test_selected_site_context_does_not_allow_other_domain(self):
         response = self.http.post(

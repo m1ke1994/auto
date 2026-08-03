@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 from rest_framework import serializers
 
 from seo_audit.models import SEOIssue, SEOPage, SiteSEOAudit
+from seo_audit.services.url_safety import UnsafeURL, normalize_public_url
 from seo_audit.services.messages import (
     get_commercial_business_status,
     get_commercial_explanation,
@@ -15,7 +16,8 @@ from seo_audit.services.messages import (
 
 
 class SEOAuditStartSerializer(serializers.Serializer):
-    domain = serializers.CharField(max_length=255)
+    domain = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    target_url = serializers.CharField(max_length=2048, required=False, allow_blank=True)
 
     def validate_domain(self, value):
         raw = (value or "").strip()
@@ -26,6 +28,20 @@ class SEOAuditStartSerializer(serializers.Serializer):
         if not hostname:
             raise serializers.ValidationError("Некорректный домен.")
         return hostname
+
+    def validate_target_url(self, value):
+        raw = (value or "").strip()
+        if not raw:
+            return ""
+        try:
+            return normalize_public_url(raw).url
+        except UnsafeURL as exc:
+            raise serializers.ValidationError(str(exc)) from exc
+
+    def validate(self, attrs):
+        if not attrs.get("domain") and not attrs.get("target_url"):
+            raise serializers.ValidationError({"domain": "Укажите домен или URL сайта."})
+        return attrs
 
 
 class SEOPageSerializer(serializers.ModelSerializer):
@@ -310,6 +326,7 @@ class SiteSEOAuditSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "domain",
+            "target_url",
             "status",
             "score",
             "seo_score",

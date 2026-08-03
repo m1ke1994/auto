@@ -3,7 +3,8 @@ from rest_framework.exceptions import PermissionDenied
 
 from apps.sites.models import Site
 from clients.models import Client
-from clients.services import get_or_create_client_for_site
+from clients.services import get_or_create_client_for_site, get_user_client
+from platform_admin.permissions import is_platform_owner
 from subscriptions.access import (
     BUSINESS_ANALYTICS_REQUIRED_MESSAGE,
     FEATURE_SEO_AUDIT,
@@ -44,10 +45,16 @@ class SEOAuditAccessPermission(permissions.BasePermission):
             return None
 
     def _platform_admin(self, user) -> bool:
-        return bool(getattr(user, "is_superuser", False) or getattr(user, "is_staff", False))
+        return is_platform_owner(user)
 
     def _first_active_client(self):
         return Client.objects.filter(is_active=True).order_by("id").first()
+
+    def _platform_owner_client(self, user):
+        client = get_user_client(user)
+        if client is not None:
+            return client
+        return Client.objects.create(owner=user, name=(getattr(user, "email", "") or getattr(user, "username", "") or "Platform owner"))
 
     def _bind_site_context(self, request, site_id: int) -> bool:
         user = request.user
@@ -78,7 +85,7 @@ class SEOAuditAccessPermission(permissions.BasePermission):
 
         has_access, client = can_access_client_dashboard(user, request=request)
         if not has_access and is_platform_admin:
-            client = self._first_active_client()
+            client = self._platform_owner_client(user)
             has_access = client is not None
 
         if not has_access or client is None:

@@ -8,6 +8,7 @@
     "build": "vite build --mode production",
     "build:local": "vite build --mode example",
     "test:auth-routing": "node scripts/test-auth-routing.mjs",
+    "test:seo-audit-ui": "node scripts/test-seo-audit-ui.mjs",
     "test:ai": "node scripts/test-ai-recommendations.mjs",
     "preview": "vite preview"
   },

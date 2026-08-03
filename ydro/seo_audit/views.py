@@ -10,11 +10,14 @@ from rest_framework import permissions, status
 from rest_framework.renderers import BaseRenderer
 from rest_framework.views import APIView
 
+from clients.models import Client
+from clients.services import get_user_client
 from seo_audit.models import SEOIssue, SEOPage, SiteSEOAudit
 from seo_audit.permissions import SEOAuditAccessPermission
 from seo_audit.serializers import SEOAuditStartSerializer, SEOIssueSerializer, SEOPageSerializer, SiteSEOAuditSerializer
 from seo_audit.services.local_recommendations import build_seo_recommendations
 from seo_audit.services.pdf_export import build_seo_audit_pdf
+from seo_audit.services.url_safety import normalize_public_url
 from seo_audit.services.scoring import (
     build_audit_comparison,
     build_commercial_summary,
@@ -72,6 +75,8 @@ def _domain_allowed_for_request(request, domain: str) -> bool:
 def _audit_allowed_for_request(request, audit: SiteSEOAudit | None) -> bool:
     if audit is None:
         return False
+    if getattr(request, "seo_platform_admin", False) and getattr(audit, "requested_by_id", None) == request.user.id:
+        return True
     return _domain_allowed_for_request(request, audit.domain)
 
 
@@ -82,8 +87,19 @@ def _forbidden_domain_response():
     )
 
 
-def _audit_history_queryset(*, client, domain: str, exclude_audit_id: int | None = None):
+def _platform_owner_audit_client(user):
+    client = get_user_client(user)
+    if client is not None:
+        return client
+    return Client.objects.create(owner=user, name=(getattr(user, "email", "") or getattr(user, "username", "") or "Platform owner"))
+
+
+def _audit_history_queryset(*, client, domain: str, exclude_audit_id: int | None = None, requested_by=None):
     qs = SiteSEOAudit.objects.filter(client=client, domain=domain, status=SiteSEOAudit.Status.DONE).order_by("-created_at")
+    if requested_by is not None:
+        qs = qs.filter(requested_by=requested_by, target_url__isnull=False)
+    else:
+        qs = qs.filter(target_url__isnull=True)
     if exclude_audit_id:
         qs = qs.exclude(id=exclude_audit_id)
     return qs
@@ -94,6 +110,7 @@ def _serialize_history_item(audit: SiteSEOAudit) -> dict:
     return {
         "audit_id": audit.id,
         "domain": audit.domain,
+        "target_url": audit.target_url,
         "status": audit.status,
         "score": int(audit.seo_score or 0),
         "seo_score": int(audit.seo_score or 0),
@@ -196,7 +213,14 @@ def _build_audit_detail_payload(*, audit: SiteSEOAudit, client) -> dict:
     pages_payload = commercial_summary.get("pages", pages_payload)
     fix_plan = build_fix_plan(audit=audit, issue_groups=issue_groups, commercial_summary=commercial_summary)
 
-    history_audits = list(_audit_history_queryset(client=client, domain=audit.domain, exclude_audit_id=audit.id)[:10])
+    history_audits = list(
+        _audit_history_queryset(
+            client=client,
+            domain=audit.domain,
+            exclude_audit_id=audit.id,
+            requested_by=audit.requested_by if audit.target_url else None,
+        )[:10]
+    )
     history_items = [_serialize_history_item(item) for item in history_audits]
     previous_done_audit = history_audits[0] if history_audits else None
     comparison_preview = _build_comparison_or_stub(current_audit=audit, previous_audit=previous_done_audit)
@@ -246,13 +270,30 @@ class SEOAuditStartView(APIView):
     def post(self, request):
         serializer = SEOAuditStartSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        domain = _normalize_domain(serializer.validated_data["domain"])
-        if not _domain_allowed_for_request(request, domain):
+        target_url = serializer.validated_data.get("target_url") or ""
+        is_external_target = bool(target_url)
+        if is_external_target and not getattr(request, "seo_platform_admin", False):
+            return json_response(
+                {"ok": False, "detail": "Недостаточно прав для аудита произвольного URL."},
+                http_status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if is_external_target:
+            safe_url = normalize_public_url(target_url)
+            domain = safe_url.domain
+            target_url = safe_url.url
+            request.client = _platform_owner_audit_client(request.user)
+        else:
+            domain = _normalize_domain(serializer.validated_data["domain"])
+
+        if not is_external_target and not _domain_allowed_for_request(request, domain):
             return _forbidden_domain_response()
 
         audit = SiteSEOAudit.objects.create(
             client=request.client,
+            requested_by=request.user,
             domain=domain,
+            target_url=target_url or None,
             status=SiteSEOAudit.Status.PENDING,
         )
         from seo_audit.tasks import run_site_audit_task
@@ -274,6 +315,7 @@ class SEOAuditStartView(APIView):
                 "audit_id": audit.id,
                 "status": audit.status,
                 "domain": audit.domain,
+                "target_url": audit.target_url,
                 "queued": queued,
             },
             http_status=status.HTTP_201_CREATED,
@@ -291,6 +333,10 @@ class SEOAuditLatestView(APIView):
         if domain and not _domain_allowed_for_request(request, domain):
             return _forbidden_domain_response()
         audits_qs = SiteSEOAudit.objects.filter(client=request.client)
+        if getattr(request, "seo_platform_admin", False) and not getattr(request, "seo_site", None):
+            audits_qs = audits_qs.filter(requested_by=request.user, target_url__isnull=False)
+        else:
+            audits_qs = audits_qs.filter(target_url__isnull=True)
         if domain:
             audits_qs = audits_qs.filter(domain=domain)
         audit = audits_qs.order_by("-created_at").first()
@@ -334,6 +380,10 @@ class SEOAuditListView(APIView):
             limit = 20
 
         audits_qs = SiteSEOAudit.objects.filter(client=request.client).order_by("-created_at")
+        if getattr(request, "seo_platform_admin", False) and not getattr(request, "seo_site", None):
+            audits_qs = audits_qs.filter(requested_by=request.user, target_url__isnull=False)
+        else:
+            audits_qs = audits_qs.filter(target_url__isnull=True)
         if domain:
             audits_qs = audits_qs.filter(domain=domain)
 
@@ -439,7 +489,12 @@ class SEOAuditHistoryView(APIView):
         if not _audit_allowed_for_request(request, audit):
             return json_response({"detail": "Аудит не найден.", "ok": False}, http_status=status.HTTP_404_NOT_FOUND)
 
-        history_qs = _audit_history_queryset(client=request.client, domain=audit.domain, exclude_audit_id=audit.id)
+        history_qs = _audit_history_queryset(
+            client=request.client,
+            domain=audit.domain,
+            exclude_audit_id=audit.id,
+            requested_by=audit.requested_by if audit.target_url else None,
+        )
         history_rows = [_serialize_history_item(item) for item in list(history_qs[:20])]
         default_compare_audit_id = history_rows[0]["audit_id"] if history_rows else None
         return json_response(
@@ -465,17 +520,23 @@ class SEOAuditCompareView(APIView):
         with_audit_id = request.query_params.get("with_audit_id")
         previous_audit = None
         if with_audit_id:
-            previous_audit = SiteSEOAudit.objects.filter(
+            previous_qs = SiteSEOAudit.objects.filter(
                 id=with_audit_id,
                 client=request.client,
                 domain=current_audit.domain,
                 status=SiteSEOAudit.Status.DONE,
-            ).first()
+            )
+            if current_audit.target_url:
+                previous_qs = previous_qs.filter(requested_by=current_audit.requested_by, target_url__isnull=False)
+            else:
+                previous_qs = previous_qs.filter(target_url__isnull=True)
+            previous_audit = previous_qs.first()
         else:
             previous_audit = _audit_history_queryset(
                 client=request.client,
                 domain=current_audit.domain,
                 exclude_audit_id=current_audit.id,
+                requested_by=current_audit.requested_by if current_audit.target_url else None,
             ).first()
 
         payload = _build_comparison_or_stub(current_audit=current_audit, previous_audit=previous_audit)
@@ -512,17 +573,23 @@ class SEOAuditExportView(APIView):
         compare_with_id = request.query_params.get("with_audit_id")
         previous_audit = None
         if compare_with_id:
-            previous_audit = SiteSEOAudit.objects.filter(
+            previous_qs = SiteSEOAudit.objects.filter(
                 id=compare_with_id,
                 client=request.client,
                 domain=audit.domain,
                 status=SiteSEOAudit.Status.DONE,
-            ).first()
+            )
+            if audit.target_url:
+                previous_qs = previous_qs.filter(requested_by=audit.requested_by, target_url__isnull=False)
+            else:
+                previous_qs = previous_qs.filter(target_url__isnull=True)
+            previous_audit = previous_qs.first()
         else:
             previous_audit = _audit_history_queryset(
                 client=request.client,
                 domain=audit.domain,
                 exclude_audit_id=audit.id,
+                requested_by=audit.requested_by if audit.target_url else None,
             ).first()
         comparison = _build_comparison_or_stub(current_audit=audit, previous_audit=previous_audit)
         pdf_bytes, filename = build_seo_audit_pdf(detail_payload=detail_payload, comparison=comparison)
@@ -574,4 +641,3 @@ class SEOAuditStopView(APIView):
         except Exception:
             logger.exception("seo_audit.stop error audit_id=%s client_id=%s", audit_id, getattr(request.client, "id", None))
             return json_response({"detail": "Внутренняя ошибка сервера.", "ok": False}, http_status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-

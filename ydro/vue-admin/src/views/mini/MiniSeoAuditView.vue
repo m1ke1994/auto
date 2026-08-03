@@ -1,14 +1,18 @@
 ﻿<script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Download, SearchCheck } from '@lucide/vue'
+import { Download, Globe2, SearchCheck } from '@lucide/vue'
 
 import { miniSeoDetail, miniSeoExport, miniSeoIssues, miniSeoLatest, miniSeoStart } from '../../api/mini'
+import { useAuthStore } from '../../stores/auth'
 import { useSiteStore } from '../../stores/site'
 
 const route = useRoute()
+const authStore = useAuthStore()
 const siteStore = useSiteStore()
 const domain = ref('')
+const targetUrl = ref('')
+const mode = ref('selected')
 const loadingLatest = ref(false)
 const startingAudit = ref(false)
 const downloading = ref(false)
@@ -20,7 +24,10 @@ const issues = ref([])
 let timer = null
 
 const siteId = computed(() => Number(route.params.siteId || 0))
-const seoParams = computed(() => (siteId.value ? { site_id: siteId.value } : {}))
+const isPlatformOwner = computed(() => Boolean(authStore.user?.permissions?.platform_access))
+const canUseExternalUrl = computed(() => isPlatformOwner.value && mode.value === 'external')
+const seoParams = computed(() => (siteId.value && !canUseExternalUrl.value ? { site_id: siteId.value } : {}))
+const auditTarget = computed(() => (canUseExternalUrl.value ? targetUrl.value.trim() : domain.value.trim()))
 const auditId = computed(() => latest.value?.audit_id || detail.value?.audit_id)
 const running = computed(() => ['pending', 'running'].includes(String(detail.value?.status || latest.value?.status || '').toLowerCase()))
 const checking = computed(() => startingAudit.value || running.value)
@@ -98,10 +105,10 @@ function startPolling() {
 }
 
 async function findLatest() {
-  if (!domain.value.trim()) { error.value = 'Введите домен сайта.'; return }
+  if (!auditTarget.value) { error.value = canUseExternalUrl.value ? 'Введите URL сайта.' : 'Введите домен сайта.'; return }
   loadingLatest.value = true; error.value = ''; success.value = ''
   try {
-    latest.value = await miniSeoLatest(domain.value.trim(), seoParams.value)
+    latest.value = await miniSeoLatest(auditTarget.value, seoParams.value)
     if (latest.value?.audit_id) {
       await loadAudit(latest.value.audit_id)
       if (running.value) startPolling()
@@ -111,11 +118,14 @@ async function findLatest() {
 }
 
 async function startAudit() {
-  if (!domain.value.trim()) { error.value = 'Введите домен сайта.'; return }
+  if (!auditTarget.value) { error.value = canUseExternalUrl.value ? 'Введите URL сайта.' : 'Введите домен сайта.'; return }
   if (checking.value) return
   startingAudit.value = true; error.value = ''; success.value = ''; issues.value = []
   try {
-    latest.value = await miniSeoStart(domain.value.trim(), seoParams.value)
+    latest.value = await miniSeoStart(
+      canUseExternalUrl.value ? '' : domain.value.trim(),
+      canUseExternalUrl.value ? { target_url: targetUrl.value.trim() } : seoParams.value,
+    )
     await loadAudit(latest.value.audit_id)
     if (running.value) startPolling()
     else handleAuditCompletion(true)
@@ -132,7 +142,7 @@ async function downloadPdf() {
     const blob = await miniSeoExport(auditId.value, seoParams.value)
     const href = URL.createObjectURL(blob)
     const link = document.createElement('a')
-    link.href = href; link.download = `seo-audit-${domain.value}.pdf`; link.click()
+    link.href = href; link.download = `seo-audit-${auditTarget.value || domain.value}.pdf`; link.click()
     URL.revokeObjectURL(href)
   } catch (e) { error.value = errorMessage(e, 'Не удалось скачать PDF-отчет.') }
   finally { downloading.value = false }
@@ -143,6 +153,9 @@ onMounted(async () => {
     siteStore.selectSite(siteId.value)
     if (!siteStore.currentSite) await siteStore.fetchSite(siteId.value)
     domain.value = siteStore.currentSite?.domain || ''
+  }
+  if (!authStore.user) {
+    try { await authStore.getCurrentUser() } catch { /* Auth guard remains authoritative. */ }
   }
 })
 onUnmounted(stopPolling)
@@ -157,13 +170,23 @@ onUnmounted(stopPolling)
     </header>
 
     <section class="surface">
-      <label class="text-sm font-semibold text-slate-800" for="seo-domain">Домен сайта</label>
+      <div v-if="isPlatformOwner" class="mb-4 inline-flex rounded-lg bg-slate-100 p-1">
+        <button type="button" class="rounded-md px-3 py-2 text-sm font-semibold" :class="mode === 'selected' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600'" @click="mode = 'selected'">
+          Выбранный сайт
+        </button>
+        <button type="button" class="rounded-md px-3 py-2 text-sm font-semibold" :class="mode === 'external' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600'" @click="mode = 'external'">
+          Проверить любой сайт
+        </button>
+      </div>
+
+      <label class="text-sm font-semibold text-slate-800" :for="canUseExternalUrl ? 'seo-target-url' : 'seo-domain'">{{ canUseExternalUrl ? 'URL сайта' : 'Домен сайта' }}</label>
       <div class="mt-2 flex flex-col gap-2 sm:flex-row">
-        <input id="seo-domain" v-model="domain" class="form-control flex-1" placeholder="example.com" :disabled="checking">
+        <input v-if="canUseExternalUrl" id="seo-target-url" v-model="targetUrl" class="form-control flex-1" placeholder="https://example.com" :disabled="checking">
+        <input v-else id="seo-domain" v-model="domain" class="form-control flex-1" placeholder="example.com" :disabled="checking">
         <button type="button" class="action-button-primary" :disabled="checking" @click="startAudit">
           <span v-if="checking" class="button-spinner" aria-hidden="true" />
-          <SearchCheck v-else :size="18" />
-          {{ checking ? 'Проверяем сайт...' : 'Проверить сайт' }}
+          <component :is="canUseExternalUrl ? Globe2 : SearchCheck" v-else :size="18" />
+          {{ checking ? 'Проверяем сайт...' : 'Запустить SEO-аудит' }}
         </button>
         <button type="button" class="action-button-secondary" :disabled="checking || loadingLatest" @click="findLatest">
           {{ loadingLatest ? 'Загружаем...' : 'Показать прошлую проверку' }}

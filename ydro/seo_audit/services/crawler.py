@@ -15,6 +15,7 @@ from django.db.models import Avg
 from seo_audit.models import SEOIssue, SEOPage, SiteSEOAudit
 from seo_audit.services.messages import get_issue_recommendation
 from seo_audit.services.text_encoding import has_mojibake, log_text_diagnostics, response_text
+from seo_audit.services.url_safety import UnsafeURL, assert_public_url
 
 logger = logging.getLogger(__name__)
 
@@ -288,6 +289,13 @@ def _build_start_url(domain: str) -> str:
     return f"{scheme}://{host}/"
 
 
+def _audit_start_url(audit: SiteSEOAudit) -> str:
+    target_url = str(getattr(audit, "target_url", "") or "").strip()
+    if target_url:
+        return assert_public_url(target_url)
+    return _build_start_url(audit.domain)
+
+
 def _extract_text(value) -> str:
     if not value:
         return ""
@@ -381,21 +389,32 @@ def _extract_ttfb_ms(response: Optional[requests.Response], elapsed_seconds: flo
 def _fetch_url(session: requests.Session, url: str, stop_check: Optional[Callable[[], bool]]) -> FetchResult:
     _check_cancelled(stop_check)
     started = time.monotonic()
+    current_url = url
     try:
-        response = session.get(url, timeout=REQUEST_TIMEOUT_SECONDS, allow_redirects=True)
+        for _ in range(6):
+            current_url = assert_public_url(current_url)
+            response = session.get(current_url, timeout=REQUEST_TIMEOUT_SECONDS, allow_redirects=False)
+            if not getattr(response, "is_redirect", False):
+                break
+            location = response.headers.get("Location")
+            if not location:
+                break
+            current_url = urljoin(current_url, location)
+        else:
+            raise UnsafeURL("Слишком много редиректов.")
         elapsed = time.monotonic() - started
         return FetchResult(
-            url=url,
+            url=current_url,
             response=response,
             error=None,
             elapsed_seconds=elapsed,
             ttfb_ms=_extract_ttfb_ms(response, elapsed),
             size_bytes=_response_size_bytes(response),
         )
-    except requests.RequestException as exc:
+    except (requests.RequestException, UnsafeURL) as exc:
         elapsed = time.monotonic() - started
         return FetchResult(
-            url=url,
+            url=current_url,
             response=None,
             error=str(exc),
             elapsed_seconds=elapsed,
@@ -672,17 +691,18 @@ def _fetch_resource_size_bytes(
 
     try:
         resource_fetch_state["remaining"] = max(0, resource_fetch_state["remaining"] - 1)
-        head_response = session.head(resource_url, timeout=REQUEST_TIMEOUT_SECONDS, allow_redirects=True)
+        safe_resource_url = assert_public_url(resource_url)
+        head_response = session.head(safe_resource_url, timeout=REQUEST_TIMEOUT_SECONDS, allow_redirects=False)
         if int(getattr(head_response, "status_code", 0) or 0) < 400:
             size = _safe_content_length(getattr(head_response, "headers", {}) or {})
-    except requests.RequestException:
+    except (requests.RequestException, UnsafeURL):
         size = None
 
     if size is None and resource_fetch_state.get("remaining", 0) > 0:
         try:
             _check_cancelled(stop_check)
             resource_fetch_state["remaining"] = max(0, resource_fetch_state["remaining"] - 1)
-            response = session.get(resource_url, timeout=REQUEST_TIMEOUT_SECONDS, allow_redirects=True)
+            response = _fetch_url(session, resource_url, stop_check).response
             if int(getattr(response, "status_code", 0) or 0) < 400:
                 size = _response_size_bytes(response)
         except requests.RequestException:
@@ -1681,7 +1701,7 @@ def crawl_site_audit(
     max_pages: Optional[int] = None,
     stop_check: Optional[Callable[[], bool]] = None,
 ) -> SiteSEOAudit:
-    start_url = _build_start_url(audit.domain)
+    start_url = _audit_start_url(audit)
     if not start_url:
         raise ValueError("РќРµ СѓРєР°Р·Р°РЅ РґРѕРјРµРЅ РґР»СЏ SEO-Р°СѓРґРёС‚Р°.")
 

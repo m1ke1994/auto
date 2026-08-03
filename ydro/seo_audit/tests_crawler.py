@@ -7,7 +7,7 @@ from django.test import TestCase
 
 from clients.models import Client
 from seo_audit.models import SEOIssue, SEOPage, SiteSEOAudit
-from seo_audit.services.crawler import _collect_commercial_signals, _score_commercial_signals, crawl_site_audit
+from seo_audit.services.crawler import _collect_commercial_signals, _fetch_url, _score_commercial_signals, crawl_site_audit
 from seo_audit.services.messages import get_commercial_recommendations
 from seo_audit.services.text_encoding import has_mojibake, response_encoding, response_text
 
@@ -24,6 +24,10 @@ class _FakeResponse:
         self.encoding = None
         self.history = history or []
         self.content = str(text or "").encode("utf-8")
+
+    @property
+    def is_redirect(self):
+        return 300 <= int(self.status_code or 0) < 400 and bool(self.headers.get("Location"))
 
 
 class SEOCrawlerServiceTests(TestCase):
@@ -269,6 +273,22 @@ class SEOCrawlerServiceTests(TestCase):
         self.assertTrue(
             SEOIssue.objects.filter(page__audit=audit, issue_type__in=["missing_sitemap", "bad_sitemap_status"]).exists()
         )
+
+    @patch("socket.getaddrinfo", side_effect=[
+        [(2, 1, 6, "", ("93.184.216.34", 0))],
+        [(2, 1, 6, "", ("10.0.0.5", 0))],
+    ])
+    def test_fetch_url_blocks_redirect_to_private_ip(self, _mocked_dns):
+        session = requests.Session()
+
+        def fake_get(url, **_kwargs):
+            return _FakeResponse(url=url, status_code=302, headers={"Location": "http://private.example.com/"})
+
+        with patch.object(session, "get", side_effect=fake_get):
+            result = _fetch_url(session, "https://example.com/", None)
+
+        self.assertIsNone(result.response)
+        self.assertIn("Внутренние IP", result.error)
 
     def test_commercial_signals_detect_messenger_conversion_without_form(self):
         soup = BeautifulSoup(
