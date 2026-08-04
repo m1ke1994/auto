@@ -1,11 +1,30 @@
 import { useState } from "react";
-import { projects, categories, CategoryId, Project } from "@/data/projects";
+import { Project } from "@/data/projects";
 import { ProjectCard } from "@/components/ProjectCard";
 import { ProjectModal } from "@/components/ProjectModal";
+import { normalizeImageList, normalizeStringList, usePortfolioSection } from "@/lib/tracknode";
+
+type PortfolioProject = Project & {
+  techStack: unknown[];
+  images: unknown[];
+};
 
 export function ProjectsSection() {
-  const [activeCategory, setActiveCategory] = useState<CategoryId>("all");
+  const content = usePortfolioSection<{
+    title?: string;
+    accent?: string;
+    description?: string;
+    categories?: Array<{ id: string; label: string }>;
+    projects?: PortfolioProject[];
+  }>("projects");
+  const [activeCategory, setActiveCategory] = useState("all");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const categories = content.categories || [];
+  const projects = (content.projects || []).map((project) => ({
+    ...project,
+    techStack: normalizeStringList(project.techStack),
+    images: normalizeImageList(project.images),
+  })) as Project[];
 
   const filteredProjects = activeCategory === "all"
     ? projects
@@ -16,10 +35,10 @@ export function ProjectsSection() {
       <div className="section-container">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Мои <span className="text-gold">проекты</span>
+            {content.title} <span className="text-gold">{content.accent}</span>
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Примеры работ из разных сфер — от сервисов и дашбордов до лендингов
+            {content.description}
           </p>
         </div>
 

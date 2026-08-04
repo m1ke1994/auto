@@ -1,11 +1,27 @@
 import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useRef } from "react";
-import { skillGroups } from "@/data/skills";
+import { BookOpen, Code2, Server, Wrench } from "lucide-react";
+import { normalizeStringList, usePortfolioSection } from "@/lib/tracknode";
+
+const skillIcons = {
+  book: BookOpen,
+  code: Code2,
+  server: Server,
+  wrench: Wrench,
+};
 
 export function SkillsSection() {
+  const content = usePortfolioSection<{
+    title?: string;
+    accent?: string;
+    description?: string;
+    groups?: Array<{ id: string; title: string; icon?: string; skills: unknown[] }>;
+  }>("skills");
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const skillGroups = content.groups || [];
+  const getSkillIcon = (icon?: string) => skillIcons[icon as keyof typeof skillIcons] || Code2;
 
   return (
     <section id="skills" className="section-padding">
@@ -17,15 +33,18 @@ export function SkillsSection() {
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Технические <span className="text-gold">навыки</span>
+            {content.title} <span className="text-gold">{content.accent}</span>
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Стек технологий, с которыми работаю ежедневно на уровне профессионала. 
+            {content.description}
           </p>
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-          {skillGroups.map((group, groupIndex) => (
+          {skillGroups.map((group, groupIndex) => {
+            const Icon = getSkillIcon(group.icon);
+            const skills = normalizeStringList(group.skills);
+            return (
             <motion.div
               key={group.id}
               initial={{ opacity: 0, y: 30 }}
@@ -35,12 +54,12 @@ export function SkillsSection() {
             >
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                  <group.icon className="h-5 w-5 text-gold" />
+                  <Icon className="h-5 w-5 text-gold" />
                 </div>
                 <h3 className="text-xl font-semibold">{group.title}</h3>
               </div>
               <div className="flex flex-wrap gap-2">
-                {group.skills.map((skill, skillIndex) => (
+                {skills.map((skill, skillIndex) => (
                   <motion.span
                     key={skill}
                     initial={{ opacity: 0, scale: 0.9 }}
@@ -53,7 +72,8 @@ export function SkillsSection() {
                 ))}
               </div>
             </motion.div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

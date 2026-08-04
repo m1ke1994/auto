@@ -1,22 +1,34 @@
 import { motion } from "framer-motion";
 import { ArrowDown, Briefcase, Code2, Wrench, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePortfolioSection } from "@/lib/tracknode";
 
-const badges = [
-  { icon: Code2, label: "Fullstack" },
-  { icon: Briefcase, label: "Проектная работа" },
-  { icon: Wrench, label: "Поддержка / доработки" },
-  { icon: UserCheck, label: "Самозанятый" },
-];
+const badgeIcons = {
+  briefcase: Briefcase,
+  code: Code2,
+  user: UserCheck,
+  wrench: Wrench,
+};
 
 export function HeroSection() {
-  const scrollToProjects = () => {
-    document.querySelector("#projects")?.scrollIntoView({ behavior: "smooth" });
+  const content = usePortfolioSection<{
+    status_text?: string;
+    title?: string;
+    accent_title?: string;
+    subtitle?: string;
+    primary_button_text?: string;
+    primary_button_target?: string;
+    secondary_button_text?: string;
+    secondary_button_target?: string;
+    badges?: Array<{ icon?: string; label: string }>;
+  }>("hero");
+
+  const scrollToTarget = (target = "#projects") => {
+    document.querySelector(target)?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const scrollToContact = () => {
-    document.querySelector("#contact")?.scrollIntoView({ behavior: "smooth" });
-  };
+  const badges = content.badges || [];
+  const getBadgeIcon = (icon?: string) => badgeIcons[icon as keyof typeof badgeIcons] || Code2;
 
   return (
     <section className="min-h-screen flex items-center justify-center relative overflow-hidden">
@@ -36,7 +48,7 @@ export function HeroSection() {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 border border-accent/20 text-sm font-medium text-accent mb-8"
           >
             <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-            Открыт для проектов
+            {content.status_text}
           </motion.div>
 
           {/* Main heading */}
@@ -46,9 +58,9 @@ export function HeroSection() {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-tight mb-6"
           >
-            Создаю современные веб-приложения
+            {content.title}
             <br />
-            <span className="text-gold">Web Developer</span>
+            <span className="text-gold">{content.accent_title}</span>
           </motion.h1>
 
           {/* Subtitle */}
@@ -58,7 +70,7 @@ export function HeroSection() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10"
           >
-            Vue.js + Django • REST API • Fixing & Building Web Apps
+            {content.subtitle}
           </motion.p>
 
           {/* CTA Buttons */}
@@ -70,18 +82,18 @@ export function HeroSection() {
           >
             <Button
               size="lg"
-              onClick={scrollToProjects}
+              onClick={() => scrollToTarget(content.primary_button_target)}
               className="bg-foreground text-background hover:bg-foreground/90 px-8 h-12 text-base font-medium rounded-full"
             >
-              Смотреть проекты
+              {content.primary_button_text}
             </Button>
             <Button
               size="lg"
               variant="outline"
-              onClick={scrollToContact}
+              onClick={() => scrollToTarget(content.secondary_button_target)}
               className="border-2 px-8 h-12 text-base font-medium rounded-full hover:bg-accent/10 hover:border-accent"
             >
-              Связаться
+              {content.secondary_button_text}
             </Button>
           </motion.div>
 
@@ -92,7 +104,9 @@ export function HeroSection() {
             transition={{ duration: 0.6, delay: 0.4 }}
             className="flex flex-wrap items-center justify-center gap-3"
           >
-            {badges.map((badge, index) => (
+            {badges.map((badge, index) => {
+              const Icon = getBadgeIcon(badge.icon);
+              return (
               <motion.div
                 key={badge.label}
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -100,10 +114,11 @@ export function HeroSection() {
                 transition={{ duration: 0.4, delay: 0.5 + index * 0.1 }}
                 className="flex items-center gap-2 px-4 py-2 rounded-full bg-card border border-border text-sm"
               >
-                <badge.icon className="h-4 w-4 text-gold" />
+                <Icon className="h-4 w-4 text-gold" />
                 <span>{badge.label}</span>
               </motion.div>
-            ))}
+              );
+            })}
           </motion.div>
         </div>
 

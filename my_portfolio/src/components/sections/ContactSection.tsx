@@ -1,55 +1,40 @@
 import { Mail, Github, MessageCircle, Instagram, Linkedin } from "lucide-react";
+import { usePortfolioSection } from "@/lib/tracknode";
 
-const contacts = [
-  {
-    icon: MessageCircle,
-    label: "Telegram",
-    value: "@M1ke994",
-    href: "https://t.me/@M1ke994"
-  },
-  {
-    icon: Mail,
-    label: "Email",
-    value: "Tishechkin1994@gmail.com",
-    href: "mailto:Tishechkin1994@gmail.com"
-  },
-  {
-    icon: Github,
-    label: "GitHub",
-    value: "github.com/m1ke1994",
-    href: "https://github.com/m1ke1994"
-  },
-  {
-    icon: Instagram,
-    label: "Instagram",
-    value: "instagram.com/alexandr_tishechkin",
-    href: "https://instagram.com/alexandr_tishechkin"
-  },
-  {
-    icon: Linkedin,
-    label: "LinkedIn",
-    value:
-      "linkedin.com/in/alexandr-tishechkin",
-    href: "https://linkedin.com/in/alexandr-tishechkin"
-  }
-];
+const contactIcons = {
+  github: Github,
+  instagram: Instagram,
+  linkedin: Linkedin,
+  mail: Mail,
+  message: MessageCircle,
+};
 
 export function ContactSection() {
+  const content = usePortfolioSection<{
+    title?: string;
+    description?: string;
+    contacts?: Array<{ icon?: string; label: string; value: string; href: string }>;
+  }>("contact");
+  const contacts = content.contacts || [];
+  const getContactIcon = (icon?: string) => contactIcons[icon as keyof typeof contactIcons] || Mail;
+
   return (
     <section id="contact" className="section-padding">
       <div className="section-container">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Контакты
+            {content.title}
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Свяжитесь со мной удобным способом — я отвечу на все вопросы.
+            {content.description}
           </p>
         </div>
 
         <div className="max-w-3xl mx-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {contacts.map((contact) => (
+            {contacts.map((contact) => {
+              const Icon = getContactIcon(contact.icon);
+              return (
               <a
                 key={contact.label}
                 href={contact.href}
@@ -58,14 +43,15 @@ export function ContactSection() {
                 className="flex items-center gap-4 p-4 rounded-xl bg-card border border-border/50 hover:border-accent/30 hover:shadow-sm transition-all"
               >
                 <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
-                  <contact.icon className="h-5 w-5 text-gold" />
+                  <Icon className="h-5 w-5 text-gold" />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">{contact.label}</p>
                   <p className="font-medium">{contact.value}</p>
                 </div>
               </a>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

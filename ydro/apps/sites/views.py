@@ -53,6 +53,18 @@ def _normalize_domain(value):
     return normalized.strip("/")
 
 
+def _domain_lookup_values(domain):
+    normalized = _normalize_domain(domain)
+    if not normalized:
+        return []
+    values = [normalized]
+    if normalized.startswith("www."):
+        values.append(normalized[4:])
+    else:
+        values.append(f"www.{normalized}")
+    return values
+
+
 _SEO_TITLE_RE = re.compile(r"\s*<title>.*?</title>", re.IGNORECASE | re.DOTALL)
 _SEO_CANONICAL_RE = re.compile(
     r"\s*<link\b(?=[^>]*\brel=[\"']canonical[\"'])[^>]*>",
@@ -163,16 +175,23 @@ class PublicSiteByDomainView(APIView):
     authentication_classes = []
 
     def get(self, request, *args, **kwargs):
-        domain = _normalize_domain(request.query_params.get("domain"))
-        if not domain:
+        domains = _domain_lookup_values(request.query_params.get("domain"))
+        if not domains:
             return Response({"detail": "Query param 'domain' is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         site = (
             Site.objects.filter(is_active=True)
             .annotate(sections_count=Count("sections", filter=Q(sections__is_active=True)))
-            .filter(domain__iexact=domain)
+            .filter(domain__iexact=domains[0])
             .first()
         )
+        if site is None and len(domains) > 1:
+            site = (
+                Site.objects.filter(is_active=True)
+                .annotate(sections_count=Count("sections", filter=Q(sections__is_active=True)))
+                .filter(domain__iexact=domains[1])
+                .first()
+            )
 
         if site is None:
             raise NotFound(detail="Active site for this domain was not found.")

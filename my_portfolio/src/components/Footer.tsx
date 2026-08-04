@@ -1,21 +1,27 @@
 import { Github, Send, Mail, Instagram } from "lucide-react";
+import { usePortfolioSection } from "@/lib/tracknode";
 
-const socialLinks = [
-  { icon: Github, href: "https://github.com", label: "GitHub" },
-  { icon: Send, href: "https://t.me/username", label: "Telegram" },
-  { icon: Mail, href: "mailto:dev@example.com", label: "Email" },
-  { icon: Instagram, href: "https://instagram.com/username", label: "Instagram" },
-];
-
-const navLinks = [
-  { label: "Обо мне", href: "#about" },
-  { label: "Навыки", href: "#skills" },
-  { label: "Проекты", href: "#projects" },
-  { label: "Контакты", href: "#contact" },
-];
+const socialIcons = {
+  github: Github,
+  instagram: Instagram,
+  mail: Mail,
+  message: Send,
+};
 
 export function Footer() {
+  const content = usePortfolioSection<{
+    logo_text?: string;
+    description?: string;
+    nav_title?: string;
+    contact_title?: string;
+    nav_items?: Array<{ label: string; href: string }>;
+    social_links?: Array<{ icon?: string; href: string; label: string }>;
+    copyright?: string;
+  }>("footer");
   const currentYear = new Date().getFullYear();
+  const navLinks = content.nav_items || [];
+  const socialLinks = content.social_links || [];
+  const getSocialIcon = (icon?: string) => socialIcons[icon as keyof typeof socialIcons] || Mail;
 
   return (
     <footer className="border-t border-border bg-card/50">
@@ -25,17 +31,17 @@ export function Footer() {
           <div>
             <a href="#" className="font-display font-bold text-xl tracking-tight inline-block mb-4">
               <span className="text-gold">{"<"}</span>
-              Alexandr_Tishechkin
+              {content.logo_text}
               <span className="text-gold">{" />"}</span>
             </a>
             <p className="text-muted-foreground text-sm max-w-xs">
-              Middle Fullstack разработчик. Создаю веб-приложения на Vue.js и Django.
+              {content.description}
             </p>
           </div>
 
           {/* Navigation */}
           <div>
-            <h4 className="font-display font-semibold mb-4">Навигация</h4>
+            <h4 className="font-display font-semibold mb-4">{content.nav_title}</h4>
             <ul className="space-y-2">
               {navLinks.map((link) => (
                 <li key={link.href}>
@@ -52,9 +58,11 @@ export function Footer() {
 
           {/* Social */}
           <div>
-            <h4 className="font-display font-semibold mb-4">Связаться</h4>
+            <h4 className="font-display font-semibold mb-4">{content.contact_title}</h4>
             <div className="flex items-center gap-3">
-              {socialLinks.map((social) => (
+              {socialLinks.map((social) => {
+                const Icon = getSocialIcon(social.icon);
+                return (
                 <a
                   key={social.label}
                   href={social.href}
@@ -63,9 +71,10 @@ export function Footer() {
                   className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/10 transition-all"
                   aria-label={social.label}
                 >
-                  <social.icon className="h-5 w-5" />
+                  <Icon className="h-5 w-5" />
                 </a>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -73,7 +82,7 @@ export function Footer() {
         {/* Copyright */}
         <div className="mt-12 pt-8 border-t border-border text-center">
           <p className="text-muted-foreground text-sm">
-            © {currentYear} Все права защищены. Разработано с{" "}
+            © {currentYear} {content.copyright}{" "}
             <span className="text-gold">♥</span>
           </p>
         </div>

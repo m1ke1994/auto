@@ -15,6 +15,10 @@ upstream volga_public {
     server volga_site:3000;
 }
 
+upstream my_portfolio_public {
+    server my_portfolio_site:3000;
+}
+
 server {
     listen 80;
     listen [::]:80;
@@ -200,6 +204,16 @@ server {
     listen 80;
     listen [::]:80;
     server_name novoe-konakovo.ru www.novoe-konakovo.ru;
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name tishechkinalexandr.ru www.tishechkinalexandr.ru;
 
     location / {
         return 301 https://$host$request_uri;

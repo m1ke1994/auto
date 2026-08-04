@@ -1,16 +1,18 @@
-# Production deploy: TrackNode + Leelabird
+# Production deploy: TrackNode + public sites
 
-This deploy expects two sibling folders on the server:
+This deploy expects these sibling folders on the server:
 
 ```bash
 ~/projects/v2/ydro
 ~/projects/v2/a-meditation
+~/projects/v2/my_portfolio
 ```
 
-Upload both folders with WinSCP preserving this layout. The recommended production entry point is `ydro`; its nginx serves both domains:
+Upload folders with WinSCP preserving this layout. The recommended production entry point is `ydro`; its nginx serves these domains:
 
 - `tracknode.ru` and `www.tracknode.ru`: TrackNode/Vue Admin plus Django `/admin/`, `/api/`, `/static/`, `/media/`, `/tracker.js`.
 - `leelabird.ru` and `www.leelabird.ru`: only the Leelabird public site. It requests API data from `tracknode.ru`.
+- `tishechkinalexandr.ru` and `www.tishechkinalexandr.ru`: only the Alexandr Tishechkin portfolio. It requests API data and `tracker.js` from `tracknode.ru`.
 
 ## 1. Prepare env files
 
@@ -27,7 +29,7 @@ Edit `ydro/.env` and replace every `CHANGE_ME...` value. Keep first-launch HTTP 
 ```env
 DJANGO_ENV=production
 DJANGO_DEBUG=False
-DJANGO_ALLOWED_HOSTS=tracknode.ru,www.tracknode.ru
+DJANGO_ALLOWED_HOSTS=tracknode.ru,www.tracknode.ru,tishechkinalexandr.ru,www.tishechkinalexandr.ru
 DJANGO_REQUIRE_HTTPS=False
 DJANGO_SECURE_SSL_REDIRECT=False
 DJANGO_SESSION_COOKIE_SECURE=False
@@ -40,12 +42,17 @@ API_URL=https://tracknode.ru/api
 ADMIN_URL=https://tracknode.ru/admin
 PUBLIC_SITE_DEFAULT_DOMAIN=leelabird.ru
 PUBLIC_SITE_DEFAULT_URL=https://leelabird.ru
-CORS_ALLOWED_ORIGINS=https://tracknode.ru,https://www.tracknode.ru,https://leelabird.ru,https://www.leelabird.ru
-CSRF_TRUSTED_ORIGINS=https://tracknode.ru,https://www.tracknode.ru,https://leelabird.ru,https://www.leelabird.ru
+CORS_ALLOWED_ORIGINS=https://tracknode.ru,https://www.tracknode.ru,https://leelabird.ru,https://www.leelabird.ru,https://tishechkinalexandr.ru,https://www.tishechkinalexandr.ru
+CSRF_TRUSTED_ORIGINS=https://tracknode.ru,https://www.tracknode.ru,https://leelabird.ru,https://www.leelabird.ru,https://tishechkinalexandr.ru,https://www.tishechkinalexandr.ru
 PUBLIC_SITE_VITE_API_URL=https://tracknode.ru/api
 PUBLIC_SITE_VITE_BACKEND_URL=https://tracknode.ru
 PUBLIC_SITE_VITE_SITE_URL=https://leelabird.ru
 PUBLIC_SITE_VITE_PUBLIC_SITE_URL=https://leelabird.ru
+MY_PORTFOLIO_SITE_VITE_API_URL=https://tracknode.ru/api
+MY_PORTFOLIO_SITE_VITE_BACKEND_URL=https://tracknode.ru
+MY_PORTFOLIO_SITE_VITE_SITE_URL=https://tishechkinalexandr.ru
+MY_PORTFOLIO_SITE_VITE_PUBLIC_SITE_URL=https://tishechkinalexandr.ru
+RUN_SEED_MY_PORTFOLIO_SITE=1
 ```
 
 Edit `ydro/vue-admin/.env` with HTTP values from `vue-admin/production.env.example`.
@@ -77,14 +84,17 @@ curl -I https://tracknode.ru/api/
 curl -I https://tracknode.ru/tracker.js
 curl -I https://leelabird.ru
 curl -I https://leelabird.ru/admin/
+curl -I http://tishechkinalexandr.ru
+curl -I http://www.tishechkinalexandr.ru
 ```
 
 `leelabird.ru/admin/` must not open Django Admin.
+`tishechkinalexandr.ru/admin/`, `/api/`, `/static/`, `/media/` and `/tracker.js` must not open Django/TrackNode endpoints.
 
 Logs:
 
 ```bash
-docker compose --env-file .env -f docker-compose.yml -f docker-compose.prod.yml logs -f nginx backend frontend public_site celery_worker celery_beat
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.prod.yml logs -f nginx backend frontend public_site volga_site my_portfolio_site celery_worker celery_beat
 ```
 
 ## 3. Switch to HTTPS
@@ -96,6 +106,10 @@ Install certificates on the host first. The HTTPS compose expects:
 /etc/letsencrypt/live/tracknode.ru/privkey.pem
 /etc/letsencrypt/live/leelabird.ru/fullchain.pem
 /etc/letsencrypt/live/leelabird.ru/privkey.pem
+/etc/letsencrypt/live/novoe-konakovo.ru/fullchain.pem
+/etc/letsencrypt/live/novoe-konakovo.ru/privkey.pem
+/etc/letsencrypt/live/tishechkinalexandr.ru/fullchain.pem
+/etc/letsencrypt/live/tishechkinalexandr.ru/privkey.pem
 ```
 
 Then update `ydro/.env`:
@@ -112,13 +126,17 @@ FRONTEND_URL=https://tracknode.ru
 API_URL=https://tracknode.ru/api
 ADMIN_URL=https://tracknode.ru/admin
 PUBLIC_SITE_DEFAULT_URL=https://leelabird.ru
-CORS_ALLOWED_ORIGINS=https://tracknode.ru,https://www.tracknode.ru,https://leelabird.ru,https://www.leelabird.ru
-CSRF_TRUSTED_ORIGINS=https://tracknode.ru,https://www.tracknode.ru,https://leelabird.ru,https://www.leelabird.ru
+CORS_ALLOWED_ORIGINS=https://tracknode.ru,https://www.tracknode.ru,https://leelabird.ru,https://www.leelabird.ru,https://tishechkinalexandr.ru,https://www.tishechkinalexandr.ru
+CSRF_TRUSTED_ORIGINS=https://tracknode.ru,https://www.tracknode.ru,https://leelabird.ru,https://www.leelabird.ru,https://tishechkinalexandr.ru,https://www.tishechkinalexandr.ru
 NUXT_PUBLIC_TRACKNODE_TRACKER_SRC=https://tracknode.ru/tracker.js
 PUBLIC_SITE_VITE_API_URL=https://tracknode.ru/api
 PUBLIC_SITE_VITE_BACKEND_URL=https://tracknode.ru
 PUBLIC_SITE_VITE_SITE_URL=https://leelabird.ru
 PUBLIC_SITE_VITE_PUBLIC_SITE_URL=https://leelabird.ru
+MY_PORTFOLIO_SITE_VITE_API_URL=https://tracknode.ru/api
+MY_PORTFOLIO_SITE_VITE_BACKEND_URL=https://tracknode.ru
+MY_PORTFOLIO_SITE_VITE_SITE_URL=https://tishechkinalexandr.ru
+MY_PORTFOLIO_SITE_VITE_PUBLIC_SITE_URL=https://tishechkinalexandr.ru
 ```
 
 Update `ydro/vue-admin/.env`: change every `https://tracknode.ru` to `https://tracknode.ru`.
@@ -138,6 +156,10 @@ curl -I https://tracknode.ru
 curl -I https://tracknode.ru/admin/
 curl -I https://tracknode.ru/api/
 curl -I https://leelabird.ru
+curl -I https://tishechkinalexandr.ru
+curl -I https://www.tishechkinalexandr.ru
+curl -I https://tishechkinalexandr.ru/admin/
+curl -I https://tishechkinalexandr.ru/tracker.js
 ```
 
 Reload nginx after config-only changes:

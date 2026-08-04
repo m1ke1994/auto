@@ -46,6 +46,7 @@
       RUN_SEED_DEMO_DATA: "${RUN_SEED_DEMO_DATA:-0}"
       RUN_SEED_VOLGA_SITE: "${RUN_SEED_VOLGA_SITE:-0}"
       RUN_SEED_TRACKNODE_SITE: "${RUN_SEED_TRACKNODE_SITE:-1}"
+      RUN_SEED_MY_PORTFOLIO_SITE: "${RUN_SEED_MY_PORTFOLIO_SITE:-0}"
       VOLGA_PUBLIC_DIR: "${VOLGA_PUBLIC_DIR:-/volga-public}"
     depends_on:
       postgres:
@@ -83,6 +84,7 @@
       RUN_COLLECTSTATIC: 0
       RUN_SEED_DEMO_DATA: 0
       RUN_SEED_TRACKNODE_SITE: 0
+      RUN_SEED_MY_PORTFOLIO_SITE: 0
     depends_on:
       postgres:
         condition: service_healthy
@@ -110,6 +112,7 @@
       RUN_COLLECTSTATIC: 0
       RUN_SEED_DEMO_DATA: 0
       RUN_SEED_TRACKNODE_SITE: 0
+      RUN_SEED_MY_PORTFOLIO_SITE: 0
     depends_on:
       postgres:
         condition: service_healthy
@@ -135,6 +138,7 @@
       RUN_COLLECTSTATIC: 0
       RUN_SEED_DEMO_DATA: 0
       RUN_SEED_TRACKNODE_SITE: 0
+      RUN_SEED_MY_PORTFOLIO_SITE: 0
     depends_on:
       postgres:
         condition: service_healthy
@@ -245,6 +249,39 @@
     networks:
       - yadro_network
 
+  my_portfolio_site:
+    profiles: ["my-portfolio-site"]
+    build:
+      context: ../my_portfolio
+      dockerfile: Dockerfile
+      target: dev
+    restart: unless-stopped
+    env_file:
+      - .env.example
+    environment:
+      VITE_API_URL: ${MY_PORTFOLIO_SITE_VITE_API_URL:-http://localhost:8000/api}
+      VITE_BACKEND_URL: ${MY_PORTFOLIO_SITE_VITE_BACKEND_URL:-http://localhost:8000}
+      VITE_SITE_URL: ${MY_PORTFOLIO_SITE_VITE_SITE_URL:-http://localhost:3002}
+      VITE_PUBLIC_SITE_URL: ${MY_PORTFOLIO_SITE_VITE_PUBLIC_SITE_URL:-http://localhost:3002}
+      VITE_SITE_SLUG: ${MY_PORTFOLIO_SITE_VITE_SITE_SLUG:-my-portfolio}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${MY_PORTFOLIO_SITE_PORT:-3002}:3000"
+    volumes:
+      - ../my_portfolio:/app
+      - my_portfolio_site_node_modules:/app/node_modules
+    command: npm run dev -- --host 0.0.0.0 --port 3000
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - yadro_network
+
 volumes:
   postgres_data:
   redis_data:
@@ -253,6 +290,7 @@ volumes:
   frontend_node_modules:
   public_site_node_modules:
   volga_site_node_modules:
+  my_portfolio_site_node_modules:
 
 networks:
   yadro_network:

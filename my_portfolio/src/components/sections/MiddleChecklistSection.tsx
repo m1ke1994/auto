@@ -2,21 +2,18 @@ import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useRef } from "react";
 import { CheckCircle2 } from "lucide-react";
-
-const checklistItems = [
-  "Самостоятельно реализовывать фичи end-to-end (UI → API → БД)",
-  "Работать с Git-ветками, PR, код-ревью",
-  "Понимать архитектуру проекта, слои, разделение ответственности",
-  "Уверенно работать с REST, статус-кодами, контрактами, валидацией",
-  "Уметь диагностировать баги (логи, воспроизведение, фиксы)",
-  "Писать понятный код, соблюдать стиль, делать рефакторинг",
-  "Базово понимать деплой и окружения (dev/stage/prod)",
-  "Коммуницировать: уточнять требования, предлагать решения, оценивать сроки"
-];
+import { usePortfolioSection } from "@/lib/tracknode";
 
 export function MiddleChecklistSection() {
+  const content = usePortfolioSection<{
+    title?: string;
+    accent?: string;
+    description?: string;
+    items?: Array<{ text: string }>;
+  }>("checklist");
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const checklistItems = content.items || [];
 
   return (
     <section className="section-padding bg-card/30">
@@ -28,10 +25,10 @@ export function MiddleChecklistSection() {
           className="max-w-3xl mx-auto"
         >
           <h2 className="text-3xl md:text-4xl font-bold mb-4 text-center">
-            Компетенции, закрывающие задачи <span className="text-gold">веб-разработки</span>
+            {content.title} <span className="text-gold">{content.accent}</span>
           </h2>
           <p className="text-muted-foreground text-lg text-center mb-12">
-            Чек-лист компетенций, которыми я владею
+            {content.description}
           </p>
 
           <div className="space-y-3">
@@ -44,7 +41,7 @@ export function MiddleChecklistSection() {
                 className="flex items-start gap-4 p-4 rounded-xl bg-background border border-border/50 hover:border-accent/30 transition-colors group"
               >
                 <CheckCircle2 className="h-5 w-5 text-gold mt-0.5 flex-shrink-0 group-hover:scale-110 transition-transform" />
-                <span className="text-foreground leading-relaxed">{item}</span>
+                <span className="text-foreground leading-relaxed">{item.text}</span>
               </motion.div>
             ))}
           </div>

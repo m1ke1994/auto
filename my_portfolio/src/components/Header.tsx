@@ -2,15 +2,15 @@ import { useState, useEffect } from "react";
 import { Moon, Sun, Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-
-const navItems = [
-  { label: "Обо мне", href: "#about" },
-  { label: "Навыки", href: "#skills" },
-  { label: "Проекты", href: "#projects" },
-  { label: "Контакты", href: "#contact" },
-];
+import { usePortfolioSection } from "@/lib/tracknode";
 
 export function Header() {
+  const settings = usePortfolioSection<{
+    logo_text?: string;
+    nav_items?: Array<{ label: string; href: string }>;
+  }>("settings");
+  const navItems = settings.nav_items || [];
+  const logoText = settings.logo_text || "Alexandr_Tishechkin";
   const [isDark, setIsDark] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -83,7 +83,7 @@ export function Header() {
             }}
           >
             <span className="text-gold">{"<"}</span>
-           Alexandr_Tishechkin
+            {logoText}
             <span className="text-gold">{" />"}</span>
           </a>
 
