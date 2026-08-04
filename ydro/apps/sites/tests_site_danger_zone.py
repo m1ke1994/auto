@@ -35,6 +35,7 @@ class SiteDangerZoneApiTests(APITestCase):
         user_model = get_user_model()
         self.user = user_model.objects.create_user("danger-owner", "owner@example.com", "secret12345")
         self.other_user = user_model.objects.create_user("danger-other", "other@example.com", "secret12345")
+        self.superuser = user_model.objects.create_superuser("danger-root", "root@example.com", "secret12345")
         self.client_obj = Client.objects.create(owner=self.user, name="Owner")
         self.other_client = Client.objects.create(owner=self.other_user, name="Other")
         grant_business_analytics(self.user, client=self.client_obj)
@@ -72,7 +73,7 @@ class SiteDangerZoneApiTests(APITestCase):
                 """
                 CREATE TABLE sites_websitetemplate (
                     id integer PRIMARY KEY,
-                    site_id integer NOT NULL REFERENCES sites_site(id) ON DELETE NO ACTION,
+                    source_site_id integer NOT NULL REFERENCES sites_site(id) ON DELETE NO ACTION,
                     name varchar(255) NOT NULL DEFAULT ''
                 )
                 """
@@ -101,6 +102,9 @@ class SiteDangerZoneApiTests(APITestCase):
 
     def detail_url(self, site=None):
         return reverse("admin-my-site-detail", kwargs={"site_id": (site or self.site).id})
+
+    def list_url(self):
+        return reverse("admin-my-sites")
 
     def seed_analytics(self, site, *, session_id="session-1", visitor_id="visitor-1"):
         now = timezone.now()
@@ -371,7 +375,7 @@ class SiteDangerZoneApiTests(APITestCase):
         self.create_template_clone_tables()
         source_site = Site.objects.create(
             name="Art Stroy Template Source",
-            slug="art-stroy-template-source",
+            slug="tracknode-template-art-stroy-source",
             domain="art-stroy-template.example.com",
             owner=self.user,
         )
@@ -383,7 +387,7 @@ class SiteDangerZoneApiTests(APITestCase):
         )
         with connection.cursor() as cursor:
             cursor.execute(
-                "INSERT INTO sites_websitetemplate (id, site_id, name) VALUES (%s, %s, %s)",
+                "INSERT INTO sites_websitetemplate (id, source_site_id, name) VALUES (%s, %s, %s)",
                 [101, source_site.id, "Art Stroy"],
             )
             cursor.execute(
@@ -409,6 +413,172 @@ class SiteDangerZoneApiTests(APITestCase):
 
         repeat = self.client.delete(self.detail_url(), {"confirmation": self.site.name}, format="json")
         self.assertEqual(repeat.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_template_source_sites_are_hidden_from_my_sites_for_owner_and_superuser(self):
+        self.create_template_clone_tables()
+        source_site = Site.objects.create(
+            name="Art Stroy Template Source",
+            slug="tracknode-template-art-stroy-source",
+            domain="art-source.example.com",
+            owner=self.user,
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO sites_websitetemplate (id, source_site_id, name) VALUES (%s, %s, %s)",
+                [101, source_site.id, "Art Stroy"],
+            )
+            cursor.execute(
+                "INSERT INTO sites_websitetemplateclonerequest (id, site_id, template_id, idempotency_key) VALUES (%s, %s, %s, %s)",
+                [201, self.site.id, 101, "clone-main"],
+            )
+
+        self.client.force_authenticate(self.user)
+        owner_response = self.client.get(self.list_url())
+        self.assertEqual(owner_response.status_code, status.HTTP_200_OK)
+        self.assertIn(self.site.id, [row["id"] for row in owner_response.data])
+        self.assertNotIn(source_site.id, [row["id"] for row in owner_response.data])
+
+        self.client.force_authenticate(self.superuser)
+        superuser_response = self.client.get(self.list_url())
+        self.assertEqual(superuser_response.status_code, status.HTTP_200_OK)
+        self.assertIn(self.site.id, [row["id"] for row in superuser_response.data])
+        self.assertNotIn(source_site.id, [row["id"] for row in superuser_response.data])
+
+    def test_template_source_site_get_is_hidden_but_delete_returns_protected_code(self):
+        self.create_template_clone_tables()
+        source_site = Site.objects.create(
+            name="A Meditation Template Source",
+            slug="tracknode-template-a-meditation-source",
+            domain="meditation-source.example.com",
+            owner=self.user,
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO sites_websitetemplate (id, source_site_id, name) VALUES (%s, %s, %s)",
+                [102, source_site.id, "A Meditation"],
+            )
+
+        self.client.force_authenticate(self.user)
+        get_response = self.client.get(self.detail_url(source_site))
+        delete_response = self.client.delete(self.detail_url(source_site), {"confirmation": source_site.name}, format="json")
+
+        self.assertEqual(get_response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(delete_response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(delete_response.data["code"], "protected_template_source")
+        self.assertEqual(delete_response.data["detail"], "Источник шаблона нельзя удалить из раздела «Мои сайты».")
+        self.assertTrue(Site.objects.filter(id=source_site.id).exists())
+        self.assertEqual(self.raw_count("sites_websitetemplate", "id = %s", [102]), 1)
+
+    def test_superuser_cannot_delete_template_source_through_client_endpoint(self):
+        self.create_template_clone_tables()
+        source_site = Site.objects.create(
+            name="Art Stroy Template Source",
+            slug="tracknode-template-art-stroy-source",
+            domain="art-source.example.com",
+            owner=self.user,
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO sites_websitetemplate (id, source_site_id, name) VALUES (%s, %s, %s)",
+                [103, source_site.id, "Art Stroy"],
+            )
+
+        self.client.force_authenticate(self.superuser)
+        response = self.client.delete(self.detail_url(source_site), {"confirmation": source_site.name}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["code"], "protected_template_source")
+        self.assertTrue(Site.objects.filter(id=source_site.id).exists())
+        self.assertEqual(self.raw_count("sites_websitetemplate", "id = %s", [103]), 1)
+
+    def test_platform_admin_sees_template_source_site_separately(self):
+        self.create_template_clone_tables()
+        source_site = Site.objects.create(
+            name="Art Stroy Template Source",
+            slug="tracknode-template-art-stroy-source",
+            domain="art-source.example.com",
+            owner=self.user,
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO sites_websitetemplate (id, source_site_id, name) VALUES (%s, %s, %s)",
+                [104, source_site.id, "Art Stroy"],
+            )
+
+        self.client.force_authenticate(self.superuser)
+        response = self.client.get("/api/platform/sites/?search=Art%20Stroy%20Template%20Source")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(source_site.id, [row["id"] for row in response.data["results"]])
+
+        detail_response = self.client.get(f"/api/platform/sites/{source_site.id}/")
+        self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(detail_response.data["template_source"]["id"], 104)
+        self.assertEqual(detail_response.data["template_source"]["cloned_sites_count"], 0)
+
+    def test_platform_admin_cannot_delete_template_used_by_cloned_sites(self):
+        self.create_template_clone_tables()
+        source_site = Site.objects.create(
+            name="Art Stroy Template Source",
+            slug="tracknode-template-art-stroy-source",
+            domain="art-source.example.com",
+            owner=self.user,
+        )
+        other_clone_site = Site.objects.create(
+            name="Other Clone",
+            slug="other-clone",
+            domain="other-clone.example.com",
+            owner=self.user,
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO sites_websitetemplate (id, source_site_id, name) VALUES (%s, %s, %s)",
+                [105, source_site.id, "Art Stroy"],
+            )
+            cursor.execute(
+                "INSERT INTO sites_websitetemplateclonerequest (id, site_id, template_id, idempotency_key) VALUES (%s, %s, %s, %s)",
+                [205, self.site.id, 105, "clone-main"],
+            )
+            cursor.execute(
+                "INSERT INTO sites_websitetemplateclonerequest (id, site_id, template_id, idempotency_key) VALUES (%s, %s, %s, %s)",
+                [206, other_clone_site.id, 105, "clone-other"],
+            )
+
+        self.client.force_authenticate(self.superuser)
+        response = self.client.delete("/api/platform/templates/105/", {"confirmation": "Art Stroy"}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data["code"], "template_has_cloned_sites")
+        self.assertEqual(response.data["cloned_sites_count"], 2)
+        self.assertTrue(Site.objects.filter(id=source_site.id).exists())
+        self.assertEqual(self.raw_count("sites_websitetemplate", "id = %s", [105]), 1)
+
+    def test_platform_admin_deletes_unused_template_and_source_site(self):
+        self.create_template_clone_tables()
+        source_site = Site.objects.create(
+            name="A Meditation Template Source",
+            slug="tracknode-template-a-meditation-source",
+            domain="meditation-source.example.com",
+            owner=self.user,
+        )
+        SiteSection.objects.create(site=source_site, key="hero", title="Hero", schema={"fields": []})
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO sites_websitetemplate (id, source_site_id, name) VALUES (%s, %s, %s)",
+                [106, source_site.id, "A Meditation"],
+            )
+
+        self.client.force_authenticate(self.superuser)
+        response = self.client.delete("/api/platform/templates/106/", {"confirmation": "A Meditation"}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["deleted"]["templates"], 1)
+        self.assertEqual(response.data["deleted"]["source_site"], 1)
+        self.assertFalse(Site.objects.filter(id=source_site.id).exists())
+        self.assertFalse(SiteSection.objects.filter(site_id=source_site.id).exists())
+        self.assertEqual(self.raw_count("sites_websitetemplate", "id = %s", [106]), 0)
+        self.assertTrue(PlatformAuditLog.objects.filter(action="template.delete", object_id="106").exists())
+        self.assertTrue(PlatformAuditLog.objects.filter(action="site.delete", object_id=str(source_site.id)).exists())
 
     def test_unknown_site_dependency_returns_conflict_instead_of_500(self):
         with connection.cursor() as cursor:

@@ -37,6 +37,20 @@ class ProtectedSiteError(Exception):
     pass
 
 
+class ProtectedTemplateSourceError(ProtectedSiteError):
+    pass
+
+
+class WebsiteTemplateNotFoundError(Exception):
+    pass
+
+
+class WebsiteTemplateInUseError(Exception):
+    def __init__(self, cloned_sites_count: int):
+        self.cloned_sites_count = cloned_sites_count
+        super().__init__("Шаблон используется клиентскими сайтами и не может быть удалён.")
+
+
 RUNNING_COMPETITOR_STATUSES = {
     CompetitorAnalysis.Status.PENDING,
     CompetitorAnalysis.Status.RUNNING,
@@ -50,6 +64,15 @@ RUNNING_SEO_STATUSES = {
     SiteSEOAudit.Status.RUNNING,
 }
 
+TEMPLATE_TABLE = "sites_websitetemplate"
+TEMPLATE_SOURCE_SITE_COLUMNS = ("source_site_id",)
+TEMPLATE_SOURCE_SITE_FALLBACK_COLUMNS = ("source_site_id", "site_id")
+TEMPLATE_SOURCE_SLUG_PREFIX = "tracknode-template-"
+TEMPLATE_NAME_FALLBACK_COLUMNS = ("name", "title", "slug")
+TEMPLATE_CLONE_REQUEST_FALLBACK_TEMPLATE_COLUMNS = (
+    "template_id",
+    "website_template_id",
+)
 TEMPLATE_CLONE_REQUEST_TABLE = "sites_websitetemplateclonerequest"
 TEMPLATE_CLONE_REQUEST_FALLBACK_SITE_COLUMNS = (
     "site_id",
@@ -169,7 +192,11 @@ def _table_columns(table_name: str) -> set[str]:
         return {column.name for column in connection.introspection.get_table_description(cursor, table_name)}
 
 
-def _site_fk_columns(table_name: str) -> list[str]:
+def _site_fk_columns(
+    table_name: str,
+    *,
+    fallback_columns: tuple[str, ...] = TEMPLATE_CLONE_REQUEST_FALLBACK_SITE_COLUMNS,
+) -> list[str]:
     if not _table_exists(table_name):
         return []
 
@@ -198,7 +225,79 @@ def _site_fk_columns(table_name: str) -> list[str]:
             if fk_columns:
                 return fk_columns
 
-    return [column for column in TEMPLATE_CLONE_REQUEST_FALLBACK_SITE_COLUMNS if column in columns]
+    return [column for column in fallback_columns if column in columns]
+
+
+def _template_fk_columns(table_name: str) -> list[str]:
+    if not _table_exists(table_name):
+        return []
+
+    columns = _table_columns(table_name)
+    if connection.vendor == "postgresql":
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT kcu.column_name
+                  FROM information_schema.table_constraints tc
+                  JOIN information_schema.key_column_usage kcu
+                    ON tc.constraint_name = kcu.constraint_name
+                   AND tc.table_schema = kcu.table_schema
+                  JOIN information_schema.constraint_column_usage ccu
+                    ON ccu.constraint_name = tc.constraint_name
+                   AND ccu.table_schema = tc.table_schema
+                 WHERE tc.constraint_type = 'FOREIGN KEY'
+                   AND tc.table_name = %s
+                   AND ccu.table_name = %s
+                   AND ccu.column_name = 'id'
+                 ORDER BY kcu.ordinal_position
+                """,
+                [table_name, TEMPLATE_TABLE],
+            )
+            fk_columns = [row[0] for row in cursor.fetchall() if row[0] in columns]
+            if fk_columns:
+                return fk_columns
+
+    return [column for column in TEMPLATE_CLONE_REQUEST_FALLBACK_TEMPLATE_COLUMNS if column in columns]
+
+
+def _template_source_site_columns() -> list[str]:
+    columns = _site_fk_columns(TEMPLATE_TABLE, fallback_columns=TEMPLATE_SOURCE_SITE_FALLBACK_COLUMNS)
+    preferred = [column for column in TEMPLATE_SOURCE_SITE_COLUMNS if column in columns]
+    return preferred or columns
+
+
+def template_source_site_ids() -> set[int]:
+    columns = _template_source_site_columns()
+    if not columns:
+        return set()
+
+    table = connection.ops.quote_name(TEMPLATE_TABLE)
+    ids: set[int] = set()
+    with connection.cursor() as cursor:
+        for column in columns:
+            quoted_column = connection.ops.quote_name(column)
+            cursor.execute(f"SELECT DISTINCT {quoted_column} FROM {table} WHERE {quoted_column} IS NOT NULL")
+            ids.update(int(row[0]) for row in cursor.fetchall() if row[0] is not None)
+    return ids
+
+
+def is_template_source_site(site: Site | int | None) -> bool:
+    if site is None:
+        return False
+
+    site_id = int(site if isinstance(site, int) else site.id)
+    if site_id in template_source_site_ids():
+        return True
+
+    slug = "" if isinstance(site, int) else str(getattr(site, "slug", "") or "")
+    return slug.startswith(TEMPLATE_SOURCE_SLUG_PREFIX)
+
+
+def filter_client_manageable_sites(queryset: QuerySet[Site]) -> QuerySet[Site]:
+    source_ids = template_source_site_ids()
+    if source_ids:
+        queryset = queryset.exclude(id__in=source_ids)
+    return queryset.exclude(slug__startswith=TEMPLATE_SOURCE_SLUG_PREFIX)
 
 
 def _delete_template_clone_requests(snapshot: SiteSnapshot) -> int:
@@ -230,6 +329,122 @@ def _template_clone_request_count(snapshot: SiteSnapshot) -> int:
         return int(cursor.fetchone()[0] or 0)
 
 
+def _template_clone_request_where_for_template(template_id: int) -> tuple[str, list[int]]:
+    columns = _template_fk_columns(TEMPLATE_CLONE_REQUEST_TABLE)
+    if not columns:
+        return "", []
+    where = " OR ".join(f"{connection.ops.quote_name(column)} = %s" for column in columns)
+    return where, [template_id] * len(columns)
+
+
+def _template_clone_sites_count(template_id: int, *, source_site_id: int | None = None) -> int:
+    if not _table_exists(TEMPLATE_CLONE_REQUEST_TABLE):
+        return 0
+
+    where, params = _template_clone_request_where_for_template(template_id)
+    if not where:
+        return 0
+
+    site_columns = _site_fk_columns(TEMPLATE_CLONE_REQUEST_TABLE)
+    table = connection.ops.quote_name(TEMPLATE_CLONE_REQUEST_TABLE)
+    cloned_site_ids: set[int] = set()
+    with connection.cursor() as cursor:
+        for column in site_columns:
+            quoted_column = connection.ops.quote_name(column)
+            cursor.execute(f"SELECT {quoted_column} FROM {table} WHERE ({where}) AND {quoted_column} IS NOT NULL", params)
+            cloned_site_ids.update(int(row[0]) for row in cursor.fetchall() if row[0] is not None)
+
+        if cloned_site_ids:
+            cloned_site_ids.discard(source_site_id)
+            return len(cloned_site_ids)
+
+        cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE {where}", params)
+        return int(cursor.fetchone()[0] or 0)
+
+
+def _delete_template_clone_requests_for_template(template_id: int) -> int:
+    if not _table_exists(TEMPLATE_CLONE_REQUEST_TABLE):
+        return 0
+
+    where, params = _template_clone_request_where_for_template(template_id)
+    if not where:
+        return 0
+
+    table = connection.ops.quote_name(TEMPLATE_CLONE_REQUEST_TABLE)
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE {where}", params)
+        count = int(cursor.fetchone()[0] or 0)
+        if count:
+            cursor.execute(f"DELETE FROM {table} WHERE {where}", params)
+    return count
+
+
+def _template_row(template_id: int) -> dict | None:
+    if not _table_exists(TEMPLATE_TABLE):
+        return None
+
+    columns = _table_columns(TEMPLATE_TABLE)
+    source_columns = _template_source_site_columns()
+    if not source_columns:
+        return None
+
+    table = connection.ops.quote_name(TEMPLATE_TABLE)
+    if len(source_columns) == 1:
+        source_expression = connection.ops.quote_name(source_columns[0])
+    else:
+        source_expression = "COALESCE(%s)" % ", ".join(connection.ops.quote_name(column) for column in source_columns)
+    name_column = next((column for column in TEMPLATE_NAME_FALLBACK_COLUMNS if column in columns), None)
+    name_expression = connection.ops.quote_name(name_column) if name_column else "''"
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT id, {source_expression}, {name_expression} FROM {table} WHERE id = %s",
+            [template_id],
+        )
+        row = cursor.fetchone()
+    if row is None:
+        return None
+    return {"id": int(row[0]), "source_site_id": row[1], "name": str(row[2] or "")}
+
+
+def website_template_for_source_site(site_id: int) -> dict | None:
+    if not _table_exists(TEMPLATE_TABLE):
+        return None
+
+    columns = _table_columns(TEMPLATE_TABLE)
+    source_columns = _template_source_site_columns()
+    if not source_columns:
+        return None
+
+    table = connection.ops.quote_name(TEMPLATE_TABLE)
+    name_column = next((column for column in TEMPLATE_NAME_FALLBACK_COLUMNS if column in columns), None)
+    name_expression = connection.ops.quote_name(name_column) if name_column else "''"
+    where = " OR ".join(f"{connection.ops.quote_name(column)} = %s" for column in source_columns)
+    params = [site_id] * len(source_columns)
+
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT id, {name_expression} FROM {table} WHERE {where} LIMIT 1", params)
+        row = cursor.fetchone()
+    if row is None:
+        return None
+
+    template_id = int(row[0])
+    name = str(row[1] or "")
+    return {
+        "id": template_id,
+        "name": name,
+        "source_site_id": site_id,
+        "cloned_sites_count": _template_clone_sites_count(template_id, source_site_id=site_id),
+    }
+
+
+def _delete_template_row(template_id: int) -> int:
+    table = connection.ops.quote_name(TEMPLATE_TABLE)
+    with connection.cursor() as cursor:
+        cursor.execute(f"DELETE FROM {table} WHERE id = %s", [template_id])
+        return int(cursor.rowcount or 0)
+
+
 def _has_running_site_jobs(site: Site) -> bool:
     client = _client_for_site(site)
     return (
@@ -239,9 +454,13 @@ def _has_running_site_jobs(site: Site) -> bool:
     )
 
 
-def _ensure_deletable_site(site: Site) -> None:
+def _ensure_deletable_site(site: Site, *, allow_template_source: bool = False) -> None:
     if site.slug == TRACKNODE_SITE_SLUG:
         raise ProtectedSiteError("Системный сайт TrackNode нельзя удалить.")
+
+
+    if not allow_template_source and is_template_source_site(site):
+        raise ProtectedTemplateSourceError("Источник шаблона нельзя удалить из раздела «Мои сайты».")
 
 
 def _audit_metadata(request, *, result: str, deleted: dict[str, int], error: str = "", snapshot: SiteSnapshot) -> dict:
@@ -399,16 +618,16 @@ def _legacy_leads(site: Site, client: Client | None = None):
     return Lead.objects.filter(client=client).filter(_url_matches_domain_q("source_url", site.domain or site.slug))
 
 
-def delete_owned_site(*, site: Site, request) -> dict:
+def delete_owned_site(*, site: Site, request, allow_template_source: bool = False) -> dict:
     user_id = getattr(getattr(request, "user", None), "id", None)
-    _ensure_deletable_site(site)
+    _ensure_deletable_site(site, allow_template_source=allow_template_source)
     if _has_running_site_jobs(site):
         raise SiteOperationConflict("Для сайта уже выполняется фоновая задача. Повторите позже.")
 
     with transaction.atomic():
         _log_deletion_stage("resolve_site", user_id=user_id, extra={"site_id": site.pk})
         locked_site = Site.objects.select_for_update().select_related("owner").get(pk=site.pk, owner=site.owner)
-        _ensure_deletable_site(locked_site)
+        _ensure_deletable_site(locked_site, allow_template_source=allow_template_source)
         snapshot = SiteSnapshot.from_site(locked_site)
         _log_deletion_stage("collect_counts", snapshot=snapshot, user_id=user_id)
         deleted = _site_delete_counts(locked_site)
@@ -470,4 +689,76 @@ def delete_owned_site(*, site: Site, request) -> dict:
             "slug": snapshot.slug,
             "domain": snapshot.domain,
         },
+    }
+
+
+def delete_website_template(*, template_id: int, confirmation: str, request) -> dict:
+    template = _template_row(template_id)
+    if template is None:
+        raise WebsiteTemplateNotFoundError("Шаблон не найден.")
+
+    source_site_id = template["source_site_id"]
+    template_name = template["name"] or str(template_id)
+    cloned_sites_count = _template_clone_sites_count(template_id, source_site_id=source_site_id)
+    if cloned_sites_count:
+        raise WebsiteTemplateInUseError(cloned_sites_count)
+    if str(confirmation or "").strip() != template_name:
+        raise ValueError("Введите точное название шаблона для подтверждения удаления.")
+
+    with transaction.atomic():
+        template = _template_row(template_id)
+        if template is None:
+            raise WebsiteTemplateNotFoundError("Шаблон не найден.")
+
+        source_site_id = template["source_site_id"]
+        template_name = template["name"] or str(template_id)
+        cloned_sites_count = _template_clone_sites_count(template_id, source_site_id=source_site_id)
+        if cloned_sites_count:
+            raise WebsiteTemplateInUseError(cloned_sites_count)
+
+        source_site = Site.objects.select_for_update().filter(pk=source_site_id).select_related("owner").first()
+        deleted_clone_requests = _delete_template_clone_requests_for_template(template_id)
+        deleted_templates = _delete_template_row(template_id)
+        source_delete_result = None
+        if source_site is not None:
+            source_delete_result = delete_owned_site(
+                site=source_site,
+                request=request,
+                allow_template_source=True,
+            )
+
+        PlatformAuditLog.objects.create(
+            actor=request.user,
+            action="template.delete",
+            site=None,
+            client_id=None,
+            object_type="sites.WebsiteTemplate",
+            object_id=str(template_id),
+            ip_address=_client_ip(request),
+            metadata={
+                "result": "success",
+                "template": {
+                    "id": template_id,
+                    "name": template_name,
+                    "source_site_id": source_site_id,
+                },
+                "deleted": {
+                    "templates": deleted_templates,
+                    "template_clone_requests": deleted_clone_requests,
+                    "source_site": 1 if source_delete_result else 0,
+                },
+            },
+        )
+
+    return {
+        "success": True,
+        "template_id": str(template_id),
+        "template_name": template_name,
+        "source_site_id": source_site_id,
+        "deleted": {
+            "templates": deleted_templates,
+            "template_clone_requests": deleted_clone_requests,
+            "source_site": 1 if source_delete_result else 0,
+        },
+        "source_site": (source_delete_result or {}).get("site"),
     }

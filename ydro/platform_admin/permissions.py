@@ -7,7 +7,6 @@ def is_platform_owner(user) -> bool:
         and user.is_authenticated
         and (
             getattr(user, "is_superuser", False)
-            or getattr(user, "is_staff", False)
             or user.has_perm("platform_admin.access_platform")
         )
     )

@@ -10,6 +10,7 @@ from leads.services import send_lead_telegram_notification
 from .models import SectionSchema, Site, SiteLead, SiteSection
 from .a_meditation import SECTION_TITLES
 from .seo import build_public_site_seo
+from .services import is_template_source_site
 from .volga_site import SECTION_TITLES as VOLGA_SECTION_TITLES
 from .tracker_utils import build_tracker_script_tag
 from .tasks import send_site_lead_push_notification_task
@@ -64,6 +65,7 @@ class SectionSchemaSerializer(serializers.ModelSerializer):
 class AdminMySiteSerializer(serializers.ModelSerializer):
     sections_count = serializers.SerializerMethodField()
     tracker_script_tag = serializers.SerializerMethodField()
+    is_template_source = serializers.SerializerMethodField()
 
     class Meta:
         model = Site
@@ -80,6 +82,7 @@ class AdminMySiteSerializer(serializers.ModelSerializer):
             "is_active",
             "sections_count",
             "tracker_script_tag",
+            "is_template_source",
             "created_at",
             "updated_at",
         )
@@ -92,6 +95,9 @@ class AdminMySiteSerializer(serializers.ModelSerializer):
 
     def get_tracker_script_tag(self, obj):
         return build_tracker_script_tag(obj.api_key)
+
+    def get_is_template_source(self, obj):
+        return is_template_source_site(obj)
 
 
 class AdminMySiteSectionSerializer(serializers.ModelSerializer):

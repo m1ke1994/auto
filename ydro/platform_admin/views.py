@@ -14,6 +14,12 @@ from ai_recommendations.models import AIRecommendationJob
 from ai_recommendations.tasks import sync_job
 from apps.analytics.models import PageView, TrackingEvent, Visit
 from apps.sites.models import Site, SiteLead
+from apps.sites.services import (
+    WebsiteTemplateInUseError,
+    WebsiteTemplateNotFoundError,
+    delete_website_template,
+    website_template_for_source_site,
+)
 from clients.models import Client
 from seo_audit.models import SiteSEOAudit
 from subscriptions.models import Subscription
@@ -133,7 +139,34 @@ class SiteDetailView(PlatformView):
         row["seo_audits"] = list(SiteSEOAudit.objects.filter(domain__iexact=site.domain).values("id", "status", "seo_score", "created_at", "finished_at")[:10])
         row["recommendations"] = list(AIRecommendationJob.objects.filter(site=site, deleted_at__isnull=True).values("id", "recommendation_type", "status", "period_from", "period_to", "created_at")[:20])
         row["view_as_owner"] = {"enabled": True, "read_only": True, "owner_id": site.owner_id}
+        row["template_source"] = website_template_for_source_site(site.id)
         return Response(row)
+
+
+class TemplateDetailView(PlatformView):
+    def delete(self, request, template_id):
+        confirmation = str(request.data.get("confirmation") or "").strip()
+        try:
+            result = delete_website_template(
+                template_id=template_id,
+                confirmation=confirmation,
+                request=request,
+            )
+        except WebsiteTemplateNotFoundError as exc:
+            return Response({"code": "template_not_found", "detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        except WebsiteTemplateInUseError as exc:
+            return Response(
+                {
+                    "code": "template_has_cloned_sites",
+                    "detail": str(exc),
+                    "cloned_sites_count": exc.cloned_sites_count,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        except ValueError as exc:
+            return Response({"code": "invalid_confirmation", "detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(result, status=status.HTTP_200_OK)
 
 
 class AnalyticsView(PlatformView):

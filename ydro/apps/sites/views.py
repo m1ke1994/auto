@@ -25,10 +25,13 @@ from .public_renderer import inject_subscription_lock, public_billing_url, site_
 from .seo import build_public_site_seo, render_public_site_seo_head
 from .services import (
     ProtectedSiteError,
+    ProtectedTemplateSourceError,
     SiteOperationConflict,
     SiteSnapshot,
     clear_site_analytics,
     delete_owned_site,
+    filter_client_manageable_sites,
+    is_template_source_site,
     log_site_operation,
 )
 from .serializers import (
@@ -305,12 +308,25 @@ class AdminSiteAccessMixin:
     def get_sites_queryset(self):
         base = Site.objects.all()
         if self.request.user.is_superuser:
+            return filter_client_manageable_sites(base)
+        return filter_client_manageable_sites(base.filter(owner=self.request.user))
+
+    def get_sites_queryset_for_delete(self):
+        base = Site.objects.all()
+        if self.request.user.is_superuser:
             return base
         return base.filter(owner=self.request.user)
 
     def get_site(self):
         site_id = self.kwargs["site_id"]
         site = self.get_sites_queryset().filter(id=site_id).first()
+        if site is None:
+            raise NotFound(detail="Site was not found.")
+        return site
+
+    def get_site_for_delete(self):
+        site_id = self.kwargs["site_id"]
+        site = self.get_sites_queryset_for_delete().filter(id=site_id).first()
         if site is None:
             raise NotFound(detail="Site was not found.")
         return site
@@ -465,7 +481,23 @@ class AdminMySiteDetailView(AdminSiteAccessMixin, generics.RetrieveAPIView):
         )
 
     def delete(self, request, *args, **kwargs):
-        site = self.get_site()
+        site = self.get_site_for_delete()
+        snapshot = SiteSnapshot.from_site(site)
+        if is_template_source_site(site):
+            detail = "Источник шаблона нельзя удалить из раздела «Мои сайты»."
+            log_site_operation(
+                request,
+                site=site,
+                snapshot=snapshot,
+                action="site.delete",
+                result="blocked",
+                error=detail,
+            )
+            return Response(
+                {"code": "protected_template_source", "detail": detail},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         confirmation = str(request.data.get("confirmation") or "").strip()
         if confirmation != site.name:
             return Response(
@@ -476,9 +508,21 @@ class AdminMySiteDetailView(AdminSiteAccessMixin, generics.RetrieveAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        snapshot = SiteSnapshot.from_site(site)
         try:
             result = delete_owned_site(site=site, request=request)
+        except ProtectedTemplateSourceError as exc:
+            log_site_operation(
+                request,
+                site=site,
+                snapshot=snapshot,
+                action="site.delete",
+                result="blocked",
+                error=str(exc),
+            )
+            return Response(
+                {"code": "protected_template_source", "detail": str(exc)},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         except ProtectedSiteError as exc:
             log_site_operation(
                 request,

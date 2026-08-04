@@ -113,6 +113,10 @@ async function confirmClearAnalytics() {
       summary.value = data
     }
   } catch (e) {
+    if (e?.response?.status === 404 || e?.response?.status === 403 || e?.response?.data?.code === 'protected_template_source') {
+      await router.replace('/dashboard')
+      return
+    }
     error.value = requestErrorMessage(e, 'Не удалось очистить аналитику сайта.')
   } finally {
     clearing.value = false
