@@ -18,6 +18,7 @@ from apps.sites.tracknode_site import TRACKNODE_SITE_SLUG
 from clients.models import Client
 from competitor_analysis.models import CompetitorAnalysis
 from platform_admin.models import PlatformAuditLog
+from platform_admin.permissions import is_platform_owner
 from seo_audit.models import SEOIssue, SEOPage, SiteSEOAudit
 from tracker.models import Event as TrackerEvent
 from tracker.models import PageView as TrackerPageView
@@ -68,7 +69,9 @@ TEMPLATE_TABLE = "sites_websitetemplate"
 TEMPLATE_SOURCE_SITE_COLUMNS = ("source_site_id",)
 TEMPLATE_SOURCE_SITE_FALLBACK_COLUMNS = ("source_site_id", "site_id")
 TEMPLATE_SOURCE_SLUG_PREFIX = "tracknode-template-"
+TEMPLATE_SOURCE_SLUG_SUFFIX = "-source"
 TEMPLATE_NAME_FALLBACK_COLUMNS = ("name", "title", "slug")
+SITE_OPTIONAL_METADATA_COLUMNS = ("source", "render_mode", "status")
 TEMPLATE_CLONE_REQUEST_FALLBACK_TEMPLATE_COLUMNS = (
     "template_id",
     "website_template_id",
@@ -281,23 +284,113 @@ def template_source_site_ids() -> set[int]:
     return ids
 
 
-def is_template_source_site(site: Site | int | None) -> bool:
+def _site_optional_metadata(site: Site) -> dict[str, str]:
+    values = {}
+    for column in SITE_OPTIONAL_METADATA_COLUMNS:
+        if hasattr(site, column):
+            values[column] = str(getattr(site, column) or "")
+
+    db_columns = _table_columns(Site._meta.db_table)
+    missing_columns = [column for column in SITE_OPTIONAL_METADATA_COLUMNS if column not in values and column in db_columns]
+    if missing_columns and getattr(site, "id", None) is not None:
+        select_columns = ", ".join(connection.ops.quote_name(column) for column in missing_columns)
+        table = connection.ops.quote_name(Site._meta.db_table)
+        with connection.cursor() as cursor:
+            cursor.execute(f"SELECT {select_columns} FROM {table} WHERE id = %s", [site.id])
+            row = cursor.fetchone()
+        if row is not None:
+            values.update({column: str(value or "") for column, value in zip(missing_columns, row)})
+
+    return values
+
+
+def _optional_metadata_matches(values: dict[str, str], column: str, expected: str) -> bool:
+    if column not in values:
+        return True
+    return values[column].strip().lower() == expected
+
+
+def is_template_catalog_source_site(site: Site | int | None) -> bool:
     if site is None:
         return False
 
     site_id = int(site if isinstance(site, int) else site.id)
-    if site_id in template_source_site_ids():
-        return True
+    return site_id in template_source_site_ids()
 
-    slug = "" if isinstance(site, int) else str(getattr(site, "slug", "") or "")
-    return slug.startswith(TEMPLATE_SOURCE_SLUG_PREFIX)
+
+def is_technical_template_source_site(site: Site | int | None) -> bool:
+    if site is None or isinstance(site, int):
+        return False
+
+    if not is_template_catalog_source_site(site):
+        return False
+
+    slug = str(getattr(site, "slug", "") or "")
+    if not (slug.startswith(TEMPLATE_SOURCE_SLUG_PREFIX) and slug.endswith(TEMPLATE_SOURCE_SLUG_SUFFIX)):
+        return False
+    if str(getattr(site, "domain", "") or "").strip():
+        return False
+
+    metadata = _site_optional_metadata(site)
+    return (
+        _optional_metadata_matches(metadata, "source", "template")
+        and _optional_metadata_matches(metadata, "render_mode", "builder")
+        and _optional_metadata_matches(metadata, "status", "draft")
+    )
+
+
+def is_template_source_site(site: Site | int | None) -> bool:
+    return is_technical_template_source_site(site)
+
+
+def technical_template_source_site_ids() -> set[int]:
+    source_ids = template_source_site_ids()
+    if not source_ids:
+        return set()
+    return {site.id for site in Site.objects.filter(id__in=source_ids) if is_technical_template_source_site(site)}
 
 
 def filter_client_manageable_sites(queryset: QuerySet[Site]) -> QuerySet[Site]:
-    source_ids = template_source_site_ids()
+    source_ids = technical_template_source_site_ids()
     if source_ids:
         queryset = queryset.exclude(id__in=source_ids)
-    return queryset.exclude(slug__startswith=TEMPLATE_SOURCE_SLUG_PREFIX)
+    return queryset
+
+
+def site_type(site: Site) -> str:
+    if is_technical_template_source_site(site):
+        return "technical_template_source"
+    if site.slug == TRACKNODE_SITE_SLUG:
+        return "system"
+    if is_template_catalog_source_site(site):
+        return "template_catalog_source"
+    return "site"
+
+
+def site_metadata(site: Site) -> dict[str, str]:
+    values = _site_optional_metadata(site)
+    return {
+        "source": values.get("source", ""),
+        "render_mode": values.get("render_mode", ""),
+        "status": values.get("status", ""),
+    }
+
+
+def user_can_access_site(user, site: Site) -> bool:
+    return bool(user and user.is_authenticated and (is_platform_owner(user) or site.owner_id == user.id))
+
+
+def site_capabilities(site: Site, user) -> dict[str, bool]:
+    can_access = user_can_access_site(user, site)
+    technical_source = is_technical_template_source_site(site)
+    protected_system = site.slug == TRACKNODE_SITE_SLUG
+    return {
+        "view": can_access,
+        "edit": can_access and not technical_source,
+        "clear_analytics": can_access and not technical_source,
+        "delete": can_access and not technical_source and not protected_system,
+        "manage_template": can_access and is_platform_owner(user) and technical_source,
+    }
 
 
 def _delete_template_clone_requests(snapshot: SiteSnapshot) -> int:
@@ -435,6 +528,7 @@ def website_template_for_source_site(site_id: int) -> dict | None:
         "name": name,
         "source_site_id": site_id,
         "cloned_sites_count": _template_clone_sites_count(template_id, source_site_id=site_id),
+        "is_technical_source": is_technical_template_source_site(Site.objects.get(pk=site_id)),
     }
 
 
@@ -456,11 +550,9 @@ def _has_running_site_jobs(site: Site) -> bool:
 
 def _ensure_deletable_site(site: Site, *, allow_template_source: bool = False) -> None:
     if site.slug == TRACKNODE_SITE_SLUG:
-        raise ProtectedSiteError("Системный сайт TrackNode нельзя удалить.")
-
-
-    if not allow_template_source and is_template_source_site(site):
-        raise ProtectedTemplateSourceError("Источник шаблона нельзя удалить из раздела «Мои сайты».")
+        raise ProtectedSiteError("Системный сайт TrackNode нельзя удалить через этот раздел.")
+    if not allow_template_source and is_technical_template_source_site(site):
+        raise ProtectedTemplateSourceError("Источник шаблона управляется через каталог шаблонов.")
 
 
 def _audit_metadata(request, *, result: str, deleted: dict[str, int], error: str = "", snapshot: SiteSnapshot) -> dict:
@@ -556,7 +648,7 @@ def clear_site_analytics(*, site: Site, request) -> dict:
         raise SiteOperationConflict("Для сайта уже выполняется аналитическая задача. Повторите позже.")
 
     with transaction.atomic():
-        locked_site = Site.objects.select_for_update().select_related("owner").get(pk=site.pk, owner=site.owner)
+        locked_site = Site.objects.select_for_update().select_related("owner").get(pk=site.pk)
         snapshot = SiteSnapshot.from_site(locked_site)
         deleted = _analytics_counts(locked_site)
         client = _client_for_site(locked_site)
@@ -626,7 +718,7 @@ def delete_owned_site(*, site: Site, request, allow_template_source: bool = Fals
 
     with transaction.atomic():
         _log_deletion_stage("resolve_site", user_id=user_id, extra={"site_id": site.pk})
-        locked_site = Site.objects.select_for_update().select_related("owner").get(pk=site.pk, owner=site.owner)
+        locked_site = Site.objects.select_for_update().select_related("owner").get(pk=site.pk)
         _ensure_deletable_site(locked_site, allow_template_source=allow_template_source)
         snapshot = SiteSnapshot.from_site(locked_site)
         _log_deletion_stage("collect_counts", snapshot=snapshot, user_id=user_id)
@@ -717,10 +809,11 @@ def delete_website_template(*, template_id: int, confirmation: str, request) -> 
             raise WebsiteTemplateInUseError(cloned_sites_count)
 
         source_site = Site.objects.select_for_update().filter(pk=source_site_id).select_related("owner").first()
+        source_is_technical = bool(source_site and is_technical_template_source_site(source_site))
         deleted_clone_requests = _delete_template_clone_requests_for_template(template_id)
         deleted_templates = _delete_template_row(template_id)
         source_delete_result = None
-        if source_site is not None:
+        if source_site is not None and source_is_technical:
             source_delete_result = delete_owned_site(
                 site=source_site,
                 request=request,
@@ -746,6 +839,7 @@ def delete_website_template(*, template_id: int, confirmation: str, request) -> 
                     "templates": deleted_templates,
                     "template_clone_requests": deleted_clone_requests,
                     "source_site": 1 if source_delete_result else 0,
+                    "source_site_preserved": 1 if source_site is not None and not source_is_technical else 0,
                 },
             },
         )
@@ -759,6 +853,7 @@ def delete_website_template(*, template_id: int, confirmation: str, request) -> 
             "templates": deleted_templates,
             "template_clone_requests": deleted_clone_requests,
             "source_site": 1 if source_delete_result else 0,
+            "source_site_preserved": 1 if source_site is not None and not source_is_technical else 0,
         },
         "source_site": (source_delete_result or {}).get("site"),
     }

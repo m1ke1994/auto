@@ -2,6 +2,7 @@ from datetime import date
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
 from django.urls import reverse
@@ -30,12 +31,20 @@ from tracker.models import Visit as TrackerVisit
 
 
 class SiteDangerZoneApiTests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ensure_production_site_columns()
+
     def setUp(self):
         self.drop_raw_site_dependency_tables()
         user_model = get_user_model()
         self.user = user_model.objects.create_user("danger-owner", "owner@example.com", "secret12345")
         self.other_user = user_model.objects.create_user("danger-other", "other@example.com", "secret12345")
+        self.platform_owner = user_model.objects.create_user("danger-platform", "platform@example.com", "secret12345")
         self.superuser = user_model.objects.create_superuser("danger-root", "root@example.com", "secret12345")
+        self.platform_owner.user_permissions.add(
+            Permission.objects.get(codename="access_platform", content_type__app_label="platform_admin")
+        )
         self.client_obj = Client.objects.create(owner=self.user, name="Owner")
         self.other_client = Client.objects.create(owner=self.other_user, name="Other")
         grant_business_analytics(self.user, client=self.client_obj)
@@ -96,6 +105,31 @@ class SiteDangerZoneApiTests(APITestCase):
         with connection.cursor() as cursor:
             cursor.execute(query, params or [])
             return int(cursor.fetchone()[0] or 0)
+
+    @classmethod
+    def ensure_production_site_columns(cls):
+        with connection.cursor() as cursor:
+            columns = {column.name for column in connection.introspection.get_table_description(cursor, "sites_site")}
+            for column, definition in (
+                ("source", "varchar(32)"),
+                ("render_mode", "varchar(32)"),
+                ("status", "varchar(32)"),
+            ):
+                if column not in columns:
+                    cursor.execute(f"ALTER TABLE sites_site ADD COLUMN {column} {definition}")
+
+    def set_production_site_meta(self, site, *, source="template", render_mode="builder", status_value="draft"):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE sites_site SET source = %s, render_mode = %s, status = %s WHERE id = %s",
+                [source, render_mode, status_value, site.id],
+            )
+
+    def mark_technical_template_source(self, site):
+        self.set_production_site_meta(site, source="template", render_mode="builder", status_value="draft")
+
+    def mark_legacy_public_site(self, site):
+        self.set_production_site_meta(site, source="legacy", render_mode="legacy", status_value="published")
 
     def clear_url(self, site=None):
         return reverse("admin-my-site-analytics-clear", kwargs={"site_id": (site or self.site).id})
@@ -191,6 +225,34 @@ class SiteDangerZoneApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["id"], self.site.id)
         self.assertEqual(response.data["name"], self.site.name)
+        self.assertEqual(response.data["owner_id"], self.user.id)
+        self.assertTrue(response.data["capabilities"]["clear_analytics"])
+        self.assertTrue(response.data["capabilities"]["delete"])
+
+    def test_my_sites_list_is_owner_scoped_for_regular_user(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(self.list_url())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [row["id"] for row in response.data]
+        self.assertIn(self.site.id, ids)
+        self.assertIn(self.second_site.id, ids)
+        self.assertNotIn(self.foreign_site.id, ids)
+
+    def test_global_admins_can_see_and_open_foreign_sites(self):
+        for admin_user in (self.superuser, self.platform_owner):
+            self.client.force_authenticate(admin_user)
+            list_response = self.client.get(self.list_url())
+            detail_response = self.client.get(self.detail_url(self.foreign_site))
+
+            self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+            self.assertIn(self.foreign_site.id, [row["id"] for row in list_response.data])
+            self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
+            self.assertEqual(detail_response.data["id"], self.foreign_site.id)
+            self.assertEqual(detail_response.data["owner_id"], self.other_user.id)
+            self.assertTrue(detail_response.data["capabilities"]["clear_analytics"])
+            self.assertTrue(detail_response.data["capabilities"]["delete"])
 
     def test_owner_deletes_own_site(self):
         self.seed_analytics(self.site)
@@ -272,6 +334,43 @@ class SiteDangerZoneApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(Visit.objects.filter(site=self.foreign_site).count(), 1)
 
+    def test_global_admins_can_clear_foreign_site_analytics(self):
+        for admin_user in (self.superuser, self.platform_owner):
+            target = Site.objects.create(
+                name=f"Foreign Clear {admin_user.id}",
+                slug=f"foreign-clear-{admin_user.id}",
+                domain=f"foreign-clear-{admin_user.id}.example.com",
+                owner=self.other_user,
+            )
+            neighbor = Site.objects.create(
+                name=f"Neighbor Clear {admin_user.id}",
+                slug=f"neighbor-clear-{admin_user.id}",
+                domain=f"neighbor-clear-{admin_user.id}.example.com",
+                owner=self.other_user,
+            )
+            self.seed_analytics(target, session_id=f"foreign-session-{admin_user.id}")
+            self.seed_analytics(neighbor, session_id=f"neighbor-session-{admin_user.id}")
+            SiteLead.objects.get_or_create(
+                site=target,
+                name=f"Lead {admin_user.id}",
+                defaults={"phone": "+70000000000"},
+            )
+            self.client.force_authenticate(admin_user)
+
+            response = self.client.delete(self.clear_url(target), {"confirmation": "ОЧИСТИТЬ"}, format="json")
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(Visit.objects.filter(site=target).count(), 0)
+            self.assertEqual(Visit.objects.filter(site=neighbor).count(), 1)
+            self.assertTrue(Site.objects.filter(id=target.id).exists())
+            self.assertTrue(SiteLead.objects.filter(site=target).exists())
+            audit = PlatformAuditLog.objects.filter(
+                action="site.analytics.clear",
+                object_id=str(target.id),
+                actor=admin_user,
+            ).latest("created_at")
+            self.assertEqual(audit.metadata["site"]["owner_id"], self.other_user.id)
+
     def test_substituted_site_id_returns_not_found(self):
         self.client.force_authenticate(self.user)
 
@@ -282,6 +381,25 @@ class SiteDangerZoneApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_global_admins_can_delete_foreign_regular_site(self):
+        for admin_user in (self.superuser, self.platform_owner):
+            site = Site.objects.create(
+                name=f"Foreign Delete {admin_user.id}",
+                slug=f"foreign-delete-{admin_user.id}",
+                domain=f"foreign-delete-{admin_user.id}.example.com",
+                owner=self.other_user,
+            )
+            self.client.force_authenticate(admin_user)
+
+            response = self.client.delete(self.detail_url(site), {"confirmation": site.name}, format="json")
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertFalse(Site.objects.filter(id=site.id).exists())
+            self.assertTrue(Site.objects.filter(id=self.site.id).exists())
+            audit = PlatformAuditLog.objects.get(action="site.delete", object_id=str(site.id))
+            self.assertEqual(audit.actor_id, admin_user.id)
+            self.assertEqual(audit.metadata["site"]["owner_id"], self.other_user.id)
 
     def test_tracknode_system_site_is_not_deleted_with_client_site(self):
         tracknode = Site.objects.create(name="TrackNode", slug=TRACKNODE_SITE_SLUG, domain="tracknode.ru", owner=self.user)
@@ -298,6 +416,20 @@ class SiteDangerZoneApiTests(APITestCase):
 
         response = self.client.delete(self.detail_url(tracknode), {"confirmation": tracknode.name}, format="json")
 
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["code"], "protected_site")
+        self.assertTrue(Site.objects.filter(id=tracknode.id).exists())
+
+    def test_superuser_sees_tracknode_but_cannot_delete_it(self):
+        tracknode = Site.objects.create(name="TrackNode", slug=TRACKNODE_SITE_SLUG, domain="tracknode.ru", owner=self.user)
+        self.client.force_authenticate(self.superuser)
+
+        detail = self.client.get(self.detail_url(tracknode))
+        response = self.client.delete(self.detail_url(tracknode), {"confirmation": tracknode.name}, format="json")
+
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertFalse(detail.data["capabilities"]["delete"])
+        self.assertTrue(detail.data["capabilities"]["clear_analytics"])
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(response.data["code"], "protected_site")
         self.assertTrue(Site.objects.filter(id=tracknode.id).exists())
@@ -376,9 +508,11 @@ class SiteDangerZoneApiTests(APITestCase):
         source_site = Site.objects.create(
             name="Art Stroy Template Source",
             slug="tracknode-template-art-stroy-source",
-            domain="art-stroy-template.example.com",
+            domain="",
             owner=self.user,
+            is_active=False,
         )
+        self.mark_technical_template_source(source_site)
         other_clone_site = Site.objects.create(
             name="Other Clone",
             slug="other-clone",
@@ -419,9 +553,11 @@ class SiteDangerZoneApiTests(APITestCase):
         source_site = Site.objects.create(
             name="Art Stroy Template Source",
             slug="tracknode-template-art-stroy-source",
-            domain="art-source.example.com",
+            domain="",
             owner=self.user,
+            is_active=False,
         )
+        self.mark_technical_template_source(source_site)
         with connection.cursor() as cursor:
             cursor.execute(
                 "INSERT INTO sites_websitetemplate (id, source_site_id, name) VALUES (%s, %s, %s)",
@@ -438,20 +574,56 @@ class SiteDangerZoneApiTests(APITestCase):
         self.assertIn(self.site.id, [row["id"] for row in owner_response.data])
         self.assertNotIn(source_site.id, [row["id"] for row in owner_response.data])
 
-        self.client.force_authenticate(self.superuser)
-        superuser_response = self.client.get(self.list_url())
-        self.assertEqual(superuser_response.status_code, status.HTTP_200_OK)
-        self.assertIn(self.site.id, [row["id"] for row in superuser_response.data])
-        self.assertNotIn(source_site.id, [row["id"] for row in superuser_response.data])
+        for admin_user in (self.superuser, self.platform_owner):
+            self.client.force_authenticate(admin_user)
+            admin_response = self.client.get(self.list_url())
+            self.assertEqual(admin_response.status_code, status.HTTP_200_OK)
+            admin_ids = [row["id"] for row in admin_response.data]
+            self.assertIn(self.site.id, admin_ids)
+            self.assertIn(self.foreign_site.id, admin_ids)
+            self.assertNotIn(source_site.id, admin_ids)
 
-    def test_template_source_site_get_is_hidden_but_delete_returns_protected_code(self):
+    def test_legacy_public_template_source_remains_visible_to_global_admins(self):
+        self.create_template_clone_tables()
+        legacy_source = Site.objects.create(
+            name="Leelabird",
+            slug="a-meditation",
+            domain="leelabird.ru",
+            owner=self.other_user,
+            is_active=True,
+        )
+        self.mark_legacy_public_site(legacy_source)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO sites_websitetemplate (id, source_site_id, name) VALUES (%s, %s, %s)",
+                [107, legacy_source.id, "Leelabird"],
+            )
+
+        self.client.force_authenticate(self.user)
+        owner_response = self.client.get(self.list_url())
+        self.assertEqual(owner_response.status_code, status.HTTP_200_OK)
+        self.assertNotIn(legacy_source.id, [row["id"] for row in owner_response.data])
+
+        for admin_user in (self.superuser, self.platform_owner):
+            self.client.force_authenticate(admin_user)
+            response = self.client.get(self.list_url())
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            rows = {row["id"]: row for row in response.data}
+            self.assertIn(legacy_source.id, rows)
+            self.assertFalse(rows[legacy_source.id]["is_technical_template_source"])
+            self.assertEqual(rows[legacy_source.id]["site_type"], "template_catalog_source")
+            self.assertTrue(rows[legacy_source.id]["capabilities"]["delete"])
+
+    def test_template_source_site_get_and_delete_are_hidden_for_regular_owner(self):
         self.create_template_clone_tables()
         source_site = Site.objects.create(
             name="A Meditation Template Source",
             slug="tracknode-template-a-meditation-source",
-            domain="meditation-source.example.com",
+            domain="",
             owner=self.user,
+            is_active=False,
         )
+        self.mark_technical_template_source(source_site)
         with connection.cursor() as cursor:
             cursor.execute(
                 "INSERT INTO sites_websitetemplate (id, source_site_id, name) VALUES (%s, %s, %s)",
@@ -463,9 +635,7 @@ class SiteDangerZoneApiTests(APITestCase):
         delete_response = self.client.delete(self.detail_url(source_site), {"confirmation": source_site.name}, format="json")
 
         self.assertEqual(get_response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertEqual(delete_response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(delete_response.data["code"], "protected_template_source")
-        self.assertEqual(delete_response.data["detail"], "Источник шаблона нельзя удалить из раздела «Мои сайты».")
+        self.assertEqual(delete_response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertTrue(Site.objects.filter(id=source_site.id).exists())
         self.assertEqual(self.raw_count("sites_websitetemplate", "id = %s", [102]), 1)
 
@@ -474,20 +644,28 @@ class SiteDangerZoneApiTests(APITestCase):
         source_site = Site.objects.create(
             name="Art Stroy Template Source",
             slug="tracknode-template-art-stroy-source",
-            domain="art-source.example.com",
+            domain="",
             owner=self.user,
+            is_active=False,
         )
+        self.mark_technical_template_source(source_site)
         with connection.cursor() as cursor:
             cursor.execute(
                 "INSERT INTO sites_websitetemplate (id, source_site_id, name) VALUES (%s, %s, %s)",
                 [103, source_site.id, "Art Stroy"],
             )
 
-        self.client.force_authenticate(self.superuser)
-        response = self.client.delete(self.detail_url(source_site), {"confirmation": source_site.name}, format="json")
+        for admin_user in (self.superuser, self.platform_owner):
+            self.client.force_authenticate(admin_user)
+            detail_response = self.client.get(self.detail_url(source_site))
+            response = self.client.delete(self.detail_url(source_site), {"confirmation": source_site.name}, format="json")
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(response.data["code"], "protected_template_source")
+            self.assertEqual(detail_response.status_code, status.HTTP_403_FORBIDDEN)
+            self.assertEqual(detail_response.data["code"], "protected_template_source")
+            self.assertEqual(detail_response.data["platform_url"], f"/platform/sites/{source_site.id}")
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            self.assertEqual(response.data["code"], "protected_template_source")
+            self.assertEqual(response.data["detail"], "Источник шаблона управляется через каталог шаблонов.")
         self.assertTrue(Site.objects.filter(id=source_site.id).exists())
         self.assertEqual(self.raw_count("sites_websitetemplate", "id = %s", [103]), 1)
 
@@ -496,9 +674,11 @@ class SiteDangerZoneApiTests(APITestCase):
         source_site = Site.objects.create(
             name="Art Stroy Template Source",
             slug="tracknode-template-art-stroy-source",
-            domain="art-source.example.com",
+            domain="",
             owner=self.user,
+            is_active=False,
         )
+        self.mark_technical_template_source(source_site)
         with connection.cursor() as cursor:
             cursor.execute(
                 "INSERT INTO sites_websitetemplate (id, source_site_id, name) VALUES (%s, %s, %s)",
@@ -515,15 +695,18 @@ class SiteDangerZoneApiTests(APITestCase):
         self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
         self.assertEqual(detail_response.data["template_source"]["id"], 104)
         self.assertEqual(detail_response.data["template_source"]["cloned_sites_count"], 0)
+        self.assertTrue(detail_response.data["template_source"]["is_technical_source"])
 
     def test_platform_admin_cannot_delete_template_used_by_cloned_sites(self):
         self.create_template_clone_tables()
         source_site = Site.objects.create(
             name="Art Stroy Template Source",
             slug="tracknode-template-art-stroy-source",
-            domain="art-source.example.com",
+            domain="",
             owner=self.user,
+            is_active=False,
         )
+        self.mark_technical_template_source(source_site)
         other_clone_site = Site.objects.create(
             name="Other Clone",
             slug="other-clone",
@@ -558,9 +741,11 @@ class SiteDangerZoneApiTests(APITestCase):
         source_site = Site.objects.create(
             name="A Meditation Template Source",
             slug="tracknode-template-a-meditation-source",
-            domain="meditation-source.example.com",
+            domain="",
             owner=self.user,
+            is_active=False,
         )
+        self.mark_technical_template_source(source_site)
         SiteSection.objects.create(site=source_site, key="hero", title="Hero", schema={"fields": []})
         with connection.cursor() as cursor:
             cursor.execute(
@@ -579,6 +764,33 @@ class SiteDangerZoneApiTests(APITestCase):
         self.assertEqual(self.raw_count("sites_websitetemplate", "id = %s", [106]), 0)
         self.assertTrue(PlatformAuditLog.objects.filter(action="template.delete", object_id="106").exists())
         self.assertTrue(PlatformAuditLog.objects.filter(action="site.delete", object_id=str(source_site.id)).exists())
+
+    def test_platform_admin_deletes_unused_legacy_source_template_without_deleting_site(self):
+        self.create_template_clone_tables()
+        legacy_source = Site.objects.create(
+            name="Leelabird",
+            slug="a-meditation",
+            domain="leelabird.ru",
+            owner=self.other_user,
+            is_active=True,
+        )
+        self.mark_legacy_public_site(legacy_source)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO sites_websitetemplate (id, source_site_id, name) VALUES (%s, %s, %s)",
+                [108, legacy_source.id, "Leelabird"],
+            )
+
+        self.client.force_authenticate(self.superuser)
+        response = self.client.delete("/api/platform/templates/108/", {"confirmation": "Leelabird"}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["deleted"]["templates"], 1)
+        self.assertEqual(response.data["deleted"]["source_site"], 0)
+        self.assertEqual(response.data["deleted"]["source_site_preserved"], 1)
+        self.assertTrue(Site.objects.filter(id=legacy_source.id).exists())
+        self.assertEqual(self.raw_count("sites_websitetemplate", "id = %s", [108]), 0)
+        self.assertFalse(PlatformAuditLog.objects.filter(action="site.delete", object_id=str(legacy_source.id)).exists())
 
     def test_unknown_site_dependency_returns_conflict_instead_of_500(self):
         with connection.cursor() as cursor:

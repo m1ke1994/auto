@@ -171,10 +171,11 @@ class UserMeSerializer(serializers.Serializer):
         return obj.sites.count()
 
     def get_permissions(self, obj):
+        platform_access = bool(getattr(obj, "is_superuser", False) or obj.has_perm("platform_admin.access_platform"))
         return {
-            "platform_access": obj.has_perm("platform_admin.access_platform"),
-            "view_all_sites": obj.has_perm("platform_admin.access_platform"),
-            "view_all_analytics": obj.has_perm("platform_admin.access_platform"),
+            "platform_access": platform_access,
+            "view_all_sites": platform_access,
+            "view_all_analytics": platform_access,
             "view_all_leads": obj.has_perm("platform_admin.view_platform_personal_data"),
             "view_tracker_key": obj.has_perm("platform_admin.view_platform_tracker_key"),
             "manage_recommendations": obj.has_perm("platform_admin.manage_platform_recommendations"),

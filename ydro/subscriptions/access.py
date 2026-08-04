@@ -173,7 +173,7 @@ def get_access_profile(user, request=None, client=None) -> dict:
     is_platform_admin = bool(
         user
         and user.is_authenticated
-        and (getattr(user, "is_superuser", False) or getattr(user, "is_staff", False))
+        and (getattr(user, "is_superuser", False) or user.has_perm("platform_admin.access_platform"))
     )
 
     if client is None and user and user.is_authenticated:

@@ -19,6 +19,7 @@ from leads.services import send_telegram_message
 from tracker.models import Site as TrackerSite
 from subscriptions.access import FEATURE_ANALYTICS, FEATURE_LEADS, FEATURE_SITE_EDIT, FEATURE_TELEGRAM
 from subscriptions.permissions import HasFeatureAccess
+from platform_admin.permissions import is_platform_owner
 
 from .models import Site, SiteLead, SiteSection
 from .public_renderer import inject_subscription_lock, public_billing_url, site_requires_subscription_lock
@@ -31,8 +32,9 @@ from .services import (
     clear_site_analytics,
     delete_owned_site,
     filter_client_manageable_sites,
-    is_template_source_site,
+    is_technical_template_source_site,
     log_site_operation,
+    website_template_for_source_site,
 )
 from .serializers import (
     AdminLeadSerializer,
@@ -305,15 +307,18 @@ class PublicSiteLeadCreateBySlugView(PublicLeadCreateView):
 class AdminSiteAccessMixin:
     permission_classes = [IsAuthenticated]
 
+    def has_global_site_access(self):
+        return is_platform_owner(self.request.user)
+
     def get_sites_queryset(self):
-        base = Site.objects.all()
-        if self.request.user.is_superuser:
+        base = Site.objects.select_related("owner").all()
+        if self.has_global_site_access():
             return filter_client_manageable_sites(base)
         return filter_client_manageable_sites(base.filter(owner=self.request.user))
 
     def get_sites_queryset_for_delete(self):
-        base = Site.objects.all()
-        if self.request.user.is_superuser:
+        base = Site.objects.select_related("owner").all()
+        if self.has_global_site_access():
             return base
         return base.filter(owner=self.request.user)
 
@@ -333,7 +338,7 @@ class AdminSiteAccessMixin:
 
     def get_user_leads_queryset(self):
         queryset = SiteLead.objects.select_related("site")
-        if self.request.user.is_superuser:
+        if self.has_global_site_access():
             return queryset
         return queryset.filter(site__owner=self.request.user)
 
@@ -480,11 +485,32 @@ class AdminMySiteDetailView(AdminSiteAccessMixin, generics.RetrieveAPIView):
             sections_count=Count("sections", filter=Q(sections__is_active=True))
         )
 
+    def get(self, request, *args, **kwargs):
+        site = self.get_sites_queryset_for_delete().filter(id=self.kwargs["site_id"]).first()
+        if site is not None and is_technical_template_source_site(site):
+            if not self.has_global_site_access():
+                raise NotFound(detail="Site was not found.")
+            return Response(
+                {
+                    "code": "protected_template_source",
+                    "detail": "Источник шаблона управляется через каталог шаблонов.",
+                    "template_source": website_template_for_source_site(site.id),
+                    "platform_url": f"/platform/sites/{site.id}",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        site = self.get_site()
+        serializer = self.get_serializer(site)
+        return Response(serializer.data)
+
     def delete(self, request, *args, **kwargs):
         site = self.get_site_for_delete()
         snapshot = SiteSnapshot.from_site(site)
-        if is_template_source_site(site):
-            detail = "Источник шаблона нельзя удалить из раздела «Мои сайты»."
+        if is_technical_template_source_site(site):
+            if not self.has_global_site_access():
+                raise NotFound(detail="Site was not found.")
+            detail = "Источник шаблона управляется через каталог шаблонов."
             log_site_operation(
                 request,
                 site=site,
@@ -593,7 +619,10 @@ class AdminMySiteAnalyticsClearView(AdminSiteAccessMixin, APIView):
         confirmation = str(request.data.get("confirmation") or "").strip()
         if confirmation not in {site.name, "ОЧИСТИТЬ"}:
             return Response(
-                {"detail": "Для очистки аналитики введите название сайта или ОЧИСТИТЬ."},
+                {
+                    "code": "invalid_confirmation",
+                    "detail": "Для очистки аналитики введите название сайта или ОЧИСТИТЬ.",
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -609,7 +638,7 @@ class AdminMySiteAnalyticsClearView(AdminSiteAccessMixin, APIView):
                 result="conflict",
                 error=str(exc),
             )
-            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+            return Response({"code": "site_has_active_jobs", "detail": str(exc)}, status=status.HTTP_409_CONFLICT)
 
         return Response(result, status=status.HTTP_200_OK)
 

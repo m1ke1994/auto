@@ -12,8 +12,10 @@ const CURRENT_SITE_STORAGE_KEYS = ['current_site_id', 'currentSiteId', 'selected
 
 export function isClientManageableSite(site) {
   if (!site) return false
+  if (site.site_type === 'technical_template_source' || site.is_technical_template_source) return false
   if (site.is_template_source) return false
-  return !String(site.slug || '').startsWith('tracknode-template-')
+  const slug = String(site.slug || '')
+  return !(slug.startsWith('tracknode-template-') && slug.endsWith('-source') && !String(site.domain || '').trim())
 }
 
 function normalizeSites(data) {

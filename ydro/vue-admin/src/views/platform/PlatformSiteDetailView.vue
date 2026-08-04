@@ -59,7 +59,9 @@ async function confirmTemplateDelete() {
   success.value = ''
   try {
     await deletePlatformTemplate(templateSource.value.id, templateConfirmation.value.trim())
-    success.value = 'Шаблон и его сайт-источник удалены.'
+    success.value = templateSource.value.is_technical_source
+      ? 'Шаблон и его сайт-источник удалены.'
+      : 'Шаблон удален из каталога, сайт-источник сохранен.'
     await router.push('/platform/sites')
   } catch (e) {
     error.value = errorMessage(e, 'Не удалось удалить шаблон.')
@@ -104,6 +106,7 @@ onMounted(load)
         <h3 class="mt-2 text-lg font-semibold text-red-950">{{ templateSource.name }}</h3>
         <p class="mt-1 text-sm text-red-800">
           Template ID {{ templateSource.id }} · клиентских клонов: {{ templateSource.cloned_sites_count }}
+          · {{ templateSource.is_technical_source ? 'технический source' : 'публичный source будет сохранен' }}
         </p>
         <div class="mt-4 flex flex-col gap-3 sm:flex-row">
           <input

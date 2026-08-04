@@ -10,7 +10,13 @@ from leads.services import send_lead_telegram_notification
 from .models import SectionSchema, Site, SiteLead, SiteSection
 from .a_meditation import SECTION_TITLES
 from .seo import build_public_site_seo
-from .services import is_template_source_site
+from .services import (
+    is_technical_template_source_site,
+    is_template_catalog_source_site,
+    site_capabilities,
+    site_metadata,
+    site_type,
+)
 from .volga_site import SECTION_TITLES as VOLGA_SECTION_TITLES
 from .tracker_utils import build_tracker_script_tag
 from .tasks import send_site_lead_push_notification_task
@@ -66,6 +72,15 @@ class AdminMySiteSerializer(serializers.ModelSerializer):
     sections_count = serializers.SerializerMethodField()
     tracker_script_tag = serializers.SerializerMethodField()
     is_template_source = serializers.SerializerMethodField()
+    is_technical_template_source = serializers.SerializerMethodField()
+    is_template_catalog_source = serializers.SerializerMethodField()
+    site_type = serializers.SerializerMethodField()
+    owner_name = serializers.SerializerMethodField()
+    owner_email = serializers.SerializerMethodField()
+    source = serializers.SerializerMethodField()
+    render_mode = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+    capabilities = serializers.SerializerMethodField()
 
     class Meta:
         model = Site
@@ -74,6 +89,9 @@ class AdminMySiteSerializer(serializers.ModelSerializer):
             "name",
             "slug",
             "domain",
+            "owner_id",
+            "owner_name",
+            "owner_email",
             "api_key",
             "telegram_chat_id",
             "send_to_telegram",
@@ -83,6 +101,13 @@ class AdminMySiteSerializer(serializers.ModelSerializer):
             "sections_count",
             "tracker_script_tag",
             "is_template_source",
+            "is_technical_template_source",
+            "is_template_catalog_source",
+            "site_type",
+            "source",
+            "render_mode",
+            "status",
+            "capabilities",
             "created_at",
             "updated_at",
         )
@@ -97,7 +122,45 @@ class AdminMySiteSerializer(serializers.ModelSerializer):
         return build_tracker_script_tag(obj.api_key)
 
     def get_is_template_source(self, obj):
-        return is_template_source_site(obj)
+        return is_technical_template_source_site(obj)
+
+    def get_is_technical_template_source(self, obj):
+        return is_technical_template_source_site(obj)
+
+    def get_is_template_catalog_source(self, obj):
+        return is_template_catalog_source_site(obj)
+
+    def get_site_type(self, obj):
+        return site_type(obj)
+
+    def get_owner_name(self, obj):
+        owner = getattr(obj, "owner", None)
+        if owner is None:
+            return ""
+        return owner.get_full_name() or owner.username
+
+    def get_owner_email(self, obj):
+        return getattr(getattr(obj, "owner", None), "email", "") or ""
+
+    def _metadata(self, obj):
+        cache_name = "_tracknode_site_metadata"
+        if not hasattr(obj, cache_name):
+            setattr(obj, cache_name, site_metadata(obj))
+        return getattr(obj, cache_name)
+
+    def get_source(self, obj):
+        return self._metadata(obj)["source"]
+
+    def get_render_mode(self, obj):
+        return self._metadata(obj)["render_mode"]
+
+    def get_status(self, obj):
+        return self._metadata(obj)["status"]
+
+    def get_capabilities(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        return site_capabilities(obj, user)
 
 
 class AdminMySiteSectionSerializer(serializers.ModelSerializer):

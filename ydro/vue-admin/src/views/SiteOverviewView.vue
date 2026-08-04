@@ -27,6 +27,14 @@ const clearing = ref(false)
 const deleting = ref(false)
 
 const siteId = computed(() => Number(route.params.siteId))
+const capabilities = computed(() => siteStore.currentSite?.capabilities || {})
+const canClearAnalytics = computed(() => Boolean(capabilities.value.clear_analytics))
+const canDeleteSite = computed(() => Boolean(capabilities.value.delete))
+const ownerLabel = computed(() => {
+  const site = siteStore.currentSite
+  if (!site?.owner_id) return ''
+  return site.owner_email || site.owner_name ? `${site.owner_name || site.owner_email} · ID ${site.owner_id}` : `ID ${site.owner_id}`
+})
 const stats = computed(() => {
   if (!accessStore.can('analytics')) {
     return [
@@ -75,6 +83,11 @@ function requestErrorMessage(requestError, fallback) {
   const detail = requestError?.response?.data?.detail
   const code = requestError?.response?.data?.code
   if (typeof detail === 'string' && detail) return detail
+  if (code === 'protected_site') return 'Этот системный сайт нельзя удалить через обычный раздел.'
+  if (code === 'protected_template_source') return 'Источник шаблона управляется через каталог шаблонов.'
+  if (code === 'site_has_dependencies') return 'Сайт связан с другими объектами и пока не может быть удален.'
+  if (code === 'site_has_active_jobs') return 'Сейчас для сайта выполняется фоновая задача. Повторите позже.'
+  if (code === 'template_has_cloned_sites') return 'Шаблон используется клиентскими сайтами и не может быть удален.'
   if (status === 400 || code === 'invalid_confirmation') return 'Введите точное подтверждение и повторите действие.'
   if (status === 401) return 'Сессия истекла. Войдите заново.'
   if (status === 403) return 'Недостаточно прав для выполнения действия.'
@@ -113,10 +126,6 @@ async function confirmClearAnalytics() {
       summary.value = data
     }
   } catch (e) {
-    if (e?.response?.status === 404 || e?.response?.status === 403 || e?.response?.data?.code === 'protected_template_source') {
-      await router.replace('/dashboard')
-      return
-    }
     error.value = requestErrorMessage(e, 'Не удалось очистить аналитику сайта.')
   } finally {
     clearing.value = false
@@ -162,6 +171,14 @@ async function load() {
     }
     await Promise.all(requests)
   } catch (e) {
+    if (e?.response?.data?.code === 'protected_template_source') {
+      await router.replace(e.response.data.platform_url || '/platform/sites')
+      return
+    }
+    if (e?.response?.status === 404) {
+      await router.replace('/dashboard')
+      return
+    }
     error.value = e?.response?.data?.detail || 'Не удалось загрузить данные сайта.'
   } finally {
     loading.value = false
@@ -178,6 +195,7 @@ onMounted(load)
         <p class="eyebrow">Главная</p>
         <h1>{{ siteStore.currentSite?.name || 'Ваш сайт' }}</h1>
         <p>{{ siteStore.currentSite?.domain || 'Домен пока не указан' }}</p>
+        <p v-if="ownerLabel" class="mt-1 text-xs text-slate-500">Владелец: {{ ownerLabel }}</p>
       </div>
       <button type="button" class="action-button-secondary" :disabled="!siteStore.currentSite?.domain" @click="openPublicSite">
         <ExternalLink :size="17" />
@@ -212,7 +230,7 @@ onMounted(load)
         </p>
       </section>
 
-      <section class="surface border-rose-200 bg-rose-50/40">
+      <section v-if="canClearAnalytics || canDeleteSite" class="surface border-rose-200 bg-rose-50/40">
         <div class="section-heading">
           <div>
             <h2 class="flex items-center gap-2 text-rose-900">
@@ -223,11 +241,11 @@ onMounted(load)
           </div>
         </div>
         <div class="flex flex-col gap-3 sm:flex-row">
-          <button type="button" class="action-button-danger" :disabled="clearing || deleting" @click="openClearModal">
+          <button v-if="canClearAnalytics" type="button" class="action-button-danger" :disabled="clearing || deleting" @click="openClearModal">
             <Eraser :size="18" />
             Очистить аналитику
           </button>
-          <button type="button" class="action-button-danger bg-rose-600 text-white hover:bg-rose-700" :disabled="clearing || deleting" @click="openDeleteModal">
+          <button v-if="canDeleteSite" type="button" class="action-button-danger bg-rose-600 text-white hover:bg-rose-700" :disabled="clearing || deleting" @click="openDeleteModal">
             <Trash2 :size="18" />
             Удалить сайт
           </button>
