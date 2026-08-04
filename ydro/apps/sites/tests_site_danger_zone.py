@@ -131,6 +131,110 @@ class SiteDangerZoneApiTests(APITestCase):
     def mark_legacy_public_site(self, site):
         self.set_production_site_meta(site, source="legacy", render_mode="legacy", status_value="published")
 
+    def create_production_catalog_fixture(self):
+        user_model = get_user_model()
+        owners = {
+            "leelabird": user_model.objects.create_user(
+                "production-owner-19",
+                "production-owner-19@example.com",
+                "secret12345",
+            ),
+            "konakovo": user_model.objects.create_user(
+                "production-owner-21",
+                "production-owner-21@example.com",
+                "secret12345",
+            ),
+            "tracknode": user_model.objects.create_user(
+                "production-owner-22",
+                "production-owner-22@example.com",
+                "secret12345",
+            ),
+        }
+        for owner in owners.values():
+            grant_business_analytics(owner)
+
+        sites = {
+            "leelabird": Site.objects.create(
+                name="Leelabird",
+                slug="a-meditation",
+                domain="leelabird.ru",
+                owner=owners["leelabird"],
+                is_active=True,
+            ),
+            "konakovo": Site.objects.create(
+                name="Novoe Konakovo",
+                slug="novaya-konakova",
+                domain="novoe-konakovo.ru",
+                owner=owners["konakovo"],
+                is_active=True,
+            ),
+            "tracknode": Site.objects.create(
+                name="TrackNode",
+                slug=TRACKNODE_SITE_SLUG,
+                domain="tracknode.ru",
+                owner=owners["tracknode"],
+                is_active=True,
+            ),
+            "portfolio": Site.objects.create(
+                name="Portfolio Alexander",
+                slug="my-portfolio",
+                domain="tishechkinalexandr.ru",
+                owner=owners["tracknode"],
+                is_active=True,
+            ),
+        }
+        for site in sites.values():
+            self.mark_legacy_public_site(site)
+
+        technical_sites = {
+            "art_stroy": Site.objects.create(
+                name="Art Stroy",
+                slug="tracknode-template-art-stroy-source",
+                domain="",
+                owner=self.user,
+                is_active=False,
+            ),
+            "a_meditation": Site.objects.create(
+                name="A Meditation",
+                slug="tracknode-template-a-meditation-source",
+                domain="",
+                owner=self.user,
+                is_active=False,
+            ),
+        }
+        for site in technical_sites.values():
+            self.mark_technical_template_source(site)
+
+        with connection.cursor() as cursor:
+            for template_id, site in (
+                (901, sites["tracknode"]),
+                (902, sites["leelabird"]),
+                (903, sites["konakovo"]),
+                (904, technical_sites["art_stroy"]),
+                (905, technical_sites["a_meditation"]),
+            ):
+                cursor.execute(
+                    "INSERT INTO sites_websitetemplate (id, source_site_id, name) VALUES (%s, %s, %s)",
+                    [template_id, site.id, site.name],
+                )
+
+        return owners, sites, technical_sites
+
+    def assert_client_site_endpoints_available(self, user, site):
+        self.client.force_authenticate(user)
+        checks = (
+            self.detail_url(site),
+            reverse("admin-site-analytics-summary", kwargs={"site_id": site.id}),
+            reverse("admin-site-telegram-status", kwargs={"site_id": site.id}),
+            reverse("admin-my-site-sections", kwargs={"site_id": site.id}),
+        )
+        for url in checks:
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, status.HTTP_200_OK, url)
+
+        leads_response = self.client.get(reverse("admin-leads-list"), {"site_id": site.id})
+        self.assertEqual(leads_response.status_code, status.HTTP_200_OK)
+
     def clear_url(self, site=None):
         return reverse("admin-my-site-analytics-clear", kwargs={"site_id": (site or self.site).id})
 
@@ -613,6 +717,136 @@ class SiteDangerZoneApiTests(APITestCase):
             self.assertFalse(rows[legacy_source.id]["is_technical_template_source"])
             self.assertEqual(rows[legacy_source.id]["site_type"], "template_catalog_source")
             self.assertTrue(rows[legacy_source.id]["capabilities"]["delete"])
+
+    def test_production_catalog_sources_remain_visible_to_existing_owners(self):
+        self.create_template_clone_tables()
+        owners, sites, technical_sites = self.create_production_catalog_fixture()
+
+        expectations = (
+            (owners["leelabird"], {sites["leelabird"].id}),
+            (owners["konakovo"], {sites["konakovo"].id}),
+            (owners["tracknode"], {sites["tracknode"].id, sites["portfolio"].id}),
+        )
+        hidden_ids = {site.id for site in technical_sites.values()}
+
+        for owner, expected_ids in expectations:
+            self.client.force_authenticate(owner)
+            response = self.client.get(self.list_url())
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            ids = {row["id"] for row in response.data}
+            self.assertTrue(expected_ids.issubset(ids))
+            self.assertTrue(ids.isdisjoint(hidden_ids))
+            for site_id in expected_ids:
+                row = next(row for row in response.data if row["id"] == site_id)
+                self.assertFalse(row["is_technical_template_source"])
+                self.assertIn(row["site_type"], {"template_catalog_source", "system", "site"})
+
+        self.assert_client_site_endpoints_available(owners["leelabird"], sites["leelabird"])
+        self.assert_client_site_endpoints_available(owners["konakovo"], sites["konakovo"])
+        self.assert_client_site_endpoints_available(owners["tracknode"], sites["tracknode"])
+        self.assert_client_site_endpoints_available(owners["tracknode"], sites["portfolio"])
+
+    def test_production_catalog_sources_are_not_visible_to_other_regular_users(self):
+        self.create_template_clone_tables()
+        owners, sites, _technical_sites = self.create_production_catalog_fixture()
+        self.client.force_authenticate(owners["leelabird"])
+
+        response = self.client.get(self.list_url())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = {row["id"] for row in response.data}
+        self.assertIn(sites["leelabird"].id, ids)
+        self.assertNotIn(sites["konakovo"].id, ids)
+        self.assertNotIn(sites["tracknode"].id, ids)
+        self.assertNotIn(sites["portfolio"].id, ids)
+        self.assertEqual(self.client.get(self.detail_url(sites["konakovo"])).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(
+            self.client.get(reverse("admin-site-analytics-summary", kwargs={"site_id": sites["konakovo"].id})).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_global_admins_see_production_real_sites_but_not_technical_sources(self):
+        self.create_template_clone_tables()
+        _owners, sites, technical_sites = self.create_production_catalog_fixture()
+        regular_ids = {site.id for site in sites.values()}
+        technical_ids = {site.id for site in technical_sites.values()}
+
+        for admin_user in (self.superuser, self.platform_owner):
+            self.client.force_authenticate(admin_user)
+            response = self.client.get(self.list_url())
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            ids = {row["id"] for row in response.data}
+            self.assertTrue(regular_ids.issubset(ids))
+            self.assertTrue(ids.isdisjoint(technical_ids))
+            for site in sites.values():
+                self.assert_client_site_endpoints_available(admin_user, site)
+
+    def test_empty_regular_user_gets_empty_site_list(self):
+        empty_user = get_user_model().objects.create_user(
+            "empty-site-owner",
+            "empty-site-owner@example.com",
+            "secret12345",
+        )
+        grant_business_analytics(empty_user)
+        self.client.force_authenticate(empty_user)
+
+        response = self.client.get(self.list_url())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_active_template_like_catalog_site_is_not_technical_source(self):
+        self.create_template_clone_tables()
+        active_source = Site.objects.create(
+            name="Active Template Like Site",
+            slug="tracknode-template-active-source",
+            domain="",
+            owner=self.user,
+            is_active=True,
+        )
+        self.mark_technical_template_source(active_source)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO sites_websitetemplate (id, source_site_id, name) VALUES (%s, %s, %s)",
+                [906, active_source.id, active_source.name],
+            )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(self.list_url())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        rows = {row["id"]: row for row in response.data}
+        self.assertIn(active_source.id, rows)
+        self.assertFalse(rows[active_source.id]["is_technical_template_source"])
+        self.assertEqual(rows[active_source.id]["site_type"], "template_catalog_source")
+
+    def test_technical_source_is_hidden_from_client_analytics_and_leads(self):
+        self.create_template_clone_tables()
+        source_site = Site.objects.create(
+            name="Art Stroy Template Source",
+            slug="tracknode-template-art-stroy-source",
+            domain="",
+            owner=self.user,
+            is_active=False,
+        )
+        self.mark_technical_template_source(source_site)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO sites_websitetemplate (id, source_site_id, name) VALUES (%s, %s, %s)",
+                [907, source_site.id, "Art Stroy"],
+            )
+        SiteLead.objects.create(site=source_site, name="Source Lead", phone="+70000000000")
+
+        for user in (self.user, self.superuser, self.platform_owner):
+            self.client.force_authenticate(user)
+            analytics_response = self.client.get(reverse("admin-site-analytics-summary", kwargs={"site_id": source_site.id}))
+            leads_response = self.client.get(reverse("admin-leads-list"), {"site_id": source_site.id})
+
+            self.assertEqual(analytics_response.status_code, status.HTTP_404_NOT_FOUND)
+            self.assertEqual(leads_response.status_code, status.HTTP_200_OK)
+            self.assertEqual(leads_response.data, [])
 
     def test_template_source_site_get_and_delete_are_hidden_for_regular_owner(self):
         self.create_template_clone_tables()

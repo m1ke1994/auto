@@ -330,6 +330,8 @@ def is_technical_template_source_site(site: Site | int | None) -> bool:
         return False
     if str(getattr(site, "domain", "") or "").strip():
         return False
+    if bool(getattr(site, "is_active", True)):
+        return False
 
     metadata = _site_optional_metadata(site)
     return (

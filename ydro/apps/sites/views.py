@@ -34,6 +34,7 @@ from .services import (
     filter_client_manageable_sites,
     is_technical_template_source_site,
     log_site_operation,
+    technical_template_source_site_ids,
     website_template_for_source_site,
 )
 from .serializers import (
@@ -338,6 +339,9 @@ class AdminSiteAccessMixin:
 
     def get_user_leads_queryset(self):
         queryset = SiteLead.objects.select_related("site")
+        source_ids = technical_template_source_site_ids()
+        if source_ids:
+            queryset = queryset.exclude(site_id__in=source_ids)
         if self.has_global_site_access():
             return queryset
         return queryset.filter(site__owner=self.request.user)

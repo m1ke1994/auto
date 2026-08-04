@@ -12,7 +12,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.sites.models import Site, SiteLead
+from apps.sites.services import is_technical_template_source_site
 from apps.sites.tracker_utils import build_tracker_script_tag
+from platform_admin.permissions import is_platform_owner
 from tracker.models import Event as TrackerEvent
 from tracker.models import PageView as TrackerPageView
 from tracker.models import Site as TrackerSite
@@ -258,10 +260,12 @@ def _sanitize_event_payload(payload: dict) -> dict:
 
 
 def _get_user_site(request, site_id: int):
-    queryset = Site.objects.all()
-    if not request.user.is_superuser:
-        queryset = queryset.filter(owner=request.user)
-    return queryset.filter(id=site_id).first()
+    site = Site.objects.select_related("owner").filter(id=site_id).first()
+    if site is None or is_technical_template_source_site(site):
+        return None
+    if is_platform_owner(request.user) or site.owner_id == request.user.id:
+        return site
+    return None
 
 
 def _analytics_scope(site: Site, from_dt, to_dt, *, include_bots: bool = False) -> dict:
@@ -523,10 +527,7 @@ class AdminSiteAnalyticsSummaryView(APIView):
     required_feature = FEATURE_ANALYTICS
 
     def _get_site(self, request, site_id):
-        queryset = Site.objects.all()
-        if not request.user.is_superuser:
-            queryset = queryset.filter(owner=request.user)
-        return queryset.filter(id=site_id).first()
+        return _get_user_site(request, site_id)
 
     def get(self, request, site_id: int):
         site = self._get_site(request, site_id)

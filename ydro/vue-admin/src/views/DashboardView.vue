@@ -53,7 +53,7 @@ onMounted(async () => {
       </div>
     </header>
 
-    <section v-if="siteStore.loading" class="empty-state">
+    <section v-if="siteStore.loading || (!siteStore.loaded && !siteStore.error)" class="empty-state">
       <span class="loading-dot" />
       <p>Загружаем ваши сайты...</p>
     </section>
@@ -64,7 +64,7 @@ onMounted(async () => {
       <p>Проверьте соединение и обновите страницу. Мы не будем считать ошибку отсутствием сайтов.</p>
     </section>
 
-    <section v-else-if="siteStore.sites.length === 0" class="empty-state">
+    <section v-else-if="siteStore.loaded && siteStore.sites.length === 0" class="empty-state">
       <Globe2 :size="28" />
       <h2>Сайт ещё не подключён</h2>
       <p>Ваш аккаунт готов. Обратитесь к администратору, чтобы подключить первый сайт.</p>

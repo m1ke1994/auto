@@ -2,6 +2,7 @@
 import { defineStore } from 'pinia'
 
 import { loginRequest, meRequest, registerRequest } from '../api/auth'
+import { useSiteStore } from './site'
 
 export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref(localStorage.getItem('access_token') || '')
@@ -10,6 +11,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => Boolean(accessToken.value))
   const isPlatformOwner = computed(() => Boolean(user.value?.permissions?.platform_access))
+
+  function resetSessionStores() {
+    useSiteStore().reset()
+  }
 
   function setTokens({ access, refresh }) {
     accessToken.value = access || ''
@@ -29,6 +34,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function login({ email, password }) {
+    resetSessionStores()
     const { data } = await loginRequest({ username: email, password })
     setTokens({ access: data.access, refresh: data.refresh })
     await getCurrentUser()
@@ -36,6 +42,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function register(payload) {
+    resetSessionStores()
     const { data } = await registerRequest(payload)
     setTokens({ access: data.access, refresh: data.refresh })
     user.value = data.user || null
@@ -46,6 +53,7 @@ export const useAuthStore = defineStore('auth', () => {
   function logout() {
     user.value = null
     setTokens({ access: '', refresh: '' })
+    resetSessionStores()
   }
 
   async function getCurrentUser() {

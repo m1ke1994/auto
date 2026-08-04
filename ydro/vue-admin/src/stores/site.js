@@ -12,10 +12,7 @@ const CURRENT_SITE_STORAGE_KEYS = ['current_site_id', 'currentSiteId', 'selected
 
 export function isClientManageableSite(site) {
   if (!site) return false
-  if (site.site_type === 'technical_template_source' || site.is_technical_template_source) return false
-  if (site.is_template_source) return false
-  const slug = String(site.slug || '')
-  return !(slug.startsWith('tracknode-template-') && slug.endsWith('-source') && !String(site.domain || '').trim())
+  return site.is_technical_template_source !== true
 }
 
 function normalizeSites(data) {
@@ -111,6 +108,7 @@ export const useSiteStore = defineStore('site', () => {
   function reset() {
     sites.value = []
     currentSiteId.value = null
+    loading.value = false
     loaded.value = false
     error.value = null
   }
