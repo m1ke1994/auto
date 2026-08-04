@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -30,6 +31,7 @@ from tracker.models import Visit as TrackerVisit
 
 class SiteDangerZoneApiTests(APITestCase):
     def setUp(self):
+        self.drop_raw_site_dependency_tables()
         user_model = get_user_model()
         self.user = user_model.objects.create_user("danger-owner", "owner@example.com", "secret12345")
         self.other_user = user_model.objects.create_user("danger-other", "other@example.com", "secret12345")
@@ -56,6 +58,43 @@ class SiteDangerZoneApiTests(APITestCase):
             domain="foreign.example.com",
             owner=self.other_user,
         )
+
+    def drop_raw_site_dependency_tables(self):
+        suffix = " CASCADE" if connection.vendor == "postgresql" else ""
+        with connection.cursor() as cursor:
+            cursor.execute(f"DROP TABLE IF EXISTS sites_unknownsitedependency{suffix}")
+            cursor.execute(f"DROP TABLE IF EXISTS sites_websitetemplateclonerequest{suffix}")
+            cursor.execute(f"DROP TABLE IF EXISTS sites_websitetemplate{suffix}")
+
+    def create_template_clone_tables(self):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                CREATE TABLE sites_websitetemplate (
+                    id integer PRIMARY KEY,
+                    site_id integer NOT NULL REFERENCES sites_site(id) ON DELETE NO ACTION,
+                    name varchar(255) NOT NULL DEFAULT ''
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE TABLE sites_websitetemplateclonerequest (
+                    id integer PRIMARY KEY,
+                    site_id integer NOT NULL REFERENCES sites_site(id) ON DELETE NO ACTION,
+                    template_id integer NOT NULL REFERENCES sites_websitetemplate(id) ON DELETE NO ACTION,
+                    idempotency_key varchar(255) NOT NULL DEFAULT ''
+                )
+                """
+            )
+
+    def raw_count(self, table, where="", params=None):
+        query = f"SELECT COUNT(*) FROM {table}"
+        if where:
+            query = f"{query} WHERE {where}"
+        with connection.cursor() as cursor:
+            cursor.execute(query, params or [])
+            return int(cursor.fetchone()[0] or 0)
 
     def clear_url(self, site=None):
         return reverse("admin-my-site-analytics-clear", kwargs={"site_id": (site or self.site).id})
@@ -327,6 +366,72 @@ class SiteDangerZoneApiTests(APITestCase):
         self.assertTrue(Site.objects.filter(id=self.foreign_site.id).exists())
         self.assertEqual(Visit.objects.filter(site=self.foreign_site).count(), 1)
         self.assertEqual(LegacyPageView.objects.filter(client=self.other_client, url__icontains=self.foreign_site.domain).count(), 1)
+
+    def test_owner_deletes_template_cloned_client_site(self):
+        self.create_template_clone_tables()
+        source_site = Site.objects.create(
+            name="Art Stroy Template Source",
+            slug="art-stroy-template-source",
+            domain="art-stroy-template.example.com",
+            owner=self.user,
+        )
+        other_clone_site = Site.objects.create(
+            name="Other Clone",
+            slug="other-clone",
+            domain="other-clone.example.com",
+            owner=self.user,
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO sites_websitetemplate (id, site_id, name) VALUES (%s, %s, %s)",
+                [101, source_site.id, "Art Stroy"],
+            )
+            cursor.execute(
+                "INSERT INTO sites_websitetemplateclonerequest (id, site_id, template_id, idempotency_key) VALUES (%s, %s, %s, %s)",
+                [201, self.site.id, 101, "clone-main"],
+            )
+            cursor.execute(
+                "INSERT INTO sites_websitetemplateclonerequest (id, site_id, template_id, idempotency_key) VALUES (%s, %s, %s, %s)",
+                [202, other_clone_site.id, 101, "clone-other"],
+            )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.delete(self.detail_url(), {"confirmation": self.site.name}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["deleted"]["template_clone_requests"], 1)
+        self.assertFalse(Site.objects.filter(id=self.site.id).exists())
+        self.assertTrue(Site.objects.filter(id=source_site.id).exists())
+        self.assertTrue(Site.objects.filter(id=other_clone_site.id).exists())
+        self.assertEqual(self.raw_count("sites_websitetemplate", "id = %s", [101]), 1)
+        self.assertEqual(self.raw_count("sites_websitetemplateclonerequest", "id = %s", [201]), 0)
+        self.assertEqual(self.raw_count("sites_websitetemplateclonerequest", "id = %s", [202]), 1)
+
+        repeat = self.client.delete(self.detail_url(), {"confirmation": self.site.name}, format="json")
+        self.assertEqual(repeat.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_unknown_site_dependency_returns_conflict_instead_of_500(self):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                CREATE TABLE sites_unknownsitedependency (
+                    id integer PRIMARY KEY,
+                    site_id integer NOT NULL REFERENCES sites_site(id) ON DELETE NO ACTION
+                )
+                """
+            )
+            cursor.execute(
+                "INSERT INTO sites_unknownsitedependency (id, site_id) VALUES (%s, %s)",
+                [301, self.site.id],
+            )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.delete(self.detail_url(), {"confirmation": self.site.name}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data["code"], "site_has_dependencies")
+        self.assertTrue(Site.objects.filter(id=self.site.id).exists())
+        self.assertEqual(self.raw_count("sites_unknownsitedependency", "site_id = %s", [self.site.id]), 1)
 
     def test_running_background_task_returns_conflict(self):
         CompetitorAnalysis.objects.create(site=self.site, client=self.client_obj, status=CompetitorAnalysis.Status.RUNNING)

@@ -4,7 +4,7 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -499,6 +499,28 @@ class AdminMySiteDetailView(AdminSiteAccessMixin, generics.RetrieveAPIView):
                 error=str(exc),
             )
             return Response({"code": "site_has_active_jobs", "detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+        except IntegrityError as exc:
+            logger.exception(
+                "site.delete dependency conflict endpoint=%s user_id=%s site_id=%s snapshot=%s stage=delete_owned_site error=%s",
+                request.path,
+                getattr(request.user, "id", None),
+                snapshot.id,
+                {
+                    "site_id": snapshot.id,
+                    "site_name": snapshot.name,
+                    "site_slug": snapshot.slug,
+                    "domain": snapshot.domain,
+                    "owner_id": snapshot.owner_id,
+                },
+                str(exc),
+            )
+            return Response(
+                {
+                    "code": "site_has_dependencies",
+                    "detail": "Сайт связан с другими объектами и пока не может быть удалён.",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         except Exception:
             logger.exception(
                 "site.delete unexpected error endpoint=%s user_id=%s site_id=%s snapshot=%s stage=delete_owned_site",

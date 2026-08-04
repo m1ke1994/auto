@@ -5,7 +5,7 @@ import logging
 from typing import Iterable
 from urllib.parse import urlparse
 
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import Q, QuerySet
 
 from ai_recommendations.models import AIRecommendationJob
@@ -49,6 +49,13 @@ RUNNING_SEO_STATUSES = {
     SiteSEOAudit.Status.PENDING,
     SiteSEOAudit.Status.RUNNING,
 }
+
+TEMPLATE_CLONE_REQUEST_TABLE = "sites_websitetemplateclonerequest"
+TEMPLATE_CLONE_REQUEST_FALLBACK_SITE_COLUMNS = (
+    "site_id",
+    "created_site_id",
+    "cloned_site_id",
+)
 
 
 @dataclass(frozen=True)
@@ -150,6 +157,77 @@ def _count(querysets: Iterable[tuple[str, QuerySet]]) -> dict[str, int]:
 def _delete_queryset(queryset: QuerySet) -> int:
     deleted, _details = queryset.delete()
     return int(deleted or 0)
+
+
+def _table_exists(table_name: str) -> bool:
+    with connection.cursor() as cursor:
+        return table_name in connection.introspection.table_names(cursor)
+
+
+def _table_columns(table_name: str) -> set[str]:
+    with connection.cursor() as cursor:
+        return {column.name for column in connection.introspection.get_table_description(cursor, table_name)}
+
+
+def _site_fk_columns(table_name: str) -> list[str]:
+    if not _table_exists(table_name):
+        return []
+
+    columns = _table_columns(table_name)
+    if connection.vendor == "postgresql":
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT kcu.column_name
+                  FROM information_schema.table_constraints tc
+                  JOIN information_schema.key_column_usage kcu
+                    ON tc.constraint_name = kcu.constraint_name
+                   AND tc.table_schema = kcu.table_schema
+                  JOIN information_schema.constraint_column_usage ccu
+                    ON ccu.constraint_name = tc.constraint_name
+                   AND ccu.table_schema = tc.table_schema
+                 WHERE tc.constraint_type = 'FOREIGN KEY'
+                   AND tc.table_name = %s
+                   AND ccu.table_name = 'sites_site'
+                   AND ccu.column_name = 'id'
+                 ORDER BY kcu.ordinal_position
+                """,
+                [table_name],
+            )
+            fk_columns = [row[0] for row in cursor.fetchall() if row[0] in columns]
+            if fk_columns:
+                return fk_columns
+
+    return [column for column in TEMPLATE_CLONE_REQUEST_FALLBACK_SITE_COLUMNS if column in columns]
+
+
+def _delete_template_clone_requests(snapshot: SiteSnapshot) -> int:
+    columns = _site_fk_columns(TEMPLATE_CLONE_REQUEST_TABLE)
+    if not columns:
+        return 0
+
+    where = " OR ".join(f"{connection.ops.quote_name(column)} = %s" for column in columns)
+    params = [snapshot.id] * len(columns)
+    table = connection.ops.quote_name(TEMPLATE_CLONE_REQUEST_TABLE)
+
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE {where}", params)
+        count = int(cursor.fetchone()[0] or 0)
+        if count:
+            cursor.execute(f"DELETE FROM {table} WHERE {where}", params)
+    return count
+
+
+def _template_clone_request_count(snapshot: SiteSnapshot) -> int:
+    columns = _site_fk_columns(TEMPLATE_CLONE_REQUEST_TABLE)
+    if not columns:
+        return 0
+
+    table = connection.ops.quote_name(TEMPLATE_CLONE_REQUEST_TABLE)
+    where = " OR ".join(f"{connection.ops.quote_name(column)} = %s" for column in columns)
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE {where}", [snapshot.id] * len(columns))
+        return int(cursor.fetchone()[0] or 0)
 
 
 def _has_running_site_jobs(site: Site) -> bool:
@@ -308,6 +386,7 @@ def _site_delete_counts(site: Site) -> dict[str, int]:
             )
         )
     )
+    counts["template_clone_requests"] = _template_clone_request_count(SiteSnapshot.from_site(site))
     return counts
 
 
@@ -347,6 +426,8 @@ def delete_owned_site(*, site: Site, request) -> dict:
         _log_deletion_stage("delete_tracker", snapshot=snapshot, user_id=user_id)
         if tracker_site is not None:
             tracker_site.delete()
+        _log_deletion_stage("delete_template_clone_requests", snapshot=snapshot, user_id=user_id)
+        deleted["template_clone_requests"] = _delete_template_clone_requests(snapshot)
         _log_deletion_stage("delete_site", snapshot=snapshot, user_id=user_id)
         locked_site.delete()
 
