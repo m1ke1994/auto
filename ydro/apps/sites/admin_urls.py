@@ -5,6 +5,7 @@ from clients.push_views import PushSubscriptionView
 from .views import (
     AdminMyLeadDetailView,
     AdminMyLeadsListView,
+    AdminMySiteAnalyticsClearView,
     AdminMySiteDetailView,
     AdminMySiteSectionDetailView,
     AdminMySiteSectionsListCreateView,
@@ -19,6 +20,11 @@ urlpatterns = [
     path("push-subscriptions/", PushSubscriptionView.as_view(), name="admin-push-subscriptions"),
     path("my-sites/", AdminMySitesListView.as_view(), name="admin-my-sites"),
     path("my-sites/<int:site_id>/", AdminMySiteDetailView.as_view(), name="admin-my-site-detail"),
+    path(
+        "my-sites/<int:site_id>/analytics/",
+        AdminMySiteAnalyticsClearView.as_view(),
+        name="admin-my-site-analytics-clear",
+    ),
     path("my-sites/<int:site_id>/telegram/", AdminSiteTelegramStatusView.as_view(), name="admin-site-telegram-status"),
     path(
         "my-sites/<int:site_id>/telegram/test/",

@@ -6,3 +6,7 @@ export const getSiteTelegramRequest = (siteId) => http.get(`/api/admin/my-sites/
 export const sendSiteTelegramTestRequest = (siteId) => http.post(`/api/admin/my-sites/${siteId}/telegram/test/`, {})
 export const disconnectSiteTelegramRequest = (siteId) => http.post(`/api/admin/my-sites/${siteId}/telegram/disconnect/`, {})
 export const refreshSiteTrackingKeyRequest = (siteId) => http.post(`/api/admin/my-sites/${siteId}/tracking-key/refresh/`, {})
+export const clearSiteAnalyticsRequest = (siteId, confirmation) =>
+  http.delete(`/api/admin/my-sites/${siteId}/analytics/`, { data: { confirmation } })
+export const deleteMySiteRequest = (siteId, confirmation) =>
+  http.delete(`/api/admin/my-sites/${siteId}/`, { data: { confirmation } })

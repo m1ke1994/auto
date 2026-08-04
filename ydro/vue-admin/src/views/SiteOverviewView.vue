@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { BarChart3, Blocks, ExternalLink, Inbox, SearchCheck, Send } from '@lucide/vue'
+import { AlertTriangle, BarChart3, Blocks, Eraser, ExternalLink, Inbox, SearchCheck, Send, Trash2, X } from '@lucide/vue'
 
 import { getSiteAnalyticsSummaryRequest } from '../api/analytics'
 import { getSiteTelegramRequest } from '../api/site'
@@ -16,8 +16,15 @@ const accessStore = useAccessStore()
 const siteStore = useSiteStore()
 const loading = ref(false)
 const error = ref('')
+const success = ref('')
 const summary = ref(null)
 const telegram = ref(null)
+const clearModalOpen = ref(false)
+const deleteModalOpen = ref(false)
+const clearConfirmation = ref('')
+const deleteConfirmation = ref('')
+const clearing = ref(false)
+const deleting = ref(false)
 
 const siteId = computed(() => Number(route.params.siteId))
 const stats = computed(() => {
@@ -43,15 +50,99 @@ const actions = computed(() => [
   { label: telegram.value?.connected ? 'Telegram подключен' : 'Подключить Telegram', text: 'Получать заявки сразу в чат', icon: Send, to: `/sites/${siteId.value}/integration`, feature: 'telegram' },
 ].filter((action) => accessStore.can(action.feature)))
 
+const clearConfirmationValid = computed(() => {
+  const value = clearConfirmation.value.trim()
+  return value === 'ОЧИСТИТЬ' || value === siteStore.currentSite?.name
+})
+const deleteConfirmationValid = computed(() => deleteConfirmation.value.trim() === siteStore.currentSite?.name)
+const deleteDataList = [
+  'разделы и настройки конструктора',
+  'заявки выбранного сайта',
+  'аналитика, события, визиты и просмотры',
+  'SEO-аудиты, отчёты анализа конкурентов и AI-рекомендации',
+  'медиафайлы, привязанные только к этому сайту',
+  'ключ трекера и Telegram-настройки сайта',
+]
+
 function openPublicSite() {
   const domain = siteStore.currentSite?.domain
   if (!domain) return
   window.open(toPublicUrl(domain), '_blank', 'noopener,noreferrer')
 }
 
+function requestErrorMessage(requestError, fallback) {
+  const status = requestError?.response?.status
+  const detail = requestError?.response?.data?.detail
+  if (typeof detail === 'string' && detail) return detail
+  if (status === 403) return 'Недостаточно прав для выполнения действия.'
+  if (status === 404) return 'Сайт не найден или уже удалён.'
+  if (status === 409) return 'Сейчас для сайта выполняется фоновая задача. Повторите позже.'
+  if (status >= 500) return 'На сервере произошла ошибка. Данные не были изменены частично.'
+  return fallback
+}
+
+function openClearModal() {
+  clearConfirmation.value = ''
+  clearModalOpen.value = true
+  success.value = ''
+  error.value = ''
+}
+
+function openDeleteModal() {
+  deleteConfirmation.value = ''
+  deleteModalOpen.value = true
+  success.value = ''
+  error.value = ''
+}
+
+async function confirmClearAnalytics() {
+  if (!clearConfirmationValid.value || clearing.value) return
+  clearing.value = true
+  error.value = ''
+  success.value = ''
+  try {
+    const result = await siteStore.clearSiteAnalytics(siteId.value, clearConfirmation.value.trim())
+    clearModalOpen.value = false
+    clearConfirmation.value = ''
+    success.value = `Аналитика очищена. Удалено записей: ${result.deleted_total ?? 0}.`
+    if (accessStore.can('analytics')) {
+      const { data } = await getSiteAnalyticsSummaryRequest(siteId.value, { days: 14 })
+      summary.value = data
+    }
+  } catch (e) {
+    error.value = requestErrorMessage(e, 'Не удалось очистить аналитику сайта.')
+  } finally {
+    clearing.value = false
+  }
+}
+
+async function confirmDeleteSite() {
+  if (!deleteConfirmationValid.value || deleting.value) return
+  deleting.value = true
+  error.value = ''
+  success.value = ''
+  const deletedSiteId = siteId.value
+  try {
+    await siteStore.deleteSite(deletedSiteId, deleteConfirmation.value.trim())
+    deleteModalOpen.value = false
+    deleteConfirmation.value = ''
+    const nextSiteId = siteStore.currentSiteId
+    if (nextSiteId) {
+      router.push(`/sites/${nextSiteId}/overview`)
+    } else {
+      router.push('/dashboard')
+    }
+  } catch (e) {
+    error.value = requestErrorMessage(e, 'Не удалось удалить сайт.')
+  } finally {
+    deleting.value = false
+  }
+}
+
 async function load() {
   loading.value = true
   error.value = ''
+  success.value = ''
   try {
     siteStore.selectSite(siteId.value)
     if (!siteStore.currentSite) await siteStore.fetchSite(siteId.value)
@@ -88,6 +179,7 @@ onMounted(load)
     </header>
 
     <p v-if="error" class="notice-error">{{ error }}</p>
+    <p v-if="success" class="notice-success">{{ success }}</p>
     <section v-if="loading" class="empty-state"><span class="loading-dot" /><p>Собираем информацию...</p></section>
 
     <template v-else>
@@ -112,6 +204,116 @@ onMounted(load)
           Подключите тариф, чтобы открыть управление сайтом и дополнительные инструменты.
         </p>
       </section>
+
+      <section class="surface border-rose-200 bg-rose-50/40">
+        <div class="section-heading">
+          <div>
+            <h2 class="flex items-center gap-2 text-rose-900">
+              <AlertTriangle :size="21" class="text-rose-600" />
+              Опасная зона
+            </h2>
+            <p>Действия ниже необратимы и применяются только к текущему сайту.</p>
+          </div>
+        </div>
+        <div class="flex flex-col gap-3 sm:flex-row">
+          <button type="button" class="action-button-danger" :disabled="clearing || deleting" @click="openClearModal">
+            <Eraser :size="18" />
+            Очистить аналитику
+          </button>
+          <button type="button" class="action-button-danger bg-rose-600 text-white hover:bg-rose-700" :disabled="clearing || deleting" @click="openDeleteModal">
+            <Trash2 :size="18" />
+            Удалить сайт
+          </button>
+        </div>
+      </section>
     </template>
+
+    <div v-if="clearModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <section class="w-full max-w-xl rounded-2xl bg-white p-5 shadow-2xl">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="flex items-center gap-2 text-lg font-bold text-slate-900">
+              <Eraser :size="21" class="text-rose-600" />
+              Очистить аналитику
+            </h2>
+            <p class="mt-2 text-sm leading-6 text-slate-600">
+              Все аналитические данные выбранного сайта будут безвозвратно удалены. Сам сайт, его страницы, настройки, заявки и контент останутся без изменений.
+            </p>
+          </div>
+          <button type="button" class="icon-button" :disabled="clearing" aria-label="Закрыть" @click="clearModalOpen = false">
+            <X :size="18" />
+          </button>
+        </div>
+
+        <label class="mt-5 block text-sm font-medium text-slate-700">
+          Введите название сайта или ОЧИСТИТЬ
+          <input v-model="clearConfirmation" class="form-control mt-2" autocomplete="off">
+        </label>
+
+        <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" class="action-button-secondary" :disabled="clearing" @click="clearModalOpen = false">Отмена</button>
+          <button type="button" class="action-button-danger" :disabled="!clearConfirmationValid || clearing" @click="confirmClearAnalytics">
+            <span v-if="clearing" class="button-spinner" aria-hidden="true" />
+            <Eraser v-else :size="18" />
+            {{ clearing ? 'Очищаем...' : 'Очистить аналитику' }}
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div v-if="deleteModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <section class="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-2xl">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="flex items-center gap-2 text-lg font-bold text-slate-900">
+              <Trash2 :size="21" class="text-rose-600" />
+              Удалить сайт
+            </h2>
+            <p class="mt-2 text-sm leading-6 text-slate-600">
+              Сайт и связанные с ним данные будут безвозвратно удалены. Это действие нельзя отменить.
+            </p>
+          </div>
+          <button type="button" class="icon-button" :disabled="deleting" aria-label="Закрыть" @click="deleteModalOpen = false">
+            <X :size="18" />
+          </button>
+        </div>
+
+        <dl class="mt-5 grid gap-3 rounded-2xl border border-rose-100 bg-rose-50/50 p-4 text-sm sm:grid-cols-2">
+          <div>
+            <dt class="font-medium text-slate-500">Название</dt>
+            <dd class="mt-1 text-slate-900">{{ siteStore.currentSite?.name || 'Сайт' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Домен</dt>
+            <dd class="mt-1 text-slate-900">{{ siteStore.currentSite?.domain || 'Не указан' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Создан</dt>
+            <dd class="mt-1 text-slate-900">{{ siteStore.currentSite?.created_at ? new Date(siteStore.currentSite.created_at).toLocaleString('ru-RU') : 'Неизвестно' }}</dd>
+          </div>
+        </dl>
+
+        <div class="mt-5">
+          <h3 class="text-sm font-semibold text-slate-900">Будет удалено</h3>
+          <ul class="mt-2 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+            <li v-for="item in deleteDataList" :key="item" class="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">{{ item }}</li>
+          </ul>
+        </div>
+
+        <label class="mt-5 block text-sm font-medium text-slate-700">
+          Введите точное название сайта
+          <input v-model="deleteConfirmation" class="form-control mt-2" autocomplete="off">
+        </label>
+
+        <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" class="action-button-secondary" :disabled="deleting" @click="deleteModalOpen = false">Отмена</button>
+          <button type="button" class="action-button-danger bg-rose-600 text-white hover:bg-rose-700" :disabled="!deleteConfirmationValid || deleting" @click="confirmDeleteSite">
+            <span v-if="deleting" class="button-spinner" aria-hidden="true" />
+            <Trash2 v-else :size="18" />
+            {{ deleting ? 'Удаляем...' : 'Удалить сайт' }}
+          </button>
+        </div>
+      </section>
+    </div>
   </div>
 </template>

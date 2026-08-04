@@ -1,7 +1,12 @@
 ﻿import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import { getMySiteRequest, getMySitesRequest } from '../api/site'
+import {
+  clearSiteAnalyticsRequest,
+  deleteMySiteRequest,
+  getMySiteRequest,
+  getMySitesRequest,
+} from '../api/site'
 
 export const useSiteStore = defineStore('site', () => {
   const sites = ref([])
@@ -50,6 +55,25 @@ export const useSiteStore = defineStore('site', () => {
     currentSiteId.value = Number(siteId)
   }
 
+  async function clearSiteAnalytics(siteId, confirmation) {
+    const id = Number(siteId)
+    const { data } = await clearSiteAnalyticsRequest(id, confirmation)
+    return data
+  }
+
+  async function deleteSite(siteId, confirmation) {
+    const id = Number(siteId)
+    const { data } = await deleteMySiteRequest(id, confirmation)
+    sites.value = sites.value.filter((site) => site.id !== id)
+
+    if (currentSiteId.value === id) {
+      currentSiteId.value = sites.value[0]?.id ?? null
+    }
+
+    loaded.value = true
+    return data
+  }
+
   function reset() {
     sites.value = []
     currentSiteId.value = null
@@ -67,6 +91,8 @@ export const useSiteStore = defineStore('site', () => {
     fetchSites,
     fetchSite,
     selectSite,
+    clearSiteAnalytics,
+    deleteSite,
     reset,
   }
 })

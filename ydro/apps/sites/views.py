@@ -16,12 +16,20 @@ from rest_framework.views import APIView
 
 from leads.services import send_telegram_message
 from tracker.models import Site as TrackerSite
-from subscriptions.access import FEATURE_LEADS, FEATURE_SITE_EDIT, FEATURE_TELEGRAM
+from subscriptions.access import FEATURE_ANALYTICS, FEATURE_LEADS, FEATURE_SITE_EDIT, FEATURE_TELEGRAM
 from subscriptions.permissions import HasFeatureAccess
 
 from .models import Site, SiteLead, SiteSection
 from .public_renderer import inject_subscription_lock, public_billing_url, site_requires_subscription_lock
 from .seo import build_public_site_seo, render_public_site_seo_head
+from .services import (
+    ProtectedSiteError,
+    SiteOperationConflict,
+    SiteSnapshot,
+    clear_site_analytics,
+    delete_owned_site,
+    log_site_operation,
+)
 from .serializers import (
     AdminLeadSerializer,
     AdminLeadStatusPatchSerializer,
@@ -427,11 +435,77 @@ class AdminMySiteDetailView(AdminSiteAccessMixin, generics.RetrieveAPIView):
     serializer_class = AdminMySiteSerializer
     lookup_field = "id"
     lookup_url_kwarg = "site_id"
+    http_method_names = ["get", "delete", "head", "options"]
 
     def get_queryset(self):
         return self.get_sites_queryset().annotate(
             sections_count=Count("sections", filter=Q(sections__is_active=True))
         )
+
+    def delete(self, request, *args, **kwargs):
+        site = self.get_site()
+        confirmation = str(request.data.get("confirmation") or "").strip()
+        if confirmation != site.name:
+            return Response(
+                {"detail": "Для удаления сайта введите его точное название."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        snapshot = SiteSnapshot.from_site(site)
+        try:
+            result = delete_owned_site(site=site, request=request)
+        except ProtectedSiteError as exc:
+            log_site_operation(
+                request,
+                site=site,
+                snapshot=snapshot,
+                action="site.delete",
+                result="blocked",
+                error=str(exc),
+            )
+            return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+        except SiteOperationConflict as exc:
+            log_site_operation(
+                request,
+                site=site,
+                snapshot=snapshot,
+                action="site.delete",
+                result="conflict",
+                error=str(exc),
+            )
+            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+
+        return Response(result, status=status.HTTP_200_OK)
+
+
+class AdminMySiteAnalyticsClearView(AdminSiteAccessMixin, APIView):
+    permission_classes = [IsAuthenticated, HasFeatureAccess]
+    required_feature = FEATURE_ANALYTICS
+
+    def delete(self, request, site_id: int):
+        site = self.get_site()
+        confirmation = str(request.data.get("confirmation") or "").strip()
+        if confirmation not in {site.name, "ОЧИСТИТЬ"}:
+            return Response(
+                {"detail": "Для очистки аналитики введите название сайта или ОЧИСТИТЬ."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        snapshot = SiteSnapshot.from_site(site)
+        try:
+            result = clear_site_analytics(site=site, request=request)
+        except SiteOperationConflict as exc:
+            log_site_operation(
+                request,
+                site=site,
+                snapshot=snapshot,
+                action="site.analytics.clear",
+                result="conflict",
+                error=str(exc),
+            )
+            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+
+        return Response(result, status=status.HTTP_200_OK)
 
 
 class AdminMySiteSectionsListCreateView(AdminSiteAccessMixin, generics.ListCreateAPIView):
