@@ -1,10 +1,11 @@
-﻿from django.db.models import Count, Q
+﻿import logging
 import re
 from urllib.error import URLError
 from urllib.request import urlopen
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -43,6 +44,8 @@ from .serializers import (
 )
 from .telegram_binding import build_site_start_payload
 from .tracker_utils import build_tracker_script_tag
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_domain(value):
@@ -466,7 +469,10 @@ class AdminMySiteDetailView(AdminSiteAccessMixin, generics.RetrieveAPIView):
         confirmation = str(request.data.get("confirmation") or "").strip()
         if confirmation != site.name:
             return Response(
-                {"detail": "Для удаления сайта введите его точное название."},
+                {
+                    "code": "invalid_confirmation",
+                    "detail": "Введите точное название сайта для подтверждения удаления.",
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -482,7 +488,7 @@ class AdminMySiteDetailView(AdminSiteAccessMixin, generics.RetrieveAPIView):
                 result="blocked",
                 error=str(exc),
             )
-            return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"code": "protected_site", "detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
         except SiteOperationConflict as exc:
             log_site_operation(
                 request,
@@ -492,7 +498,22 @@ class AdminMySiteDetailView(AdminSiteAccessMixin, generics.RetrieveAPIView):
                 result="conflict",
                 error=str(exc),
             )
-            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+            return Response({"code": "site_has_active_jobs", "detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+        except Exception:
+            logger.exception(
+                "site.delete unexpected error endpoint=%s user_id=%s site_id=%s snapshot=%s stage=delete_owned_site",
+                request.path,
+                getattr(request.user, "id", None),
+                snapshot.id,
+                {
+                    "site_id": snapshot.id,
+                    "site_name": snapshot.name,
+                    "site_slug": snapshot.slug,
+                    "domain": snapshot.domain,
+                    "owner_id": snapshot.owner_id,
+                },
+            )
+            raise
 
         return Response(result, status=status.HTTP_200_OK)
 

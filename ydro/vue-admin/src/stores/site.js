@@ -8,6 +8,8 @@ import {
   getMySitesRequest,
 } from '../api/site'
 
+const CURRENT_SITE_STORAGE_KEYS = ['current_site_id', 'currentSiteId', 'selected_site_id', 'selectedSiteId']
+
 export const useSiteStore = defineStore('site', () => {
   const sites = ref([])
   const currentSiteId = ref(null)
@@ -65,6 +67,7 @@ export const useSiteStore = defineStore('site', () => {
     const id = Number(siteId)
     const { data } = await deleteMySiteRequest(id, confirmation)
     sites.value = sites.value.filter((site) => site.id !== id)
+    clearDeletedSiteFromStorage(id)
 
     if (currentSiteId.value === id) {
       currentSiteId.value = sites.value[0]?.id ?? null
@@ -72,6 +75,15 @@ export const useSiteStore = defineStore('site', () => {
 
     loaded.value = true
     return data
+  }
+
+  function clearDeletedSiteFromStorage(siteId) {
+    const id = String(siteId)
+    CURRENT_SITE_STORAGE_KEYS.forEach((key) => {
+      if (localStorage.getItem(key) === id) {
+        localStorage.removeItem(key)
+      }
+    })
   }
 
   function reset() {

@@ -2,6 +2,7 @@ from datetime import date
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -12,8 +13,9 @@ from analytics_app.models import ClickEvent as LegacyClickEvent
 from analytics_app.models import Event as LegacyEvent
 from analytics_app.models import PageView as LegacyPageView
 from apps.analytics.models import PageView, TrackingEvent, Visit
+from apps.mediafiles.models import MediaFile
 from apps.sites.models import Site, SiteLead, SiteSection
-from apps.sites.services import clear_site_analytics
+from apps.sites.services import clear_site_analytics, delete_owned_site
 from apps.sites.tracknode_site import TRACKNODE_SITE_SLUG
 from clients.models import Client
 from competitor_analysis.models import CompetitorAnalysis
@@ -131,6 +133,22 @@ class SiteDangerZoneApiTests(APITestCase):
         self.assertTrue(Site.objects.filter(id=self.site.id).exists())
         self.assertTrue(PlatformAuditLog.objects.filter(action="site.analytics.clear", object_id=str(self.site.id)).exists())
 
+    def test_unauthenticated_delete_returns_unauthorized(self):
+        response = self.client.delete(self.detail_url(), {"confirmation": self.site.name}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn("detail", response.data)
+        self.assertTrue(Site.objects.filter(id=self.site.id).exists())
+
+    def test_owner_gets_own_site(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(self.detail_url())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], self.site.id)
+        self.assertEqual(response.data["name"], self.site.name)
+
     def test_owner_deletes_own_site(self):
         self.seed_analytics(self.site)
         SiteSection.objects.create(site=self.site, key="hero", title="Hero", schema={"fields": []})
@@ -142,8 +160,31 @@ class SiteDangerZoneApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(Site.objects.filter(id=self.site.id).exists())
         self.assertFalse(SiteLead.objects.filter(site_id=self.site.id).exists())
+        self.assertFalse(SiteSection.objects.filter(site_id=self.site.id).exists())
         self.assertFalse(TrackerSite.objects.filter(token=self.site.api_key).exists())
-        self.assertTrue(PlatformAuditLog.objects.filter(action="site.delete", object_id=str(self.site.id)).exists())
+        audit = PlatformAuditLog.objects.get(action="site.delete", object_id=str(self.site.id))
+        self.assertIsNone(audit.site_id)
+        self.assertEqual(audit.metadata["site"]["id"], self.site.id)
+        self.assertEqual(response.data["site"]["id"], self.site.id)
+        self.assertEqual(response.data["site"]["name"], self.site.name)
+
+    def test_invalid_delete_confirmation_returns_bad_request_and_preserves_site(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.delete(self.detail_url(), {"confirmation": "wrong"}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "invalid_confirmation")
+        self.assertTrue(Site.objects.filter(id=self.site.id).exists())
+
+    def test_missing_delete_body_returns_bad_request_and_preserves_site(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.delete(self.detail_url(), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "invalid_confirmation")
+        self.assertTrue(Site.objects.filter(id=self.site.id).exists())
 
     def test_clear_one_site_does_not_touch_second_site_of_same_user(self):
         self.seed_analytics(self.site, session_id="session-main")
@@ -206,6 +247,16 @@ class SiteDangerZoneApiTests(APITestCase):
         response = self.client.delete(self.detail_url(), {"confirmation": self.site.name}, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(Site.objects.filter(id=tracknode.id).exists())
+
+    def test_tracknode_system_site_cannot_be_deleted_directly(self):
+        tracknode = Site.objects.create(name="TrackNode", slug=TRACKNODE_SITE_SLUG, domain="tracknode.ru", owner=self.user)
+        self.client.force_authenticate(self.user)
+
+        response = self.client.delete(self.detail_url(tracknode), {"confirmation": tracknode.name}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["code"], "protected_site")
         self.assertTrue(Site.objects.filter(id=tracknode.id).exists())
 
     def test_site_leads_survive_analytics_clear(self):
@@ -284,4 +335,110 @@ class SiteDangerZoneApiTests(APITestCase):
         response = self.client.delete(self.detail_url(), {"confirmation": self.site.name}, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data["code"], "site_has_active_jobs")
         self.assertTrue(Site.objects.filter(id=self.site.id).exists())
+
+    def test_pending_competitor_task_returns_conflict(self):
+        CompetitorAnalysis.objects.create(site=self.site, client=self.client_obj, status=CompetitorAnalysis.Status.PENDING)
+        self.client.force_authenticate(self.user)
+
+        response = self.client.delete(self.detail_url(), {"confirmation": self.site.name}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data["code"], "site_has_active_jobs")
+        self.assertTrue(Site.objects.filter(id=self.site.id).exists())
+
+    def test_running_seo_task_returns_conflict(self):
+        SiteSEOAudit.objects.create(
+            client=self.client_obj,
+            requested_by=self.user,
+            domain=self.site.domain,
+            status=SiteSEOAudit.Status.RUNNING,
+        )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.delete(self.detail_url(), {"confirmation": self.site.name}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data["code"], "site_has_active_jobs")
+        self.assertTrue(Site.objects.filter(id=self.site.id).exists())
+
+    def test_queued_ai_task_returns_conflict(self):
+        AIRecommendationJob.objects.create(
+            site=self.site,
+            user=self.user,
+            recommendation_type=AIRecommendationJob.Type.COMBINED,
+            status=AIRecommendationJob.Status.QUEUED,
+            period_from=date(2026, 1, 1),
+            period_to=date(2026, 1, 31),
+        )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.delete(self.detail_url(), {"confirmation": self.site.name}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data["code"], "site_has_active_jobs")
+        self.assertTrue(Site.objects.filter(id=self.site.id).exists())
+
+    def test_delete_without_media_files_succeeds(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.delete(self.detail_url(), {"confirmation": self.site.name}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(Site.objects.filter(id=self.site.id).exists())
+
+    def test_missing_physical_media_file_cleanup_does_not_fail_delete(self):
+        MediaFile.objects.create(
+            site=self.site,
+            section_key="hero",
+            field_key="image",
+            file=SimpleUploadedFile("missing.jpg", b"content", content_type="image/jpeg"),
+        )
+        self.client.force_authenticate(self.user)
+
+        with patch.object(MediaFile._meta.get_field("file").storage, "delete", side_effect=FileNotFoundError("missing")) as delete_file:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.delete(self.detail_url(), {"confirmation": self.site.name}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        delete_file.assert_called_once()
+        self.assertFalse(Site.objects.filter(id=self.site.id).exists())
+        self.assertFalse(MediaFile.objects.filter(site_id=self.site.id).exists())
+
+    def test_file_cleanup_error_after_commit_does_not_return_false_500(self):
+        MediaFile.objects.create(
+            site=self.site,
+            section_key="hero",
+            field_key="image",
+            file=SimpleUploadedFile("cleanup.jpg", b"content", content_type="image/jpeg"),
+        )
+        self.client.force_authenticate(self.user)
+
+        with patch.object(MediaFile._meta.get_field("file").storage, "delete", side_effect=RuntimeError("storage denied")) as delete_file:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.delete(self.detail_url(), {"confirmation": self.site.name}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        delete_file.assert_called_once()
+        self.assertFalse(Site.objects.filter(id=self.site.id).exists())
+
+    def test_delete_transaction_rolls_back_when_database_delete_fails(self):
+        self.seed_analytics(self.site)
+        request = type("Request", (), {"user": self.user, "META": {}})()
+
+        def fail_on_real_delete(queryset):
+            if queryset.model is LegacyEvent:
+                deleted, _details = queryset.delete()
+                self.assertGreater(deleted, 0)
+                raise RuntimeError("forced failure")
+            deleted, _details = queryset.delete()
+            return deleted
+
+        with patch("apps.sites.services._delete_queryset", side_effect=fail_on_real_delete):
+            with self.assertRaises(RuntimeError):
+                delete_owned_site(site=self.site, request=request)
+
+        self.assertTrue(Site.objects.filter(id=self.site.id).exists())
+        self.assertEqual(LegacyEvent.objects.filter(client=self.client_obj, page_url__icontains=self.site.domain).count(), 1)
+        self.assertEqual(Visit.objects.filter(site=self.site).count(), 1)

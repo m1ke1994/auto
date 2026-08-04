@@ -73,7 +73,10 @@ function openPublicSite() {
 function requestErrorMessage(requestError, fallback) {
   const status = requestError?.response?.status
   const detail = requestError?.response?.data?.detail
+  const code = requestError?.response?.data?.code
   if (typeof detail === 'string' && detail) return detail
+  if (status === 400 || code === 'invalid_confirmation') return 'Введите точное подтверждение и повторите действие.'
+  if (status === 401) return 'Сессия истекла. Войдите заново.'
   if (status === 403) return 'Недостаточно прав для выполнения действия.'
   if (status === 404) return 'Сайт не найден или уже удалён.'
   if (status === 409) return 'Сейчас для сайта выполняется фоновая задача. Повторите позже.'

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from typing import Iterable
 from urllib.parse import urlparse
 
@@ -24,6 +25,8 @@ from tracker.models import Site as TrackerSite
 from tracker.models import Visit as TrackerVisit
 
 from .models import Site, SiteLead, SiteSection
+
+logger = logging.getLogger(__name__)
 
 
 class SiteOperationConflict(Exception):
@@ -187,6 +190,18 @@ def _client_ip(request) -> str | None:
     return forwarded or meta.get("REMOTE_ADDR") or None
 
 
+def _log_deletion_stage(stage: str, *, snapshot: SiteSnapshot | None = None, user_id: int | None = None, extra: dict | None = None) -> None:
+    payload = {
+        "stage": stage,
+        "user_id": user_id,
+        "site_id": snapshot.id if snapshot else None,
+        "site_slug": snapshot.slug if snapshot else "",
+    }
+    if extra:
+        payload.update(extra)
+    logger.info("site.delete stage=%s payload=%s", stage, payload)
+
+
 def log_site_operation(request, *, site: Site | None, snapshot: SiteSnapshot, action: str, result: str, deleted: dict[str, int] | None = None, error: str = "") -> None:
     PlatformAuditLog.objects.create(
         actor=request.user,
@@ -306,28 +321,36 @@ def _legacy_leads(site: Site, client: Client | None = None):
 
 
 def delete_owned_site(*, site: Site, request) -> dict:
+    user_id = getattr(getattr(request, "user", None), "id", None)
     _ensure_deletable_site(site)
     if _has_running_site_jobs(site):
         raise SiteOperationConflict("Для сайта уже выполняется фоновая задача. Повторите позже.")
 
     with transaction.atomic():
+        _log_deletion_stage("resolve_site", user_id=user_id, extra={"site_id": site.pk})
         locked_site = Site.objects.select_for_update().select_related("owner").get(pk=site.pk, owner=site.owner)
         _ensure_deletable_site(locked_site)
         snapshot = SiteSnapshot.from_site(locked_site)
+        _log_deletion_stage("collect_counts", snapshot=snapshot, user_id=user_id)
         deleted = _site_delete_counts(locked_site)
         client = _client_for_site(locked_site)
         tracker_site = _tracker_site(locked_site)
         media_files = list(MediaFile.objects.filter(site=locked_site).exclude(file="").values_list("file", flat=True))
 
+        _log_deletion_stage("delete_legacy_analytics", snapshot=snapshot, user_id=user_id)
         _delete_queryset(_legacy_clicks(locked_site, client))
         _delete_queryset(_legacy_events(locked_site, client))
         _delete_queryset(_legacy_pageviews(locked_site, client))
         _delete_queryset(_legacy_leads(locked_site, client))
+        _log_deletion_stage("delete_seo", snapshot=snapshot, user_id=user_id)
         _delete_queryset(_seo_audits(locked_site, client))
+        _log_deletion_stage("delete_tracker", snapshot=snapshot, user_id=user_id)
         if tracker_site is not None:
             tracker_site.delete()
+        _log_deletion_stage("delete_site", snapshot=snapshot, user_id=user_id)
         locked_site.delete()
 
+        _log_deletion_stage("write_audit", snapshot=snapshot, user_id=user_id)
         log_site_operation(
             request,
             site=None,
@@ -339,11 +362,22 @@ def delete_owned_site(*, site: Site, request) -> dict:
 
         def delete_unreferenced_files():
             for file_name in media_files:
-                if file_name and not MediaFile.objects.filter(file=file_name).exists():
-                    MediaFile._meta.get_field("file").storage.delete(file_name)
+                if not file_name:
+                    continue
+                try:
+                    if not MediaFile.objects.filter(file=file_name).exists():
+                        MediaFile._meta.get_field("file").storage.delete(file_name)
+                except Exception:
+                    logger.exception(
+                        "site.delete file cleanup failed stage=schedule_file_cleanup site_id=%s file=%s",
+                        snapshot.id,
+                        file_name,
+                    )
 
+        _log_deletion_stage("schedule_file_cleanup", snapshot=snapshot, user_id=user_id, extra={"files": len(media_files)})
         transaction.on_commit(delete_unreferenced_files)
 
+    _log_deletion_stage("build_response", snapshot=snapshot, user_id=user_id)
     return {
         "success": True,
         "site_id": str(snapshot.id),
