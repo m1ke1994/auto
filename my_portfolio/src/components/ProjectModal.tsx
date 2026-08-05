@@ -9,6 +9,8 @@ interface ProjectModalProps {
 
 export function ProjectModal({ project, onClose }: ProjectModalProps) {
   if (!project) return null;
+  const primaryImage = project.images[0] || "";
+  const imageAlt = project.image_alt || project.title;
 
   return (
     <div
@@ -29,11 +31,13 @@ export function ProjectModal({ project, onClose }: ProjectModalProps) {
 
         {/* Image */}
         <div className="aspect-video bg-muted">
-          <img
-            src={project.images[0]}
-            alt={project.title}
-            className="w-full h-full object-cover"
-          />
+          {primaryImage ? (
+            <img
+              src={primaryImage}
+              alt={imageAlt}
+              className="w-full h-full object-cover"
+            />
+          ) : null}
         </div>
 
         {/* Content */}

@@ -144,3 +144,63 @@ class MyPortfolioSiteSeedTests(TestCase):
         self.seed("--reset-content")
         hero.refresh_from_db()
         self.assertEqual(hero.content["title"], "Создаю современные веб-приложения")
+
+    def test_portfolio_media_fields_are_explicit_in_section_schemas(self):
+        media_fields = {}
+        for seed in MY_PORTFOLIO_SECTION_SEEDS:
+            SiteSection.validate_schema(seed["schema"])
+            SiteSection.validate_content(seed["content"], seed["schema"])
+            media_fields[seed["key"]] = self._collect_media_fields(seed["schema"]["fields"])
+
+        self.assertIn("favicon", media_fields["settings"])
+        self.assertIn("logo_image", media_fields["settings"])
+        self.assertIn("portrait_image", media_fields["hero"])
+        self.assertIn("profile_image", media_fields["about"])
+        self.assertIn("projects.image", media_fields["projects"])
+        self.assertIn("projects.images.src", media_fields["projects"])
+        self.assertIn("logo_image", media_fields["footer"])
+
+    def test_regular_seed_merges_project_image_fields_without_overwriting_admin_media(self):
+        self.seed()
+        projects = SiteSection.objects.get(site__slug="my-portfolio", key="projects")
+        current_projects = projects.content["projects"]
+        current_projects[0]["image"] = "/media/sites/161/projects/custom.webp"
+        current_projects[0]["image_alt"] = "Custom project screenshot"
+        current_projects[0]["images"] = [{"src": "/media/sites/161/projects/gallery.webp"}]
+        current_projects[1].pop("image", None)
+        current_projects[1].pop("image_alt", None)
+        projects.save(update_fields=["content", "updated_at"])
+
+        self.seed()
+        projects.refresh_from_db()
+        first_project = projects.content["projects"][0]
+        second_project = projects.content["projects"][1]
+
+        self.assertEqual(first_project["image"], "/media/sites/161/projects/custom.webp")
+        self.assertEqual(first_project["image_alt"], "Custom project screenshot")
+        self.assertEqual(first_project["images"], [{"src": "/media/sites/161/projects/gallery.webp"}])
+        self.assertTrue(second_project["image"])
+        self.assertTrue(second_project["image_alt"])
+
+    def test_reset_content_restores_project_seed_images_explicitly(self):
+        self.seed()
+        projects = SiteSection.objects.get(site__slug="my-portfolio", key="projects")
+        projects.content["projects"][0]["image"] = "/media/sites/161/projects/custom.webp"
+        projects.save(update_fields=["content", "updated_at"])
+
+        self.seed("--reset-content")
+        projects.refresh_from_db()
+
+        self.assertNotEqual(projects.content["projects"][0]["image"], "/media/sites/161/projects/custom.webp")
+        self.assertTrue(projects.content["projects"][0]["image"].startswith("/"))
+
+    def _collect_media_fields(self, fields, prefix=""):
+        keys = set()
+        for field in fields:
+            key = field.get("key")
+            path = f"{prefix}.{key}" if prefix else key
+            if field.get("type") in {"image", "video", "media"}:
+                keys.add(path)
+            if field.get("type") == "repeater":
+                keys.update(self._collect_media_fields(field.get("fields", []), path))
+        return keys

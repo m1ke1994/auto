@@ -6,6 +6,8 @@ export interface Project {
   fullDescription: string;
   techStack: string[];
   role: string;
+  image?: string;
+  image_alt?: string;
   images: string[];
   demoUrl?: string;
   repoUrl?: string;

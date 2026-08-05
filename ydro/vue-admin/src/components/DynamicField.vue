@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { ChevronDown, ChevronRight, Plus, Trash2 } from '@lucide/vue'
 
-import { uploadMediaFile } from '../api/media'
+import { mediaErrorMessage, uploadMediaFile } from '../api/media'
 import { BACKEND_URL } from '../config/env'
 import { elementCountLabel, fieldTypeLabel, groupFields, rowSummary } from '../utils/formPresentation'
 import MediaLibraryPicker from './MediaLibraryPicker.vue'
@@ -33,11 +33,13 @@ const emit = defineEmits(['update:modelValue'])
 const fieldType = computed(() => props.field?.type || 'text')
 const fieldKey = computed(() => props.field?.key || '')
 const fieldKeyLower = computed(() => String(fieldKey.value).toLowerCase())
+const fieldPathLower = computed(() => `${props.pathPrefix || ''}.${fieldKey.value || ''}`.toLowerCase())
 const inputId = computed(() => `field-${props.pathPrefix || fieldKey.value || Math.random().toString(36).slice(2)}`)
 
-const mediaKeyPattern = /(image|background_image|background_video|poster|avatar|photo|gallery|video)/i
+const mediaKeyPattern = /(image|background_image|background_video|poster|avatar|photo|gallery|video|favicon|logo_image)/i
 const isMediaType = computed(() => ['image', 'video', 'media'].includes(fieldType.value))
-const isMediaByKey = computed(() => mediaKeyPattern.test(fieldKeyLower.value))
+const isNestedImageSource = computed(() => /(?:^|\.)(images|gallery)\.\d+\.(src|url|image)$/.test(fieldPathLower.value))
+const isMediaByKey = computed(() => mediaKeyPattern.test(fieldKeyLower.value) || isNestedImageSource.value)
 const isMediaField = computed(() => isMediaType.value || isMediaByKey.value)
 const mediaType = computed(() => {
   if (fieldType.value === 'video' || fieldKeyLower.value.includes('video')) {
@@ -49,13 +51,16 @@ const mediaType = computed(() => {
   return 'image'
 })
 const acceptedMediaTypes = computed(() => {
-  if (fieldType.value === 'media') return 'image/*,video/mp4,video/webm'
-  return mediaType.value === 'video' ? 'video/*' : 'image/*'
+  if (fieldType.value === 'media') return '.jpg,.jpeg,.png,.webp,.ico,.mp4,.webm,image/jpeg,image/png,image/webp,image/x-icon,image/vnd.microsoft.icon,video/mp4,video/webm'
+  return mediaType.value === 'video'
+    ? '.mp4,.webm,video/mp4,video/webm'
+    : '.jpg,.jpeg,.png,.webp,.ico,image/jpeg,image/png,image/webp,image/x-icon,image/vnd.microsoft.icon'
 })
 
 const fileInputRef = ref(null)
 const uploading = ref(false)
 const uploadError = ref('')
+const selectedFileName = ref('')
 const libraryOpen = ref(false)
 const expandedRows = ref(new Set([0]))
 
@@ -151,6 +156,7 @@ async function onFileSelected(event) {
 
   uploadError.value = ''
   uploading.value = true
+  selectedFileName.value = file.name
 
   try {
     const payload = await uploadMediaFile({
@@ -162,10 +168,10 @@ async function onFileSelected(event) {
 
     emit('update:modelValue', payload?.path || payload?.url || '')
   } catch (error) {
-    const detail = error?.response?.data?.detail
-    uploadError.value = detail || 'Не удалось загрузить файл.'
+    uploadError.value = mediaErrorMessage(error, 'Не удалось загрузить файл.')
   } finally {
     uploading.value = false
+    selectedFileName.value = ''
     if (fileInputRef.value) {
       fileInputRef.value.value = ''
     }
@@ -447,6 +453,9 @@ function rowBadges(row = {}) {
           </button>
         </div>
 
+        <p v-if="uploading && selectedFileName" class="text-xs text-slate-500">
+          Загружаем {{ selectedFileName }}...
+        </p>
         <p v-if="uploadError" class="text-xs text-rose-600">{{ uploadError }}</p>
 
         <MediaLibraryPicker

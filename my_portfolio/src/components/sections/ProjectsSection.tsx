@@ -2,9 +2,11 @@ import { useState } from "react";
 import { Project } from "@/data/projects";
 import { ProjectCard } from "@/components/ProjectCard";
 import { ProjectModal } from "@/components/ProjectModal";
-import { normalizeImageList, normalizeStringList, usePortfolioSection } from "@/lib/tracknode";
+import { normalizePortfolioProject, usePortfolioSection } from "@/lib/tracknode";
 
 type PortfolioProject = Project & {
+  image?: unknown;
+  image_alt?: unknown;
   techStack: unknown[];
   images: unknown[];
 };
@@ -20,11 +22,7 @@ export function ProjectsSection() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const categories = content.categories || [];
-  const projects = (content.projects || []).map((project) => ({
-    ...project,
-    techStack: normalizeStringList(project.techStack),
-    images: normalizeImageList(project.images),
-  })) as Project[];
+  const projects = (content.projects || []).map((project) => normalizePortfolioProject(project)) as Project[];
 
   const filteredProjects = activeCategory === "all"
     ? projects

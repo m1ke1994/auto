@@ -13,6 +13,8 @@ from analytics_app.models import ClickEvent as AnalyticsClickEvent
 from analytics_app.models import Event as AnalyticsEvent
 from analytics_app.models import PageView as AnalyticsPageView
 from apps.sites.models import Site as CoreSite
+from apps.sites.services import is_technical_template_source_site
+from apps.sites.tracker_utils import mask_tracker_token, request_tracking_origin_host, site_allows_tracking_origin
 from clients.models import Client
 from tracker.models import Event, PageView, Site, Visit
 from tracker.serializers import (
@@ -64,7 +66,66 @@ def _extract_visit_context(request):
     }
 
 
-def _site_by_token(token: str):
+def _sync_tracker_site(core_site: CoreSite):
+    tracker_site = Site.objects.filter(token=core_site.api_key).first()
+    domain_value = core_site.domain or core_site.slug or core_site.name
+    if tracker_site is None:
+        return Site.objects.create(token=core_site.api_key, domain=domain_value, is_active=True)
+
+    update_fields = []
+    if not tracker_site.is_active:
+        tracker_site.is_active = True
+        update_fields.append("is_active")
+    if domain_value and tracker_site.domain != domain_value:
+        tracker_site.domain = domain_value
+        update_fields.append("domain")
+    if update_fields:
+        tracker_site.save(update_fields=update_fields)
+    return tracker_site
+
+
+def _core_site_by_token(token: str):
+    return CoreSite.objects.select_related("owner").filter(api_key=token).first()
+
+
+def _reject_core_site_token(core_site: CoreSite, request, token: str) -> bool:
+    if not core_site.is_active:
+        logger.warning(
+            "Track request rejected: inactive site token=%s site_id=%s slug=%s",
+            mask_tracker_token(token),
+            core_site.id,
+            core_site.slug,
+        )
+        return True
+    if is_technical_template_source_site(core_site):
+        logger.warning(
+            "Track request rejected: technical template source token=%s site_id=%s slug=%s",
+            mask_tracker_token(token),
+            core_site.id,
+            core_site.slug,
+        )
+        return True
+    if request is not None and not site_allows_tracking_origin(core_site, request):
+        logger.warning(
+            "Track request rejected: origin mismatch token=%s site_id=%s slug=%s site_domain=%s origin_host=%s",
+            mask_tracker_token(token),
+            core_site.id,
+            core_site.slug,
+            core_site.domain,
+            request_tracking_origin_host(request),
+        )
+        return True
+    return False
+
+
+def _site_by_token(token: str, request=None):
+    # Site api_key is the authoritative token for real public sites.
+    core_site = _core_site_by_token(token)
+    if core_site is not None:
+        if _reject_core_site_token(core_site, request, token):
+            return None
+        return _sync_tracker_site(core_site)
+
     site = Site.objects.filter(token=token, is_active=True).first()
     if site:
         return site
@@ -73,35 +134,18 @@ def _site_by_token(token: str):
     legacy_client = Client.objects.filter(api_key=token, is_active=True).first()
     if legacy_client:
         return Site.objects.create(token=token, domain=legacy_client.name, is_active=True)
-
-    # Yadro site compatibility path: use public site api_key as tracker token.
-    core_site = CoreSite.objects.filter(api_key=token, is_active=True).first()
-    if core_site:
-        tracker_site = Site.objects.filter(token=token).first()
-        domain_value = core_site.domain or core_site.slug or core_site.name
-        if tracker_site is None:
-            return Site.objects.create(token=token, domain=domain_value, is_active=True)
-
-        update_fields = []
-        if not tracker_site.is_active:
-            tracker_site.is_active = True
-            update_fields.append("is_active")
-        if domain_value and tracker_site.domain != domain_value:
-            tracker_site.domain = domain_value
-            update_fields.append("domain")
-        if update_fields:
-            tracker_site.save(update_fields=update_fields)
-        return tracker_site
     return None
 
 
-def _client_by_token(token: str):
+def _client_by_token(token: str, request=None):
     client = Client.objects.filter(api_key=token, is_active=True).first()
     if client is not None:
         return client
 
-    core_site = CoreSite.objects.select_related("owner").filter(api_key=token, is_active=True).first()
+    core_site = _core_site_by_token(token)
     if core_site is None:
+        return None
+    if _reject_core_site_token(core_site, request, token):
         return None
 
     owner = getattr(core_site, "owner", None)
@@ -226,9 +270,9 @@ class TrackBaseAPIView(APIView):
     authentication_classes = []
 
     def get_site(self, token):
-        site = _site_by_token(token)
+        site = _site_by_token(token, request=self.request)
         if not site:
-            logger.warning("Track request rejected: invalid token token=%s", (token[:6] + "***") if token else "***")
+            logger.warning("Track request rejected: invalid token token=%s", mask_tracker_token(token))
             raise PermissionDenied("Invalid token.")
         return site
 
@@ -300,15 +344,22 @@ class TrackBaseAPIView(APIView):
         )
 
     def handle_exception(self, exc):
+        if isinstance(exc, PermissionDenied):
+            return super().handle_exception(exc)
         logger.exception("track.api exception path=%s method=%s", self.request.path, self.request.method)
         return super().handle_exception(exc)
 
 
 class VisitStartView(TrackBaseAPIView):
     def post(self, request):
-        logger.info("track.visit_start request origin=%s body=%s", request.headers.get("Origin"), dict(request.data))
         serializer = VisitStartSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        logger.info(
+            "track.visit_start request origin=%s token=%s session_id=%s",
+            request.headers.get("Origin"),
+            mask_tracker_token(serializer.validated_data["token"]),
+            serializer.validated_data["session_id"],
+        )
 
         site = self.get_site(serializer.validated_data["token"])
         started_at = serializer.get_started_at()
@@ -328,7 +379,7 @@ class VisitStartView(TrackBaseAPIView):
         }
         _upsert_visit_event(visit, "visit", payload=start_payload, timestamp=started_at)
         _upsert_visit_event(visit, "session_start", payload=start_payload, timestamp=started_at)
-        client = _client_by_token(serializer.validated_data["token"])
+        client = _client_by_token(serializer.validated_data["token"], request=request)
         if client and not visit.is_bot:
             try:
                 event_url = _safe_url(
@@ -358,9 +409,15 @@ class VisitStartView(TrackBaseAPIView):
 
 class PageViewCreateView(TrackBaseAPIView):
     def post(self, request):
-        logger.info("track.pageview request origin=%s body=%s", request.headers.get("Origin"), dict(request.data))
         serializer = PageViewSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        logger.info(
+            "track.pageview request origin=%s token=%s session_id=%s url=%s",
+            request.headers.get("Origin"),
+            mask_tracker_token(serializer.validated_data["token"]),
+            serializer.validated_data["session_id"],
+            serializer.validated_data["url"][:512],
+        )
 
         site = self.get_site(serializer.validated_data["token"])
         pageview_timestamp = serializer.get_timestamp()
@@ -387,7 +444,7 @@ class PageViewCreateView(TrackBaseAPIView):
             },
             timestamp=pageview_timestamp,
         )
-        client = _client_by_token(serializer.validated_data["token"])
+        client = _client_by_token(serializer.validated_data["token"], request=request)
         if client and not visit.is_bot:
             try:
                 safe_url = _safe_url(serializer.validated_data["url"])
@@ -424,9 +481,15 @@ class PageViewCreateView(TrackBaseAPIView):
 
 class EventCreateView(TrackBaseAPIView):
     def post(self, request):
-        logger.info("track.event request origin=%s body=%s", request.headers.get("Origin"), dict(request.data))
         serializer = TrackEventSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        logger.info(
+            "track.event request origin=%s token=%s session_id=%s type=%s",
+            request.headers.get("Origin"),
+            mask_tracker_token(serializer.validated_data["token"]),
+            serializer.validated_data["session_id"],
+            serializer.validated_data["type"],
+        )
 
         site = self.get_site(serializer.validated_data["token"])
         payload = serializer.validated_data.get("payload") or {}
@@ -506,7 +569,7 @@ class EventCreateView(TrackBaseAPIView):
             payload=payload,
             timestamp=serializer.get_timestamp(),
         )
-        client = _client_by_token(serializer.validated_data["token"])
+        client = _client_by_token(serializer.validated_data["token"], request=request)
         if client and not visit.is_bot:
             try:
                 if event_type == "form_submit":
@@ -614,9 +677,14 @@ class EventCreateView(TrackBaseAPIView):
 
 class VisitEndView(TrackBaseAPIView):
     def post(self, request):
-        logger.info("track.visit_end request origin=%s body=%s", request.headers.get("Origin"), dict(request.data))
         serializer = VisitEndSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        logger.info(
+            "track.visit_end request origin=%s token=%s session_id=%s",
+            request.headers.get("Origin"),
+            mask_tracker_token(serializer.validated_data["token"]),
+            serializer.validated_data["session_id"],
+        )
 
         site = self.get_site(serializer.validated_data["token"])
         visit = (

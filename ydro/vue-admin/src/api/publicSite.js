@@ -55,6 +55,42 @@ function setCanonical(value) {
   element.setAttribute('href', value)
 }
 
+function isTrackNodeTrackerScript(script) {
+  const src = String(script?.src || '')
+  return src.includes('/tracker.js') || src.includes('/api/mini/tracker.js')
+}
+
+function trackerScriptKey(script) {
+  const dataset = script?.dataset || {}
+  return String(dataset.siteKey || dataset.token || dataset.apiKey || '').trim()
+}
+
+function removeExistingTrackNodeTrackerScripts(nextKey) {
+  let hasCurrentScript = false
+  document.querySelectorAll('script').forEach((script) => {
+    if (!isTrackNodeTrackerScript(script)) return
+
+    const key = trackerScriptKey(script)
+    if (key === nextKey && script.id === TRACKER_ID) {
+      hasCurrentScript = true
+      return
+    }
+
+    if (key !== nextKey || script.id === TRACKER_ID || script.dataset.tracknodeManaged === 'true') {
+      script.remove()
+    } else {
+      hasCurrentScript = true
+    }
+  })
+
+  const activeTracker = window.__trackNodeTracker
+  if (activeTracker?.active !== false && activeTracker?.token && activeTracker.token !== nextKey) {
+    activeTracker.destroy?.('public_site_key_changed')
+  }
+
+  return hasCurrentScript
+}
+
 export function applyPublicSiteSeo(site) {
   const seo = site?.seo && typeof site.seo === 'object' ? site.seo : {}
   const title = seo.title || seo.og_title
@@ -94,9 +130,8 @@ export function ensurePublicSiteTracker(site) {
   const trackerKey = String(site?.tracker_key || '').trim()
   if (!trackerKey) return
 
-  const current = document.getElementById(TRACKER_ID)
-  if (current?.dataset?.siteKey === trackerKey) return
-  current?.remove()
+  if (removeExistingTrackNodeTrackerScripts(trackerKey)) return
+  if (window.__trackNodeTracker?.active !== false && window.__trackNodeTracker?.token === trackerKey) return
 
   const script = document.createElement('script')
   script.id = TRACKER_ID
@@ -104,6 +139,7 @@ export function ensurePublicSiteTracker(site) {
   script.async = true
   script.dataset.siteKey = trackerKey
   script.dataset.siteSlug = TRACKNODE_SLUG
+  script.dataset.tracknodeManaged = 'true'
   document.body.appendChild(script)
 }
 

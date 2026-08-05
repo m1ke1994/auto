@@ -206,6 +206,37 @@ def tracker_js_view(request):
     return window.location.origin;
   }
 
+  function maskToken(value) {
+    var raw = String(value || '');
+    if (raw.length < 10) {
+      return '***';
+    }
+    return raw.slice(0, 6) + '***' + raw.slice(-4);
+  }
+
+  function maskPayloadForLog(value) {
+    if (!value || typeof value !== 'object') {
+      return value;
+    }
+    var copy = {};
+    var keys = Object.keys(value);
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      copy[key] = key === 'token' ? maskToken(value[key]) : value[key];
+    }
+    return copy;
+  }
+
+  function tokenStorageScope(value) {
+    var raw = String(value || '');
+    var hash = 0;
+    for (var i = 0; i < raw.length; i++) {
+      hash = ((hash << 5) - hash) + raw.charCodeAt(i);
+      hash = hash | 0;
+    }
+    return Math.abs(hash).toString(36) || '0';
+  }
+
   var scriptTag = getScript();
   var token = '';
   try {
@@ -232,18 +263,144 @@ def tracker_js_view(request):
     return;
   }
 
-  if (window.__saasTrackerInitializedToken === token) {
-    logDebug('skip duplicate tracker init for token', token);
-    return;
-  }
-  window.__saasTrackerInitializedToken = token;
-
   var baseUrl = getBaseUrl(scriptTag);
   var trackerOrigin = baseUrl;
-  var originalFetch = (typeof window.fetch === 'function') ? window.fetch.bind(window) : null;
+  var trackerInstanceId = 'tracknode-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+  var cleanupCallbacks = [];
+  var trackerState = null;
+  var previousTracker = null;
+  try {
+    previousTracker = window.__trackNodeTracker || null;
+  } catch (_) {
+    previousTracker = null;
+  }
+  if (previousTracker && previousTracker.active !== false) {
+    if (previousTracker.token === token && (!previousTracker.baseUrl || previousTracker.baseUrl === baseUrl)) {
+      logDebug('skip duplicate tracker init for token', maskToken(token));
+      return;
+    }
+    if (typeof previousTracker.destroy === 'function') {
+      previousTracker.destroy('token_changed');
+    }
+  } else if (window.__saasTrackerInitializedToken === token) {
+    logDebug('skip duplicate tracker init for token', maskToken(token));
+    return;
+  }
+  function registerCleanup(callback) {
+    if (typeof callback === 'function') {
+      cleanupCallbacks.push(callback);
+    }
+  }
+  function isActiveInstance() {
+    try {
+      return !!(window.__trackNodeTracker && window.__trackNodeTracker.instanceId === trackerInstanceId && window.__trackNodeTracker.active !== false);
+    } catch (_) {
+      return false;
+    }
+  }
+  function destroyTracker(reason) {
+    if (trackerState) {
+      trackerState.active = false;
+      trackerState.reason = reason || 'destroyed';
+    }
+    try {
+      if (durationHeartbeatTimer) {
+        clearInterval(durationHeartbeatTimer);
+        durationHeartbeatTimer = null;
+      }
+    } catch (_) {}
+    try {
+      if (behaviorFlushTimer) {
+        clearTimeout(behaviorFlushTimer);
+        behaviorFlushTimer = null;
+      }
+    } catch (_) {}
+    try {
+      if (formVisibilityObserver) {
+        formVisibilityObserver.disconnect();
+        formVisibilityObserver = null;
+      }
+    } catch (_) {}
+    try {
+      if (sectionVisibilityObserver) {
+        sectionVisibilityObserver.disconnect();
+        sectionVisibilityObserver = null;
+      }
+    } catch (_) {}
+    try {
+      if (ctaVisibilityObserver) {
+        ctaVisibilityObserver.disconnect();
+        ctaVisibilityObserver = null;
+      }
+    } catch (_) {}
+    while (cleanupCallbacks.length) {
+      var cleanup = cleanupCallbacks.pop();
+      try {
+        cleanup();
+      } catch (_) {}
+    }
+    try {
+      if (window.__trackNodeTracker && window.__trackNodeTracker.instanceId === trackerInstanceId) {
+        window.__trackNodeTracker = null;
+      }
+    } catch (_) {}
+    try {
+      if (window.__saasTrackerInitializedToken === token) {
+        window.__saasTrackerInitializedToken = '';
+      }
+    } catch (_) {}
+    logDebug('tracker destroyed', reason || 'destroyed');
+  }
+  function addManagedEventListener(target, type, handler, options) {
+    if (!target || typeof target.addEventListener !== 'function') {
+      return;
+    }
+    var wrapped = function () {
+      if (!isActiveInstance()) {
+        return;
+      }
+      return handler.apply(this, arguments);
+    };
+    target.addEventListener(type, wrapped, options);
+    registerCleanup(function () {
+      try {
+        target.removeEventListener(type, wrapped, options);
+      } catch (_) {}
+    });
+  }
+  function setManagedTimeout(callback, delay) {
+    var timer = window.setTimeout(function () {
+      if (!isActiveInstance()) {
+        return;
+      }
+      callback();
+    }, delay);
+    registerCleanup(function () {
+      try {
+        clearTimeout(timer);
+      } catch (_) {}
+    });
+    return timer;
+  }
+  trackerState = {
+    token: token,
+    maskedToken: maskToken(token),
+    baseUrl: baseUrl,
+    instanceId: trackerInstanceId,
+    active: true,
+    destroy: destroyTracker
+  };
+  try {
+    window.__trackNodeTracker = trackerState;
+    window.__saasTrackerInitializedToken = token;
+  } catch (_) {}
+
+  var nativeFetch = (typeof window.fetch === 'function') ? window.fetch : null;
+  var originalFetch = nativeFetch ? nativeFetch.bind(window) : null;
+  var storageScope = tokenStorageScope(token);
   var visitorKey = 'saas_tracker_visitor_id';
-  var sessionKey = 'saas_tracker_session_id';
-  var startKey = 'saas_tracker_started_at';
+  var sessionKey = 'saas_tracker_session_id_' + storageScope;
+  var startKey = 'saas_tracker_started_at_' + storageScope;
 
   var visitorId = safeGet(window.localStorage, visitorKey);
   if (!visitorId) {
@@ -1240,7 +1397,7 @@ def tracker_js_view(request):
       return;
     }
     if (!window.IntersectionObserver) {
-      setTimeout(function () {
+      setManagedTimeout(function () {
         if (isElementInViewport(targetNode, 0.2)) {
           emitReached();
         }
@@ -1249,6 +1406,9 @@ def tracker_js_view(request):
     }
     var done = false;
     var targetObserver = new IntersectionObserver(function (entries) {
+      if (!isActiveInstance()) {
+        return;
+      }
       if (done) {
         return;
       }
@@ -1266,7 +1426,12 @@ def tracker_js_view(request):
     }, { threshold: [0.2, 0.4] });
     try {
       targetObserver.observe(targetNode);
-      setTimeout(function () {
+      registerCleanup(function () {
+        try {
+          targetObserver.disconnect();
+        } catch (_) {}
+      });
+      setManagedTimeout(function () {
         try {
           targetObserver.disconnect();
         } catch (_) {}
@@ -1520,6 +1685,9 @@ def tracker_js_view(request):
   }
 
   function onFormVisibility(entries) {
+    if (!isActiveInstance()) {
+      return;
+    }
     for (var i = 0; i < entries.length; i++) {
       var entry = entries[i];
       var form = entry && entry.target ? entry.target : null;
@@ -1654,6 +1822,9 @@ def tracker_js_view(request):
   }
 
   function onSectionVisibility(entries) {
+    if (!isActiveInstance()) {
+      return;
+    }
     for (var i = 0; i < entries.length; i++) {
       var entry = entries[i];
       var section = entry && entry.target ? entry.target : null;
@@ -1881,6 +2052,9 @@ def tracker_js_view(request):
       return setTimeout(callback, 50);
     };
     scheduler(function () {
+      if (!isActiveInstance()) {
+        return;
+      }
       scrollEvaluationScheduled = false;
       evaluateScrollDepth();
     });
@@ -1906,7 +2080,7 @@ def tracker_js_view(request):
     }
     cleanupPendingFormSubmissions(false);
     scheduleScrollDepthEvaluation();
-    setTimeout(function () {
+    setManagedTimeout(function () {
       refreshFormVisibilityObserver();
       refreshSectionVisibilityObserver();
       refreshCtaVisibilityObserver();
@@ -2022,6 +2196,9 @@ def tracker_js_view(request):
   }
 
   function onCtaVisibility(entries) {
+    if (!isActiveInstance()) {
+      return;
+    }
     for (var i = 0; i < entries.length; i++) {
       var entry = entries[i];
       var node = entry && entry.target ? entry.target : null;
@@ -2092,13 +2269,19 @@ def tracker_js_view(request):
   }
 
   function postWithRetry(endpoint, payload, opts) {
+    if (!isActiveInstance() || !payload) {
+      return Promise.resolve(null);
+    }
     var maxAttempts = (opts && opts.maxAttempts) || 3;
     var attempt = 0;
     var url = baseUrl + endpoint;
 
     function runAttempt() {
+      if (!isActiveInstance()) {
+        return Promise.resolve(null);
+      }
       attempt += 1;
-      logDebug('sending', endpoint, 'attempt', attempt, payload);
+      logDebug('sending', endpoint, 'attempt', attempt, maskPayloadForLog(payload));
       if (!originalFetch) {
         logWarn('window.fetch is unavailable, skip tracker request', endpoint);
         return Promise.resolve(null);
@@ -2238,6 +2421,9 @@ def tracker_js_view(request):
   }
 
   function sendEventPayload(payload, preferBeacon) {
+    if (!isActiveInstance() || !payload) {
+      return;
+    }
     if (preferBeacon && navigator.sendBeacon) {
       try {
         var data = JSON.stringify(payload);
@@ -2309,6 +2495,9 @@ def tracker_js_view(request):
       }
       durationHeartbeatTimer = window.setInterval(function () {
         try {
+          if (!isActiveInstance()) {
+            return;
+          }
           if (document.visibilityState && document.visibilityState === 'hidden') {
             return;
           }
@@ -2331,7 +2520,11 @@ def tracker_js_view(request):
     flushSectionSignals('route_change');
     resetPageTimer(window.location.pathname || '/');
     resetPageAnalyticsSignals();
-    setTimeout(trackPageView, 0);
+    setTimeout(function () {
+      if (isActiveInstance()) {
+        trackPageView();
+      }
+    }, 0);
   }
 
   function trackApiRequest(payload) {
@@ -2354,6 +2547,9 @@ def tracker_js_view(request):
 
   function trackVisitEnd() {
     try {
+      if (!isActiveInstance()) {
+        return;
+      }
       if (visitEndSent) {
         return;
       }
@@ -2522,6 +2718,11 @@ def tracker_js_view(request):
           }
         });
         lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true });
+        registerCleanup(function () {
+          try {
+            lcpObserver.disconnect();
+          } catch (_) {}
+        });
       } catch (_) {}
       try {
         var clsObserver = new PerformanceObserver(function (list) {
@@ -2533,6 +2734,11 @@ def tracker_js_view(request):
           }
         });
         clsObserver.observe({ type: 'layout-shift', buffered: true });
+        registerCleanup(function () {
+          try {
+            clsObserver.disconnect();
+          } catch (_) {}
+        });
       } catch (_) {}
       try {
         var inpObserver = new PerformanceObserver(function (list) {
@@ -2545,6 +2751,11 @@ def tracker_js_view(request):
           }
         });
         inpObserver.observe({ type: 'event', buffered: true, durationThreshold: 40 });
+        registerCleanup(function () {
+          try {
+            inpObserver.disconnect();
+          } catch (_) {}
+        });
       } catch (_) {}
     } catch (err) {
       logError('performance observer init failed', err);
@@ -2698,19 +2909,37 @@ def tracker_js_view(request):
     try {
       var originalPush = history.pushState;
       var originalReplace = history.replaceState;
-      history.pushState = function () {
+      var wrappedPushState = function () {
         var result = originalPush.apply(this, arguments);
-        setTimeout(handleRouteChange, 0);
+        setTimeout(function () {
+          if (isActiveInstance()) {
+            handleRouteChange();
+          }
+        }, 0);
         return result;
       };
-      history.replaceState = function () {
+      var wrappedReplaceState = function () {
         var result = originalReplace.apply(this, arguments);
-        setTimeout(handleRouteChange, 0);
+        setTimeout(function () {
+          if (isActiveInstance()) {
+            handleRouteChange();
+          }
+        }, 0);
         return result;
       };
-      window.addEventListener('popstate', function () {
-        handleRouteChange();
+      history.pushState = wrappedPushState;
+      history.replaceState = wrappedReplaceState;
+      registerCleanup(function () {
+        try {
+          if (history.pushState === wrappedPushState) {
+            history.pushState = originalPush;
+          }
+          if (history.replaceState === wrappedReplaceState) {
+            history.replaceState = originalReplace;
+          }
+        } catch (_) {}
       });
+      addManagedEventListener(window, 'popstate', handleRouteChange);
     } catch (err) {
       logError('history tracking failed', err);
     }
@@ -2720,12 +2949,15 @@ def tracker_js_view(request):
     if (!originalFetch) {
       return;
     }
-    window.fetch = function (input, init) {
+    var wrappedFetch = function (input, init) {
       var requestUrl = extractFetchUrl(input);
       var requestMethod = extractFetchMethod(input, init);
       var requestMeta = buildRequestMetaFromFetchArgs(input, init);
       return originalFetch.apply(this, arguments)
         .then(function (response) {
+          if (!isActiveInstance()) {
+            return response;
+          }
           var statusCode = response && typeof response.status === 'number' ? response.status : 0;
           trackApiRequest({
             url: requestUrl,
@@ -2743,30 +2975,40 @@ def tracker_js_view(request):
           return response;
         })
         .catch(function (error) {
-          trackApiRequest({
-            url: requestUrl,
-            method: requestMethod,
-            status: 0,
-            transport: 'fetch'
-          });
-          if (shouldTrackApiRequest(requestUrl, requestMethod)) {
-            trackClientError('fetch_error', {
-              message: error && error.message ? error.message : 'Fetch failed',
-              name: error && error.name ? error.name : 'FetchError',
-              source: requestUrl,
-              stack: error && error.stack ? error.stack : ''
+          if (isActiveInstance()) {
+            trackApiRequest({
+              url: requestUrl,
+              method: requestMethod,
+              status: 0,
+              transport: 'fetch'
             });
+            if (shouldTrackApiRequest(requestUrl, requestMethod)) {
+              trackClientError('fetch_error', {
+                message: error && error.message ? error.message : 'Fetch failed',
+                name: error && error.name ? error.name : 'FetchError',
+                source: requestUrl,
+                stack: error && error.stack ? error.stack : ''
+              });
+            }
+            finalizePendingFormSubmission(
+              requestUrl,
+              requestMethod,
+              0,
+              'fetch',
+              mergeObjects(requestMeta, { requestFailed: true })
+            );
           }
-          finalizePendingFormSubmission(
-            requestUrl,
-            requestMethod,
-            0,
-            'fetch',
-            mergeObjects(requestMeta, { requestFailed: true })
-          );
           throw error;
         });
     };
+    window.fetch = wrappedFetch;
+    registerCleanup(function () {
+      try {
+        if (window.fetch === wrappedFetch) {
+          window.fetch = nativeFetch;
+        }
+      } catch (_) {}
+    });
   }
 
   function installXhrInterceptor() {
@@ -2780,7 +3022,7 @@ def tracker_js_view(request):
       return;
     }
 
-    proto.open = function (method, url) {
+    var wrappedOpen = function (method, url) {
       try {
         this.__saasTrackerMethod = requestMethodOrDefault(method);
         this.__saasTrackerUrl = toAbsoluteUrl(url);
@@ -2797,7 +3039,7 @@ def tracker_js_view(request):
       return originalOpen.apply(this, arguments);
     };
 
-    proto.send = function (body) {
+    var wrappedSend = function (body) {
       var xhr = this;
       try {
         xhr.__saasTrackerHasBody = !(typeof body === 'undefined' || body === null);
@@ -2816,6 +3058,9 @@ def tracker_js_view(request):
           xhr.removeEventListener('timeout', onRequestFailed);
           xhr.removeEventListener('abort', onRequestFailed);
         } catch (_) {}
+        if (!isActiveInstance()) {
+          return;
+        }
         var xhrStatus = typeof xhr.status === 'number' ? xhr.status : 0;
         trackApiRequest({
           url: xhr.__saasTrackerUrl || '',
@@ -2843,6 +3088,18 @@ def tracker_js_view(request):
       } catch (_) {}
       return originalSend.apply(this, arguments);
     };
+    proto.open = wrappedOpen;
+    proto.send = wrappedSend;
+    registerCleanup(function () {
+      try {
+        if (proto.open === wrappedOpen) {
+          proto.open = originalOpen;
+        }
+        if (proto.send === wrappedSend) {
+          proto.send = originalSend;
+        }
+      } catch (_) {}
+    });
   }
 
   try {
@@ -2860,39 +3117,39 @@ def tracker_js_view(request):
       });
     installFetchInterceptor();
     installXhrInterceptor();
-    document.addEventListener('click', onClick, true);
-    document.addEventListener('mousemove', onMouseMove, true);
-    document.addEventListener('submit', onSubmit, true);
-    document.addEventListener('focusin', onFormFocusIn, true);
-    document.addEventListener('focusout', onFormFocusOut, true);
-    document.addEventListener('input', onFormInputOrChange, true);
-    document.addEventListener('change', onFormInputOrChange, true);
-    document.addEventListener('copy', onCopy, true);
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('error', onWindowError, true);
-    window.addEventListener('unhandledrejection', onUnhandledRejection);
-    window.addEventListener('load', function () {
-      setTimeout(function () {
+    addManagedEventListener(document, 'click', onClick, true);
+    addManagedEventListener(document, 'mousemove', onMouseMove, true);
+    addManagedEventListener(document, 'submit', onSubmit, true);
+    addManagedEventListener(document, 'focusin', onFormFocusIn, true);
+    addManagedEventListener(document, 'focusout', onFormFocusOut, true);
+    addManagedEventListener(document, 'input', onFormInputOrChange, true);
+    addManagedEventListener(document, 'change', onFormInputOrChange, true);
+    addManagedEventListener(document, 'copy', onCopy, true);
+    addManagedEventListener(document, 'visibilitychange', onVisibilityChange);
+    addManagedEventListener(window, 'error', onWindowError, true);
+    addManagedEventListener(window, 'unhandledrejection', onUnhandledRejection);
+    addManagedEventListener(window, 'load', function () {
+      setManagedTimeout(function () {
         sendPerformanceMetrics('load');
       }, 2500);
     });
-    setTimeout(function () {
+    setManagedTimeout(function () {
       sendPerformanceMetrics('timeout');
     }, 6000);
-    window.addEventListener('scroll', scheduleScrollDepthEvaluation, { passive: true });
-    window.addEventListener('resize', scheduleScrollDepthEvaluation);
-    window.addEventListener('beforeunload', onPageClose);
-    window.addEventListener('pagehide', onPageClose);
+    addManagedEventListener(window, 'scroll', scheduleScrollDepthEvaluation, { passive: true });
+    addManagedEventListener(window, 'resize', scheduleScrollDepthEvaluation);
+    addManagedEventListener(window, 'beforeunload', onPageClose);
+    addManagedEventListener(window, 'pagehide', onPageClose);
     wrapHistory();
     logDebug('init complete');
   } catch (err) {
     try {
-      if (window.__saasTrackerInitializedToken === token) {
-        window.__saasTrackerInitializedToken = '';
-      }
+      destroyTracker('init_failed');
     } catch (_) {}
     logError('tracker init failed', err);
   }
 })();
 """
-    return HttpResponse(script, content_type="application/javascript; charset=utf-8")
+    response = HttpResponse(script, content_type="application/javascript; charset=utf-8")
+    response["Cache-Control"] = "no-store, max-age=0"
+    return response

@@ -1,5 +1,6 @@
 ﻿import mimetypes
 import hashlib
+import uuid
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -10,17 +11,30 @@ from django.utils.text import slugify
 
 from apps.sites.models import Site
 
-ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "svg", "gif", "avif", "mp4", "webm"}
+IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "ico"}
+VIDEO_EXTENSIONS = {"mp4", "webm"}
+ALLOWED_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
+ALLOWED_MIME_TYPES = {
+    "jpg": {"image/jpeg"},
+    "jpeg": {"image/jpeg"},
+    "png": {"image/png"},
+    "webp": {"image/webp"},
+    "ico": {"image/x-icon", "image/vnd.microsoft.icon"},
+    "mp4": {"video/mp4"},
+    "webm": {"video/webm"},
+}
 
 
 def _build_upload_path(instance, filename):
-    site_slug = slugify(instance.site.slug if instance.site_id and instance.site else "site")
+    site_slug = str(instance.site_id or "").strip()
+    if not site_slug:
+        site_slug = slugify(instance.site.slug if instance.site_id and instance.site else "site")
     section_slug = slugify(instance.section_key or "uploads")
 
     original_name = Path(filename).name
     suffix = Path(original_name).suffix.lower()
     stem = slugify(Path(original_name).stem) or "file"
-    normalized_name = f"{stem}{suffix}"
+    normalized_name = f"{stem}-{uuid.uuid4().hex[:12]}{suffix}"
 
     return f"sites/{site_slug}/{section_slug}/{normalized_name}"
 
@@ -95,9 +109,9 @@ class MediaFile(models.Model):
             self.file_type = "video"
         else:
             extension = Path(self.file.name).suffix.lower().lstrip(".")
-            if extension in {"jpg", "jpeg", "png", "webp"}:
+            if extension in IMAGE_EXTENSIONS:
                 self.file_type = "image"
-            elif extension in {"mp4", "webm"}:
+            elif extension in VIDEO_EXTENSIONS:
                 self.file_type = "video"
             else:
                 self.file_type = "file"

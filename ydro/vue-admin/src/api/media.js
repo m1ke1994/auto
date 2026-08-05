@@ -1,5 +1,26 @@
 import http from './http'
 
+const MEDIA_ERROR_MESSAGES = {
+  file_required: 'Выберите файл для загрузки.',
+  file_too_large: 'Файл слишком большой.',
+  invalid_media_type: 'Поддерживаются JPG, PNG, WebP, ICO, MP4 и WebM. SVG не загружается.',
+  site_not_found: 'Сайт для загрузки не найден.',
+  permission_denied: 'Нет прав на медиатеку этого сайта.',
+  media_upload_failed: 'Не удалось загрузить файл.',
+}
+
+export function mediaErrorMessage(error, fallback = 'Не удалось выполнить действие с файлом.') {
+  const data = error?.response?.data || {}
+  const code = String(data.code || '').trim()
+  if (code && MEDIA_ERROR_MESSAGES[code]) {
+    return MEDIA_ERROR_MESSAGES[code]
+  }
+  if (typeof data.detail === 'string' && data.detail) {
+    return data.detail
+  }
+  return fallback
+}
+
 export async function listMediaFiles({ site, fileType, search = '' }) {
   const { data } = await http.get('/api/client/media/', {
     params: {

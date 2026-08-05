@@ -7,6 +7,9 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project, onViewDetails }: ProjectCardProps) {
+  const primaryImage = project.images[0] || "";
+  const imageAlt = project.image_alt || project.title;
+
   return (
     <div
       className="project-card card-premium overflow-hidden cursor-pointer transition-transform duration-200 ease-out hover:scale-[1.03] hover:shadow-md"
@@ -22,11 +25,13 @@ export function ProjectCard({ project, onViewDetails }: ProjectCardProps) {
     >
       {/* Image */}
       <div className="aspect-video relative overflow-hidden bg-muted">
-        <img
-          src={project.images[0]}
-          alt={project.title}
-          className="w-full h-full object-cover"
-        />
+        {primaryImage ? (
+          <img
+            src={primaryImage}
+            alt={imageAlt}
+            className="w-full h-full object-cover"
+          />
+        ) : null}
       </div>
 
       {/* Content */}

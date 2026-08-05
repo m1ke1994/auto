@@ -59,6 +59,7 @@ export const DEFAULT_PORTFOLIO_SECTIONS: Record<string, JsonObject> = {
   settings: {
     site_title: "Александр Тишечкин - Full-stack Web Developer",
     logo_text: "Alexandr_Tishechkin",
+    logo_image: "",
     description: "Middle Fullstack разработчик. Создаю веб-приложения на Vue.js и Django.",
     favicon: "/favicon.ico",
     contacts: CONTACTS,
@@ -69,6 +70,8 @@ export const DEFAULT_PORTFOLIO_SECTIONS: Record<string, JsonObject> = {
     title: "Создаю современные веб-приложения",
     accent_title: "Web Developer",
     subtitle: "Vue.js + Django • REST API • Fixing & Building Web Apps",
+    portrait_image: "",
+    portrait_alt: "Александр Тишечкин",
     primary_button_text: "Смотреть проекты",
     primary_button_target: "#projects",
     secondary_button_text: "Связаться",
@@ -83,6 +86,8 @@ export const DEFAULT_PORTFOLIO_SECTIONS: Record<string, JsonObject> = {
   about: {
     title: "Обо",
     accent: "мне",
+    profile_image: "",
+    profile_image_alt: "",
     paragraphs: [
       { text: "Я fullstack-разработчик с опытом создания веб-приложений на стеке Vue.js + Django. Работаю с проектами от MVP до production-ready решений." },
       { text: "Моя сильная сторона — быстро разбираться в чужом коде, находить и исправлять проблемы, доводить задачи до рабочего результата. Понимаю полный цикл разработки: от проектирования БД и API до frontend-компонентов и деплоя." },
@@ -151,6 +156,7 @@ export const DEFAULT_PORTFOLIO_SECTIONS: Record<string, JsonObject> = {
   },
   footer: {
     logo_text: "Alexandr_Tishechkin",
+    logo_image: "",
     description: "Middle Fullstack разработчик. Создаю веб-приложения на Vue.js и Django.",
     nav_title: "Навигация",
     contact_title: "Связаться",
@@ -169,6 +175,16 @@ const PortfolioContext = createContext<PortfolioContextValue>({
 const apiBase = () => (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
 const backendBase = () => (import.meta.env.VITE_BACKEND_URL || window.location.origin).replace(/\/$/, "");
 const siteSlug = () => import.meta.env.VITE_SITE_SLUG || "my-portfolio";
+
+export function resolveMediaUrl(value: unknown, backendUrl = backendBase()): string {
+  const rawValue = typeof value === "string" ? value.trim() : "";
+  if (!rawValue) return "";
+  if (/^(?:https?:|data:|blob:)/i.test(rawValue)) return rawValue;
+  if (rawValue.startsWith("/media/")) {
+    return `${backendUrl.replace(/\/$/, "")}${rawValue}`;
+  }
+  return rawValue;
+}
 
 export function mergePortfolioContent(base: Record<string, JsonObject>, remoteSections: PublicSection[] = []) {
   return remoteSections.reduce<Record<string, JsonObject>>((result, section) => {
@@ -194,10 +210,29 @@ export function normalizeImageList(value: unknown): string[] {
   return value
     .map((item) => {
       if (typeof item === "string") return item;
-      if (item && typeof item === "object") return String((item as JsonObject).src || (item as JsonObject).url || "");
+      if (item && typeof item === "object") {
+        const row = item as JsonObject;
+        return String(row.image || row.src || row.url || "");
+      }
       return "";
     })
+    .map((item) => resolveMediaUrl(item))
     .filter(Boolean);
+}
+
+export function normalizeProjectImages(project: JsonObject): string[] {
+  const primaryImage = resolveMediaUrl(project.image);
+  const galleryImages = normalizeImageList(project.images);
+  return [primaryImage, ...galleryImages].filter((item, index, items) => item && items.indexOf(item) === index);
+}
+
+export function normalizePortfolioProject(project: JsonObject): JsonObject {
+  return {
+    ...project,
+    techStack: normalizeStringList(project.techStack),
+    images: normalizeProjectImages(project),
+    image_alt: String(project.image_alt || project.title || ""),
+  };
 }
 
 export function usePortfolioSection<T extends JsonObject = JsonObject>(key: string): T {
@@ -251,9 +286,9 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    applySeo(bundle.site);
+    applySeo(bundle.site, sections.settings);
     injectTracker(bundle.site?.tracker_key);
-  }, [bundle.site]);
+  }, [bundle.site, sections]);
 
   return (
     <PortfolioContext.Provider value={{ site: bundle.site || null, sections, isLoaded: Boolean(bundle.site) }}>
@@ -262,9 +297,9 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function applySeo(site?: PublicSite) {
+export function applySeo(site?: PublicSite, settingsContent: JsonObject = DEFAULT_PORTFOLIO_SECTIONS.settings) {
   const seo = site?.seo || {};
-  const settings = DEFAULT_PORTFOLIO_SECTIONS.settings;
+  const settings = settingsContent || DEFAULT_PORTFOLIO_SECTIONS.settings;
   const title = String(seo.title || settings.site_title || document.title);
   const description = String(seo.description || settings.description || "");
 
@@ -276,8 +311,11 @@ function applySeo(site?: PublicSite) {
   setMeta("og:type", "website", "property");
   setMeta("twitter:card", String(seo.twitter_card || "summary_large_image"));
 
-  const ogImage = String(seo.og_image || "");
+  const ogImage = resolveMediaUrl(String(seo.og_image || ""));
   if (ogImage) setMeta("og:image", ogImage, "property");
+
+  const favicon = resolveMediaUrl(settings.favicon);
+  if (favicon) setIconLink(favicon);
 
   const canonical = String(seo.canonical || `${window.location.origin}/`);
   let link = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
@@ -298,6 +336,16 @@ function setMeta(name: string, content: string, attr: "name" | "property" = "nam
     document.head.appendChild(meta);
   }
   meta.content = content;
+}
+
+function setIconLink(href: string) {
+  let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "icon";
+    document.head.appendChild(link);
+  }
+  link.href = href;
 }
 
 function injectTracker(trackerKey?: string) {

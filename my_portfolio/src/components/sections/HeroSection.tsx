@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { ArrowDown, Briefcase, Code2, Wrench, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { usePortfolioSection } from "@/lib/tracknode";
+import { resolveMediaUrl, usePortfolioSection } from "@/lib/tracknode";
 
 const badgeIcons = {
   briefcase: Briefcase,
@@ -16,6 +16,8 @@ export function HeroSection() {
     title?: string;
     accent_title?: string;
     subtitle?: string;
+    portrait_image?: string;
+    portrait_alt?: string;
     primary_button_text?: string;
     primary_button_target?: string;
     secondary_button_text?: string;
@@ -29,6 +31,7 @@ export function HeroSection() {
 
   const badges = content.badges || [];
   const getBadgeIcon = (icon?: string) => badgeIcons[icon as keyof typeof badgeIcons] || Code2;
+  const portraitImage = resolveMediaUrl(content.portrait_image);
 
   return (
     <section className="min-h-screen flex items-center justify-center relative overflow-hidden">
@@ -40,6 +43,17 @@ export function HeroSection() {
 
       <div className="section-container py-32 md:py-40">
         <div className="max-w-4xl mx-auto text-center">
+          {portraitImage ? (
+            <motion.img
+              src={portraitImage}
+              alt={content.portrait_alt || content.accent_title || "Portfolio portrait"}
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5 }}
+              className="mx-auto mb-8 h-32 w-32 rounded-full border-4 border-background object-cover shadow-premium md:h-40 md:w-40"
+            />
+          ) : null}
+
           {/* Status badge */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}

@@ -11,6 +11,8 @@
     "test:seo-audit-ui": "node scripts/test-seo-audit-ui.mjs",
     "test:ai": "node scripts/test-ai-recommendations.mjs",
     "test:site-danger-zone": "node scripts/test-site-danger-zone.mjs",
+    "test:tracker-integration": "node scripts/test-tracker-integration.mjs",
+    "test:portfolio-media-editor": "node scripts/test-portfolio-media-editor.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

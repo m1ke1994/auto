@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Image, Search, Trash2, X } from '@lucide/vue'
 
-import { deleteMediaFile, listMediaFiles, updateMediaFile } from '../api/media'
+import { deleteMediaFile, listMediaFiles, mediaErrorMessage, updateMediaFile } from '../api/media'
 import { BACKEND_URL } from '../config/env'
 
 const props = defineProps({
@@ -44,7 +44,7 @@ async function load() {
       search: search.value.trim(),
     })
   } catch (requestError) {
-    error.value = requestError?.response?.data?.detail || 'Не удалось загрузить медиатеку.'
+    error.value = mediaErrorMessage(requestError, 'Не удалось загрузить медиатеку.')
   } finally {
     loading.value = false
   }
@@ -69,7 +69,7 @@ async function saveMetadata(item) {
     items.value = items.value.map((entry) => (entry.id === item.id ? updated : entry))
     editingId.value = null
   } catch (requestError) {
-    error.value = requestError?.response?.data?.detail || 'Не удалось сохранить описание файла.'
+    error.value = mediaErrorMessage(requestError, 'Не удалось сохранить описание файла.')
   }
 }
 
@@ -82,7 +82,7 @@ async function removeItem(item) {
     items.value = items.value.filter((entry) => entry.id !== item.id)
     emit('deleted', item)
   } catch (requestError) {
-    error.value = requestError?.response?.data?.detail || 'Не удалось удалить файл.'
+    error.value = mediaErrorMessage(requestError, 'Не удалось удалить файл.')
   }
 }
 

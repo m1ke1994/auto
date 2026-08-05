@@ -6,6 +6,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from rest_framework import status
 from rest_framework.test import APITestCase
+from io import StringIO
+from django.core.management import call_command
+from django.utils import timezone
 
 from apps.sites.management.commands.seed_volga_site import Command as SeedVolgaSiteCommand
 from apps.sites.models import SectionSchema, Site, SiteLead, SiteSection
@@ -20,6 +23,11 @@ from apps.sites.volga_site import (
 )
 from clients.models import Client
 from subscriptions.test_utils import grant_business_analytics
+from tracker.models import Event as TrackerEvent
+from tracker.models import Site as TrackerSite
+from tracker.models import Visit as TrackerVisit
+
+from .tracker_utils import mask_tracker_token
 
 
 class SitesApiTests(APITestCase):
@@ -138,6 +146,52 @@ class SitesApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_admin_detail_uses_selected_sites_own_tracker_key(self):
+        self.client.force_authenticate(user=self.user)
+        own_response = self.client.get(reverse("admin-my-site-detail", kwargs={"site_id": self.site.id}))
+        foreign_response = self.client.get(reverse("admin-my-site-detail", kwargs={"site_id": self.other_site.id}))
+
+        self.assertEqual(own_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(own_response.data["api_key"], self.site.api_key)
+        self.assertIn(f'data-site-key="{self.site.api_key}"', own_response.data["tracker_script_tag"])
+        self.assertNotIn(self.other_site.api_key, own_response.data["tracker_script_tag"])
+        self.assertEqual(foreign_response.status_code, status.HTTP_404_NOT_FOUND)
+
+        self.client.force_authenticate(user=self.superuser)
+        other_response = self.client.get(reverse("admin-my-site-detail", kwargs={"site_id": self.other_site.id}))
+
+        self.assertEqual(other_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(other_response.data["api_key"], self.other_site.api_key)
+        self.assertIn(f'data-site-key="{self.other_site.api_key}"', other_response.data["tracker_script_tag"])
+        self.assertNotIn(self.site.api_key, other_response.data["tracker_script_tag"])
+
+    def test_audit_site_tracker_keys_is_read_only_and_masks_keys(self):
+        tracker_site = TrackerSite.objects.create(token=self.site.api_key, domain=self.site.domain)
+        tracker_visit = TrackerVisit.objects.create(
+            site=tracker_site,
+            visitor_id="visitor-audit",
+            session_id="session-audit",
+            started_at=timezone.now(),
+        )
+        TrackerEvent.objects.create(
+            visit=tracker_visit,
+            type="click",
+            payload={"target": "audit"},
+            timestamp=timezone.now(),
+        )
+
+        before_site_count = Site.objects.count()
+        output = StringIO()
+        call_command("audit_site_tracker_keys", stdout=output)
+
+        audit = output.getvalue()
+        self.assertIn("site_id\tname\tslug\tdomain\towner_id\tmasked_api_key", audit)
+        self.assertIn(mask_tracker_token(self.site.api_key), audit)
+        self.assertIn(f"{self.site.id}\t{self.site.name}\t{self.site.slug}", audit)
+        self.assertIn("\t1\tn/a", audit)
+        self.assertNotIn(self.site.api_key, audit)
+        self.assertEqual(Site.objects.count(), before_site_count)
+
     def test_user_can_patch_own_section_content(self):
         self.client.force_authenticate(user=self.user)
         url = reverse(
@@ -194,6 +248,27 @@ class SitesApiTests(APITestCase):
             merged,
             {"title": "Текст клиента", "description": "Описание"},
         )
+
+    def test_merge_content_defaults_adds_repeater_fields_without_losing_rows(self):
+        merged = merge_content_defaults(
+            {
+                "projects": [
+                    {"id": "1", "title": "Default", "image": "/default.webp", "image_alt": "Default alt"},
+                    {"id": "2", "title": "Second", "image": "/second.webp"},
+                ]
+            },
+            {
+                "projects": [
+                    {"id": "2", "title": "Client second"},
+                    {"id": "custom", "title": "Custom", "image": "/media/sites/1/custom.webp"},
+                ]
+            },
+        )
+
+        self.assertEqual([row["id"] for row in merged["projects"]], ["2", "custom"])
+        self.assertEqual(merged["projects"][0]["title"], "Client second")
+        self.assertEqual(merged["projects"][0]["image"], "/second.webp")
+        self.assertEqual(merged["projects"][1]["image"], "/media/sites/1/custom.webp")
 
     def test_volga_contract_is_valid(self):
         self.assertEqual(VOLGA_SITE_SLUG, "novaya-konakova")

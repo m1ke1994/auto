@@ -234,8 +234,11 @@ PROJECT_CATEGORIES = [
 ]
 
 for project in PROJECTS:
+    image_paths = project.get("images", [])
     project["techStack"] = [{"label": item} for item in project.get("techStack", [])]
-    project["images"] = [{"src": item} for item in project.get("images", [])]
+    project["image"] = project.get("image") or (image_paths[0] if image_paths else "")
+    project["image_alt"] = project.get("image_alt") or project.get("title", "")
+    project["images"] = [{"src": item} for item in image_paths]
 
 SKILL_GROUPS = [
     {"id": "frontend", "title": "Frontend", "icon": "code", "skills": [{"label": item} for item in ["Vue 3", "Composition API", "TypeScript", "HTML5 / CSS3", "Tailwind CSS", "Адаптивная верстка", "SPA-архитектура", "State Management", "Формы и валидация"]]},
@@ -252,6 +255,7 @@ MY_PORTFOLIO_SECTION_SEEDS = [
         "schema": {"fields": [
             field("site_title", "Заголовок сайта"),
             field("logo_text", "Логотип"),
+            field("logo_image", "Изображение логотипа", "image"),
             field("description", "Описание", "textarea"),
             field("favicon", "Favicon", "image"),
             field("contacts", "Контакты", "repeater", fields=[field("icon", "Иконка"), field("label", "Название"), field("value", "Значение"), field("href", "Ссылка")]),
@@ -260,6 +264,7 @@ MY_PORTFOLIO_SECTION_SEEDS = [
         "content": {
             "site_title": "Александр Тишечкин - Full-stack Web Developer",
             "logo_text": "Alexandr_Tishechkin",
+            "logo_image": "",
             "description": "Middle Fullstack разработчик. Создаю веб-приложения на Vue.js и Django.",
             "favicon": "/favicon.ico",
             "contacts": CONTACTS,
@@ -275,6 +280,8 @@ MY_PORTFOLIO_SECTION_SEEDS = [
             field("title", "Заголовок", "textarea"),
             field("accent_title", "Акцент"),
             field("subtitle", "Подзаголовок", "textarea"),
+            field("portrait_image", "Фото разработчика", "image"),
+            field("portrait_alt", "Alt-текст фото"),
             field("primary_button_text", "Текст основной кнопки"),
             field("primary_button_target", "Ссылка основной кнопки"),
             field("secondary_button_text", "Текст второй кнопки"),
@@ -286,6 +293,8 @@ MY_PORTFOLIO_SECTION_SEEDS = [
             "title": "Создаю современные веб-приложения",
             "accent_title": "Web Developer",
             "subtitle": "Vue.js + Django - REST API - Fixing & Building Web Apps",
+            "portrait_image": "",
+            "portrait_alt": "Александр Тишечкин",
             "primary_button_text": "Смотреть проекты",
             "primary_button_target": "#projects",
             "secondary_button_text": "Связаться",
@@ -306,12 +315,16 @@ MY_PORTFOLIO_SECTION_SEEDS = [
             field("title", "Заголовок"),
             field("accent", "Акцент"),
             field("paragraphs", "Тексты", "repeater", fields=[field("text", "Абзац", "textarea")]),
+            field("profile_image", "Фото или иллюстрация", "image"),
+            field("profile_image_alt", "Alt-текст изображения"),
             field("services_title", "Заголовок услуг"),
             field("services", "Услуги", "repeater", fields=[field("icon", "Иконка"), field("title", "Название"), field("description", "Описание", "textarea")]),
         ]},
         "content": {
             "title": "Обо",
             "accent": "мне",
+            "profile_image": "",
+            "profile_image_alt": "",
             "paragraphs": [
                 {"text": "Я fullstack-разработчик с опытом создания веб-приложений на стеке Vue.js + Django. Работаю с проектами от MVP до production-ready решений."},
                 {"text": "Моя сильная сторона - быстро разбираться в чужом коде, находить и исправлять проблемы, доводить задачи до рабочего результата. Понимаю полный цикл разработки: от проектирования БД и API до frontend-компонентов и деплоя."},
@@ -361,7 +374,9 @@ MY_PORTFOLIO_SECTION_SEEDS = [
                 field("fullDescription", "Полное описание", "textarea"),
                 field("techStack", "Стек", "repeater", fields=[field("label", "Технология")]),
                 field("role", "Роль", "textarea"),
-                field("images", "Изображения", "repeater", fields=[field("src", "Путь")]),
+                field("image", "Главное изображение", "image"),
+                field("image_alt", "Alt-текст изображения"),
+                field("images", "Дополнительные изображения", "repeater", fields=[field("src", "Путь", "image")]),
                 field("demoUrl", "Demo URL"),
                 field("repoUrl", "Repo URL"),
                 field("results", "Результат", "textarea"),
@@ -447,6 +462,7 @@ MY_PORTFOLIO_SECTION_SEEDS = [
         "order": 9,
         "schema": {"fields": [
             field("logo_text", "Логотип"),
+            field("logo_image", "Изображение логотипа", "image"),
             field("description", "Описание", "textarea"),
             field("nav_title", "Заголовок навигации"),
             field("contact_title", "Заголовок контактов"),
@@ -456,6 +472,7 @@ MY_PORTFOLIO_SECTION_SEEDS = [
         ]},
         "content": {
             "logo_text": "Alexandr_Tishechkin",
+            "logo_image": "",
             "description": "Middle Fullstack разработчик. Создаю веб-приложения на Vue.js и Django.",
             "nav_title": "Навигация",
             "contact_title": "Связаться",

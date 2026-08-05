@@ -1,5 +1,5 @@
 import { Github, Send, Mail, Instagram } from "lucide-react";
-import { usePortfolioSection } from "@/lib/tracknode";
+import { resolveMediaUrl, usePortfolioSection } from "@/lib/tracknode";
 
 const socialIcons = {
   github: Github,
@@ -11,6 +11,7 @@ const socialIcons = {
 export function Footer() {
   const content = usePortfolioSection<{
     logo_text?: string;
+    logo_image?: string;
     description?: string;
     nav_title?: string;
     contact_title?: string;
@@ -22,6 +23,7 @@ export function Footer() {
   const navLinks = content.nav_items || [];
   const socialLinks = content.social_links || [];
   const getSocialIcon = (icon?: string) => socialIcons[icon as keyof typeof socialIcons] || Mail;
+  const logoImage = resolveMediaUrl(content.logo_image);
 
   return (
     <footer className="border-t border-border bg-card/50">
@@ -30,9 +32,15 @@ export function Footer() {
           {/* Brand */}
           <div>
             <a href="#" className="font-display font-bold text-xl tracking-tight inline-block mb-4">
-              <span className="text-gold">{"<"}</span>
-              {content.logo_text}
-              <span className="text-gold">{" />"}</span>
+              {logoImage ? (
+                <img src={logoImage} alt={content.logo_text || "Portfolio"} className="h-9 max-w-[180px] object-contain" />
+              ) : (
+                <>
+                  <span className="text-gold">{"<"}</span>
+                  {content.logo_text}
+                  <span className="text-gold">{" />"}</span>
+                </>
+              )}
             </a>
             <p className="text-muted-foreground text-sm max-w-xs">
               {content.description}

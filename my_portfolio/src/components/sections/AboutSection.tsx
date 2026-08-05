@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useRef } from "react";
 import { Code2, RefreshCw, Plug, Bot, Server } from "lucide-react";
-import { usePortfolioSection } from "@/lib/tracknode";
+import { resolveMediaUrl, usePortfolioSection } from "@/lib/tracknode";
 
 const serviceIcons = {
   bot: Bot,
@@ -17,6 +17,8 @@ export function AboutSection() {
     title?: string;
     accent?: string;
     paragraphs?: Array<{ text: string }>;
+    profile_image?: string;
+    profile_image_alt?: string;
     services_title?: string;
     services?: Array<{ icon?: string; title: string; description: string }>;
   }>("about");
@@ -24,6 +26,7 @@ export function AboutSection() {
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const services = content.services || [];
   const getServiceIcon = (icon?: string) => serviceIcons[icon as keyof typeof serviceIcons] || Code2;
+  const profileImage = resolveMediaUrl(content.profile_image);
 
   return (
     <section id="about" className="section-padding bg-card/30">
@@ -37,10 +40,19 @@ export function AboutSection() {
           <h2 className="text-3xl md:text-4xl font-bold mb-6">
             {content.title} <span className="text-gold">{content.accent}</span>
           </h2>
-          <div className="space-y-4 text-muted-foreground text-lg leading-relaxed">
-            {(content.paragraphs || []).map((paragraph) => (
-              <p key={paragraph.text}>{paragraph.text}</p>
-            ))}
+          <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_220px] md:items-start">
+            <div className="space-y-4 text-muted-foreground text-lg leading-relaxed">
+              {(content.paragraphs || []).map((paragraph) => (
+                <p key={paragraph.text}>{paragraph.text}</p>
+              ))}
+            </div>
+            {profileImage ? (
+              <img
+                src={profileImage}
+                alt={content.profile_image_alt || content.title || "About"}
+                className="w-full max-w-[220px] rounded-2xl border border-border object-cover shadow-premium"
+              />
+            ) : null}
           </div>
         </motion.div>
 

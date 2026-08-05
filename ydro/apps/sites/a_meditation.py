@@ -606,6 +606,32 @@ A_MEDITATION_SECTION_SEEDS = [
 
 
 def merge_content_defaults(defaults, current):
+    if isinstance(defaults, list):
+        if not isinstance(current, list):
+            return deepcopy(defaults)
+        if not all(isinstance(item, dict) for item in defaults + current):
+            return deepcopy(current)
+
+        defaults_by_identity = {}
+        for index, row in enumerate(defaults):
+            identity = _repeater_row_identity(row)
+            if identity is not None:
+                defaults_by_identity[identity] = row
+            defaults_by_identity.setdefault(("__index__", index), row)
+
+        merged_rows = []
+        for index, row in enumerate(current):
+            identity = _repeater_row_identity(row)
+            if identity is not None:
+                default_row = defaults_by_identity.get(identity)
+            else:
+                default_row = defaults_by_identity.get(("__index__", index))
+            if isinstance(default_row, dict):
+                merged_rows.append(merge_content_defaults(default_row, row))
+            else:
+                merged_rows.append(deepcopy(row))
+        return merged_rows
+
     if not isinstance(defaults, dict):
         return deepcopy(current if current is not None else defaults)
 
@@ -616,9 +642,21 @@ def merge_content_defaults(defaults, current):
             continue
         if isinstance(defaults[key], dict) and isinstance(value, dict):
             merged[key] = merge_content_defaults(defaults[key], value)
+        elif isinstance(defaults[key], list):
+            merged[key] = merge_content_defaults(defaults[key], value)
         else:
             merged[key] = deepcopy(value)
     return merged
+
+
+def _repeater_row_identity(row):
+    if not isinstance(row, dict):
+        return None
+    for key in ("id", "key", "slug"):
+        value = row.get(key)
+        if value not in (None, ""):
+            return key, str(value)
+    return None
 
 
 def get_section_seed(key):

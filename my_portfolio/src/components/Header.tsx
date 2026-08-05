@@ -2,15 +2,17 @@ import { useState, useEffect } from "react";
 import { Moon, Sun, Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { usePortfolioSection } from "@/lib/tracknode";
+import { resolveMediaUrl, usePortfolioSection } from "@/lib/tracknode";
 
 export function Header() {
   const settings = usePortfolioSection<{
     logo_text?: string;
+    logo_image?: string;
     nav_items?: Array<{ label: string; href: string }>;
   }>("settings");
   const navItems = settings.nav_items || [];
   const logoText = settings.logo_text || "Alexandr_Tishechkin";
+  const logoImage = resolveMediaUrl(settings.logo_image);
   const [isDark, setIsDark] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -82,9 +84,15 @@ export function Header() {
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
           >
-            <span className="text-gold">{"<"}</span>
-            {logoText}
-            <span className="text-gold">{" />"}</span>
+            {logoImage ? (
+              <img src={logoImage} alt={logoText} className="h-9 max-w-[180px] object-contain" />
+            ) : (
+              <>
+                <span className="text-gold">{"<"}</span>
+                {logoText}
+                <span className="text-gold">{" />"}</span>
+              </>
+            )}
           </a>
 
           {/* Desktop Navigation */}
