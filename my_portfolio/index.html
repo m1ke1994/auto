@@ -4,48 +4,75 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Primary Meta Tags -->
-    <title>Александр Тишечкин — Full-stack Web Developer</title>
-    <meta name="title" content="Александр Тишечкин — Full-stack Web Developer" />
+    <title>Александр Тишечкин - разработка сайтов и веб-сервисов</title>
+    <meta name="title" content="Александр Тишечкин - разработка сайтов и веб-сервисов" />
     <meta
       name="description"
-      content="Персональное портфолио Александра Тишечкина. Full-stack веб-разработчик. Разработка современных веб-приложений, SPA, REST API, frontend и backend."
+      content="Портфолио Александра Тишечкина: создание сайтов, frontend, backend, веб-сервисы, автоматизация, TrackNode и реальные проекты."
     />
     <meta
       name="keywords"
-      content="Александр Тишечкин, fullstack разработчик, веб разработчик, frontend, backend, Vue.js, Django, Flask, REST API, портфолио"
+      content="Александр Тишечкин, разработка сайтов, frontend, backend, веб-сервисы, автоматизация, TrackNode, портфолио"
     />
     <meta name="author" content="Александр Тишечкин" />
+    <link rel="canonical" href="https://tishechkinalexandr.ru/" />
 
-    <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Александр Тишечкин — Full-stack Web Developer" />
+    <meta property="og:site_name" content="Портфолио Александра Тишечкина" />
+    <meta property="og:title" content="Александр Тишечкин - разработка сайтов и веб-сервисов" />
     <meta
       property="og:description"
-      content="Персональное портфолио. Разработка веб-приложений, frontend и backend."
+      content="Персональное портфолио: сайты, frontend, backend, автоматизация, TrackNode и реальные проекты."
     />
     <meta property="og:image" content="https://tishechkinalexandr.ru/og-image.jpg" />
     <meta property="og:url" content="https://tishechkinalexandr.ru/" />
 
-    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Александр Тишечкин — Full-stack Web Developer" />
+    <meta name="twitter:title" content="Александр Тишечкин - разработка сайтов и веб-сервисов" />
     <meta
       name="twitter:description"
-      content="Персональное портфолио full-stack веб-разработчика."
+      content="Портфолио разработчика: сайты, frontend, backend, веб-сервисы, автоматизация и TrackNode."
     />
     <meta name="twitter:image" content="https://tishechkinalexandr.ru/og-image.jpg" />
 
-    <!-- Favicon -->
     <link rel="icon" href="/favicon.ico" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#101114" />
 
-    <!-- Theme -->
-    <meta name="theme-color" content="#ffffff" />
-
-    <!-- Canonical -->
-    <link rel="canonical" href="https://tishechkinalexandr.ru/" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Person",
+            "name": "Александр Тишечкин",
+            "url": "https://tishechkinalexandr.ru/",
+            "knowsAbout": ["frontend", "backend", "создание сайтов", "Django", "Vue", "React", "TrackNode"],
+            "subjectOf": {"@type": "SoftwareApplication", "name": "TrackNode", "url": "https://tracknode.ru/"}
+          },
+          {
+            "@type": "ProfilePage",
+            "url": "https://tishechkinalexandr.ru/",
+            "mainEntity": {"@type": "Person", "name": "Александр Тишечкин"}
+          },
+          {
+            "@type": "WebSite",
+            "name": "Портфолио Александра Тишечкина",
+            "url": "https://tishechkinalexandr.ru/"
+          },
+          {
+            "@type": "ItemList",
+            "name": "Проекты",
+            "itemListElement": [
+              {"@type": "ListItem", "position": 1, "url": "https://tracknode.ru/", "name": "TrackNode"}
+            ]
+          }
+        ]
+      }
+    </script>
   </head>
-
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

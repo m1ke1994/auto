@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import fs from "node:fs";
+import { projects } from "@/data/projects";
 import {
   applySeo,
   mergePortfolioContent,
@@ -157,5 +159,22 @@ describe("TrackNode portfolio content helpers", () => {
     expect(document.querySelectorAll('meta[name="description"]')).toHaveLength(1);
     expect(document.querySelector<HTMLMetaElement>('meta[name="description"]')?.content).toBe("Second description");
     expect(document.title).toBe("Second title");
+  });
+
+  it("keeps portfolio SEO separate from TrackNode SEO", () => {
+    const html = fs.readFileSync("index.html", "utf8");
+
+    expect(html).toContain('href="https://tishechkinalexandr.ru/"');
+    expect(html).toContain('og:site_name" content="Портфолио Александра Тишечкина"');
+    expect(html).toContain('href="/favicon.svg"');
+    expect(html).not.toContain('rel="canonical" href="https://tracknode.ru/"');
+  });
+
+  it("has a TrackNode project card with a direct public link", () => {
+    const trackNodeProject = projects.find((project) => project.demoUrl === "https://tracknode.ru/");
+
+    expect(trackNodeProject?.title).toContain("TrackNode");
+    expect(trackNodeProject?.shortDescription).toContain("аналитику");
+    expect(trackNodeProject?.shortDescription).toContain("создание");
   });
 });

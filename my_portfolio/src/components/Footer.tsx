@@ -24,6 +24,14 @@ export function Footer() {
   const socialLinks = content.social_links || [];
   const getSocialIcon = (icon?: string) => socialIcons[icon as keyof typeof socialIcons] || Mail;
   const logoImage = resolveMediaUrl(content.logo_image);
+  const trackTrackNodeClick = () => {
+    window.tracknode?.track?.("tracknode_project_click", {
+      source_site: "portfolio",
+      destination: "https://tracknode.ru/",
+      placement: "footer",
+      page_path: window.location.pathname,
+    });
+  };
 
   return (
     <footer className="border-t border-border bg-card/50">
@@ -84,6 +92,19 @@ export function Footer() {
                 );
               })}
             </div>
+          </div>
+
+          <div>
+            <h4 className="font-display font-semibold mb-4">TrackNode</h4>
+            <a
+              href="https://tracknode.ru/"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={trackTrackNodeClick}
+              className="text-muted-foreground hover:text-foreground transition-colors text-sm"
+            >
+              Платформа TrackNode
+            </a>
           </div>
         </div>
 

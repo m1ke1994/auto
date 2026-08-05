@@ -15,6 +15,7 @@ import PlatformRecommendationDetailView from '../views/platform/PlatformRecommen
 import PlatformHealthView from '../views/platform/PlatformHealthView.vue'
 import CompetitorAnalysisView from '../views/CompetitorAnalysisView.vue'
 import LandingPage from '../views/LandingPage.vue'
+import LegalPage from '../views/LegalPage.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import SecurityView from '../views/SecurityView.vue'
@@ -56,6 +57,24 @@ const routes = [
     name: 'register',
     component: RegisterView,
     meta: { guestOnly: true, title: 'Регистрация' },
+  },
+  {
+    path: '/terms',
+    name: 'terms',
+    component: LegalPage,
+    props: { type: 'terms' },
+    meta: { public: true, title: 'Пользовательское соглашение' },
+  },
+  {
+    path: '/user-agreement',
+    redirect: '/terms',
+  },
+  {
+    path: '/privacy',
+    name: 'privacy',
+    component: LegalPage,
+    props: { type: 'privacy' },
+    meta: { public: true, title: 'Политика конфиденциальности' },
   },
   {
     path: '/onboarding',

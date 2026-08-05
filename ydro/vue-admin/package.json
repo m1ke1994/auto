@@ -13,6 +13,7 @@
     "test:site-danger-zone": "node scripts/test-site-danger-zone.mjs",
     "test:tracker-integration": "node scripts/test-tracker-integration.mjs",
     "test:portfolio-media-editor": "node scripts/test-portfolio-media-editor.mjs",
+    "test:tracknode-landing": "node scripts/test-tracknode-landing.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

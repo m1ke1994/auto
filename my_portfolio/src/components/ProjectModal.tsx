@@ -11,6 +11,16 @@ export function ProjectModal({ project, onClose }: ProjectModalProps) {
   if (!project) return null;
   const primaryImage = project.images[0] || "";
   const imageAlt = project.image_alt || project.title;
+  const trackProjectClick = () => {
+    if (project.demoUrl === "https://tracknode.ru/") {
+      window.tracknode?.track?.("tracknode_project_click", {
+        source_site: "portfolio",
+        destination: project.demoUrl,
+        placement: "project_modal",
+        page_path: window.location.pathname,
+      });
+    }
+  };
 
   return (
     <div
@@ -87,7 +97,7 @@ export function ProjectModal({ project, onClose }: ProjectModalProps) {
           <div className="flex flex-wrap gap-3">
             {project.demoUrl && (
               <Button asChild className="rounded-full">
-                <a href={project.demoUrl} target="_blank" rel="noreferrer">
+                <a href={project.demoUrl} target="_blank" rel="noopener noreferrer" onClick={trackProjectClick}>
                   <ExternalLink className="h-4 w-4 mr-2" />
                   Открыть демо
                 </a>

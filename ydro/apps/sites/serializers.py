@@ -2,6 +2,8 @@
 import logging
 
 from django.db import transaction
+from django.utils import timezone
+from django.utils.html import strip_tags
 
 from rest_framework import serializers
 
@@ -282,6 +284,7 @@ class PublicLeadCreateSerializer(serializers.Serializer):
     form_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
     name = serializers.CharField(max_length=255)
     phone = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    telegram = serializers.CharField(max_length=100, required=False, allow_blank=True, write_only=True)
     contact = serializers.CharField(max_length=255, required=False, allow_blank=True, write_only=True)
     email = serializers.EmailField(required=False, allow_blank=True)
     message = serializers.CharField(required=False, allow_blank=True)
@@ -291,6 +294,8 @@ class PublicLeadCreateSerializer(serializers.Serializer):
     payload = serializers.JSONField(required=False)
     consent = serializers.BooleanField(required=False, default=False, write_only=True)
     website = serializers.CharField(required=False, allow_blank=True, write_only=True, max_length=255)
+    existing_site_url = serializers.CharField(required=False, allow_blank=True, write_only=True, max_length=300)
+    preferred_contact = serializers.CharField(required=False, allow_blank=True, write_only=True, max_length=50)
 
     default_error_messages = {
         "required_fields": "Заполните обязательные поля",
@@ -304,22 +309,32 @@ class PublicLeadCreateSerializer(serializers.Serializer):
         if str(attrs.get("website", "")).strip():
             raise serializers.ValidationError({"website": "Некорректная отправка формы."})
 
+        for field_name in ("name", "phone", "telegram", "email", "message", "service_type", "service_title", "source_url"):
+            if field_name in attrs:
+                attrs[field_name] = strip_tags(str(attrs.get(field_name) or "")).strip()
+
         contact = str(attrs.pop("contact", "") or "").strip()
         phone = str(attrs.get("phone", "") or "").strip()
+        telegram = str(attrs.get("telegram", "") or "").strip()
         email = str(attrs.get("email", "") or "").strip()
         if contact and not phone and not email:
             if "@" in contact:
                 attrs["email"] = contact
             else:
                 attrs["phone"] = contact
-        if not str(attrs.get("phone", "")).strip() and not str(attrs.get("email", "")).strip():
-            raise serializers.ValidationError({"contact": "Укажите телефон или email."})
+        if not str(attrs.get("phone", "")).strip() and not str(attrs.get("email", "")).strip() and not telegram:
+            raise serializers.ValidationError({"contact": "Укажите телефон, Telegram или email."})
+        if attrs.get("service_type") == "tracknode_website_order" and not attrs.get("consent"):
+            raise serializers.ValidationError({"consent": "Подтвердите согласие на обработку персональных данных."})
         attrs.pop("website", None)
         return attrs
 
     def create(self, validated_data):
         site_slug = validated_data.pop("site_slug")
-        validated_data.pop("consent", None)
+        consent = bool(validated_data.pop("consent", False))
+        telegram = validated_data.pop("telegram", "")
+        existing_site_url = strip_tags(str(validated_data.pop("existing_site_url", "") or "")).strip()
+        preferred_contact = strip_tags(str(validated_data.pop("preferred_contact", "") or "")).strip()
         site = Site.objects.filter(slug=site_slug, is_active=True).first()
         if site is None:
             self.fail("site_not_found")
@@ -332,6 +347,16 @@ class PublicLeadCreateSerializer(serializers.Serializer):
         payload = dict(payload)
         if meta.get("HTTP_REFERER") and not payload.get("referrer"):
             payload["referrer"] = meta["HTTP_REFERER"]
+        if telegram:
+            payload["telegram"] = telegram
+        if existing_site_url:
+            payload["existing_site_url"] = existing_site_url
+        if preferred_contact:
+            payload["preferred_contact"] = preferred_contact
+        if consent:
+            payload.setdefault("consent_at", timezone.now().isoformat())
+        if validated_data.get("service_type") == "tracknode_website_order":
+            payload["source"] = "tracknode_website_order"
 
         lead = SiteLead.objects.create(
             site=site,

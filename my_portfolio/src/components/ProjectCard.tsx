@@ -9,6 +9,16 @@ interface ProjectCardProps {
 export function ProjectCard({ project, onViewDetails }: ProjectCardProps) {
   const primaryImage = project.images[0] || "";
   const imageAlt = project.image_alt || project.title;
+  const trackProjectClick = () => {
+    if (project.demoUrl === "https://tracknode.ru/") {
+      window.tracknode?.track?.("tracknode_project_click", {
+        source_site: "portfolio",
+        destination: project.demoUrl,
+        placement: "project_card",
+        page_path: window.location.pathname,
+      });
+    }
+  };
 
   return (
     <div
@@ -62,9 +72,12 @@ export function ProjectCard({ project, onViewDetails }: ProjectCardProps) {
           <a
             href={project.demoUrl}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             className="inline-flex items-center gap-2 text-sm font-medium text-foreground"
-            onClick={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              trackProjectClick();
+            }}
           >
             <ExternalLink className="h-4 w-4" />
             Посмотреть проект
