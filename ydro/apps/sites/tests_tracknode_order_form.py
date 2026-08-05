@@ -52,3 +52,21 @@ class TrackNodeWebsiteOrderLeadTests(TestCase):
         self.assertEqual(lead.payload["telegram"], "@alex")
         self.assertEqual(lead.payload["existing_site_url"], "https://example.ru")
         self.assertIn("consent_at", lead.payload)
+
+    def test_tracknode_landing_contact_requires_consent_and_stores_source_payload(self):
+        response = self.client.post(
+            self.url,
+            {
+                "name": "Alex",
+                "telegram": "@alex",
+                "service_type": "tracknode_landing_contact",
+                "service_title": "SEO-аудит",
+                "consent": True,
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        lead = SiteLead.objects.latest("id")
+        self.assertEqual(lead.service_type, "tracknode_landing_contact")
+        self.assertEqual(lead.payload["source"], "tracknode_landing_contact")

@@ -324,7 +324,7 @@ class PublicLeadCreateSerializer(serializers.Serializer):
                 attrs["phone"] = contact
         if not str(attrs.get("phone", "")).strip() and not str(attrs.get("email", "")).strip() and not telegram:
             raise serializers.ValidationError({"contact": "Укажите телефон, Telegram или email."})
-        if attrs.get("service_type") == "tracknode_website_order" and not attrs.get("consent"):
+        if attrs.get("service_type") in {"tracknode_website_order", "tracknode_landing_contact"} and not attrs.get("consent"):
             raise serializers.ValidationError({"consent": "Подтвердите согласие на обработку персональных данных."})
         attrs.pop("website", None)
         return attrs
@@ -355,8 +355,8 @@ class PublicLeadCreateSerializer(serializers.Serializer):
             payload["preferred_contact"] = preferred_contact
         if consent:
             payload.setdefault("consent_at", timezone.now().isoformat())
-        if validated_data.get("service_type") == "tracknode_website_order":
-            payload["source"] = "tracknode_website_order"
+        if validated_data.get("service_type") in {"tracknode_website_order", "tracknode_landing_contact"}:
+            payload["source"] = validated_data["service_type"]
 
         lead = SiteLead.objects.create(
             site=site,
