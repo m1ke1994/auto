@@ -233,6 +233,47 @@ class SEOAuditViewsExtendedTests(TestCase):
         self.assertEqual(audit.client.owner_id, self.platform_owner.id)
         mocked_delay.assert_called_once_with(audit.id)
 
+    @patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("95.31.22.162", 0))])
+    @patch("seo_audit.tasks.run_site_audit_task.delay")
+    def test_each_platform_owner_identity_can_start_novoe_konakovo_external_audit(self, mocked_delay, _mocked_dns):
+        for user in (self.superuser, self.staff_user, self.platform_owner):
+            with self.subTest(user=user.username):
+                mocked_delay.reset_mock()
+                self.http.force_authenticate(user=user)
+                response = self.http.post(
+                    "/api/mini/seo/start/",
+                    {"target_url": "https://novoe-konakovo.ru/"},
+                    format="json",
+                )
+
+                self.assertEqual(response.status_code, 201)
+                payload = response.json()
+                audit = SiteSEOAudit.objects.get(id=payload["audit_id"])
+                self.assertEqual(payload["target_url"], "https://novoe-konakovo.ru/")
+                self.assertEqual(audit.requested_by_id, user.id)
+                self.assertEqual(audit.target_url, "https://novoe-konakovo.ru/")
+                self.assertEqual(audit.domain, "novoe-konakovo.ru")
+                self.assertNotEqual(audit.domain, self.site.domain)
+                self.assertEqual(audit.client.owner_id, user.id)
+                mocked_delay.assert_called_once_with(audit.id)
+
+    @patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 0))])
+    @patch("seo_audit.tasks.run_site_audit_task.delay")
+    def test_platform_owner_can_start_external_audit_through_regular_seo_endpoint(self, mocked_delay, _mocked_dns):
+        self.http.force_authenticate(user=self.platform_owner)
+        response = self.http.post(
+            "/api/seo/start/",
+            {"target_url": "https://external-not-in-sites.example/path"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        audit = SiteSEOAudit.objects.get(id=response.json()["audit_id"])
+        self.assertEqual(audit.target_url, "https://external-not-in-sites.example/path")
+        self.assertEqual(audit.domain, "external-not-in-sites.example")
+        self.assertFalse(Site.objects.filter(domain="external-not-in-sites.example").exists())
+        mocked_delay.assert_called_once_with(audit.id)
+
     @patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 0))])
     def test_regular_user_cannot_start_external_url_audit(self, _mocked_dns):
         response = self.http.post(

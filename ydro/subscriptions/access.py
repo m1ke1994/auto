@@ -3,6 +3,7 @@ from django.utils import timezone
 
 from clients.models import Client
 from clients.services import get_or_create_client_for_site, get_user_client
+from platform_admin.permissions import is_platform_owner
 from subscriptions.models import Subscription, SubscriptionPayment
 
 
@@ -170,11 +171,7 @@ def get_access_profile(user, request=None, client=None) -> dict:
     if request is not None and hasattr(request, "_tracknode_access_profile"):
         return request._tracknode_access_profile
 
-    is_platform_admin = bool(
-        user
-        and user.is_authenticated
-        and (getattr(user, "is_superuser", False) or user.has_perm("platform_admin.access_platform"))
-    )
+    is_platform_admin = is_platform_owner(user)
 
     if client is None and user and user.is_authenticated:
         _, client = can_access_client_dashboard(user, request=request)

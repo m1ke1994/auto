@@ -47,9 +47,6 @@ class SEOAuditAccessPermission(permissions.BasePermission):
     def _platform_admin(self, user) -> bool:
         return is_platform_owner(user)
 
-    def _site_context_admin(self, user) -> bool:
-        return self._platform_admin(user) or bool(getattr(user, "is_staff", False))
-
     def _first_active_client(self):
         return Client.objects.filter(is_active=True).order_by("id").first()
 
@@ -65,16 +62,15 @@ class SEOAuditAccessPermission(permissions.BasePermission):
         if site is None:
             return False
 
-        is_site_admin = self._site_context_admin(user)
         is_platform_admin = self._platform_admin(user)
-        if not is_site_admin and site.owner_id != user.id:
+        if not is_platform_admin and site.owner_id != user.id:
             return False
 
         client, _ = get_or_create_client_for_site(site)
         if client is None:
             return False
 
-        if not is_site_admin and not getattr(client, "is_active", False):
+        if not is_platform_admin and not getattr(client, "is_active", False):
             return False
 
         request.site = site

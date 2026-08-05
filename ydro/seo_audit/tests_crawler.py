@@ -214,6 +214,40 @@ class SEOCrawlerServiceTests(TestCase):
         self.assertIsInstance(home_page.commercial_signals_payload, dict)
         self.assertIn("conversion_signals", home_page.commercial_signals_payload)
 
+    @patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("95.31.22.162", 0))])
+    def test_external_audit_uses_target_url_not_domain_as_crawl_start(self, _mocked_dns):
+        audit = SiteSEOAudit.objects.create(
+            client=self.client_obj,
+            domain="selected-site.example",
+            target_url="https://novoe-konakovo.ru/",
+            requested_by=self.user,
+        )
+        requested_urls = []
+
+        def fake_get(*args, **kwargs):
+            url = args[0] if args else kwargs.get("url")
+            requested_urls.append(url)
+            if url == "https://novoe-konakovo.ru/":
+                return _FakeResponse(
+                    url=url,
+                    text="""
+                    <html>
+                      <head><title>External audit page title</title></head>
+                      <body><h1>External site</h1><p>Public external site content for audit.</p></body>
+                    </html>
+                    """,
+                )
+            if url in {"https://novoe-konakovo.ru/robots.txt", "https://novoe-konakovo.ru/sitemap.xml"}:
+                return _FakeResponse(url=url, status_code=404, text="")
+            raise AssertionError(f"Unexpected URL requested: {url}")
+
+        with patch("seo_audit.services.crawler.requests.Session.get", side_effect=fake_get):
+            crawl_site_audit(audit, max_pages=1)
+
+        self.assertIn("https://novoe-konakovo.ru/", requested_urls)
+        self.assertNotIn("https://selected-site.example/", requested_urls)
+        self.assertTrue(SEOPage.objects.filter(audit=audit, url="https://novoe-konakovo.ru/").exists())
+
     def test_crawler_falls_back_to_internal_links_without_sitemap(self):
         audit = SiteSEOAudit.objects.create(client=self.client_obj, domain="example.com")
         pages = {

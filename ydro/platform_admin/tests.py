@@ -27,11 +27,11 @@ class PlatformAccessTests(TestCase):
     def test_unauthenticated_gets_401(self):
         self.assertEqual(self.api.get("/api/platform/overview/").status_code, 401)
 
-    def test_client_and_plain_staff_get_403(self):
+    def test_client_gets_403_and_staff_has_platform_access(self):
         self.api.force_authenticate(self.client_user)
         self.assertEqual(self.api.get("/api/platform/sites/").status_code, 403)
         self.api.force_authenticate(self.staff)
-        self.assertEqual(self.api.get("/api/platform/sites/").status_code, 403)
+        self.assertEqual(self.api.get("/api/platform/sites/").status_code, 200)
 
     def test_platform_owner_sees_all_sites_with_pagination(self):
         self.api.force_authenticate(self.owner)
