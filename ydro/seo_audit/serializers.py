@@ -22,7 +22,7 @@ class SEOAuditStartSerializer(serializers.Serializer):
     def validate_domain(self, value):
         raw = (value or "").strip()
         if not raw:
-            raise serializers.ValidationError("Укажите домен.")
+            return ""
         parsed = urlparse(raw if "://" in raw else f"https://{raw}")
         hostname = (parsed.hostname or "").strip().lower()
         if not hostname:

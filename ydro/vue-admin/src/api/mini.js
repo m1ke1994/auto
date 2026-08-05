@@ -91,7 +91,9 @@ export async function miniSubscriptionCreatePayment(planId) {
 }
 
 export async function miniSeoStart(domain, params = {}) {
-  const { data } = await http.post('/api/mini/seo/start/', { domain, ...params })
+  const payload = { ...params }
+  if (String(domain || '').trim()) payload.domain = String(domain).trim()
+  const { data } = await http.post('/api/mini/seo/start/', payload)
   return data
 }
 

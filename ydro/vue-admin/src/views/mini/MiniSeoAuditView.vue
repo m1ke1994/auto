@@ -207,7 +207,7 @@ onUnmounted(stopPolling)
 
       <label class="text-sm font-semibold text-slate-800" :for="canUseExternalUrl ? 'seo-target-url' : 'seo-domain'">{{ canUseExternalUrl ? 'URL сайта' : 'Домен сайта' }}</label>
       <div class="mt-2 flex flex-col gap-2 sm:flex-row">
-        <input v-if="canUseExternalUrl" id="seo-target-url" v-model="targetUrl" class="form-control flex-1" placeholder="https://example.com" :disabled="checking">
+        <input v-if="canUseExternalUrl" id="seo-target-url" v-model="targetUrl" class="form-control flex-1" placeholder="https://example.com или example.com" :disabled="checking">
         <input v-else id="seo-domain" v-model="domain" class="form-control flex-1" placeholder="example.com" :disabled="checking">
         <button type="button" class="action-button-primary" :disabled="checking" @click="startAudit">
           <span v-if="checking" class="button-spinner" aria-hidden="true" />

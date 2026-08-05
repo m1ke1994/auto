@@ -275,6 +275,35 @@ class SEOAuditViewsExtendedTests(TestCase):
         mocked_delay.assert_called_once_with(audit.id)
 
     @patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 0))])
+    @patch("seo_audit.tasks.run_site_audit_task.delay")
+    def test_platform_owner_external_url_inputs_are_normalized_without_domain_requirement(self, mocked_delay, _mocked_dns):
+        self.http.force_authenticate(user=self.platform_owner)
+        cases = (
+            ("https://craftum.com/", "https://craftum.com/", "craftum.com"),
+            ("http://craftum.com/", "http://craftum.com/", "craftum.com"),
+            ("craftum.com", "https://craftum.com/", "craftum.com"),
+            ("www.craftum.com", "https://www.craftum.com/", "craftum.com"),
+            ("https:/craftum.com/", "https://craftum.com/", "craftum.com"),
+            ("http:/craftum.com/", "http://craftum.com/", "craftum.com"),
+            ("https://novoe-konakovo.ru/", "https://novoe-konakovo.ru/", "novoe-konakovo.ru"),
+        )
+        for raw_url, normalized_url, domain in cases:
+            with self.subTest(raw_url=raw_url):
+                mocked_delay.reset_mock()
+                payload = {"target_url": raw_url}
+                if raw_url == "https:/craftum.com/":
+                    payload["domain"] = ""
+                response = self.http.post("/api/mini/seo/start/", payload, format="json")
+
+                self.assertEqual(response.status_code, 201)
+                self.assertNotIn("errors", response.json())
+                audit = SiteSEOAudit.objects.get(id=response.json()["audit_id"])
+                self.assertEqual(response.json()["target_url"], normalized_url)
+                self.assertEqual(audit.target_url, normalized_url)
+                self.assertEqual(audit.domain, domain)
+                mocked_delay.assert_called_once_with(audit.id)
+
+    @patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 0))])
     def test_regular_user_cannot_start_external_url_audit(self, _mocked_dns):
         response = self.http.post(
             "/api/mini/seo/start/",

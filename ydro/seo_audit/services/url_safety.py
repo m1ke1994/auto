@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import ipaddress
+import re
 import socket
 from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
@@ -64,6 +65,7 @@ def normalize_public_url(raw_url: str, *, resolve_dns: bool = True) -> SafeURL:
     raw = str(raw_url or "").strip()
     if not raw:
         raise UnsafeURL("Укажите URL сайта.")
+    raw = re.sub(r"^(https?):/([^/])", r"\1://\2", raw, flags=re.IGNORECASE)
     if "://" not in raw:
         raw = f"https://{raw}"
 
@@ -75,12 +77,19 @@ def normalize_public_url(raw_url: str, *, resolve_dns: bool = True) -> SafeURL:
         raise UnsafeURL("URL с учетными данными недоступны для SEO-аудита.")
 
     hostname = (parsed.hostname or "").strip().lower().rstrip(".")
+    try:
+        hostname = hostname.encode("idna").decode("ascii") if hostname else ""
+    except UnicodeError as exc:
+        raise UnsafeURL("Invalid URL. Use https://example.com/ format.") from exc
     if resolve_dns:
         _validate_public_hostname(hostname)
     elif not hostname or _hostname_is_blocked(hostname):
         raise UnsafeURL("Укажите публичный домен сайта.")
 
-    port = f":{parsed.port}" if parsed.port else ""
+    try:
+        port = f":{parsed.port}" if parsed.port else ""
+    except ValueError as exc:
+        raise UnsafeURL("Invalid URL. Use https://example.com/ format.") from exc
     path = parsed.path or "/"
     netloc = f"{hostname}{port}"
     normalized = urlunparse((scheme, netloc, path, "", parsed.query, ""))
