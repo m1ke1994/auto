@@ -94,6 +94,22 @@ def _platform_owner_audit_client(user):
     return Client.objects.create(owner=user, name=(getattr(user, "email", "") or getattr(user, "username", "") or "Platform owner"))
 
 
+def _first_serializer_error(errors) -> str:
+    if isinstance(errors, dict):
+        for value in errors.values():
+            message = _first_serializer_error(value)
+            if message:
+                return message
+    if isinstance(errors, (list, tuple)):
+        for value in errors:
+            message = _first_serializer_error(value)
+            if message:
+                return message
+    if errors:
+        return str(errors)
+    return ""
+
+
 def _audit_history_queryset(*, client, domain: str, exclude_audit_id: int | None = None, requested_by=None):
     qs = SiteSEOAudit.objects.filter(client=client, domain=domain, status=SiteSEOAudit.Status.DONE).order_by("-created_at")
     if requested_by is not None:
@@ -269,7 +285,18 @@ class SEOAuditStartView(APIView):
 
     def post(self, request):
         serializer = SEOAuditStartSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            detail = _first_serializer_error(serializer.errors) or "Не удалось запустить SEO-аудит."
+            logger.info(
+                "seo_audit.start validation failed user_id=%s errors=%s payload_keys=%s",
+                getattr(request.user, "id", None),
+                serializer.errors,
+                sorted((request.data or {}).keys()),
+            )
+            return json_response(
+                {"ok": False, "detail": detail, "errors": serializer.errors},
+                http_status=status.HTTP_400_BAD_REQUEST,
+            )
         target_url = serializer.validated_data.get("target_url") or ""
         is_external_target = bool(target_url)
         if is_external_target and not getattr(request, "seo_platform_admin", False):
@@ -279,7 +306,19 @@ class SEOAuditStartView(APIView):
             )
 
         if is_external_target:
-            safe_url = normalize_public_url(target_url)
+            try:
+                safe_url = normalize_public_url(target_url)
+            except Exception as exc:
+                logger.info(
+                    "seo_audit.start target_url rejected user_id=%s url=%s reason=%s",
+                    getattr(request.user, "id", None),
+                    target_url,
+                    exc,
+                )
+                return json_response(
+                    {"ok": False, "detail": str(exc) or "URL сайта не прошел проверку безопасности."},
+                    http_status=status.HTTP_400_BAD_REQUEST,
+                )
             domain = safe_url.domain
             target_url = safe_url.url
             request.client = _platform_owner_audit_client(request.user)

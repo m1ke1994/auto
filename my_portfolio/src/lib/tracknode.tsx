@@ -166,6 +166,26 @@ export const DEFAULT_PORTFOLIO_SECTIONS: Record<string, JsonObject> = {
   },
 };
 
+(DEFAULT_PORTFOLIO_SECTIONS.skills as JsonObject).illustration_image = "";
+(DEFAULT_PORTFOLIO_SECTIONS.skills as JsonObject).illustration_alt = "";
+(DEFAULT_PORTFOLIO_SECTIONS["why-me"] as JsonObject).illustration_image = "";
+(DEFAULT_PORTFOLIO_SECTIONS["why-me"] as JsonObject).illustration_alt = "";
+(DEFAULT_PORTFOLIO_SECTIONS.checklist as JsonObject).illustration_image = "";
+(DEFAULT_PORTFOLIO_SECTIONS.checklist as JsonObject).illustration_alt = "";
+(DEFAULT_PORTFOLIO_SECTIONS.contact as JsonObject).contact_image = "";
+(DEFAULT_PORTFOLIO_SECTIONS.contact as JsonObject).contact_image_alt = "";
+DEFAULT_PORTFOLIO_SECTIONS.cases = {
+  title: "Cases",
+  accent: "and results",
+  description: "Selected work with editable images, summaries, and links.",
+  cases: [],
+};
+DEFAULT_PORTFOLIO_SECTIONS.gallery = {
+  title: "Gallery",
+  description: "Editable project screenshots and visual materials.",
+  images: [],
+};
+
 const PortfolioContext = createContext<PortfolioContextValue>({
   site: null,
   sections: DEFAULT_PORTFOLIO_SECTIONS,

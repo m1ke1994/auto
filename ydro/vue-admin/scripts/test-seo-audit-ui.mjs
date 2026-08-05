@@ -10,6 +10,8 @@ assert.match(view, /permissions\?\.platform_access/)
 assert.match(view, /mode\.value === 'external'/)
 assert.match(view, /target_url:\s*targetUrl\.value\.trim\(\)/)
 assert.match(view, /siteId\.value && !canUseExternalUrl\.value/)
+assert.match(view, /backendErrorMessage/)
+assert.match(view, /firstErrorMessage/)
 assert.match(view, /Проверить любой сайт/)
 assert.match(view, /Запустить SEO-аудит/)
 

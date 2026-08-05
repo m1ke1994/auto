@@ -243,11 +243,16 @@ class SEOAuditViewsExtendedTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
-    def test_platform_owner_external_url_rejects_localhost(self):
+    @patch("seo_audit.tasks.run_site_audit_task.delay")
+    def test_platform_owner_external_url_rejects_localhost_with_clear_error_without_audit(self, mocked_delay):
         self.http.force_authenticate(user=self.platform_owner)
         response = self.http.post("/api/mini/seo/start/", {"target_url": "http://localhost/"}, format="json")
 
         self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()["ok"])
+        self.assertIn("detail", response.json())
+        self.assertFalse(SiteSEOAudit.objects.filter(target_url="http://localhost/").exists())
+        mocked_delay.assert_not_called()
 
     def test_platform_owner_external_url_rejects_loopback_ip(self):
         self.http.force_authenticate(user=self.platform_owner)
@@ -274,6 +279,8 @@ class SEOAuditViewsExtendedTests(TestCase):
         response = self.http.post("/api/mini/seo/start/", {"target_url": "https://private.example.com/"}, format="json")
 
         self.assertEqual(response.status_code, 400)
+        self.assertIn("detail", response.json())
+        self.assertIn("target_url", response.json()["errors"])
 
     def test_regular_user_does_not_see_platform_owner_external_audits(self):
         platform_client = Client.objects.create(owner=self.platform_owner, name="Platform SEO")

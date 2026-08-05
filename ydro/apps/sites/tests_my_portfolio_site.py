@@ -1,10 +1,14 @@
 from io import StringIO
+import shutil
+import tempfile
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
+from apps.mediafiles.models import MediaFile
 from apps.sites.models import SectionSchema, Site, SiteLead, SiteSection
 from apps.sites.my_portfolio_site import MY_PORTFOLIO_SECTION_SEEDS, MY_PORTFOLIO_SITE_SEO
 from clients.models import Client
@@ -156,9 +160,67 @@ class MyPortfolioSiteSeedTests(TestCase):
         self.assertIn("logo_image", media_fields["settings"])
         self.assertIn("portrait_image", media_fields["hero"])
         self.assertIn("profile_image", media_fields["about"])
+        self.assertIn("illustration_image", media_fields["skills"])
+        self.assertIn("groups.image", media_fields["skills"])
         self.assertIn("projects.image", media_fields["projects"])
         self.assertIn("projects.images.src", media_fields["projects"])
+        self.assertIn("illustration_image", media_fields["why-me"])
+        self.assertIn("reasons.image", media_fields["why-me"])
+        self.assertIn("illustration_image", media_fields["checklist"])
+        self.assertIn("items.image", media_fields["checklist"])
+        self.assertIn("cases.image", media_fields["cases"])
+        self.assertIn("images.image", media_fields["gallery"])
+        self.assertIn("contact_image", media_fields["contact"])
         self.assertIn("logo_image", media_fields["footer"])
+
+    @override_settings(SITE_BASE_URL="https://tracknode.test")
+    def test_portfolio_media_upload_patch_and_public_bundle_persist_image_paths(self):
+        media_root = tempfile.mkdtemp()
+        self.addCleanup(lambda: shutil.rmtree(media_root, ignore_errors=True))
+
+        with override_settings(MEDIA_ROOT=media_root):
+            self.seed()
+            portfolio = Site.objects.get(slug="my-portfolio")
+            hero = SiteSection.objects.get(site=portfolio, key="hero")
+            gallery = SiteSection.objects.get(site=portfolio, key="gallery")
+
+            api = APIClient()
+            api.force_authenticate(self.owner)
+            first = self._upload_png(api, portfolio, "hero", "portrait_image", "portrait.png")
+            second = self._upload_png(api, portfolio, "gallery", "images.0.image", "gallery.png")
+
+            self.assertEqual(MediaFile.objects.filter(site=portfolio).count(), 2)
+            self.assertTrue(first["path"].startswith(f"/media/sites/{portfolio.id}/hero/"))
+            self.assertTrue(second["path"].startswith(f"/media/sites/{portfolio.id}/gallery/"))
+
+            hero_content = dict(hero.content)
+            hero_content["portrait_image"] = first["path"]
+            patch_response = api.patch(
+                f"/api/admin/my-sites/{portfolio.id}/sections/{hero.id}/",
+                {"content": hero_content},
+                format="json",
+            )
+            self.assertEqual(patch_response.status_code, 200)
+
+            gallery_content = dict(gallery.content)
+            gallery_content["images"][0]["image"] = second["path"]
+            gallery_response = api.patch(
+                f"/api/admin/my-sites/{portfolio.id}/sections/{gallery.id}/",
+                {"content": gallery_content},
+                format="json",
+            )
+            self.assertEqual(gallery_response.status_code, 200)
+
+            hero.refresh_from_db()
+            gallery.refresh_from_db()
+            self.assertEqual(hero.content["portrait_image"], first["path"])
+            self.assertEqual(gallery.content["images"][0]["image"], second["path"])
+
+            public_response = APIClient().get("/api/sites/my-portfolio/")
+            self.assertEqual(public_response.status_code, 200)
+            public_sections = {section["key"]: section["content"] for section in public_response.data["sections"]}
+            self.assertEqual(public_sections["hero"]["portrait_image"], first["path"])
+            self.assertEqual(public_sections["gallery"]["images"][0]["image"], second["path"])
 
     def test_regular_seed_merges_project_image_fields_without_overwriting_admin_media(self):
         self.seed()
@@ -204,3 +266,23 @@ class MyPortfolioSiteSeedTests(TestCase):
             if field.get("type") == "repeater":
                 keys.update(self._collect_media_fields(field.get("fields", []), path))
         return keys
+
+    def _upload_png(self, api, site, section, field_name, filename):
+        png_bytes = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+            b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00"
+            b"\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfeA\x89\xa3\xcd"
+            b"\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        response = api.post(
+            "/api/uploads/",
+            {
+                "site": str(site.id),
+                "section": section,
+                "field": field_name,
+                "file": SimpleUploadedFile(filename, png_bytes, content_type="image/png"),
+            },
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, 201)
+        return response.data

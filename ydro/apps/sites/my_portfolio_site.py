@@ -240,6 +240,30 @@ for project in PROJECTS:
     project["image_alt"] = project.get("image_alt") or project.get("title", "")
     project["images"] = [{"src": item} for item in image_paths]
 
+PORTFOLIO_CASES = [
+    {
+        "id": project["id"],
+        "title": project["title"],
+        "summary": project.get("fullDescription") or project.get("shortDescription", ""),
+        "image": project.get("image", ""),
+        "image_alt": project.get("image_alt", ""),
+        "link": project.get("demoUrl", ""),
+        "results": project.get("results", ""),
+    }
+    for project in PROJECTS[:6]
+]
+
+PORTFOLIO_GALLERY = [
+    {
+        "id": project["id"],
+        "image": project.get("image", ""),
+        "image_alt": project.get("image_alt", ""),
+        "caption": project.get("title", ""),
+    }
+    for project in PROJECTS
+    if project.get("image")
+]
+
 SKILL_GROUPS = [
     {"id": "frontend", "title": "Frontend", "icon": "code", "skills": [{"label": item} for item in ["Vue 3", "Composition API", "TypeScript", "HTML5 / CSS3", "Tailwind CSS", "Адаптивная верстка", "SPA-архитектура", "State Management", "Формы и валидация"]]},
     {"id": "backend", "title": "Backend", "icon": "server", "skills": [{"label": item} for item in ["Python", "Django", "Django REST Framework", "Flask", "REST API", "PostgreSQL", "SQLAlchemy", "Auth / Roles", "Redis / Celery"]]},
@@ -487,6 +511,122 @@ MY_PORTFOLIO_SECTION_SEEDS = [
         },
     },
 ]
+
+
+def _section_seed(section_key: str) -> dict:
+    for seed in MY_PORTFOLIO_SECTION_SEEDS:
+        if seed["key"] == section_key:
+            return seed
+    raise KeyError(section_key)
+
+
+def _append_field_once(fields: list[dict], payload: dict, *, after: str | None = None) -> None:
+    if any(field.get("key") == payload.get("key") for field in fields):
+        return
+    if after:
+        for index, field_payload in enumerate(fields):
+            if field_payload.get("key") == after:
+                fields.insert(index + 1, payload)
+                return
+    fields.append(payload)
+
+
+def _repeater_fields(seed: dict, repeater_key: str) -> list[dict]:
+    for payload in seed["schema"]["fields"]:
+        if payload.get("key") == repeater_key and payload.get("type") == "repeater":
+            return payload.setdefault("fields", [])
+    raise KeyError(f"{seed['key']}.{repeater_key}")
+
+
+def _extend_portfolio_media_schema() -> None:
+    skills = _section_seed("skills")
+    _append_field_once(skills["schema"]["fields"], field("illustration_image", "Section image", "image"), after="description")
+    _append_field_once(skills["schema"]["fields"], field("illustration_alt", "Section image alt"), after="illustration_image")
+    skills["content"].setdefault("illustration_image", "")
+    skills["content"].setdefault("illustration_alt", "")
+    skill_group_fields = _repeater_fields(skills, "groups")
+    _append_field_once(skill_group_fields, field("image", "Group image", "image"), after="icon")
+    _append_field_once(skill_group_fields, field("image_alt", "Group image alt"), after="image")
+
+    why_me = _section_seed("why-me")
+    _append_field_once(why_me["schema"]["fields"], field("illustration_image", "Section image", "image"), after="description")
+    _append_field_once(why_me["schema"]["fields"], field("illustration_alt", "Section image alt"), after="illustration_image")
+    why_me["content"].setdefault("illustration_image", "")
+    why_me["content"].setdefault("illustration_alt", "")
+    reason_fields = _repeater_fields(why_me, "reasons")
+    _append_field_once(reason_fields, field("image", "Reason image", "image"), after="icon")
+    _append_field_once(reason_fields, field("image_alt", "Reason image alt"), after="image")
+
+    checklist = _section_seed("checklist")
+    _append_field_once(checklist["schema"]["fields"], field("illustration_image", "Section image", "image"), after="description")
+    _append_field_once(checklist["schema"]["fields"], field("illustration_alt", "Section image alt"), after="illustration_image")
+    checklist["content"].setdefault("illustration_image", "")
+    checklist["content"].setdefault("illustration_alt", "")
+    item_fields = _repeater_fields(checklist, "items")
+    _append_field_once(item_fields, field("image", "Item image", "image"))
+    _append_field_once(item_fields, field("image_alt", "Item image alt"), after="image")
+
+    contact = _section_seed("contact")
+    _append_field_once(contact["schema"]["fields"], field("contact_image", "Contact image", "image"), after="description")
+    _append_field_once(contact["schema"]["fields"], field("contact_image_alt", "Contact image alt"), after="contact_image")
+    contact["content"].setdefault("contact_image", "")
+    contact["content"].setdefault("contact_image_alt", "")
+    contact["order"] = 10
+
+    _section_seed("footer")["order"] = 11
+
+
+MY_PORTFOLIO_SECTION_SEEDS.extend(
+    [
+        {
+            "key": "cases",
+            "title": "Cases",
+            "order": 8,
+            "schema": {"fields": [
+                field("title", "Title"),
+                field("accent", "Accent"),
+                field("description", "Description", "textarea"),
+                field("cases", "Cases", "repeater", fields=[
+                    field("id", "ID"),
+                    field("title", "Title"),
+                    field("summary", "Summary", "textarea"),
+                    field("image", "Image", "image"),
+                    field("image_alt", "Image alt"),
+                    field("link", "Link"),
+                    field("results", "Results", "textarea"),
+                ]),
+            ]},
+            "content": {
+                "title": "Cases",
+                "accent": "and results",
+                "description": "Selected work with editable images, summaries, and links.",
+                "cases": PORTFOLIO_CASES,
+            },
+        },
+        {
+            "key": "gallery",
+            "title": "Gallery",
+            "order": 9,
+            "schema": {"fields": [
+                field("title", "Title"),
+                field("description", "Description", "textarea"),
+                field("images", "Images", "repeater", fields=[
+                    field("id", "ID"),
+                    field("image", "Image", "image"),
+                    field("image_alt", "Image alt"),
+                    field("caption", "Caption"),
+                ]),
+            ]},
+            "content": {
+                "title": "Gallery",
+                "description": "Editable project screenshots and visual materials.",
+                "images": PORTFOLIO_GALLERY,
+            },
+        },
+    ]
+)
+
+_extend_portfolio_media_schema()
 
 
 def get_my_portfolio_schema_key(section_key: str, site_slug: str = MY_PORTFOLIO_SITE_SLUG) -> str:

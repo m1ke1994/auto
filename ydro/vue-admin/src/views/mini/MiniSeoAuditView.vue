@@ -51,7 +51,7 @@ function severityInfo(value) {
 }
 
 function errorMessage(e, fallback) {
-  const detail = e?.response?.data?.detail || ''
+  const detail = backendErrorMessage(e?.response?.data)
   if (String(detail).includes('Client dashboard access')) {
     return 'Нет доступа к SEO-аудиту выбранного сайта.'
   }
@@ -59,11 +59,37 @@ function errorMessage(e, fallback) {
 }
 
 function startAuditErrorMessage(e) {
-  const detail = e?.response?.data?.detail || ''
+  const detail = backendErrorMessage(e?.response?.data)
   if (String(detail).includes('Client dashboard access')) {
     return 'Нет доступа к SEO-аудиту выбранного сайта.'
   }
   return detail || 'Не удалось выполнить SEO-аудит. Попробуйте позже.'
+}
+
+function backendErrorMessage(data) {
+  if (!data) return ''
+  if (typeof data === 'string') return data
+  if (typeof data.detail === 'string' && data.detail) return data.detail
+  return firstErrorMessage(data.errors || data)
+}
+
+function firstErrorMessage(value) {
+  if (!value) return ''
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const message = firstErrorMessage(item)
+      if (message) return message
+    }
+    return ''
+  }
+  if (typeof value === 'object') {
+    for (const item of Object.values(value)) {
+      const message = firstErrorMessage(item)
+      if (message) return message
+    }
+  }
+  return ''
 }
 
 async function loadAudit(id) {

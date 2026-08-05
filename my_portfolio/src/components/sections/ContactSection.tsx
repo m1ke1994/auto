@@ -1,5 +1,5 @@
 import { Mail, Github, MessageCircle, Instagram, Linkedin } from "lucide-react";
-import { usePortfolioSection } from "@/lib/tracknode";
+import { resolveMediaUrl, usePortfolioSection } from "@/lib/tracknode";
 
 const contactIcons = {
   github: Github,
@@ -13,10 +13,13 @@ export function ContactSection() {
   const content = usePortfolioSection<{
     title?: string;
     description?: string;
+    contact_image?: string;
+    contact_image_alt?: string;
     contacts?: Array<{ icon?: string; label: string; value: string; href: string }>;
   }>("contact");
   const contacts = content.contacts || [];
   const getContactIcon = (icon?: string) => contactIcons[icon as keyof typeof contactIcons] || Mail;
+  const contactImage = resolveMediaUrl(content.contact_image);
 
   return (
     <section id="contact" className="section-padding">
@@ -30,7 +33,7 @@ export function ContactSection() {
           </p>
         </div>
 
-        <div className="max-w-3xl mx-auto">
+        <div className="mx-auto grid max-w-5xl gap-8 md:grid-cols-[minmax(0,1fr)_320px] md:items-start">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {contacts.map((contact) => {
               const Icon = getContactIcon(contact.icon);
@@ -53,6 +56,13 @@ export function ContactSection() {
               );
             })}
           </div>
+          {contactImage ? (
+            <img
+              src={contactImage}
+              alt={content.contact_image_alt || content.title || "Contacts"}
+              className="w-full rounded-2xl border border-border object-cover shadow-premium"
+            />
+          ) : null}
         </div>
       </div>
     </section>
