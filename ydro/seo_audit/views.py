@@ -80,6 +80,33 @@ def _audit_allowed_for_request(request, audit: SiteSEOAudit | None) -> bool:
     return _domain_allowed_for_request(request, audit.domain)
 
 
+def _get_audit_for_request(request, audit_id: int, *, prefetch_pages: bool = False) -> SiteSEOAudit | None:
+    queryset = SiteSEOAudit.objects.filter(id=audit_id)
+    if prefetch_pages:
+        queryset = queryset.prefetch_related(Prefetch("pages", queryset=SEOPage.objects.order_by("url", "id")))
+
+    audit = None
+    if getattr(request, "seo_platform_admin", False):
+        audit = queryset.filter(requested_by=request.user, target_url__isnull=False).first()
+
+    if audit is None:
+        audit = queryset.filter(client=request.client).first()
+
+    logger.info(
+        "seo_audit.resolve audit_id=%s user_id=%s request_client_id=%s platform_admin=%s "
+        "resolved_audit_id=%s resolved_client_id=%s requested_by_id=%s target_url=%s",
+        audit_id,
+        getattr(request.user, "id", None),
+        getattr(getattr(request, "client", None), "id", None),
+        getattr(request, "seo_platform_admin", False),
+        getattr(audit, "id", None),
+        getattr(audit, "client_id", None),
+        getattr(audit, "requested_by_id", None),
+        getattr(audit, "target_url", None),
+    )
+    return audit
+
+
 def _forbidden_domain_response():
     return json_response(
         {"ok": False, "detail": "SEO-аудит доступен только для выбранного сайта."},
@@ -444,19 +471,15 @@ class SEOAuditDetailView(APIView):
 
     def get(self, request, audit_id: int):
         try:
-            audit = (
-                SiteSEOAudit.objects.filter(id=audit_id, client=request.client)
-                .prefetch_related(Prefetch("pages", queryset=SEOPage.objects.order_by("url", "id")))
-                .first()
-            )
+            audit = _get_audit_for_request(request, audit_id, prefetch_pages=True)
             if not _audit_allowed_for_request(request, audit):
                 return json_response({"detail": "Аудит не найден.", "ok": False}, http_status=status.HTTP_404_NOT_FOUND)
 
-            response = _build_audit_detail_payload(audit=audit, client=request.client)
+            response = _build_audit_detail_payload(audit=audit, client=audit.client)
             logger.info(
                 "seo_audit.detail audit_id=%s client_id=%s status=%s score=%s pages=%s issues=%s",
                 audit.id,
-                request.client.id,
+                audit.client_id,
                 audit.status,
                 audit.seo_score,
                 len(response.get("pages") or []),
@@ -472,7 +495,7 @@ class SEOAuditPagesView(APIView):
     permission_classes = [permissions.IsAuthenticated, SEOAuditAccessPermission]
 
     def get(self, request, audit_id: int):
-        audit = SiteSEOAudit.objects.filter(id=audit_id, client=request.client).first()
+        audit = _get_audit_for_request(request, audit_id)
         if not _audit_allowed_for_request(request, audit):
             return json_response({"detail": "Аудит не найден.", "ok": False}, http_status=status.HTTP_404_NOT_FOUND)
 
@@ -494,7 +517,7 @@ class SEOAuditIssuesView(APIView):
     permission_classes = [permissions.IsAuthenticated, SEOAuditAccessPermission]
 
     def get(self, request, audit_id: int):
-        audit = SiteSEOAudit.objects.filter(id=audit_id, client=request.client).first()
+        audit = _get_audit_for_request(request, audit_id)
         if not _audit_allowed_for_request(request, audit):
             return json_response({"detail": "Аудит не найден.", "ok": False}, http_status=status.HTTP_404_NOT_FOUND)
 
@@ -525,12 +548,12 @@ class SEOAuditHistoryView(APIView):
     permission_classes = [permissions.IsAuthenticated, SEOAuditAccessPermission]
 
     def get(self, request, audit_id: int):
-        audit = SiteSEOAudit.objects.filter(id=audit_id, client=request.client).first()
+        audit = _get_audit_for_request(request, audit_id)
         if not _audit_allowed_for_request(request, audit):
             return json_response({"detail": "Аудит не найден.", "ok": False}, http_status=status.HTTP_404_NOT_FOUND)
 
         history_qs = _audit_history_queryset(
-            client=request.client,
+            client=audit.client,
             domain=audit.domain,
             exclude_audit_id=audit.id,
             requested_by=audit.requested_by if audit.target_url else None,
@@ -553,7 +576,7 @@ class SEOAuditCompareView(APIView):
     permission_classes = [permissions.IsAuthenticated, SEOAuditAccessPermission]
 
     def get(self, request, audit_id: int):
-        current_audit = SiteSEOAudit.objects.filter(id=audit_id, client=request.client).first()
+        current_audit = _get_audit_for_request(request, audit_id)
         if not _audit_allowed_for_request(request, current_audit):
             return json_response({"detail": "Аудит не найден.", "ok": False}, http_status=status.HTTP_404_NOT_FOUND)
 
@@ -562,7 +585,7 @@ class SEOAuditCompareView(APIView):
         if with_audit_id:
             previous_qs = SiteSEOAudit.objects.filter(
                 id=with_audit_id,
-                client=request.client,
+                client=current_audit.client,
                 domain=current_audit.domain,
                 status=SiteSEOAudit.Status.DONE,
             )
@@ -573,7 +596,7 @@ class SEOAuditCompareView(APIView):
             previous_audit = previous_qs.first()
         else:
             previous_audit = _audit_history_queryset(
-                client=request.client,
+                client=current_audit.client,
                 domain=current_audit.domain,
                 exclude_audit_id=current_audit.id,
                 requested_by=current_audit.requested_by if current_audit.target_url else None,
@@ -592,11 +615,11 @@ class SEOAuditAiRecommendationsView(APIView):
     permission_classes = [permissions.IsAuthenticated, SEOAuditAccessPermission]
 
     def get(self, request, audit_id: int):
-        audit = SiteSEOAudit.objects.filter(id=audit_id, client=request.client).first()
+        audit = _get_audit_for_request(request, audit_id)
         if not _audit_allowed_for_request(request, audit):
             return json_response({"detail": "Аудит не найден.", "ok": False}, http_status=status.HTTP_404_NOT_FOUND)
 
-        detail_payload = _build_audit_detail_payload(audit=audit, client=request.client)
+        detail_payload = _build_audit_detail_payload(audit=audit, client=audit.client)
         return json_response(detail_payload.get("recommendations") or build_seo_recommendations(detail_payload), http_status=status.HTTP_200_OK)
 
 
@@ -605,17 +628,17 @@ class SEOAuditExportView(APIView):
     renderer_classes = [AnyAcceptRenderer]
 
     def get(self, request, audit_id: int):
-        audit = SiteSEOAudit.objects.filter(id=audit_id, client=request.client).first()
+        audit = _get_audit_for_request(request, audit_id)
         if not _audit_allowed_for_request(request, audit):
             return json_response({"detail": "Аудит не найден.", "ok": False}, http_status=status.HTTP_404_NOT_FOUND)
 
-        detail_payload = _build_audit_detail_payload(audit=audit, client=request.client)
+        detail_payload = _build_audit_detail_payload(audit=audit, client=audit.client)
         compare_with_id = request.query_params.get("with_audit_id")
         previous_audit = None
         if compare_with_id:
             previous_qs = SiteSEOAudit.objects.filter(
                 id=compare_with_id,
-                client=request.client,
+                client=audit.client,
                 domain=audit.domain,
                 status=SiteSEOAudit.Status.DONE,
             )
@@ -626,7 +649,7 @@ class SEOAuditExportView(APIView):
             previous_audit = previous_qs.first()
         else:
             previous_audit = _audit_history_queryset(
-                client=request.client,
+                client=audit.client,
                 domain=audit.domain,
                 exclude_audit_id=audit.id,
                 requested_by=audit.requested_by if audit.target_url else None,
@@ -646,7 +669,7 @@ class SEOAuditStopView(APIView):
 
     def post(self, request, audit_id: int):
         try:
-            audit = SiteSEOAudit.objects.filter(id=audit_id, client=request.client).first()
+            audit = _get_audit_for_request(request, audit_id)
             if not _audit_allowed_for_request(request, audit):
                 return json_response({"detail": "Аудит не найден.", "ok": False}, http_status=status.HTTP_404_NOT_FOUND)
 

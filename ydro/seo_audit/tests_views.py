@@ -305,7 +305,7 @@ class SEOAuditViewsExtendedTests(TestCase):
 
     @patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 0))])
     @patch("seo_audit.tasks.run_site_audit_task.delay")
-    def test_platform_owner_can_read_external_audit_after_start_without_site_context(self, mocked_delay, _mocked_dns):
+    def test_platform_owner_can_access_external_audit_endpoints_with_selected_site_context(self, mocked_delay, _mocked_dns):
         for user in (self.superuser, self.staff_user, self.platform_owner):
             with self.subTest(user=user.username):
                 mocked_delay.reset_mock()
@@ -317,15 +317,51 @@ class SEOAuditViewsExtendedTests(TestCase):
                 )
                 self.assertEqual(start_response.status_code, 201)
                 audit_id = start_response.json()["audit_id"]
+                params = {"site_id": self.site.id}
 
-                detail_response = self.http.get(f"/api/mini/seo/{audit_id}/")
-                pages_response = self.http.get(f"/api/mini/seo/{audit_id}/pages/")
-                issues_response = self.http.get(f"/api/mini/seo/{audit_id}/issues/")
+                detail_response = self.http.get(f"/api/mini/seo/{audit_id}/", params)
+                pages_response = self.http.get(f"/api/mini/seo/{audit_id}/pages/", params)
+                issues_response = self.http.get(f"/api/mini/seo/{audit_id}/issues/", params)
+                history_response = self.http.get(f"/api/mini/seo/{audit_id}/history/", params)
+                compare_response = self.http.get(f"/api/mini/seo/{audit_id}/compare/", params)
+                ai_response = self.http.get(f"/api/mini/seo/{audit_id}/ai-recommendations/", params)
+                export_response = self.http.get(f"/api/mini/seo/{audit_id}/export/", params)
 
                 self.assertEqual(detail_response.status_code, 200)
                 self.assertEqual(detail_response.json()["target_url"], "https://craftum.com/")
                 self.assertEqual(pages_response.status_code, 200)
                 self.assertEqual(issues_response.status_code, 200)
+                self.assertEqual(history_response.status_code, 200)
+                self.assertEqual(compare_response.status_code, 200)
+                self.assertEqual(ai_response.status_code, 200)
+                self.assertEqual(export_response.status_code, 200)
+
+                stop_response = self.http.post(f"/api/mini/seo/{audit_id}/stop/?site_id={self.site.id}")
+                self.assertEqual(stop_response.status_code, 200)
+
+    def test_external_audit_access_is_limited_to_requesting_platform_owner(self):
+        platform_client = Client.objects.create(owner=self.platform_owner, name="Platform SEO")
+        audit = SiteSEOAudit.objects.create(
+            client=platform_client,
+            requested_by=self.platform_owner,
+            domain="craftum.com",
+            target_url="https://craftum.com/",
+            status=SiteSEOAudit.Status.PENDING,
+        )
+        another_platform_owner = get_user_model().objects.create_user(
+            username="seo-platform-other-owner",
+            email="seo-platform-other-owner@example.com",
+            password="pass12345",
+        )
+        another_platform_owner.user_permissions.add(
+            Permission.objects.get(codename="access_platform", content_type__app_label="platform_admin")
+        )
+
+        self.http.force_authenticate(user=another_platform_owner)
+        self.assertEqual(self.http.get(f"/api/mini/seo/{audit.id}/").status_code, 404)
+
+        self.http.force_authenticate(user=self.user)
+        self.assertEqual(self.http.get(f"/api/mini/seo/{audit.id}/").status_code, 404)
 
     @patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 0))])
     def test_regular_user_cannot_start_external_url_audit(self, _mocked_dns):
