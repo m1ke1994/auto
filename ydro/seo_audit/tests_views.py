@@ -304,6 +304,30 @@ class SEOAuditViewsExtendedTests(TestCase):
                 mocked_delay.assert_called_once_with(audit.id)
 
     @patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 0))])
+    @patch("seo_audit.tasks.run_site_audit_task.delay")
+    def test_platform_owner_can_read_external_audit_after_start_without_site_context(self, mocked_delay, _mocked_dns):
+        for user in (self.superuser, self.staff_user, self.platform_owner):
+            with self.subTest(user=user.username):
+                mocked_delay.reset_mock()
+                self.http.force_authenticate(user=user)
+                start_response = self.http.post(
+                    "/api/mini/seo/start/",
+                    {"target_url": "craftum.com"},
+                    format="json",
+                )
+                self.assertEqual(start_response.status_code, 201)
+                audit_id = start_response.json()["audit_id"]
+
+                detail_response = self.http.get(f"/api/mini/seo/{audit_id}/")
+                pages_response = self.http.get(f"/api/mini/seo/{audit_id}/pages/")
+                issues_response = self.http.get(f"/api/mini/seo/{audit_id}/issues/")
+
+                self.assertEqual(detail_response.status_code, 200)
+                self.assertEqual(detail_response.json()["target_url"], "https://craftum.com/")
+                self.assertEqual(pages_response.status_code, 200)
+                self.assertEqual(issues_response.status_code, 200)
+
+    @patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 0))])
     def test_regular_user_cannot_start_external_url_audit(self, _mocked_dns):
         response = self.http.post(
             "/api/mini/seo/start/",

@@ -83,10 +83,15 @@ class SEOAuditAccessPermission(permissions.BasePermission):
         user = request.user
         is_platform_admin = self._platform_admin(user)
 
-        has_access, client = can_access_client_dashboard(user, request=request)
-        if not has_access and is_platform_admin:
+        if is_platform_admin:
             client = self._platform_owner_client(user)
-            has_access = client is not None
+            if client is None:
+                return False
+            request.client = client
+            request.seo_platform_admin = True
+            return True
+
+        has_access, client = can_access_client_dashboard(user, request=request)
 
         if not has_access or client is None:
             return False

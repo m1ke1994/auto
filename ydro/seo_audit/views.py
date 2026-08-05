@@ -244,6 +244,7 @@ def _build_audit_detail_payload(*, audit: SiteSEOAudit, client) -> dict:
     payload = {
         "id": audit_payload.get("id", audit.id),
         "domain": audit_payload.get("domain", audit.domain),
+        "target_url": audit_payload.get("target_url", audit.target_url),
         "status": audit_payload.get("status", audit.status),
         "score": int(audit_payload.get("score", audit.seo_score or 0) or 0),
         "seo_score": int(audit_payload.get("seo_score", audit.seo_score or 0) or 0),
