@@ -58,6 +58,197 @@ const CONTACTS = [
   },
 ];
 
+export const PORTFOLIO_SERVICE_CATEGORY_LABELS: Record<string, string> = {
+  development: "Разработка",
+  administration: "Администрирование",
+  technical_support: "Техническая помощь",
+};
+
+const PORTFOLIO_SERVICE_CATEGORY_ORDER = Object.keys(PORTFOLIO_SERVICE_CATEGORY_LABELS);
+
+const DEFAULT_SERVICES = [
+  {
+    id: "website",
+    title: "Разработка сайта",
+    description: "Современный сайт под задачи бизнеса: от идеи и дизайна до запуска.",
+    category: "development",
+    category_label: "Разработка",
+    icon: "code",
+    is_active: true,
+    order: 10,
+  },
+  {
+    id: "site-fixes",
+    title: "Доработка существующего сайта",
+    description: "Исправление интерфейса, логики, адаптивности и существующих функций.",
+    category: "development",
+    category_label: "Разработка",
+    icon: "wrench",
+    is_active: true,
+    order: 20,
+  },
+  {
+    id: "shop",
+    title: "Интернет-магазин",
+    description: "Каталог, карточки товаров, заявки, корзина и необходимые интеграции.",
+    category: "development",
+    category_label: "Разработка",
+    icon: "briefcase",
+    is_active: true,
+    order: 30,
+  },
+  {
+    id: "api-crm",
+    title: "API и CRM интеграции",
+    description: "Подключение внешних сервисов, CRM, форм, заявок и обмена данными.",
+    category: "development",
+    category_label: "Разработка",
+    icon: "plug",
+    is_active: true,
+    order: 40,
+  },
+  {
+    id: "telegram-bots",
+    title: "Telegram-боты",
+    description: "Боты для заявок, уведомлений, автоматизации и внутренних процессов.",
+    category: "development",
+    category_label: "Разработка",
+    icon: "bot",
+    is_active: true,
+    order: 50,
+  },
+  {
+    id: "automation",
+    title: "Автоматизация процессов",
+    description: "Автоматизация повторяющихся операций, интеграции и внутренние инструменты.",
+    category: "development",
+    category_label: "Разработка",
+    icon: "zap",
+    is_active: true,
+    order: 60,
+  },
+  {
+    id: "server-setup",
+    title: "Настройка сервера",
+    description: "Подготовка VPS или сервера, установка сервисов и настройка рабочего окружения.",
+    category: "administration",
+    category_label: "Администрирование",
+    icon: "server",
+    is_active: true,
+    order: 110,
+  },
+  {
+    id: "docker-compose",
+    title: "Docker и Docker Compose",
+    description: "Контейнеризация приложений, Compose-конфигурации и настройка окружения.",
+    category: "administration",
+    category_label: "Администрирование",
+    icon: "settings",
+    is_active: true,
+    order: 120,
+  },
+  {
+    id: "nginx",
+    title: "Nginx",
+    description: "Reverse proxy, домены, статика, маршрутизация и настройка веб-серверов.",
+    category: "administration",
+    category_label: "Администрирование",
+    icon: "server",
+    is_active: true,
+    order: 130,
+  },
+  {
+    id: "ssl",
+    title: "HTTPS / SSL",
+    description: "Установка сертификатов, HTTPS, редиректы и проверка безопасного соединения.",
+    category: "administration",
+    category_label: "Администрирование",
+    icon: "shield",
+    is_active: true,
+    order: 140,
+  },
+  {
+    id: "domains-dns",
+    title: "Домены и DNS",
+    description: "Настройка DNS-записей, поддоменов и привязка домена к серверу.",
+    category: "administration",
+    category_label: "Администрирование",
+    icon: "globe-2",
+    is_active: true,
+    order: 150,
+  },
+  {
+    id: "backup",
+    title: "Резервное копирование",
+    description: "Настройка резервных копий файлов, сервисов и баз данных.",
+    category: "administration",
+    category_label: "Администрирование",
+    icon: "download",
+    is_active: true,
+    order: 160,
+  },
+  {
+    id: "cryptopro-eds",
+    title: "КриптоПро и ЭЦП",
+    description: "Установка КриптоПро CSP, сертификатов и настройка электронной подписи.",
+    category: "technical_support",
+    category_label: "Техническая помощь",
+    icon: "key",
+    is_active: true,
+    order: 210,
+  },
+  {
+    id: "software-setup",
+    title: "Установка и настройка ПО",
+    description: "Установка программ, компонентов, драйверов и настройка рабочего окружения.",
+    category: "technical_support",
+    category_label: "Техническая помощь",
+    icon: "download",
+    is_active: true,
+    order: 220,
+  },
+  {
+    id: "windows-linux",
+    title: "Windows и Linux",
+    description: "Настройка системы, пользователей, прав доступа и решение программных проблем.",
+    category: "technical_support",
+    category_label: "Техническая помощь",
+    icon: "settings",
+    is_active: true,
+    order: 230,
+  },
+  {
+    id: "vpn-remote-access",
+    title: "VPN и удалённый доступ",
+    description: "Настройка VPN и безопасного удалённого подключения к компьютеру или серверу.",
+    category: "technical_support",
+    category_label: "Техническая помощь",
+    icon: "network",
+    is_active: true,
+    order: 240,
+  },
+  {
+    id: "network-equipment",
+    title: "Сеть и оборудование",
+    description: "Настройка сети, принтеров, сканеров и другого рабочего оборудования.",
+    category: "technical_support",
+    category_label: "Техническая помощь",
+    icon: "settings",
+    is_active: true,
+    order: 250,
+  },
+  {
+    id: "diagnostics-help",
+    title: "Диагностика и техническая помощь",
+    description: "Поиск причин ошибок и решение нестандартных программных и системных задач.",
+    category: "technical_support",
+    category_label: "Техническая помощь",
+    icon: "activity",
+    is_active: true,
+    order: 260,
+  },
+];
+
 export const DEFAULT_PORTFOLIO_SECTIONS: Record<string, JsonObject> = {
   settings: {
     site_title: "Александр Тишечкин - Full-stack Web Developer",
@@ -179,53 +370,9 @@ export const DEFAULT_PORTFOLIO_SECTIONS: Record<string, JsonObject> = {
 (DEFAULT_PORTFOLIO_SECTIONS.contact as JsonObject).contact_image_alt = "";
 DEFAULT_PORTFOLIO_SECTIONS.services = {
   title: "Услуги",
-  accent: "и техническая помощь",
-  description: "Список редактируется в TrackNode и используется в блоке услуг и форме заявки.",
-  services: [
-    { id: "website", title: "Разработка сайта", description: "Новый сайт под задачу бизнеса.", category: "Разработка", icon: "code", is_active: true, order: 10 },
-    { id: "landing", title: "Лендинг", description: "Одностраничный сайт с понятной структурой и CTA.", category: "Разработка", icon: "layout", is_active: true, order: 20 },
-    { id: "corporate", title: "Корпоративный сайт", description: "Страницы, услуги, контакты и управление контентом.", category: "Разработка", icon: "briefcase", is_active: true, order: 30 },
-    { id: "shop", title: "Интернет-магазин", description: "Каталог, карточки товаров и базовая интеграция заказов.", category: "Разработка", icon: "cart", is_active: true, order: 40 },
-    { id: "site-fixes", title: "Доработка существующего сайта", description: "Правки интерфейса, логики и интеграций.", category: "Разработка", icon: "wrench", is_active: true, order: 50 },
-    { id: "bugfix", title: "Исправление ошибок на сайте", description: "Диагностика и исправление проблем в существующем проекте.", category: "Разработка", icon: "bug", is_active: true, order: 60 },
-    { id: "responsive", title: "Адаптивная версия сайта", description: "Приведение страниц к нормальной работе на телефонах.", category: "Разработка", icon: "smartphone", is_active: true, order: 70 },
-    { id: "api", title: "Интеграция API", description: "Подключение внешних сервисов и обмен данными.", category: "Разработка", icon: "plug", is_active: true, order: 80 },
-    { id: "crm", title: "Интеграция CRM", description: "Передача заявок и событий в CRM.", category: "Разработка", icon: "database", is_active: true, order: 90 },
-    { id: "telegram-bot", title: "Telegram-бот", description: "Бот для заявок, уведомлений или внутренних процессов.", category: "Разработка", icon: "bot", is_active: true, order: 100 },
-    { id: "automation", title: "Автоматизация бизнес-процессов", description: "Скрипты, панели и интеграции для ручных операций.", category: "Разработка", icon: "zap", is_active: true, order: 110 },
-    { id: "analytics", title: "Подключение аналитики", description: "События, цели, формы и базовая аналитика сайта.", category: "Разработка", icon: "chart", is_active: true, order: 120 },
-    { id: "seo-audit", title: "SEO-аудит", description: "Техническая проверка страниц и базовые рекомендации.", category: "Разработка", icon: "search", is_active: true, order: 130 },
-    { id: "competitors", title: "Анализ конкурентов", description: "Сравнение структуры, контента и технических решений.", category: "Разработка", icon: "target", is_active: true, order: 140 },
-    { id: "forms", title: "Настройка форм и заявок", description: "Формы, валидация, хранение и уведомления.", category: "Разработка", icon: "inbox", is_active: true, order: 150 },
-    { id: "dev-other", title: "Другое по разработке", description: "Нестандартная задача по сайту или веб-сервису.", category: "Разработка", icon: "code", is_active: true, order: 160 },
-    { id: "software-install", title: "Установка программного обеспечения", description: "Установка нужных программ и компонентов.", category: "Техническая помощь", icon: "download", is_active: true, order: 210 },
-    { id: "software-setup", title: "Настройка программного обеспечения", description: "Настройка программ под рабочие задачи.", category: "Техническая помощь", icon: "settings", is_active: true, order: 220 },
-    { id: "cryptopro", title: "Установка и настройка КриптоПро CSP", description: "Подготовка КриптоПро и связанных компонентов.", category: "Техническая помощь", icon: "shield", is_active: true, order: 230 },
-    { id: "eds", title: "Настройка электронной подписи / ЭЦП", description: "Настройка ЭЦП, сертификатов и браузера.", category: "Техническая помощь", icon: "key", is_active: true, order: 240 },
-    { id: "certificates", title: "Установка сертификатов", description: "Установка и проверка сертификатов.", category: "Техническая помощь", icon: "file-check", is_active: true, order: 250 },
-    { id: "browser-eds", title: "Настройка браузера для работы с ЭЦП", description: "Расширения, плагины и параметры браузера.", category: "Техническая помощь", icon: "globe", is_active: true, order: 260 },
-    { id: "gov-workplace", title: "Настройка рабочего места для государственных порталов", description: "Подготовка компьютера для порталов и ЭЦП.", category: "Техническая помощь", icon: "landmark", is_active: true, order: 270 },
-    { id: "drivers", title: "Установка драйверов", description: "Поиск, установка и проверка драйверов.", category: "Техническая помощь", icon: "hard-drive", is_active: true, order: 280 },
-    { id: "windows", title: "Настройка Windows", description: "Система, учетные записи, сеть и рабочее окружение.", category: "Техническая помощь", icon: "monitor", is_active: true, order: 290 },
-    { id: "linux", title: "Настройка Linux", description: "Базовая настройка системы и сервисов.", category: "Техническая помощь", icon: "terminal", is_active: true, order: 300 },
-    { id: "users", title: "Создание локальных пользователей", description: "Учетные записи и базовые права доступа.", category: "Техническая помощь", icon: "users", is_active: true, order: 310 },
-    { id: "permissions", title: "Настройка прав пользователей", description: "Права доступа, группы и ограничения.", category: "Техническая помощь", icon: "lock", is_active: true, order: 320 },
-    { id: "office", title: "Установка офисных программ", description: "Офисные пакеты и сопутствующие настройки.", category: "Техническая помощь", icon: "file-text", is_active: true, order: 330 },
-    { id: "remote-access", title: "Настройка удаленного доступа", description: "Безопасный доступ к рабочему месту или серверу.", category: "Техническая помощь", icon: "mouse-pointer", is_active: true, order: 340 },
-    { id: "vpn", title: "Настройка VPN", description: "Подключение и проверка VPN-доступа.", category: "Техническая помощь", icon: "network", is_active: true, order: 350 },
-    { id: "network", title: "Настройка сети", description: "Локальная сеть, доступы и диагностика.", category: "Техническая помощь", icon: "wifi", is_active: true, order: 360 },
-    { id: "printer", title: "Настройка принтера / сканера", description: "Подключение, драйверы и проверка печати.", category: "Техническая помощь", icon: "printer", is_active: true, order: 370 },
-    { id: "migration", title: "Перенос программ и данных на новый компьютер", description: "Перенос рабочих данных и настройка окружения.", category: "Техническая помощь", icon: "copy", is_active: true, order: 380 },
-    { id: "diagnostics", title: "Диагностика программных ошибок", description: "Поиск причин сбоев и рекомендации по исправлению.", category: "Техническая помощь", icon: "activity", is_active: true, order: 390 },
-    { id: "docker", title: "Настройка Docker", description: "Контейнеры, compose и окружение сервиса.", category: "Техническая помощь", icon: "container", is_active: true, order: 400 },
-    { id: "server", title: "Настройка сервера", description: "Базовая подготовка VPS или выделенного сервера.", category: "Техническая помощь", icon: "server", is_active: true, order: 410 },
-    { id: "deploy", title: "Развертывание сайта на сервере", description: "Деплой, переменные окружения и проверка запуска.", category: "Техническая помощь", icon: "upload-cloud", is_active: true, order: 420 },
-    { id: "nginx", title: "Настройка Nginx", description: "Проксирование, статика и конфигурация домена.", category: "Техническая помощь", icon: "route", is_active: true, order: 430 },
-    { id: "ssl", title: "Настройка HTTPS / SSL", description: "Сертификаты, редиректы и проверка HTTPS.", category: "Техническая помощь", icon: "lock-keyhole", is_active: true, order: 440 },
-    { id: "domain", title: "Настройка домена", description: "DNS-записи и привязка домена к сервису.", category: "Техническая помощь", icon: "globe-2", is_active: true, order: 450 },
-    { id: "backup", title: "Резервное копирование", description: "Бэкапы файлов, данных и базовая стратегия восстановления.", category: "Техническая помощь", icon: "archive", is_active: true, order: 460 },
-    { id: "it-other", title: "Другая техническая помощь", description: "Опишите задачу, если ее нет в списке.", category: "Техническая помощь", icon: "help-circle", is_active: true, order: 470 },
-  ],
+  accent: "",
+  description: "Разработка, администрирование и техническая помощь — выберите нужное направление.",
+  services: DEFAULT_SERVICES,
 };
 
 const PortfolioContext = createContext<PortfolioContextValue>({
@@ -304,9 +451,17 @@ export interface PortfolioService {
   title: string;
   description?: string;
   category?: string;
+  category_label?: string;
   icon?: string;
   is_active?: boolean;
+  active?: boolean;
   order?: number;
+}
+
+export interface PortfolioServiceGroup {
+  key: string;
+  label: string;
+  services: PortfolioService[];
 }
 
 export function normalizePortfolioServices(value: unknown): PortfolioService[] {
@@ -321,14 +476,58 @@ export function normalizePortfolioServices(value: unknown): PortfolioService[] {
         id: String(row.id || title),
         title,
         description: String(row.description || ""),
-        category: String(row.category || "Услуги"),
+        category: normalizeServiceCategoryKey(row.category),
+        category_label: normalizeServiceCategoryLabel(row.category, row.category_label),
         icon: String(row.icon || ""),
-        is_active: row.is_active !== false,
+        is_active: row.is_active !== false && row.active !== false,
+        active: row.is_active !== false && row.active !== false,
         order: typeof row.order === "number" ? row.order : index,
       };
     })
     .filter((service): service is PortfolioService => Boolean(service?.is_active))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.title.localeCompare(b.title));
+}
+
+export function groupPortfolioServicesByCategory(services: PortfolioService[]): PortfolioServiceGroup[] {
+  const groups = services.reduce<Map<string, PortfolioServiceGroup>>((result, service) => {
+    const key = normalizeServiceCategoryKey(service.category);
+    const existing = result.get(key);
+    if (existing) {
+      existing.services.push(service);
+    } else {
+      result.set(key, {
+        key,
+        label: normalizeServiceCategoryLabel(key, service.category_label),
+        services: [service],
+      });
+    }
+    return result;
+  }, new Map());
+
+  return Array.from(groups.values()).sort(
+    (a, b) => categoryOrderIndex(a.key) - categoryOrderIndex(b.key) || a.label.localeCompare(b.label),
+  );
+}
+
+function normalizeServiceCategoryKey(value: unknown): string {
+  const rawValue = String(value || "development").trim();
+  if (!rawValue) return "development";
+
+  const legacyCategory = Object.entries(PORTFOLIO_SERVICE_CATEGORY_LABELS).find(([, label]) => label === rawValue);
+  return legacyCategory ? legacyCategory[0] : rawValue;
+}
+
+function normalizeServiceCategoryLabel(category: unknown, label: unknown): string {
+  const rawLabel = String(label || "").trim();
+  if (rawLabel) return rawLabel;
+
+  const key = normalizeServiceCategoryKey(category);
+  return PORTFOLIO_SERVICE_CATEGORY_LABELS[key] || key;
+}
+
+function categoryOrderIndex(category: string): number {
+  const index = PORTFOLIO_SERVICE_CATEGORY_ORDER.indexOf(category);
+  return index === -1 ? PORTFOLIO_SERVICE_CATEGORY_ORDER.length : index;
 }
 
 export interface PortfolioLeadPayload {

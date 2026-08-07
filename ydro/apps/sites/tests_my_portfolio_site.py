@@ -10,7 +10,12 @@ from rest_framework.test import APIClient
 
 from apps.mediafiles.models import MediaFile
 from apps.sites.models import SectionSchema, Site, SiteLead, SiteSection
-from apps.sites.my_portfolio_site import MY_PORTFOLIO_SECTION_SEEDS, MY_PORTFOLIO_SITE_SEO
+from apps.sites.my_portfolio_site import (
+    MY_PORTFOLIO_SECTION_SEEDS,
+    MY_PORTFOLIO_SERVICES,
+    MY_PORTFOLIO_SITE_SEO,
+    SERVICE_CATEGORY_LABELS,
+)
 from clients.models import Client
 from tracker.models import Site as TrackerSite, Visit
 
@@ -65,7 +70,31 @@ class MyPortfolioSiteSeedTests(TestCase):
         self.assertEqual(len(response.data["sections"]), len(MY_PORTFOLIO_SECTION_SEEDS))
         section_payload = {section["key"]: section["content"] for section in response.data["sections"]}
         self.assertIn("services", section_payload)
-        self.assertGreaterEqual(len(section_payload["services"]["services"]), 2)
+        self.assertEqual(section_payload["services"]["title"], "Услуги")
+        self.assertEqual(
+            section_payload["services"]["description"],
+            "Разработка, администрирование и техническая помощь — выберите нужное направление.",
+        )
+        self.assertEqual(len(section_payload["services"]["services"]), 18)
+        self.assertEqual(
+            self._category_counts(section_payload["services"]["services"]),
+            {"development": 6, "administration": 6, "technical_support": 6},
+        )
+        self.assertEqual(
+            [service["title"] for service in section_payload["services"]["services"][:6]],
+            [
+                "Разработка сайта",
+                "Доработка существующего сайта",
+                "Интернет-магазин",
+                "API и CRM интеграции",
+                "Telegram-боты",
+                "Автоматизация процессов",
+            ],
+        )
+        self.assertEqual(
+            {service["category_label"] for service in section_payload["services"]["services"]},
+            set(SERVICE_CATEGORY_LABELS.values()),
+        )
 
     def test_portfolio_and_tracknode_are_visible_only_to_owner(self):
         self.seed()
@@ -149,8 +178,8 @@ class MyPortfolioSiteSeedTests(TestCase):
                 "phone": "+79991234567",
                 "message": "Нужно поправить форму",
                 "service_type": "my_portfolio_contact",
-                "service_title": "Настройка форм и заявок",
-                "payload": {"source": "my_portfolio_contact", "selected_service": "Настройка форм и заявок"},
+                "service_title": "КриптоПро и ЭЦП",
+                "payload": {"source": "my_portfolio_contact", "selected_service": "КриптоПро и ЭЦП"},
             },
             format="json",
         )
@@ -159,10 +188,10 @@ class MyPortfolioSiteSeedTests(TestCase):
         lead = SiteLead.objects.latest("id")
         self.assertEqual(lead.site, portfolio)
         self.assertEqual(lead.service_type, "my_portfolio_contact")
-        self.assertEqual(lead.service_title, "Настройка форм и заявок")
+        self.assertEqual(lead.service_title, "КриптоПро и ЭЦП")
         self.assertEqual(lead.message, "Нужно поправить форму")
         self.assertEqual(lead.payload["source"], "my_portfolio_contact")
-        self.assertEqual(lead.payload["selected_service"], "Настройка форм и заявок")
+        self.assertEqual(lead.payload["selected_service"], "КриптоПро и ЭЦП")
 
     def test_regular_seed_preserves_admin_content_and_reset_restores_it(self):
         self.seed()
@@ -177,6 +206,43 @@ class MyPortfolioSiteSeedTests(TestCase):
         self.seed("--reset-content")
         hero.refresh_from_db()
         self.assertEqual(hero.content["title"], "Создаю современные веб-приложения")
+
+    def test_reset_services_replaces_only_services_content(self):
+        self.seed()
+        portfolio = Site.objects.get(slug="my-portfolio")
+        hero = SiteSection.objects.get(site=portfolio, key="hero")
+        services = SiteSection.objects.get(site=portfolio, key="services")
+        hero.content["title"] = "Заголовок из админки"
+        services.content["services"] = [
+            {
+                "id": "custom",
+                "title": "Своя услуга",
+                "description": "Останется при обычном seed.",
+                "category": "development",
+                "category_label": "Разработка",
+                "is_active": True,
+                "order": 10,
+            }
+        ]
+        hero.save(update_fields=["content", "updated_at"])
+        services.save(update_fields=["content", "updated_at"])
+
+        self.seed()
+        hero.refresh_from_db()
+        services.refresh_from_db()
+        self.assertEqual(hero.content["title"], "Заголовок из админки")
+        self.assertEqual(services.content["services"][0]["title"], "Своя услуга")
+
+        self.seed("--reset-services")
+        hero.refresh_from_db()
+        services.refresh_from_db()
+        self.assertEqual(hero.content["title"], "Заголовок из админки")
+        self.assertEqual(services.content["services"], MY_PORTFOLIO_SERVICES)
+        self.assertEqual(self._category_counts(services.content["services"]), {
+            "development": 6,
+            "administration": 6,
+            "technical_support": 6,
+        })
 
     def test_portfolio_media_fields_are_explicit_in_section_schemas(self):
         media_fields = {}
@@ -295,6 +361,13 @@ class MyPortfolioSiteSeedTests(TestCase):
             if field.get("type") == "repeater":
                 keys.update(self._collect_media_fields(field.get("fields", []), path))
         return keys
+
+    def _category_counts(self, services):
+        counts = {}
+        for service in services:
+            category = service["category"]
+            counts[category] = counts.get(category, 0) + 1
+        return counts
 
     def _upload_png(self, api, site, section, field_name, filename):
         png_bytes = (

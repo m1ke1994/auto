@@ -32,6 +32,11 @@ class Command(BaseCommand):
             action="store_true",
             help="Replace content edited in admin with current seed values.",
         )
+        parser.add_argument(
+            "--reset-services",
+            action="store_true",
+            help="Replace only the portfolio services section content with current seed values.",
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -43,6 +48,7 @@ class Command(BaseCommand):
             requested_email=options.get("owner_email"),
         )
         reset_content = bool(options.get("reset_content"))
+        reset_services = bool(options.get("reset_services"))
 
         current_seo = existing_site.seo if existing_site and isinstance(existing_site.seo, dict) else {}
         site, site_created = Site.objects.update_or_create(
@@ -79,11 +85,18 @@ class Command(BaseCommand):
 
             existing_section = SiteSection.objects.filter(site=site, key=seed["key"]).first()
             current_content = existing_section.content if existing_section else {}
-            content = (
-                seed_content
-                if reset_content or not isinstance(current_content, dict)
-                else merge_content_defaults(seed_content, current_content)
-            )
+            if reset_content or not isinstance(current_content, dict):
+                content = seed_content
+            elif reset_services and seed["key"] == "services":
+                content = {
+                    **current_content,
+                    "title": seed_content["title"],
+                    "accent": seed_content["accent"],
+                    "description": seed_content["description"],
+                    "services": seed_content["services"],
+                }
+            else:
+                content = merge_content_defaults(seed_content, current_content)
             section, created = SiteSection.objects.update_or_create(
                 site=site,
                 key=seed["key"],

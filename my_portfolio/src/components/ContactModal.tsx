@@ -20,6 +20,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
+  groupPortfolioServicesByCategory,
   normalizePortfolioServices,
   submitPortfolioLead,
   usePortfolioSection,
@@ -72,14 +73,7 @@ function ContactModal({
     () => normalizePortfolioServices(servicesContent.services),
     [servicesContent.services],
   );
-  const groupedServices = useMemo(() => {
-    return services.reduce<Record<string, typeof services>>((groups, service) => {
-      const category = service.category || "Услуги";
-      groups[category] = groups[category] || [];
-      groups[category].push(service);
-      return groups;
-    }, {});
-  }, [services]);
+  const groupedServices = useMemo(() => groupPortfolioServicesByCategory(services), [services]);
 
   const firstInputRef = useRef<HTMLInputElement | null>(null);
   const [name, setName] = useState("");
@@ -248,9 +242,9 @@ function ContactModal({
                       aria-invalid={Boolean(errors.service)}
                     >
                       <option value="">Выберите услугу</option>
-                      {Object.entries(groupedServices).map(([category, items]) => (
-                        <optgroup key={category} label={category}>
-                          {items.map((service) => (
+                      {groupedServices.map((group) => (
+                        <optgroup key={group.key} label={group.label}>
+                          {group.services.map((service) => (
                             <option key={service.id || service.title} value={service.title}>
                               {service.title}
                             </option>

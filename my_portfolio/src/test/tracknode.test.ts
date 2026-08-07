@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { projects } from "@/data/projects";
 import {
   applySeo,
+  groupPortfolioServicesByCategory,
   mergePortfolioContent,
   normalizeImageList,
   normalizePortfolioProject,
@@ -36,14 +37,41 @@ describe("TrackNode portfolio content helpers", () => {
   });
 
   it("normalizes editable portfolio services for section and form usage", () => {
-    expect(
-      normalizePortfolioServices([
-        { id: "b", title: "Second", category: "Dev", order: 20 },
-        { id: "a", title: "First", category: "Dev", order: 10 },
-        { id: "hidden", title: "Hidden", is_active: false },
-        { title: "" },
-      ]).map((service) => service.title),
-    ).toEqual(["First", "Second"]);
+    const services = normalizePortfolioServices([
+      { id: "b", title: "Second", category: "development", order: 20 },
+      { id: "a", title: "First", category: "development", order: 10 },
+      { id: "hidden", title: "Hidden", category: "development", is_active: false },
+      { id: "inactive", title: "Inactive", category: "development", active: false },
+      { title: "" },
+    ]);
+
+    expect(services.map((service) => service.title)).toEqual(["First", "Second"]);
+    expect(services[0].category).toBe("development");
+    expect(services[0].category_label).toBe("Разработка");
+  });
+
+  it("groups services by TrackNode category values in public order", () => {
+    const services = normalizePortfolioServices([
+      { id: "vpn", title: "VPN", category: "technical_support", order: 240 },
+      { id: "api", title: "API", category: "development", order: 40 },
+      { id: "nginx", title: "Nginx", category: "administration", order: 130 },
+      { id: "custom", title: "Custom", category: "custom_group", category_label: "Своя группа", order: 500 },
+    ]);
+    const groups = groupPortfolioServicesByCategory(services);
+
+    expect(groups.map((group) => group.key)).toEqual([
+      "development",
+      "administration",
+      "technical_support",
+      "custom_group",
+    ]);
+    expect(groups.map((group) => group.label)).toEqual([
+      "Разработка",
+      "Администрирование",
+      "Техническая помощь",
+      "Своя группа",
+    ]);
+    expect(groups.find((group) => group.key === "development")?.services).toHaveLength(1);
   });
 
   it("keeps absolute media URLs unchanged", () => {
