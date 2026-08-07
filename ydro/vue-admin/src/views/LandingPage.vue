@@ -52,12 +52,13 @@ const customBuildSteps = [
   ['SEO-база', 'Фундамент для дальнейшего роста заложен сразу.'],
 ]
 
-const growthRoute = [
-  ['Сайт запущен', '01'],
-  ['Собираются данные', '02'],
-  ['Видим результат', '03'],
-  ['Находим точки роста', '04'],
-  ['Развиваем сайт', '05'],
+const capabilityCards = [
+  ['Сайты', Code2],
+  ['Аналитика', BarChart3],
+  ['CRM', UsersRound],
+  ['SEO-аудит', SearchCheck],
+  ['Telegram', Send],
+  ['Разработка', Sparkles],
 ]
 
 const pwaSteps = [
@@ -386,10 +387,11 @@ onUnmounted(() => revealObserver?.disconnect())
             <p class="kicker">TrackNode</p>
             <h2>Данные для следующего решения</h2>
             <p>Видите результат, находите слабые места и понимаете, что улучшать дальше.</p>
+            <a class="button secondary section-head__button" href="#analytics">Посмотреть возможности <ChevronRight :size="17" /></a>
           </div>
-          <div class="growth-route">
-            <article v-for="[title, number] in growthRoute" :key="title">
-              <span>{{ number }}</span>
+          <div class="capability-grid" aria-label="Возможности TrackNode">
+            <article v-for="[title, icon] in capabilityCards" :key="title" class="glass">
+              <span><component :is="icon" :size="24" /></span>
               <h3>{{ title }}</h3>
             </article>
           </div>
@@ -1840,6 +1842,138 @@ onUnmounted(() => revealObserver?.disconnect())
   }
   .contact form{
     grid-template-columns:1fr;
+  }
+}
+
+/* Alignment pass for the first post-hero sections */
+.landing-section{
+  padding-block:76px;
+}
+.custom-site{
+  padding-top:70px;
+}
+.section-head{
+  max-width:780px;
+  margin:0 auto 34px;
+}
+.section-head h2{
+  text-wrap:balance;
+}
+.section-head__button{
+  margin-top:22px;
+}
+.site-showcase{
+  display:grid;
+  grid-template-columns:minmax(0,1.08fr) minmax(280px,.92fr);
+  gap:20px;
+  min-height:0;
+  padding:22px;
+  align-items:stretch;
+}
+.browser-mockup{
+  width:100%;
+  min-height:0;
+  margin:0;
+}
+.browser-hero{
+  margin-top:18px;
+}
+.browser-grid{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+}
+.build-annotations{
+  position:static;
+  inset:auto;
+  display:grid;
+  grid-template-columns:1fr;
+  gap:12px;
+  pointer-events:auto;
+}
+.build-annotations span,
+.build-annotations span:nth-child(n){
+  position:static;
+  width:auto;
+  min-height:104px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+.growth-system{
+  padding-top:76px;
+}
+.capability-grid{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:14px;
+}
+.capability-grid article{
+  min-height:142px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:16px;
+  padding:22px 14px;
+  border-radius:24px;
+  text-align:center;
+}
+.capability-grid span{
+  display:grid;
+  width:52px;
+  height:52px;
+  place-items:center;
+  border-radius:18px;
+  color:#3568ff;
+  background:linear-gradient(180deg,#f4f8ff,#ffffff);
+  border:1px solid rgba(119,137,166,.18);
+  box-shadow:0 14px 30px rgba(36,107,253,.1);
+}
+.capability-grid h3{
+  margin:0;
+  color:#12203a;
+  font-size:1rem;
+  line-height:1.25;
+}
+@media(max-width:1100px){
+  .landing-section{
+    padding-block:68px;
+  }
+  .site-showcase{
+    grid-template-columns:1fr;
+  }
+  .build-annotations{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .capability-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+}
+@media(max-width:680px){
+  .landing-section{
+    padding-block:58px;
+  }
+  .custom-site{
+    padding-top:56px;
+  }
+  .section-head{
+    margin-bottom:26px;
+  }
+  .site-showcase{
+    padding:14px;
+    gap:14px;
+  }
+  .browser-hero{
+    padding:22px;
+  }
+  .browser-grid,
+  .build-annotations,
+  .capability-grid{
+    grid-template-columns:1fr;
+  }
+  .build-annotations span,
+  .build-annotations span:nth-child(n),
+  .capability-grid article{
+    min-height:112px;
   }
 }
 </style>
