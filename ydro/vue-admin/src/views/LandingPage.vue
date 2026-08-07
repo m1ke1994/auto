@@ -3,17 +3,13 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import {
   ArrowRight,
   BarChart3,
-  Bell,
   Bot,
-  Check,
   ChevronRight,
   CircleDollarSign,
   Code2,
   ExternalLink,
   FileSearch,
-  LayoutDashboard,
   Menu,
-  MessageSquare,
   SearchCheck,
   Send,
   Sparkles,
@@ -58,11 +54,20 @@ const plans = computed(() => (sectionsByKey.value.tariffs?.plans || []).filter((
   return key && items.findIndex((item) => (item.title || item.name) === key) === index
 }).slice(0, 2))
 
-const platformFlow = ['Сайт', 'Заявка', 'CRM', 'Telegram', 'Аналитика', 'SEO', 'Развитие']
-const valueSteps = [
-  ['01', 'Создаем или подключаем сайт', 'Проект можно запустить с нуля или подключить TrackNode к текущему сайту через аналитический скрипт.'],
-  ['02', 'Собираем заявки и действия', 'Посещения, формы, источники, клики и обращения попадают в единую систему без ручных таблиц.'],
-  ['03', 'Помогаем развивать проект', 'SEO-аудит, конкуренты и AI-рекомендации показывают, что стоит улучшить дальше.'],
+const customBuildSteps = [
+  ['01', 'Индивидуальный дизайн', 'Визуальная система создается под бренд, задачу и доверие к проекту.'],
+  ['02', 'Продуманная структура', 'Страницы и сценарии строятся вокруг пути потенциального клиента.'],
+  ['03', 'Современная разработка', 'Адаптивность, скорость, SEO-база и корректная работа на разных устройствах.'],
+  ['04', 'Готовность к аналитике', 'После запуска сайт сразу подключается к экосистеме TrackNode.'],
+]
+
+const growthRoute = [
+  ['Сайт', 'Индивидуальная разработка под бизнес.'],
+  ['Данные', 'События, источники и заявки собираются в систему.'],
+  ['Аналитика', 'Посетители, действия и конверсии становятся понятными.'],
+  ['SEO', 'Техническое состояние, ошибки и позиции под контролем.'],
+  ['Заявки', 'Обращения и важные события не теряются.'],
+  ['Рост', 'Решения принимаются на основе данных.'],
 ]
 
 const taskTypes = [
@@ -74,47 +79,6 @@ const taskTypes = [
   'SEO-аудит',
   'Анализ конкурентов',
   'Другое',
-]
-
-const features = [
-  {
-    title: 'Создание сайтов',
-    text: 'Индивидуальная структура, уникальный дизайн, адаптивная верстка, формы, домен, базовая SEO-подготовка и управление контентом.',
-    icon: Code2,
-    class: 'wide',
-  },
-  {
-    title: 'Управление заявками',
-    text: 'Единый центр обращений: контакт, источник, статус, дата и история обработки. Подготовка к CRM-интеграциям по задаче клиента.',
-    icon: UsersRound,
-    class: 'tall',
-  },
-  {
-    title: 'Аналитика',
-    text: 'Посещения, просмотры, источники переходов, действия пользователей, формы и ключевые события в личном кабинете.',
-    icon: BarChart3,
-  },
-  {
-    title: 'Telegram-уведомления',
-    text: 'Новые заявки приходят в Telegram, чтобы не проверять кабинет каждую минуту.',
-    icon: Bell,
-  },
-  {
-    title: 'SEO-аудит',
-    text: 'Техническое состояние, метаданные, структура, ошибки и рекомендации по улучшению сайта.',
-    icon: FileSearch,
-    class: 'wide',
-  },
-  {
-    title: 'Анализ конкурентов',
-    text: 'Сравнение структуры, контента, преимуществ и точек для улучшения предложения.',
-    icon: SearchCheck,
-  },
-  {
-    title: 'AI-рекомендации',
-    text: 'Идеи по контенту, структуре, продвижению и развитию проекта на основе собранных данных.',
-    icon: Sparkles,
-  },
 ]
 
 const faq = [
@@ -369,112 +333,72 @@ onUnmounted(() => revealObserver?.disconnect())
           </div>
         </section>
 
-        <section class="value wrap" data-reveal>
-          <p class="kicker">Единая экосистема</p>
-          <h2>От идеи сайта до первой заявки и дальнейшей аналитики</h2>
-          <div class="value-line">
-            <article v-for="[number, title, text] in valueSteps" :key="number">
-              <span>{{ number }}</span><h3>{{ title }}</h3><p>{{ text }}</p>
+        <section id="website" class="custom-site wrap" data-reveal>
+          <div class="custom-site__intro">
+            <p class="kicker">Сайт под ваш бизнес</p>
+            <h2>Создаем сайт с нуля. <span>Не из шаблона.</span></h2>
+            <p>Проектируем структуру, интерфейс и визуальный стиль под конкретную компанию. Сайт должен не просто выглядеть современно - он должен объяснять предложение и приводить клиента к целевому действию.</p>
+            <div class="section-actions">
+              <a class="button" href="#contact">Обсудить создание сайта</a>
+              <RouterLink class="button secondary" to="/register">Уже есть сайт? Подключить аналитику</RouterLink>
+            </div>
+          </div>
+          <div class="build-timeline" aria-label="Этапы заказной разработки">
+            <article v-for="[number, title, text] in customBuildSteps" :key="number">
+              <span>{{ number }}</span>
+              <div>
+                <h3>{{ title }}</h3>
+                <p>{{ text }}</p>
+              </div>
             </article>
           </div>
         </section>
 
-        <section class="scenarios wrap" data-reveal>
-          <article class="glass scenario website-scenario">
-            <Code2 :size="34" />
-            <h2>Нужен новый сайт</h2>
-            <p>Проектируем структуру, готовим индивидуальный дизайн, адаптивную верстку, формы заявок, подключение домена, аналитику, Telegram-уведомления и личный кабинет для контента и обращений.</p>
-            <ul>
-              <li v-for="item in ['Структура под задачи компании', 'Уникальный дизайн', 'Адаптивная верстка', 'Формы заявок', 'SEO-подготовка', 'Дальнейшее развитие']" :key="item"><Check :size="16" />{{ item }}</li>
-            </ul>
-            <a class="button" href="#contact">Обсудить создание сайта</a>
-          </article>
-          <article class="glass scenario existing-scenario">
-            <BarChart3 :size="34" />
-            <h2>Сайт уже существует</h2>
-            <p>Подключаем TrackNode к текущему сайту: посещения, действия, заявки, управление обращениями, Telegram, SEO-аудит, конкуренты, отчеты и AI-рекомендации.</p>
-            <ul>
-              <li v-for="item in ['Аналитический скрипт', 'Отслеживание заявок', 'Управление обращениями', 'SEO-аудит', 'Анализ конкурентов', 'AI-рекомендации']" :key="item"><Check :size="16" />{{ item }}</li>
-            </ul>
-            <RouterLink class="button secondary" to="/register">Подключить существующий сайт</RouterLink>
-          </article>
+        <section class="site-message wrap" data-reveal>
+          <p>Сайт - это только начало.</p>
+          <span>TrackNode показывает, что происходит после запуска и куда двигаться дальше.</span>
         </section>
 
-        <section id="features" class="features wrap" data-reveal>
-          <p class="kicker">Возможности платформы</p>
-          <h2>Инструменты, которые связаны с реальной работой сайта</h2>
-          <div class="bento">
-            <article v-for="feature in features" :key="feature.title" class="glass feature" :class="feature.class">
-              <component :is="feature.icon" :size="26" />
-              <h3>{{ feature.title }}</h3>
-              <p>{{ feature.text }}</p>
+        <section id="analytics" class="post-launch wrap" data-reveal>
+          <div class="post-launch__copy">
+            <p class="kicker">После запуска</p>
+            <h2>Запустить сайт легко. <span>Развивать его без данных - сложно.</span></h2>
+            <p>TrackNode подключается к сайту и превращает его работу в понятные данные: посетители, источники трафика, действия пользователей, заявки, SEO и ключевые показатели.</p>
+            <p class="insight-note">Владелец не должен гадать, что работает, а что нет.</p>
+          </div>
+          <div class="dashboard-composition" aria-label="Панель аналитики TrackNode">
+            <div class="dashboard-card glass">
+              <div class="dashboard-card__top">
+                <strong>Ваш сайт</strong>
+                <span>Сегодня</span>
+              </div>
+              <div class="dashboard-metrics">
+                <span>Посетители<b>1 284</b><em>+18%</em></span>
+                <span>Конверсия<b>4.2%</b><em>+0.8</em></span>
+                <span>Заявки<b>37</b><em>+12</em></span>
+              </div>
+              <div class="dashboard-chart">
+                <i v-for="height in [34, 58, 46, 76, 62, 96, 74, 118]" :key="height" :style="{height:`${height}px`}" />
+              </div>
+              <div class="dashboard-seo"><span>SEO</span><b>82 / 100</b></div>
+            </div>
+            <div class="float-chip chip-lead">Новая заявка</div>
+            <div class="float-chip chip-seo">SEO +6 позиций</div>
+            <div class="float-chip chip-telegram">Telegram ✓</div>
+          </div>
+        </section>
+
+        <section id="features" class="growth-system wrap" data-reveal>
+          <div class="growth-system__head">
+            <p class="kicker">Одна система для роста</p>
+            <h2>От запуска сайта до решений на основе данных.</h2>
+          </div>
+          <div class="growth-route">
+            <article v-for="([title, text], index) in growthRoute" :key="title">
+              <span>{{ String(index + 1).padStart(2, '0') }}</span>
+              <h3>{{ title }}</h3>
+              <p>{{ text }}</p>
             </article>
-          </div>
-        </section>
-
-        <section class="connected wrap" data-reveal>
-          <p class="kicker">Как всё связано</p>
-          <h2>Сайт превращается в управляемую систему</h2>
-          <div class="flow">
-            <template v-for="(item,index) in platformFlow" :key="item">
-              <span>{{ item }}</span>
-              <i v-if="index < platformFlow.length - 1" />
-            </template>
-          </div>
-        </section>
-
-        <section id="website" class="website-build">
-          <div class="wrap website-layout" data-reveal>
-            <div>
-              <p class="kicker">Создание сайтов</p>
-              <h2>Не просто красивый сайт, а рабочий инструмент для бизнеса</h2>
-              <p>Сайт проектируется вокруг задачи: объяснить предложение, принять обращение, передать данные в систему и показать, какие каналы работают.</p>
-              <ul>
-                <li v-for="item in ['Индивидуальный дизайн', 'Структура под задачи компании', 'Быстрая загрузка', 'Формы заявок', 'SEO-подготовка', 'Аналитика сразу после запуска', 'Telegram-уведомления']" :key="item"><Check :size="16" />{{ item }}</li>
-              </ul>
-              <p class="price-note">Стоимость рассчитывается индивидуально после обсуждения структуры, дизайна и функциональности.</p>
-              <a class="button" href="#contact">Получить оценку проекта</a>
-            </div>
-            <div class="device-mockup" aria-label="Демонстрационный макет сайта">
-              <div class="laptop glass"><span /><b>Главный экран</b><i /><i /><i /></div>
-              <div class="phone glass"><span /><b>Форма заявки</b><i /><i /></div>
-            </div>
-          </div>
-        </section>
-
-        <section id="analytics" class="analytics wrap" data-reveal>
-          <div>
-            <p class="kicker">Аналитика</p>
-            <h2>Понимайте, как посетители взаимодействуют с сайтом</h2>
-            <p>TrackNode показывает посещаемость, заявки, конверсию, источники трафика, популярные страницы и ключевые действия без неподтвержденных обещаний роста.</p>
-          </div>
-          <div class="analytics-board glass">
-            <div class="metrics"><span>Посещения<b>1 248</b></span><span>Заявки<b>34</b></span><span>Конверсия<b>2.7%</b></span></div>
-            <div class="traffic"><i v-for="height in [48, 72, 54, 98, 82, 120, 94, 132]" :key="height" :style="{height:`${height}px`}" /></div>
-            <div class="sources"><span>Поиск</span><b /><span>Реклама</span><b /><span>Прямые</span><b /></div>
-          </div>
-        </section>
-
-        <section id="leads" class="leads wrap" data-reveal>
-          <div class="lead-card glass">
-            <small>Новая заявка</small><h3>Обсудить сайт</h3>
-            <dl><dt>Контакт</dt><dd>Telegram</dd><dt>Источник</dt><dd>SEO-аудит</dd><dt>Статус</dt><dd>Новая</dd><dt>Дата</dt><dd>Сегодня</dd><dt>Комментарий</dt><dd>Нужна оценка проекта</dd></dl>
-          </div>
-          <div>
-            <p class="kicker">Заявки и CRM-направление</p>
-            <h2>Единый центр обращений вместо разрозненных сообщений</h2>
-            <p>TrackNode сохраняет заявки, источники, статусы и контекст обращения. Если нужна полноценная CRM, интеграцию можно спроектировать отдельно под процесс клиента.</p>
-          </div>
-        </section>
-
-        <section class="telegram wrap" data-reveal>
-          <div>
-            <p class="kicker">Telegram-уведомления</p>
-            <h2>Новая заявка приходит сразу в Telegram</h2>
-            <p>Команда видит обращение без постоянного входа в кабинет и может быстрее перейти к обработке.</p>
-          </div>
-          <div class="telegram-card glass">
-            <MessageSquare :size="26" /><b>TrackNode</b><p>Новая заявка: создание сайта<br>Источник: форма лендинга</p><button type="button">Открыть в кабинете</button>
           </div>
         </section>
 
@@ -560,7 +484,7 @@ onUnmounted(() => revealObserver?.disconnect())
         <div class="wrap footer-inner">
           <div><a class="brand" href="#top"><span>TN</span><strong>TrackNode</strong></a><p>Платформа для создания сайтов, заявок, аналитики, Telegram-уведомлений, SEO-аудита и развития проекта.</p></div>
           <nav>
-            <a href="#website">Создание сайтов</a><a href="#analytics">Аналитика</a><a href="#leads">Заявки</a><a href="#features">Telegram</a><a href="#seo">SEO-аудит</a><a href="#seo">Анализ конкурентов</a><a href="#pricing">Тарифы</a><RouterLink to="/terms">Пользовательское соглашение</RouterLink><RouterLink to="/privacy">Политика конфиденциальности</RouterLink><RouterLink to="/login">Вход</RouterLink><RouterLink to="/register">Регистрация</RouterLink><a href="#contact">Контакты</a><a :href="PORTFOLIO_URL" target="_blank" rel="noopener noreferrer" @click="trackPortfolioLink('footer')">Сайт разработчика</a>
+            <a href="#website">Создание сайтов</a><a href="#analytics">После запуска</a><a href="#features">Система роста</a><a href="#seo">SEO-аудит</a><a href="#seo">Анализ конкурентов</a><a href="#pricing">Тарифы</a><RouterLink to="/terms">Пользовательское соглашение</RouterLink><RouterLink to="/privacy">Политика конфиденциальности</RouterLink><RouterLink to="/login">Вход</RouterLink><RouterLink to="/register">Регистрация</RouterLink><a href="#contact">Контакты</a><a :href="PORTFOLIO_URL" target="_blank" rel="noopener noreferrer" @click="trackPortfolioLink('footer')">Сайт разработчика</a>
           </nav>
           <small>© {{ new Date().getFullYear() }} TrackNode</small>
         </div>
@@ -1096,5 +1020,349 @@ onUnmounted(() => revealObserver?.disconnect())
 
 @media(min-width:1181px){
   .hero-compass-stage{margin-left:clamp(-90px,-5vw,-48px)}
+}
+
+.custom-site,
+.post-launch{
+  display:grid;
+  grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);
+  gap:clamp(54px,7vw,112px);
+  align-items:center;
+  padding-block:clamp(96px,10vw,150px);
+}
+.custom-site__intro h2,
+.post-launch__copy h2,
+.growth-system__head h2{
+  margin:0;
+  color:#10254a;
+  font-size:clamp(3rem,5.8vw,6.2rem);
+  line-height:1.02;
+  letter-spacing:0;
+}
+.custom-site__intro h2 span,
+.post-launch__copy h2 span,
+.growth-system__head h2 span{
+  color:var(--accent);
+}
+.custom-site__intro>p,
+.post-launch__copy>p{
+  max-width:640px;
+  margin:28px 0 0;
+  color:#405984;
+  font-size:1.12rem;
+  line-height:1.72;
+}
+.section-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:16px;
+  margin-top:36px;
+}
+.build-timeline{
+  display:grid;
+  gap:0;
+  border-top:1px solid rgba(145,161,190,.24);
+}
+.build-timeline article{
+  display:grid;
+  grid-template-columns:96px 1fr;
+  gap:28px;
+  padding:30px 0;
+  border-bottom:1px solid rgba(145,161,190,.24);
+}
+.build-timeline article span{
+  color:rgba(36,107,253,.34);
+  font-size:clamp(2.8rem,5vw,5.25rem);
+  line-height:.9;
+  font-weight:800;
+}
+.build-timeline h3{
+  margin:0 0 9px;
+  color:#10254a;
+  font-size:1.42rem;
+}
+.build-timeline p{
+  max-width:520px;
+  margin:0;
+  color:#52678d;
+  line-height:1.62;
+}
+.site-message{
+  padding-block:clamp(90px,11vw,170px);
+  text-align:center;
+}
+.site-message p{
+  max-width:1060px;
+  margin:0 auto;
+  color:#10254a;
+  font-size:clamp(3.4rem,8vw,8.5rem);
+  line-height:.95;
+  letter-spacing:0;
+  font-weight:850;
+}
+.site-message span{
+  display:block;
+  max-width:760px;
+  margin:30px auto 0;
+  color:#405984;
+  font-size:clamp(1.1rem,1.8vw,1.55rem);
+  line-height:1.55;
+}
+.post-launch{
+  position:relative;
+}
+.insight-note{
+  font-weight:750;
+}
+.dashboard-composition{
+  position:relative;
+  min-height:560px;
+  display:grid;
+  place-items:center;
+}
+.dashboard-card{
+  position:relative;
+  z-index:2;
+  width:min(100%,640px);
+  padding:30px;
+  border-radius:28px;
+  background:linear-gradient(145deg,rgba(255,255,255,.9),rgba(245,249,255,.78));
+  box-shadow:0 32px 90px rgba(28,45,79,.14);
+}
+.dashboard-card__top,
+.dashboard-seo{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:20px;
+}
+.dashboard-card__top strong{
+  color:#10254a;
+  font-size:1.18rem;
+}
+.dashboard-card__top span,
+.dashboard-seo span{
+  color:#6a7da0;
+  font-size:.92rem;
+  font-weight:700;
+}
+.dashboard-metrics{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px;
+  margin-top:28px;
+}
+.dashboard-metrics span{
+  min-width:0;
+  padding:16px;
+  border:1px solid rgba(145,161,190,.22);
+  border-radius:16px;
+  background:rgba(255,255,255,.72);
+  color:#6a7da0;
+  font-size:.82rem;
+  font-weight:700;
+}
+.dashboard-metrics b{
+  display:block;
+  margin-top:8px;
+  color:#10254a;
+  font-size:1.58rem;
+}
+.dashboard-metrics em{
+  display:block;
+  margin-top:6px;
+  color:#246bfd;
+  font-style:normal;
+}
+.dashboard-chart{
+  display:flex;
+  height:190px;
+  align-items:flex-end;
+  gap:12px;
+  margin:28px 0;
+  padding:24px;
+  border-radius:22px;
+  background:
+    linear-gradient(rgba(145,161,190,.12) 1px,transparent 1px) 0 0/100% 25%,
+    linear-gradient(180deg,rgba(255,255,255,.72),rgba(237,246,255,.62));
+}
+.dashboard-chart i{
+  flex:1;
+  min-width:10px;
+  border-radius:10px 10px 4px 4px;
+  background:linear-gradient(180deg,#246bfd,#8bdfff);
+}
+.dashboard-seo{
+  padding-top:18px;
+  border-top:1px solid rgba(145,161,190,.22);
+}
+.dashboard-seo b{
+  color:#10254a;
+  font-size:1.12rem;
+}
+.float-chip{
+  position:absolute;
+  z-index:3;
+  padding:12px 16px;
+  border:1px solid rgba(145,161,190,.22);
+  border-radius:999px;
+  color:#10254a;
+  background:rgba(255,255,255,.86);
+  box-shadow:0 18px 44px rgba(28,45,79,.1);
+  font-size:.9rem;
+  font-weight:800;
+  backdrop-filter:blur(12px);
+}
+.chip-lead{left:0;top:92px}
+.chip-seo{right:8px;top:52px}
+.chip-telegram{right:20px;bottom:92px}
+.growth-system{
+  padding-block:clamp(96px,10vw,150px);
+}
+.growth-system__head{
+  max-width:980px;
+}
+.growth-route{
+  position:relative;
+  display:grid;
+  grid-template-columns:repeat(6,1fr);
+  gap:0;
+  margin-top:62px;
+}
+.growth-route:before{
+  content:"";
+  position:absolute;
+  left:7%;
+  right:7%;
+  top:34px;
+  height:1px;
+  background:linear-gradient(90deg,rgba(36,107,253,.12),rgba(36,107,253,.48),rgba(36,107,253,.12));
+}
+.growth-route article{
+  position:relative;
+  min-width:0;
+  padding:0 16px;
+}
+.growth-route article:before{
+  content:"";
+  display:block;
+  width:68px;
+  height:68px;
+  margin-bottom:22px;
+  border:1px solid rgba(145,161,190,.26);
+  border-radius:50%;
+  background:rgba(255,255,255,.88);
+  box-shadow:0 16px 38px rgba(28,45,79,.08);
+}
+.growth-route article span{
+  position:absolute;
+  top:25px;
+  left:40px;
+  color:#246bfd;
+  font-size:.8rem;
+  font-weight:900;
+}
+.growth-route h3{
+  margin:0 0 10px;
+  color:#10254a;
+  font-size:1.05rem;
+}
+.growth-route p{
+  margin:0;
+  color:#52678d;
+  font-size:.92rem;
+  line-height:1.55;
+}
+@media(max-width:1180px){
+  .custom-site,
+  .post-launch{
+    grid-template-columns:1fr;
+  }
+  .custom-site__intro h2,
+  .post-launch__copy h2,
+  .growth-system__head h2{
+    font-size:clamp(2.8rem,8vw,5rem);
+  }
+  .dashboard-composition{
+    min-height:500px;
+  }
+  .growth-route{
+    grid-template-columns:repeat(3,1fr);
+    gap:34px 0;
+  }
+  .growth-route:before{
+    display:none;
+  }
+}
+@media(max-width:760px){
+  .custom-site,
+  .post-launch,
+  .growth-system{
+    padding-block:76px;
+  }
+  .custom-site__intro h2,
+  .post-launch__copy h2,
+  .growth-system__head h2{
+    font-size:clamp(2.25rem,11vw,3.25rem);
+  }
+  .custom-site__intro>p,
+  .post-launch__copy>p{
+    font-size:1rem;
+  }
+  .section-actions{
+    display:grid;
+  }
+  .build-timeline article{
+    grid-template-columns:1fr;
+    gap:12px;
+    padding:26px 0;
+  }
+  .build-timeline article span{
+    font-size:2.8rem;
+  }
+  .site-message{
+    padding-block:82px;
+  }
+  .site-message p{
+    font-size:clamp(2.45rem,13vw,4.2rem);
+  }
+  .dashboard-composition{
+    min-height:auto;
+    padding-top:10px;
+  }
+  .dashboard-card{
+    padding:20px;
+    border-radius:22px;
+  }
+  .dashboard-metrics{
+    grid-template-columns:1fr;
+  }
+  .dashboard-chart{
+    height:150px;
+    gap:8px;
+    padding:18px;
+  }
+  .float-chip{
+    display:none;
+  }
+  .growth-route{
+    grid-template-columns:1fr;
+    gap:0;
+    margin-top:42px;
+    border-left:1px solid rgba(36,107,253,.24);
+    padding-left:26px;
+  }
+  .growth-route article{
+    padding:0 0 30px;
+  }
+  .growth-route article:before{
+    width:48px;
+    height:48px;
+    margin-bottom:16px;
+  }
+  .growth-route article span{
+    top:17px;
+    left:18px;
+  }
 }
 </style>
