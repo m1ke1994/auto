@@ -287,19 +287,22 @@ onUnmounted(() => revealObserver?.disconnect())
     <template v-else>
       <header class="header">
         <nav class="wrap nav" aria-label="Основная навигация">
-          <a class="brand" href="#top" @click="closeMenu"><span>TN</span><strong>TrackNode</strong></a>
+          <a class="brand" href="#top" @click="closeMenu">
+            <span class="brand-mark" aria-hidden="true"><i v-for="dot in 7" :key="dot" /></span>
+            <strong>TRACKNODE</strong>
+          </a>
           <div class="desktop-nav">
             <a href="#features">Возможности</a>
-            <a href="#website">Создание сайтов</a>
-            <a href="#analytics">Аналитика</a>
-            <a href="#leads">Заявки</a>
-            <a href="#seo">SEO</a>
             <a href="#pricing">Тарифы</a>
+            <a href="#website">Решения</a>
+            <a href="#developer">О нас</a>
+            <a href="#faq">Блог</a>
+            <a href="#analytics">Аналитика</a>
             <a href="#contact">Контакты</a>
           </div>
           <div class="nav-actions">
             <RouterLink to="/login" class="login">Войти</RouterLink>
-            <RouterLink to="/register" class="button small">Начать работу</RouterLink>
+            <a class="button small" href="#contact" @click="track('website_order_cta_click', { placement: 'header' })">Заказать сайт</a>
           </div>
           <button class="menu-button" type="button" :aria-expanded="menuOpen" aria-label="Открыть меню" @click="menuOpen = !menuOpen">
             <X v-if="menuOpen" /><Menu v-else />
@@ -307,37 +310,60 @@ onUnmounted(() => revealObserver?.disconnect())
         </nav>
         <div v-if="menuOpen" class="mobile-nav">
           <a href="#features" @click="closeMenu">Возможности</a>
-          <a href="#website" @click="closeMenu">Создание сайтов</a>
-          <a href="#analytics" @click="closeMenu">Аналитика</a>
-          <a href="#leads" @click="closeMenu">Заявки</a>
-          <a href="#seo" @click="closeMenu">SEO</a>
           <a href="#pricing" @click="closeMenu">Тарифы</a>
+          <a href="#website" @click="closeMenu">Решения</a>
+          <a href="#developer" @click="closeMenu">О нас</a>
+          <a href="#faq" @click="closeMenu">Блог</a>
+          <a href="#analytics" @click="closeMenu">Аналитика</a>
           <a href="#contact" @click="closeMenu">Контакты</a>
           <RouterLink to="/login" @click="closeMenu">Войти</RouterLink>
-          <RouterLink to="/register" @click="closeMenu">Начать работу</RouterLink>
+          <a href="#contact" @click="closeMenu">Заказать сайт</a>
         </div>
       </header>
 
       <main id="top">
         <section class="hero wrap">
           <div class="hero-copy" data-reveal>
-            <p class="kicker">Сайт, заявки, аналитика и SEO в одной системе</p>
-            <h1>Сайты для бизнеса с заявками, аналитикой и SEO в одной платформе</h1>
-            <p class="lead">TrackNode помогает создать сайт с индивидуальным дизайном или подключиться к текущему проекту: принимать заявки, видеть источники обращений, получать Telegram-уведомления, проверять SEO и конкурентов из единого кабинета.</p>
+            <p class="kicker"><Sparkles :size="14" /> Разработка сайтов и аналитика для бизнеса</p>
+            <h1>
+              <span>Создаем сайты.</span>
+              <span>Анализируем.</span>
+              <span class="accent-text">Помогаем расти.</span>
+            </h1>
+            <p class="lead">Создаем современные сайты под задачи бизнеса и подключаем аналитику, SEO-аудит, заявки, CRM и уведомления в Telegram.</p>
             <div class="hero-actions">
               <a class="button" href="#contact" @click="track('website_order_cta_click', { placement: 'hero' })">Заказать сайт <ArrowRight :size="18" /></a>
-              <RouterLink class="button secondary" to="/register" @click="track('analytics_connect_cta_click', { placement: 'hero' })">Подключить TrackNode</RouterLink>
-              <a class="ghost-link" href="#features">Посмотреть возможности <ChevronRight :size="16" /></a>
+              <RouterLink class="button secondary" to="/register" @click="track('analytics_connect_cta_click', { placement: 'hero' })">Подключить аналитику <ChevronRight :size="17" /></RouterLink>
             </div>
           </div>
 
-          <div class="hero-visual" data-reveal aria-label="Демонстрационные панели TrackNode">
-            <article class="glass panel lead-panel"><small>Новая заявка</small><b>Консультация по сайту</b><span>Источник: поисковый переход</span></article>
-            <article class="glass panel chart-panel"><small>Посещаемость</small><div class="bars"><i v-for="height in [34, 58, 46, 78, 65, 92]" :key="height" :style="{height:`${height}px`}" /></div></article>
-            <article class="glass panel telegram-panel"><small>Telegram</small><b>Новая заявка в TrackNode</b><span>Открыть в кабинете</span></article>
-            <article class="glass panel seo-panel"><small>SEO-оценка</small><strong>82</strong><span>Есть рекомендации</span></article>
-            <article class="glass panel crm-panel"><small>Обращение</small><b>Статус: в работе</b><span>Предпочтительная связь: Telegram</span></article>
-            <article class="glass panel competitors-panel"><small>Конкуренты</small><b>3 сайта для сравнения</b><span>Идеи для структуры</span></article>
+          <div class="hero-visual" data-reveal aria-label="Компас возможностей TrackNode">
+            <div class="orbit orbit-one" />
+            <div class="orbit orbit-two" />
+            <div class="orbit-dot dot-a" />
+            <div class="orbit-dot dot-b" />
+            <div class="orbit-dot dot-c" />
+            <img class="compass-img" src="/images/landing/compas.png" alt="Компас TrackNode: сайты, SEO, аналитика и CRM" />
+            <div class="compass-label label-sites">
+              <span><Code2 :size="28" /></span>
+              <b>Сайты</b>
+            </div>
+            <div class="compass-label label-analytics">
+              <span><BarChart3 :size="28" /></span>
+              <b>Аналитика</b>
+            </div>
+            <div class="compass-label label-crm">
+              <span><UsersRound :size="28" /></span>
+              <b>CRM</b>
+            </div>
+            <div class="compass-label label-seo">
+              <span><SearchCheck :size="30" /></span>
+              <b>SEO-аудит</b>
+            </div>
+            <div class="compass-label label-telegram">
+              <span><Send :size="28" /></span>
+              <b>Telegram</b>
+            </div>
           </div>
         </section>
 
@@ -478,7 +504,7 @@ onUnmounted(() => revealObserver?.disconnect())
           </div>
         </section>
 
-        <section class="developer wrap" data-reveal>
+        <section id="developer" class="developer wrap" data-reveal>
           <div>
             <p class="kicker">Разработчик TrackNode</p>
             <h2>Разработка и развитие платформы - Александр Тишечкин</h2>
@@ -546,4 +572,403 @@ onUnmounted(() => revealObserver?.disconnect())
 @media(max-width:1100px){.desktop-nav,.nav-actions{display:none}.nav{grid-template-columns:1fr auto}.menu-button{display:grid;width:42px;height:42px;place-items:center;border:0;border-radius:14px;background:rgba(240,246,255,.9);color:var(--ink)}.mobile-nav{display:grid;position:fixed;top:92px;left:22px;right:22px;gap:0;padding:12px 18px;border:1px solid rgba(255,255,255,.72);border-radius:22px;background:rgba(255,255,255,.92);box-shadow:0 22px 70px rgba(28,45,79,.16);backdrop-filter:blur(18px);pointer-events:auto}.mobile-nav a{padding:12px 4px;color:var(--ink);text-decoration:none;font-weight:850}.hero,.website-layout,.analytics,.leads,.telegram,.seo,.pricing,.contact-layout,.developer,.footer-inner{grid-template-columns:1fr}.hero{min-height:0;padding-top:150px;padding-bottom:70px}.hero-visual{min-height:0}.scenarios{grid-template-columns:1fr}.bento{grid-template-columns:repeat(2,1fr)}.feature,.feature.wide,.feature.tall{grid-column:auto;grid-row:auto}.flow{flex-wrap:wrap}.flow i{width:22px}.seo-grid,.pricing-grid{grid-template-columns:1fr}.telegram-card{justify-self:start}.footer-inner small{grid-column:auto}}
 @media(max-width:680px){.wrap{width:min(calc(100% - 28px),1200px)}.header{top:8px}.nav{min-height:60px;border-radius:18px}.mobile-nav{top:76px;left:14px;right:14px}.hero h1,.value h2,.features h2,.connected h2,.website-build h2,.analytics h2,.leads h2,.telegram h2,.seo h2,.pricing h2,.developer h2,.faq h2,.contact h2,.final-cta h2{font-size:clamp(2.35rem,12vw,3.45rem)}.hero-actions,.final-cta .glass>div{display:grid}.hero-visual,.value-line,.bento,.metrics,.contact form{grid-template-columns:1fr}.competitors-panel{grid-column:auto}.value-line article{padding:28px 20px}.value-line:before{display:none}.value,.features,.connected,.website-build,.analytics,.leads,.telegram,.seo,.pricing,.developer,.faq,.final-cta{padding-block:78px}.scenarios{padding-block:40px 78px}.device-mockup{min-height:330px}.laptop{left:0;right:20px;height:220px}.phone{width:150px;height:240px}.contact form{padding:22px}.wide-field,.consent,.success,.error,.contact button{grid-column:auto}.flow{display:grid;grid-template-columns:1fr}.flow i{width:2px;height:18px;margin:auto}.footer-inner{gap:26px}}
 @media(prefers-reduced-motion:reduce){:global(html){scroll-behavior:auto}[data-reveal]{opacity:1;transform:none;transition:none}.button,.hero-visual .panel{transition:none;animation:none}}
+
+/* TrackNode landing refresh: header + hero */
+:global(html){scroll-padding-top:94px}
+:global(body){background:#f7faff}
+.landing{
+  --ink:#10254a;
+  --muted:#52678d;
+  --line:rgba(145,161,190,.24);
+  --glass:rgba(255,255,255,.82);
+  --soft:#f3f7ff;
+  --accent:#246bfd;
+  --accent-2:#2f6df6;
+  --cyan:#70d9ff;
+  color:var(--ink);
+  background:
+    radial-gradient(circle at 72% 44%, rgba(36,107,253,.12), transparent 34%),
+    radial-gradient(circle at 88% 72%, rgba(112,217,255,.16), transparent 28%),
+    linear-gradient(180deg,#fff 0%,#f8fbff 58%,#fff 100%);
+}
+.wrap{width:min(calc(100% - 96px),1460px)}
+.header{
+  position:fixed;
+  top:0;
+  left:0;
+  z-index:50;
+  width:100%;
+  border-bottom:1px solid rgba(143,160,190,.18);
+  background:rgba(255,255,255,.88);
+  box-shadow:0 1px 0 rgba(255,255,255,.92);
+  backdrop-filter:blur(18px);
+  pointer-events:auto;
+}
+.nav{
+  min-height:88px;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+  backdrop-filter:none;
+}
+.brand{
+  gap:14px;
+  color:#0d2148;
+  font-size:1.54rem;
+  letter-spacing:0;
+}
+.brand-mark{
+  position:relative;
+  display:block;
+  width:36px;
+  height:36px;
+  flex:0 0 36px;
+  border-radius:0;
+  background:none;
+  box-shadow:none;
+}
+.brand-mark i{
+  position:absolute;
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:linear-gradient(135deg,#61a1ff,#246bfd);
+  box-shadow:0 0 0 3px rgba(36,107,253,.08);
+}
+.brand-mark i:nth-child(1){left:3px;top:15px}
+.brand-mark i:nth-child(2){left:13px;top:4px}
+.brand-mark i:nth-child(3){left:26px;top:8px}
+.brand-mark i:nth-child(4){left:17px;top:17px}
+.brand-mark i:nth-child(5){left:28px;top:25px}
+.brand-mark i:nth-child(6){left:9px;top:29px}
+.brand-mark i:nth-child(7){left:1px;top:2px}
+.brand-mark:before,
+.brand-mark:after{
+  content:"";
+  position:absolute;
+  height:1px;
+  background:rgba(36,107,253,.54);
+  transform-origin:left center;
+}
+.brand-mark:before{left:8px;top:17px;width:22px;transform:rotate(-31deg)}
+.brand-mark:after{left:16px;top:20px;width:18px;transform:rotate(31deg)}
+.desktop-nav{gap:36px}
+.desktop-nav a{
+  color:#001b5a;
+  font-size:.93rem;
+  font-weight:600;
+}
+.desktop-nav a:hover{color:var(--accent)}
+.nav-actions{gap:22px}
+.nav-actions .login{
+  display:inline-flex;
+  min-height:44px;
+  align-items:center;
+  justify-content:center;
+  padding:0 28px;
+  border:1px solid rgba(151,165,190,.28);
+  border-radius:12px;
+  color:#001b5a;
+  background:rgba(255,255,255,.7);
+  font-weight:700;
+}
+.button{
+  min-height:52px;
+  border-radius:12px;
+  background:linear-gradient(135deg,#246bfd,#1454ed);
+  box-shadow:0 14px 30px rgba(36,107,253,.18);
+  font-weight:700;
+}
+.button:hover{
+  transform:translateY(-1px);
+  box-shadow:0 18px 34px rgba(36,107,253,.22);
+}
+.button.small{
+  min-height:44px;
+  padding-inline:28px;
+  border-radius:12px;
+  font-size:.93rem;
+}
+.button.secondary{
+  color:#10254a;
+  background:rgba(255,255,255,.78);
+  border:1px solid rgba(146,162,191,.27);
+  box-shadow:0 12px 26px rgba(28,45,79,.06);
+}
+.hero{
+  grid-template-columns:minmax(0,.43fr) minmax(0,.57fr);
+  gap:36px;
+  min-height:100vh;
+  padding-top:132px;
+  padding-bottom:72px;
+}
+.hero-copy{
+  position:relative;
+  z-index:2;
+}
+.kicker{
+  display:inline-flex;
+  width:max-content;
+  max-width:100%;
+  align-items:center;
+  gap:8px;
+  margin:0 0 48px;
+  padding:9px 13px;
+  border:1px solid rgba(146,162,191,.27);
+  border-radius:999px;
+  color:#27477d;
+  background:rgba(255,255,255,.72);
+  box-shadow:0 10px 30px rgba(45,67,109,.05);
+  font-size:.84rem;
+  font-weight:600;
+  letter-spacing:0;
+  text-transform:none;
+}
+.kicker svg{color:var(--accent)}
+.hero h1{
+  display:grid;
+  gap:4px;
+  margin:0;
+  color:#10254a;
+  font-size:4.7rem;
+  line-height:1.06;
+  letter-spacing:0;
+  font-weight:800;
+}
+.accent-text{
+  color:var(--accent);
+  background:linear-gradient(90deg,#246bfd,#5e8dff);
+  -webkit-background-clip:text;
+  background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+.lead{
+  max-width:560px;
+  margin:28px 0 0;
+  color:#405984;
+  font-size:1.15rem;
+  line-height:1.62;
+}
+.hero-actions{
+  gap:18px;
+  margin-top:36px;
+}
+.hero-visual{
+  position:relative;
+  display:grid;
+  min-height:640px;
+  place-items:center;
+  padding:0;
+  border-radius:0;
+  background:none;
+  box-shadow:none;
+  overflow:visible;
+}
+.compass-img{
+  position:relative;
+  z-index:2;
+  width:clamp(460px,48vw,780px);
+  max-width:100%;
+  height:auto;
+  object-fit:contain;
+  filter:drop-shadow(0 34px 62px rgba(34,58,98,.2)) drop-shadow(0 0 22px rgba(36,107,253,.16));
+  animation:compass-float 7.5s ease-in-out infinite;
+  transition:transform .5s ease, filter .5s ease;
+}
+.hero-visual:hover .compass-img{
+  transform:translate3d(0,-4px,0) scale(1.01);
+  filter:drop-shadow(0 40px 70px rgba(34,58,98,.23)) drop-shadow(0 0 28px rgba(36,107,253,.2));
+}
+.orbit{
+  position:absolute;
+  z-index:1;
+  border:1px solid rgba(87,169,255,.22);
+  border-radius:50%;
+  pointer-events:none;
+}
+.orbit-one{width:82%;aspect-ratio:1.45/1;transform:rotate(-8deg)}
+.orbit-two{width:96%;aspect-ratio:1.7/1;transform:rotate(13deg)}
+.orbit-dot{
+  position:absolute;
+  z-index:1;
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#c7f1ff;
+  box-shadow:0 0 0 5px rgba(112,217,255,.18);
+}
+.dot-a{right:5%;top:43%}
+.dot-b{left:12%;top:45%}
+.dot-c{right:27%;bottom:11%}
+.compass-label{
+  position:absolute;
+  z-index:3;
+  display:grid;
+  justify-items:center;
+  gap:8px;
+  color:#10254a;
+  font-size:.92rem;
+  font-weight:600;
+  text-align:center;
+}
+.compass-label:before{
+  content:"";
+  position:absolute;
+  top:34px;
+  width:92px;
+  height:1px;
+  background:linear-gradient(90deg,rgba(36,107,253,.42),rgba(36,107,253,0));
+  border-top:1px dashed rgba(36,107,253,.28);
+}
+.compass-label span{
+  display:grid;
+  width:68px;
+  height:68px;
+  place-items:center;
+  border:1px solid rgba(146,162,191,.2);
+  border-radius:50%;
+  color:var(--accent);
+  background:rgba(255,255,255,.84);
+  box-shadow:0 18px 42px rgba(31,54,96,.08);
+  backdrop-filter:blur(12px);
+}
+.compass-label b{font-weight:600}
+.label-sites{left:8%;top:5%}
+.label-sites:before{left:54px;transform:rotate(36deg)}
+.label-analytics{right:1%;top:12%}
+.label-analytics:before{right:54px;transform:rotate(145deg)}
+.label-crm{left:2%;bottom:20%}
+.label-crm:before{left:58px;transform:rotate(-18deg)}
+.label-seo{left:45%;bottom:0}
+.label-seo:before{left:34px;top:-18px;transform:rotate(-84deg)}
+.label-telegram{right:4%;bottom:13%}
+.label-telegram:before{right:56px;transform:rotate(202deg)}
+.value{
+  margin-top:0;
+  padding-top:80px;
+}
+@keyframes compass-float{
+  0%,100%{transform:translate3d(0,0,0)}
+  50%{transform:translate3d(0,-7px,0)}
+}
+@media(max-width:1180px){
+  .desktop-nav,.nav-actions{display:none}
+  .nav{grid-template-columns:1fr auto}
+  .menu-button{
+    display:grid;
+    width:44px;
+    height:44px;
+    place-items:center;
+    border:1px solid rgba(146,162,191,.24);
+    border-radius:12px;
+    color:#10254a;
+    background:rgba(255,255,255,.74);
+  }
+  .mobile-nav{
+    display:grid;
+    position:fixed;
+    top:92px;
+    left:24px;
+    right:24px;
+    gap:0;
+    padding:12px 18px;
+    border:1px solid rgba(146,162,191,.22);
+    border-radius:18px;
+    background:rgba(255,255,255,.94);
+    box-shadow:0 22px 70px rgba(28,45,79,.14);
+    backdrop-filter:blur(18px);
+    pointer-events:auto;
+  }
+  .mobile-nav a{
+    padding:12px 4px;
+    color:#10254a;
+    text-decoration:none;
+    font-weight:700;
+  }
+  .hero{
+    grid-template-columns:1fr;
+    min-height:0;
+    padding-top:140px;
+  }
+  .hero h1{font-size:4.05rem}
+  .hero-visual{min-height:560px}
+  .compass-img{width:min(720px,92vw)}
+}
+@media(max-width:760px){
+  .wrap{width:min(calc(100% - 32px),1460px)}
+  .header{background:rgba(255,255,255,.94)}
+  .nav{min-height:72px}
+  .brand{font-size:1.18rem}
+  .brand-mark{width:32px;height:32px;flex-basis:32px}
+  .mobile-nav{top:80px;left:16px;right:16px}
+  .hero{
+    gap:32px;
+    padding-top:112px;
+    padding-bottom:56px;
+  }
+  .kicker{
+    width:auto;
+    margin-bottom:28px;
+    font-size:.78rem;
+  }
+  .hero h1{
+    font-size:3.05rem;
+    line-height:1.08;
+  }
+  .lead{
+    font-size:1rem;
+    line-height:1.58;
+  }
+  .hero-actions{
+    display:grid;
+    align-items:stretch;
+  }
+  .hero-actions .button{width:100%}
+  .hero-visual{
+    min-height:auto;
+    padding:8px 0 4px;
+  }
+  .compass-img{width:100%}
+  .orbit,.orbit-dot,.compass-label{display:none}
+}
+@media(max-width:420px){
+  .wrap{width:min(calc(100% - 24px),1460px)}
+  .hero h1{font-size:2.55rem}
+  .button{padding-inline:18px}
+}
+@media(prefers-reduced-motion:reduce){
+  .compass-img{animation:none;transition:none}
+}
+
+.brand .brand-mark{
+  position:relative;
+  display:block;
+  width:36px;
+  height:36px;
+  flex:0 0 36px;
+  border-radius:0;
+  color:inherit;
+  background:transparent;
+  box-shadow:none;
+}
+.brand .brand-mark i{display:block}
+.compass-img{
+  width:clamp(760px,60vw,1060px);
+  max-width:none;
+}
+@media(max-width:1180px){
+  .compass-img{
+    width:min(880px,110vw);
+    max-width:none;
+  }
+}
+@media(max-width:760px){
+  .brand .brand-mark{width:32px;height:32px;flex-basis:32px}
+  .compass-img{
+    width:100%;
+    max-width:100%;
+  }
+}
 </style>
