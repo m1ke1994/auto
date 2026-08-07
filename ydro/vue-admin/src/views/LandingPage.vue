@@ -338,31 +338,33 @@ onUnmounted(() => revealObserver?.disconnect())
           </div>
 
           <div class="hero-visual" data-reveal aria-label="Компас возможностей TrackNode">
-            <div class="orbit orbit-one" />
-            <div class="orbit orbit-two" />
-            <div class="orbit-dot dot-a" />
-            <div class="orbit-dot dot-b" />
-            <div class="orbit-dot dot-c" />
-            <img class="compass-img" src="/images/landing/compas.png" alt="Компас TrackNode: сайты, SEO, аналитика и CRM" />
-            <div class="compass-label label-sites">
-              <span><Code2 :size="28" /></span>
-              <b>Сайты</b>
-            </div>
-            <div class="compass-label label-analytics">
-              <span><BarChart3 :size="28" /></span>
-              <b>Аналитика</b>
-            </div>
-            <div class="compass-label label-crm">
-              <span><UsersRound :size="28" /></span>
-              <b>CRM</b>
-            </div>
-            <div class="compass-label label-seo">
-              <span><SearchCheck :size="30" /></span>
-              <b>SEO-аудит</b>
-            </div>
-            <div class="compass-label label-telegram">
-              <span><Send :size="28" /></span>
-              <b>Telegram</b>
+            <div class="hero-compass-stage">
+              <div class="orbit orbit-one" />
+              <div class="orbit orbit-two" />
+              <div class="orbit-dot dot-a" />
+              <div class="orbit-dot dot-b" />
+              <div class="orbit-dot dot-c" />
+              <img class="compass-img" src="/images/landing/compas.png" alt="Компас TrackNode: сайты, SEO, аналитика и CRM" />
+              <div class="compass-label label-sites">
+                <span><Code2 :size="28" /></span>
+                <b>Сайты</b>
+              </div>
+              <div class="compass-label label-analytics">
+                <span><BarChart3 :size="28" /></span>
+                <b>Аналитика</b>
+              </div>
+              <div class="compass-label label-crm">
+                <span><UsersRound :size="28" /></span>
+                <b>CRM</b>
+              </div>
+              <div class="compass-label label-seo">
+                <span><SearchCheck :size="30" /></span>
+                <b>SEO-аудит</b>
+              </div>
+              <div class="compass-label label-telegram">
+                <span><Send :size="28" /></span>
+                <b>Telegram</b>
+              </div>
             </div>
           </div>
         </section>
@@ -970,5 +972,129 @@ onUnmounted(() => revealObserver?.disconnect())
     width:100%;
     max-width:100%;
   }
+}
+
+.hero-compass-stage{
+  position:relative;
+  display:grid;
+  width:clamp(720px,52vw,900px);
+  max-width:calc(100vw - 48px);
+  aspect-ratio:1.32/1;
+  place-items:center;
+  overflow:visible;
+}
+.hero-compass-stage .compass-img{
+  z-index:3;
+  width:90%;
+  max-width:none;
+}
+.hero-compass-stage .orbit{
+  z-index:1;
+  opacity:.74;
+}
+.hero-compass-stage .orbit-one{
+  width:78%;
+  aspect-ratio:1.55/1;
+}
+.hero-compass-stage .orbit-two{
+  width:92%;
+  aspect-ratio:1.72/1;
+}
+.hero-compass-stage .orbit-dot{z-index:2}
+.hero-compass-stage .dot-a{right:8%;top:44%}
+.hero-compass-stage .dot-b{left:11%;top:46%}
+.hero-compass-stage .dot-c{right:26%;bottom:13%}
+.hero-compass-stage .compass-label{
+  z-index:4;
+  gap:7px;
+  min-width:92px;
+  transform:translate(-50%,-50%);
+}
+.hero-compass-stage .compass-label span{
+  width:58px;
+  height:58px;
+  box-shadow:0 16px 34px rgba(31,54,96,.07);
+}
+.hero-compass-stage .compass-label:before{
+  z-index:0;
+  top:28px;
+  width:70px;
+  opacity:.42;
+  pointer-events:none;
+}
+.hero-compass-stage .label-sites{left:50%;top:5%}
+.hero-compass-stage .label-sites:before{left:62px;transform:rotate(28deg)}
+.hero-compass-stage .label-analytics{left:91%;top:25%}
+.hero-compass-stage .label-analytics:before{right:60px;transform:rotate(154deg)}
+.hero-compass-stage .label-crm{left:9%;top:63%}
+.hero-compass-stage .label-crm:before{left:60px;transform:rotate(-20deg)}
+.hero-compass-stage .label-telegram{left:91%;top:73%}
+.hero-compass-stage .label-telegram:before{right:60px;transform:rotate(204deg)}
+.hero-compass-stage .label-seo{left:50%;top:97%}
+.hero-compass-stage .label-seo:before{
+  left:50%;
+  top:-38px;
+  width:54px;
+  transform:translateX(-50%) rotate(-90deg);
+}
+@media(min-width:1181px){
+  .hero-visual{
+    min-height:700px;
+  }
+}
+@media(max-width:1180px){
+  .hero-compass-stage{
+    width:min(860px,calc(100vw - 48px));
+    aspect-ratio:1.28/1;
+    margin-left:0;
+  }
+  .hero-compass-stage .compass-img{
+    width:78%;
+  }
+  .hero-compass-stage .compass-label span{
+    width:54px;
+    height:54px;
+  }
+  .hero-compass-stage .compass-label:before{
+    width:52px;
+    opacity:.3;
+  }
+  .hero-compass-stage .label-sites{top:7%}
+  .hero-compass-stage .label-analytics{left:92%;top:28%}
+  .hero-compass-stage .label-crm{left:8%;top:64%}
+  .hero-compass-stage .label-telegram{left:92%;top:73%}
+  .hero-compass-stage .label-seo{top:95%}
+}
+@media(max-width:900px){
+  .hero-compass-stage{
+    width:min(760px,calc(100vw - 32px));
+    aspect-ratio:1.12/1;
+  }
+  .hero-compass-stage .compass-img{
+    width:76%;
+  }
+  .hero-compass-stage .compass-label:before,
+  .hero-compass-stage .orbit-dot{
+    display:none;
+  }
+  .hero-compass-stage .label-sites{top:8%}
+  .hero-compass-stage .label-analytics{left:91%;top:30%}
+  .hero-compass-stage .label-crm{left:9%;top:67%}
+  .hero-compass-stage .label-telegram{left:91%;top:74%}
+  .hero-compass-stage .label-seo{top:95%}
+}
+@media(max-width:760px){
+  .hero-compass-stage{
+    width:100%;
+    aspect-ratio:auto;
+  }
+  .hero-compass-stage .compass-img{
+    width:100%;
+    max-width:100%;
+  }
+}
+
+@media(min-width:1181px){
+  .hero-compass-stage{margin-left:clamp(-90px,-5vw,-48px)}
 }
 </style>
