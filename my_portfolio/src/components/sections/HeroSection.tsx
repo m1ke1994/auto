@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { ArrowDown, Briefcase, Code2, Wrench, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { resolveMediaUrl, usePortfolioSection } from "@/lib/tracknode";
+import { useContactModal } from "@/components/ContactModal";
 
 const badgeIcons = {
   briefcase: Briefcase,
@@ -24,9 +25,19 @@ export function HeroSection() {
     secondary_button_target?: string;
     badges?: Array<{ icon?: string; label: string }>;
   }>("hero");
+  const { openContactModal } = useContactModal();
 
   const scrollToTarget = (target = "#projects") => {
     document.querySelector(target)?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const handleSecondaryClick = () => {
+    const target = content.secondary_button_target || "";
+    if (target === "#contact" || target === "#contact-modal" || !target) {
+      openContactModal();
+      return;
+    }
+    scrollToTarget(target);
   };
 
   const badges = content.badges || [];
@@ -104,7 +115,7 @@ export function HeroSection() {
             <Button
               size="lg"
               variant="outline"
-              onClick={() => scrollToTarget(content.secondary_button_target)}
+              onClick={handleSecondaryClick}
               className="border-2 px-8 h-12 text-base font-medium rounded-full hover:bg-accent/10 hover:border-accent"
             >
               {content.secondary_button_text}

@@ -20,7 +20,7 @@ export function Footer() {
     copyright?: string;
   }>("footer");
   const currentYear = new Date().getFullYear();
-  const navLinks = content.nav_items || [];
+  const navLinks = (content.nav_items || []).filter((link) => !["#cases", "#gallery"].includes(link.href));
   const socialLinks = content.social_links || [];
   const getSocialIcon = (icon?: string) => socialIcons[icon as keyof typeof socialIcons] || Mail;
   const logoImage = resolveMediaUrl(content.logo_image);

@@ -6,6 +6,7 @@ import {
   mergePortfolioContent,
   normalizeImageList,
   normalizePortfolioProject,
+  normalizePortfolioServices,
   normalizeProjectImages,
   normalizeStringList,
   resolveMediaUrl,
@@ -32,6 +33,17 @@ describe("TrackNode portfolio content helpers", () => {
 
   it("normalizes TrackNode repeater rows", () => {
     expect(normalizeStringList(["React", { label: "Django" }, { label: "" }])).toEqual(["React", "Django"]);
+  });
+
+  it("normalizes editable portfolio services for section and form usage", () => {
+    expect(
+      normalizePortfolioServices([
+        { id: "b", title: "Second", category: "Dev", order: 20 },
+        { id: "a", title: "First", category: "Dev", order: 10 },
+        { id: "hidden", title: "Hidden", is_active: false },
+        { title: "" },
+      ]).map((service) => service.title),
+    ).toEqual(["First", "Second"]);
   });
 
   it("keeps absolute media URLs unchanged", () => {

@@ -1,6 +1,7 @@
 import { X, ExternalLink, Github, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Project } from "@/data/projects";
+import { useContactModal } from "@/components/ContactModal";
 
 interface ProjectModalProps {
   project: Project | null;
@@ -8,6 +9,7 @@ interface ProjectModalProps {
 }
 
 export function ProjectModal({ project, onClose }: ProjectModalProps) {
+  const { openContactModal } = useContactModal();
   if (!project) return null;
   const primaryImage = project.images[0] || "";
   const imageAlt = project.image_alt || project.title;
@@ -95,6 +97,16 @@ export function ProjectModal({ project, onClose }: ProjectModalProps) {
 
           {/* Actions */}
           <div className="flex flex-wrap gap-3">
+            <Button
+              type="button"
+              className="rounded-full bg-foreground text-background hover:bg-foreground/90"
+              onClick={() => {
+                onClose();
+                openContactModal(project.title);
+              }}
+            >
+              Обсудить проект
+            </Button>
             {project.demoUrl && (
               <Button asChild className="rounded-full">
                 <a href={project.demoUrl} target="_blank" rel="noopener noreferrer" onClick={trackProjectClick}>

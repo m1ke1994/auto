@@ -63,6 +63,9 @@ class MyPortfolioSiteSeedTests(TestCase):
         self.assertEqual(response.data["site"]["domain"], "tishechkinalexandr.ru")
         self.assertTrue(response.data["site"]["tracker_key"])
         self.assertEqual(len(response.data["sections"]), len(MY_PORTFOLIO_SECTION_SEEDS))
+        section_payload = {section["key"]: section["content"] for section in response.data["sections"]}
+        self.assertIn("services", section_payload)
+        self.assertGreaterEqual(len(section_payload["services"]["services"]), 2)
 
     def test_portfolio_and_tracknode_are_visible_only_to_owner(self):
         self.seed()
@@ -134,6 +137,32 @@ class MyPortfolioSiteSeedTests(TestCase):
         portfolio_tracker_site = TrackerSite.objects.get(token=portfolio.api_key)
         self.assertTrue(Visit.objects.filter(site=portfolio_tracker_site, session_id="session-portfolio").exists())
         self.assertFalse(TrackerSite.objects.filter(token=self.tracknode.api_key).exists())
+
+    def test_portfolio_contact_lead_stores_service_comment_and_source(self):
+        self.seed()
+        portfolio = Site.objects.get(slug="my-portfolio")
+
+        response = APIClient().post(
+            "/api/public/sites/my-portfolio/leads/",
+            {
+                "name": "Alex",
+                "phone": "+79991234567",
+                "message": "Нужно поправить форму",
+                "service_type": "my_portfolio_contact",
+                "service_title": "Настройка форм и заявок",
+                "payload": {"source": "my_portfolio_contact", "selected_service": "Настройка форм и заявок"},
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        lead = SiteLead.objects.latest("id")
+        self.assertEqual(lead.site, portfolio)
+        self.assertEqual(lead.service_type, "my_portfolio_contact")
+        self.assertEqual(lead.service_title, "Настройка форм и заявок")
+        self.assertEqual(lead.message, "Нужно поправить форму")
+        self.assertEqual(lead.payload["source"], "my_portfolio_contact")
+        self.assertEqual(lead.payload["selected_service"], "Настройка форм и заявок")
 
     def test_regular_seed_preserves_admin_content_and_reset_restores_it(self):
         self.seed()

@@ -3,6 +3,7 @@ import { Moon, Sun, Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { resolveMediaUrl, usePortfolioSection } from "@/lib/tracknode";
+import { useContactModal } from "@/components/ContactModal";
 
 export function Header() {
   const settings = usePortfolioSection<{
@@ -10,13 +11,14 @@ export function Header() {
     logo_image?: string;
     nav_items?: Array<{ label: string; href: string }>;
   }>("settings");
-  const navItems = settings.nav_items || [];
+  const navItems = (settings.nav_items || []).filter((item) => !["#cases", "#gallery"].includes(item.href));
   const logoText = settings.logo_text || "Alexandr_Tishechkin";
   const logoImage = resolveMediaUrl(settings.logo_image);
   const [isDark, setIsDark] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const { openContactModal } = useContactModal();
 
   useEffect(() => {
     const stored = localStorage.getItem("theme");
@@ -112,6 +114,13 @@ export function Header() {
           {/* Actions */}
           <div className="flex items-center gap-3">
             <Button
+              type="button"
+              onClick={() => openContactModal()}
+              className="hidden rounded-full bg-foreground px-5 text-background hover:bg-foreground/90 md:inline-flex"
+            >
+              Связаться
+            </Button>
+            <Button
               variant="ghost"
               size="icon"
               onClick={toggleTheme}
@@ -191,6 +200,18 @@ export function Header() {
                 </motion.li>
               ))}
             </ul>
+            <div className="section-container pb-4">
+              <Button
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  openContactModal();
+                }}
+                className="h-11 w-full rounded-full bg-foreground text-background hover:bg-foreground/90"
+              >
+                Связаться
+              </Button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

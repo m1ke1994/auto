@@ -355,8 +355,8 @@ class PublicLeadCreateSerializer(serializers.Serializer):
             payload["preferred_contact"] = preferred_contact
         if consent:
             payload.setdefault("consent_at", timezone.now().isoformat())
-        if validated_data.get("service_type") in {"tracknode_website_order", "tracknode_landing_contact"}:
-            payload["source"] = validated_data["service_type"]
+        if validated_data.get("service_type"):
+            payload.setdefault("source", validated_data["service_type"])
 
         lead = SiteLead.objects.create(
             site=site,

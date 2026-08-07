@@ -1,5 +1,7 @@
 import { Mail, Github, MessageCircle, Instagram, Linkedin } from "lucide-react";
 import { resolveMediaUrl, usePortfolioSection } from "@/lib/tracknode";
+import { Button } from "@/components/ui/button";
+import { useContactModal } from "@/components/ContactModal";
 
 const contactIcons = {
   github: Github,
@@ -20,6 +22,7 @@ export function ContactSection() {
   const contacts = content.contacts || [];
   const getContactIcon = (icon?: string) => contactIcons[icon as keyof typeof contactIcons] || Mail;
   const contactImage = resolveMediaUrl(content.contact_image);
+  const { openContactModal } = useContactModal();
 
   return (
     <section id="contact" className="section-padding">
@@ -31,6 +34,13 @@ export function ContactSection() {
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
             {content.description}
           </p>
+          <Button
+            type="button"
+            onClick={() => openContactModal()}
+            className="mt-6 h-12 rounded-full bg-foreground px-8 text-base text-background hover:bg-foreground/90"
+          >
+            Связаться
+          </Button>
         </div>
 
         <div className="mx-auto grid max-w-5xl gap-8 md:grid-cols-[minmax(0,1fr)_320px] md:items-start">
