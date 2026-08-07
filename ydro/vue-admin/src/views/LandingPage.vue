@@ -1,14 +1,11 @@
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import {
   ArrowRight,
   BarChart3,
-  Bot,
   ChevronRight,
-  CircleDollarSign,
   Code2,
   ExternalLink,
-  FileSearch,
   Menu,
   SearchCheck,
   Send,
@@ -17,6 +14,7 @@ import {
   X,
 } from '@lucide/vue'
 
+import TrackNodeIcon from '../components/TrackNodeIcon.vue'
 import {
   applyPublicSiteSeo,
   ensurePublicSiteTracker,
@@ -26,7 +24,6 @@ import {
 
 const PORTFOLIO_URL = 'https://tishechkinalexandr.ru/'
 const site = ref(null)
-const sections = ref([])
 const loading = ref(true)
 const loadError = ref('')
 const menuOpen = ref(false)
@@ -38,7 +35,7 @@ const form = reactive({
   phone: '',
   telegram: '',
   email: '',
-  taskType: 'Создание сайта',
+  taskType: 'Создание сайта с нуля',
   hasExistingSite: 'no',
   existingSiteUrl: '',
   message: '',
@@ -48,45 +45,40 @@ const form = reactive({
 })
 const formState = reactive({ submitting: false, success: '', error: '', started: false })
 
-const sectionsByKey = computed(() => Object.fromEntries(sections.value.map((item) => [item.key, item.content || {}])))
-const plans = computed(() => (sectionsByKey.value.tariffs?.plans || []).filter((plan, index, items) => {
-  const key = plan.title || plan.name
-  return key && items.findIndex((item) => (item.title || item.name) === key) === index
-}).slice(0, 2))
-
 const customBuildSteps = [
-  ['01', 'Индивидуальный дизайн', 'Визуальная система создается под бренд, задачу и доверие к проекту.'],
-  ['02', 'Продуманная структура', 'Страницы и сценарии строятся вокруг пути потенциального клиента.'],
-  ['03', 'Современная разработка', 'Адаптивность, скорость, SEO-база и корректная работа на разных устройствах.'],
-  ['04', 'Готовность к аналитике', 'После запуска сайт сразу подключается к экосистеме TrackNode.'],
+  ['Индивидуальный дизайн', 'Не шаблон, а визуальная система под бренд.'],
+  ['Структура под бизнес', 'Страницы строятся вокруг пути клиента.'],
+  ['Адаптивная разработка', 'Сайт аккуратно работает на разных экранах.'],
+  ['SEO-база', 'Фундамент для дальнейшего роста заложен сразу.'],
 ]
 
 const growthRoute = [
-  ['Сайт', 'Индивидуальная разработка под бизнес.'],
-  ['Данные', 'События, источники и заявки собираются в систему.'],
-  ['Аналитика', 'Посетители, действия и конверсии становятся понятными.'],
-  ['SEO', 'Техническое состояние, ошибки и позиции под контролем.'],
-  ['Заявки', 'Обращения и важные события не теряются.'],
-  ['Рост', 'Решения принимаются на основе данных.'],
+  ['Сайт запущен', '01'],
+  ['Собираются данные', '02'],
+  ['Видим результат', '03'],
+  ['Находим точки роста', '04'],
+  ['Развиваем сайт', '05'],
+]
+
+const pwaSteps = [
+  ['iPhone', ['Откройте TrackNode в Safari', 'Нажмите «Поделиться»', 'Выберите «На экран Домой»']],
+  ['Android', ['Откройте TrackNode в Chrome', 'Откройте меню браузера', 'Добавьте на главный экран']],
 ]
 
 const taskTypes = [
-  'Создание сайта',
-  'Подключение аналитики',
-  'Управление заявками',
-  'CRM-интеграция',
-  'Telegram-уведомления',
-  'SEO-аудит',
-  'Анализ конкурентов',
+  'Создание сайта с нуля',
+  'Индивидуальный дизайн',
+  'Структура и прототип',
+  'Кабинет аналитики TrackNode',
+  'SEO и развитие сайта',
   'Другое',
 ]
 
 const faq = [
-  ['Можно ли заказать только сайт?', 'Да. Можно обсудить только разработку сайта, а аналитику TrackNode подключить сразу при запуске или позже.'],
-  ['Можно ли подключить TrackNode к существующему сайту?', 'Да. Для этого используется аналитический скрипт и настройка сайта в личном кабинете.'],
-  ['Это полноценная CRM?', 'Сейчас TrackNode закрывает управление заявками и обращениями. CRM-интеграции можно подключать по задаче клиента.'],
-  ['Будут ли Telegram-уведомления?', 'Да, TrackNode поддерживает уведомления о новых заявках в Telegram.'],
-  ['Что показывает SEO-аудит?', 'Технические проблемы, метаданные, структуру, ошибки и рекомендации для дальнейших улучшений.'],
+  ['Сайт делается по шаблону?', 'Нет. Структура, дизайн и интерфейс проектируются под конкретный бизнес.'],
+  ['Что получает клиент после запуска?', 'Сайт и кабинет TrackNode с данными по посетителям, заявкам, источникам и SEO.'],
+  ['Telegram - отдельный продукт?', 'Нет. Это дополнительное уведомление о важных событиях внутри общей системы.'],
+  ['Что показывает SEO-блок?', 'Техническое состояние, базовые ошибки и точки для дальнейшего развития сайта.'],
   ['Как рассчитывается стоимость сайта?', 'Стоимость рассчитывается индивидуально после обсуждения структуры, дизайна и функциональности.'],
 ]
 
@@ -128,7 +120,7 @@ async function submitLead() {
       message: sanitize(form.message),
       source_url: window.location.href,
       section_key: 'landing-contact',
-      form_name: 'Обсудим ваш проект',
+      form_name: 'Обсудить создание сайта',
       service_type: 'tracknode_landing_contact',
       service_title: sanitize(form.taskType),
       existing_site_url: sanitize(form.existingSiteUrl),
@@ -156,7 +148,7 @@ async function submitLead() {
       phone: '',
       telegram: '',
       email: '',
-      taskType: 'Создание сайта',
+      taskType: 'Создание сайта с нуля',
       hasExistingSite: 'no',
       existingSiteUrl: '',
       message: '',
@@ -188,16 +180,15 @@ onMounted(async () => {
   try {
     const payload = await loadTrackNodePublicSite()
     site.value = payload.site
-    sections.value = payload.sections
     applyPublicSiteSeo({
       ...payload.site,
       seo: {
         ...(payload.site?.seo || {}),
         title: 'TrackNode - создание сайтов, аналитика, заявки и SEO в одной платформе',
-        description: 'TrackNode создает сайты под заказ или подключается к существующему сайту: заявки, управление обращениями, аналитика, Telegram-уведомления, SEO-аудит, конкуренты и AI-рекомендации.',
+        description: 'TrackNode создает сайты под заказ и дает кабинет для дальнейшего контроля: посетители, заявки, источники, SEO и уведомления.',
         canonical: 'https://tracknode.ru/',
         og_title: 'TrackNode - цифровая платформа для сайта, заявок, аналитики и SEO',
-        og_description: 'Создание сайтов, подключение аналитики, управление заявками, Telegram-уведомления, SEO-аудит, конкуренты и AI-рекомендации в одном кабинете.',
+        og_description: 'Создание сайта под бизнес, данные после запуска, заявки, SEO и уведомления в одном кабинете.',
         og_image: 'https://tracknode.ru/og-image.svg',
         structured_data: {
           '@context': 'https://schema.org',
@@ -252,7 +243,7 @@ onUnmounted(() => revealObserver?.disconnect())
       <header class="header">
         <nav class="wrap nav" aria-label="Основная навигация">
           <a class="brand" href="#top" @click="closeMenu">
-            <span class="brand-mark" aria-hidden="true"><i v-for="dot in 7" :key="dot" /></span>
+            <TrackNodeIcon class="brand-icon" />
             <strong>TRACKNODE</strong>
           </a>
           <div class="desktop-nav">
@@ -297,7 +288,7 @@ onUnmounted(() => revealObserver?.disconnect())
             <p class="lead">Создаем современные сайты под задачи бизнеса и подключаем аналитику, SEO-аудит, заявки, CRM и уведомления в Telegram.</p>
             <div class="hero-actions">
               <a class="button" href="#contact" @click="track('website_order_cta_click', { placement: 'hero' })">Заказать сайт <ArrowRight :size="18" /></a>
-              <RouterLink class="button secondary" to="/register" @click="track('analytics_connect_cta_click', { placement: 'hero' })">Подключить аналитику <ChevronRight :size="17" /></RouterLink>
+              <a class="button secondary" href="#analytics" @click="track('analytics_section_cta_click', { placement: 'hero' })">Посмотреть возможности <ChevronRight :size="17" /></a>
             </div>
           </div>
 
@@ -333,114 +324,119 @@ onUnmounted(() => revealObserver?.disconnect())
           </div>
         </section>
 
-        <section id="website" class="custom-site wrap" data-reveal>
-          <div class="custom-site__intro">
-            <p class="kicker">Сайт под ваш бизнес</p>
-            <h2>Создаем сайт с нуля. <span>Не из шаблона.</span></h2>
-            <p>Проектируем структуру, интерфейс и визуальный стиль под конкретную компанию. Сайт должен не просто выглядеть современно - он должен объяснять предложение и приводить клиента к целевому действию.</p>
-            <div class="section-actions">
-              <a class="button" href="#contact">Обсудить создание сайта</a>
-              <RouterLink class="button secondary" to="/register">Уже есть сайт? Подключить аналитику</RouterLink>
+        <section id="website" class="landing-section custom-site wrap" data-reveal>
+          <div class="section-head">
+            <p class="kicker">Разработка</p>
+            <h2>Сайт, созданный под ваш бизнес</h2>
+            <p>Дизайн, структура и функциональность проектируются с нуля под задачу компании.</p>
+          </div>
+          <div class="site-showcase" aria-label="Макет сайта, созданного под бизнес">
+            <div class="browser-mockup glass">
+              <div class="browser-bar"><span /><span /><span /></div>
+              <div class="browser-hero">
+                <strong>Ваш новый сайт</strong>
+                <p>Четкое предложение, понятная структура и аккуратная заявка.</p>
+              </div>
+              <div class="browser-grid">
+                <i /><i /><i />
+              </div>
+            </div>
+            <div class="build-annotations">
+              <span v-for="[title, text] in customBuildSteps" :key="title"><b>{{ title }}</b>{{ text }}</span>
             </div>
           </div>
-          <div class="build-timeline" aria-label="Этапы заказной разработки">
-            <article v-for="[number, title, text] in customBuildSteps" :key="number">
-              <span>{{ number }}</span>
-              <div>
-                <h3>{{ title }}</h3>
-                <p>{{ text }}</p>
-              </div>
-            </article>
-          </div>
         </section>
 
-        <section class="site-message wrap" data-reveal>
-          <p>Сайт - это только начало.</p>
-          <span>TrackNode показывает, что происходит после запуска и куда двигаться дальше.</span>
-        </section>
-
-        <section id="analytics" class="post-launch wrap" data-reveal>
-          <div class="post-launch__copy">
+        <section id="analytics" class="landing-section post-launch wrap" data-reveal>
+          <div class="section-head">
             <p class="kicker">После запуска</p>
-            <h2>Запустить сайт легко. <span>Развивать его без данных - сложно.</span></h2>
-            <p>TrackNode подключается к сайту и превращает его работу в понятные данные: посетители, источники трафика, действия пользователей, заявки, SEO и ключевые показатели.</p>
-            <p class="insight-note">Владелец не должен гадать, что работает, а что нет.</p>
+            <h2>Сайт - это только начало</h2>
+            <p>TrackNode показывает, что происходит после запуска, и помогает принимать решения на основе данных.</p>
           </div>
           <div class="dashboard-composition" aria-label="Панель аналитики TrackNode">
             <div class="dashboard-card glass">
               <div class="dashboard-card__top">
-                <strong>Ваш сайт</strong>
+                <div class="dashboard-brand"><TrackNodeIcon class="dashboard-app-icon" /><strong>TrackNode</strong></div>
                 <span>Сегодня</span>
               </div>
               <div class="dashboard-metrics">
                 <span>Посетители<b>1 284</b><em>+18%</em></span>
+                <span>Просмотры<b>3 916</b><em>+24%</em></span>
+                <span>Заявки<b>37</b><em>+12%</em></span>
                 <span>Конверсия<b>4.2%</b><em>+0.8</em></span>
-                <span>Заявки<b>37</b><em>+12</em></span>
               </div>
-              <div class="dashboard-chart">
-                <i v-for="height in [34, 58, 46, 76, 62, 96, 74, 118]" :key="height" :style="{height:`${height}px`}" />
+              <svg class="dashboard-line" viewBox="0 0 760 180" role="img" aria-label="Рост посещений и заявок">
+                <path d="M20 145 C100 118 132 132 190 92 S308 42 382 72 492 148 582 82 680 42 740 54" />
+                <path class="line-soft" d="M20 120 C110 142 158 106 228 112 S354 150 432 106 560 62 740 88" />
+              </svg>
+              <div class="dashboard-bottom">
+                <span>Источники<b>Поиск · Реклама · Telegram</b></span>
+                <span>SEO<b>82 / 100</b></span>
               </div>
-              <div class="dashboard-seo"><span>SEO</span><b>82 / 100</b></div>
             </div>
             <div class="float-chip chip-lead">Новая заявка</div>
-            <div class="float-chip chip-seo">SEO +6 позиций</div>
+            <div class="float-chip chip-source">Получена с сайта</div>
             <div class="float-chip chip-telegram">Telegram ✓</div>
           </div>
         </section>
 
-        <section id="features" class="growth-system wrap" data-reveal>
-          <div class="growth-system__head">
-            <p class="kicker">Одна система для роста</p>
-            <h2>От запуска сайта до решений на основе данных.</h2>
+        <section id="features" class="landing-section growth-system wrap" data-reveal>
+          <span id="seo" class="section-anchor" aria-hidden="true" />
+          <div class="section-head">
+            <p class="kicker">TrackNode</p>
+            <h2>Данные для следующего решения</h2>
+            <p>Видите результат, находите слабые места и понимаете, что улучшать дальше.</p>
           </div>
           <div class="growth-route">
-            <article v-for="([title, text], index) in growthRoute" :key="title">
-              <span>{{ String(index + 1).padStart(2, '0') }}</span>
+            <article v-for="[title, number] in growthRoute" :key="title">
+              <span>{{ number }}</span>
               <h3>{{ title }}</h3>
-              <p>{{ text }}</p>
             </article>
           </div>
         </section>
 
-        <section id="seo" class="seo wrap" data-reveal>
-          <div>
-            <p class="kicker">SEO-аудит и конкуренты</p>
-            <h2>TrackNode помогает понимать, что улучшать дальше</h2>
-            <p>SEO-аудит проверяет техническое состояние, заголовки, description, скорость, мобильную адаптацию и ошибки. Анализ конкурентов показывает различия в структуре, контенте и предложении.</p>
+        <section id="pwa" class="landing-section pwa-section wrap" data-reveal>
+          <div class="section-head">
+            <p class="kicker">Всегда под рукой</p>
+            <h2>TrackNode можно добавить на главный экран</h2>
+            <p>Кабинет открывается с телефона как привычный рабочий инструмент.</p>
           </div>
-          <div class="seo-grid">
-            <article class="glass"><FileSearch /><h3>SEO-аудит</h3><p>Оценка, ошибки и рекомендации по страницам.</p></article>
-            <article class="glass"><SearchCheck /><h3>Конкуренты</h3><p>Сравнение сайтов и идеи для улучшения.</p></article>
-            <article class="glass"><Bot /><h3>AI-рекомендации</h3><p>Идеи по контенту, структуре и продвижению.</p></article>
+          <div class="pwa-layout">
+            <div class="pwa-phone glass" aria-label="Мобильный экран TrackNode">
+              <span class="phone-speaker" />
+              <TrackNodeIcon class="phone-app-icon" />
+              <strong>TrackNode</strong>
+              <div class="phone-lines"><i /><i /><i /></div>
+            </div>
+            <div class="pwa-steps">
+              <article v-for="[platform, steps] in pwaSteps" :key="platform">
+                <h3>{{ platform }}</h3>
+                <ol>
+                  <li v-for="(step, index) in steps" :key="step"><span>{{ String(index + 1).padStart(2, '0') }}</span>{{ step }}</li>
+                </ol>
+              </article>
+            </div>
           </div>
         </section>
 
-        <section id="pricing" class="pricing wrap" data-reveal>
-          <div>
+        <section id="pricing" class="support-strip wrap" data-reveal>
+          <article>
             <p class="kicker">Тарифы</p>
-            <h2>Подписка TrackNode и индивидуальная разработка</h2>
-          </div>
-          <div class="pricing-grid">
-            <article v-for="plan in plans" :key="plan.title" class="glass plan">
-              <h3>{{ plan.title }}</h3><strong>{{ plan.price }} <small>{{ plan.price_suffix || plan.period }}</small></strong><p>{{ plan.description }}</p>
-            </article>
-            <article class="glass plan custom-price">
-              <CircleDollarSign :size="26" /><h3>Разработка сайта</h3><p>Стоимость рассчитывается индивидуально после обсуждения структуры, дизайна и функциональности.</p><a href="#contact">Получить оценку</a>
-            </article>
-          </div>
+            <h2>Стоимость разработки рассчитывается индивидуально</h2>
+            <p>После обсуждения структуры, дизайна и функциональности.</p>
+          </article>
+          <article id="developer">
+            <p class="kicker">Разработка</p>
+            <h2>TrackNode развивает Александр Тишечкин</h2>
+            <a :href="PORTFOLIO_URL" target="_blank" rel="noopener noreferrer" @click="trackPortfolioLink('developer')">Сайт разработчика <ExternalLink :size="16" /></a>
+          </article>
         </section>
 
-        <section id="developer" class="developer wrap" data-reveal>
-          <div>
-            <p class="kicker">Разработчик TrackNode</p>
-            <h2>Разработка и развитие платформы - Александр Тишечкин</h2>
-            <p>Веб-разработка, сайты, сервисы, автоматизация и аналитические решения.</p>
+        <section id="faq" class="faq wrap compact-faq" data-reveal>
+          <div class="section-head">
+            <p class="kicker">FAQ</p>
+            <h2>Коротко о главном</h2>
           </div>
-          <a :href="PORTFOLIO_URL" target="_blank" rel="noopener noreferrer" class="button secondary" @click="trackPortfolioLink('developer')">Сайт разработчика <ExternalLink :size="16" /></a>
-        </section>
-
-        <section id="faq" class="faq wrap" data-reveal>
-          <p class="kicker">FAQ</p><h2>Коротко о главном</h2>
           <article v-for="(item,index) in faq" :key="item[0]">
             <button type="button" :aria-expanded="openFaq===index" @click="openFaq=openFaq===index?-1:index"><span>{{ item[0] }}</span><b>{{ openFaq===index ? '-' : '+' }}</b></button>
             <p v-show="openFaq===index">{{ item[1] }}</p>
@@ -450,8 +446,8 @@ onUnmounted(() => revealObserver?.disconnect())
         <section id="contact" class="contact">
           <div class="wrap contact-layout">
             <div data-reveal>
-              <p class="kicker">Обсудим ваш проект</p><h2>Расскажите, что нужно подключить или создать</h2>
-              <p>Можно заказать новый сайт, подключить текущий проект, обсудить управление заявками, CRM-интеграцию, Telegram, аналитику, SEO или конкурентов.</p>
+              <p class="kicker">CTA</p><h2>Обсудить создание сайта</h2>
+              <p>Расскажите о задаче, а мы предложим структуру сайта и систему дальнейшего контроля.</p>
             </div>
             <form class="glass" data-reveal novalidate @submit.prevent="submitLead" @focusin="formStarted">
               <label>Имя<input v-model="form.name" maxlength="255" autocomplete="name" required /></label>
@@ -459,32 +455,23 @@ onUnmounted(() => revealObserver?.disconnect())
               <label>Telegram<input v-model="form.telegram" maxlength="100" autocomplete="off" /></label>
               <label>Email<input v-model="form.email" maxlength="255" type="email" autocomplete="email" /></label>
               <label>Тип задачи<select v-model="form.taskType"><option v-for="item in taskTypes" :key="item" :value="item">{{ item }}</option></select></label>
-              <label>Есть действующий сайт<select v-model="form.hasExistingSite"><option value="no">Нет</option><option value="yes">Да</option></select></label>
-              <label>Адрес сайта<input v-model="form.existingSiteUrl" maxlength="300" placeholder="https://example.ru" /></label>
               <label>Предпочтительный способ связи<select v-model="form.preferredContact"><option value="telegram">Telegram</option><option value="phone">Телефон</option><option value="email">Email</option></select></label>
               <label class="wide-field">Краткое описание<textarea v-model="form.message" maxlength="2000" rows="5" /></label>
               <label class="honeypot" aria-hidden="true">Сайт<input v-model="form.website" tabindex="-1" autocomplete="off" /></label>
               <label class="consent"><input v-model="form.consent" type="checkbox" required /><span>Согласен на обработку персональных данных и принимаю <RouterLink to="/privacy">политику конфиденциальности</RouterLink> и <RouterLink to="/terms">пользовательское соглашение</RouterLink>.</span></label>
               <p v-if="formState.success" class="success" role="status">{{ formState.success }}</p>
               <p v-if="formState.error" class="error" role="alert">{{ formState.error }}</p>
-              <button class="button" type="submit" :disabled="formState.submitting">{{ formState.submitting ? 'Отправляем...' : 'Отправить заявку' }}</button>
+              <button class="button" type="submit" :disabled="formState.submitting">{{ formState.submitting ? 'Отправляем...' : 'Обсудить создание сайта' }}</button>
             </form>
-          </div>
-        </section>
-
-        <section class="final-cta wrap" data-reveal>
-          <div class="glass">
-            <h2>Создадим сайт или подключим TrackNode к вашему текущему проекту</h2>
-            <div><a class="button" href="#contact">Обсудить проект</a><RouterLink class="button secondary" to="/register">Подключить аналитику</RouterLink></div>
           </div>
         </section>
       </main>
 
       <footer>
         <div class="wrap footer-inner">
-          <div><a class="brand" href="#top"><span>TN</span><strong>TrackNode</strong></a><p>Платформа для создания сайтов, заявок, аналитики, Telegram-уведомлений, SEO-аудита и развития проекта.</p></div>
+          <div><a class="brand" href="#top"><TrackNodeIcon class="brand-icon" /><strong>TrackNode</strong></a><p>Сайт под ваш бизнес и кабинет для его дальнейшего развития.</p></div>
           <nav>
-            <a href="#website">Создание сайтов</a><a href="#analytics">После запуска</a><a href="#features">Система роста</a><a href="#seo">SEO-аудит</a><a href="#seo">Анализ конкурентов</a><a href="#pricing">Тарифы</a><RouterLink to="/terms">Пользовательское соглашение</RouterLink><RouterLink to="/privacy">Политика конфиденциальности</RouterLink><RouterLink to="/login">Вход</RouterLink><RouterLink to="/register">Регистрация</RouterLink><a href="#contact">Контакты</a><a :href="PORTFOLIO_URL" target="_blank" rel="noopener noreferrer" @click="trackPortfolioLink('footer')">Сайт разработчика</a>
+            <a href="#website">Создание сайта</a><a href="#analytics">Кабинет TrackNode</a><a href="#features">Развитие</a><a href="#seo">SEO</a><a href="#pwa">На смартфоне</a><a href="#pricing">Стоимость</a><RouterLink to="/terms">Пользовательское соглашение</RouterLink><RouterLink to="/privacy">Политика конфиденциальности</RouterLink><RouterLink to="/login">Вход</RouterLink><RouterLink to="/register">Регистрация</RouterLink><a href="#contact">Контакты</a><a :href="PORTFOLIO_URL" target="_blank" rel="noopener noreferrer" @click="trackPortfolioLink('footer')">Сайт разработчика</a>
           </nav>
           <small>© {{ new Date().getFullYear() }} TrackNode</small>
         </div>
@@ -1363,6 +1350,496 @@ onUnmounted(() => revealObserver?.disconnect())
   .growth-route article span{
     top:17px;
     left:18px;
+  }
+}
+
+/* Unified post-hero story */
+.brand-icon{
+  display:block;
+  width:34px;
+  height:34px;
+  flex:0 0 34px;
+  border-radius:11px;
+  box-shadow:0 10px 24px rgba(53,104,255,.22);
+}
+.landing-section{
+  padding-block:96px;
+}
+.section-head{
+  max-width:820px;
+  margin:0 auto 48px;
+  text-align:center;
+}
+.section-head h2{
+  margin:0;
+  color:#101828;
+  font-size:clamp(2.45rem,4.8vw,4.75rem);
+  line-height:1.02;
+  letter-spacing:-.045em;
+}
+.section-head p:not(.kicker){
+  max-width:650px;
+  margin:18px auto 0;
+  color:#5d6b82;
+  font-size:1.08rem;
+  line-height:1.7;
+}
+.site-showcase{
+  position:relative;
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  align-items:center;
+  min-height:520px;
+  padding:26px;
+  overflow:hidden;
+  border:1px solid rgba(150,169,205,.22);
+  border-radius:36px;
+  background:
+    radial-gradient(circle at 16% 10%,rgba(53,104,255,.15),transparent 30%),
+    linear-gradient(145deg,rgba(255,255,255,.88),rgba(238,245,255,.74));
+  box-shadow:0 34px 100px rgba(35,61,102,.13);
+}
+.browser-mockup{
+  width:min(760px,82%);
+  min-height:360px;
+  margin:auto;
+  padding:18px;
+  border-radius:30px;
+  background:rgba(255,255,255,.88);
+}
+.browser-bar{
+  display:flex;
+  gap:8px;
+  padding-bottom:18px;
+  border-bottom:1px solid rgba(119,137,166,.16);
+}
+.browser-bar span{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  background:#cbd7eb;
+}
+.browser-hero{
+  margin-top:24px;
+  padding:34px;
+  border-radius:24px;
+  background:linear-gradient(135deg,#13213d,#3568ff);
+  color:#fff;
+}
+.browser-hero strong{
+  display:block;
+  font-size:clamp(1.8rem,4vw,3.4rem);
+  line-height:1;
+  letter-spacing:-.04em;
+}
+.browser-hero p{
+  max-width:420px;
+  margin:14px 0 0;
+  color:rgba(255,255,255,.78);
+  line-height:1.6;
+}
+.browser-grid{
+  display:grid;
+  grid-template-columns:1.1fr .9fr .8fr;
+  gap:14px;
+  margin-top:18px;
+}
+.browser-grid i{
+  height:90px;
+  border-radius:20px;
+  background:linear-gradient(180deg,#eef4ff,#fff);
+  border:1px solid rgba(119,137,166,.16);
+}
+.build-annotations{
+  position:absolute;
+  inset:30px;
+  pointer-events:none;
+}
+.build-annotations span{
+  position:absolute;
+  width:210px;
+  padding:14px 16px;
+  border:1px solid rgba(139,159,195,.24);
+  border-radius:18px;
+  background:rgba(255,255,255,.84);
+  box-shadow:0 18px 50px rgba(35,61,102,.12);
+  color:#607089;
+  font-size:.86rem;
+  line-height:1.45;
+  backdrop-filter:blur(14px);
+}
+.build-annotations span b{
+  display:block;
+  margin-bottom:5px;
+  color:#12203a;
+  font-size:.92rem;
+}
+.build-annotations span:nth-child(1){left:26px;top:34px}
+.build-annotations span:nth-child(2){right:28px;top:66px}
+.build-annotations span:nth-child(3){left:74px;bottom:54px}
+.build-annotations span:nth-child(4){right:70px;bottom:38px}
+.post-launch{
+  display:block;
+}
+.dashboard-composition{
+  min-height:560px;
+  padding:34px;
+  border-radius:40px;
+  background:
+    radial-gradient(circle at 50% 20%,rgba(53,104,255,.18),transparent 34%),
+    linear-gradient(180deg,rgba(247,250,255,.82),rgba(255,255,255,.94));
+}
+.dashboard-card{
+  width:min(980px,100%);
+  margin:auto;
+  padding:28px;
+  border-radius:32px;
+  background:rgba(255,255,255,.9);
+}
+.dashboard-card__top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+}
+.dashboard-brand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-width:0;
+}
+.dashboard-app-icon{
+  width:36px;
+  height:36px;
+  border-radius:12px;
+}
+.dashboard-metrics{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  margin-top:26px;
+}
+.dashboard-line{
+  width:100%;
+  height:auto;
+  margin-top:28px;
+  overflow:visible;
+}
+.dashboard-line path{
+  fill:none;
+  stroke:#246bfd;
+  stroke-width:8;
+  stroke-linecap:round;
+  filter:drop-shadow(0 10px 18px rgba(36,107,253,.22));
+}
+.dashboard-line .line-soft{
+  stroke:#8fd5ea;
+  stroke-width:5;
+  opacity:.72;
+}
+.dashboard-bottom{
+  display:grid;
+  grid-template-columns:1.4fr .6fr;
+  gap:14px;
+  margin-top:22px;
+}
+.dashboard-bottom span{
+  padding:18px;
+  border:1px solid rgba(119,137,166,.16);
+  border-radius:20px;
+  color:#607089;
+  background:#f8fbff;
+}
+.dashboard-bottom b{
+  display:block;
+  margin-top:6px;
+  color:#12203a;
+}
+.chip-source{left:3%;bottom:18%}
+.growth-system{
+  display:block;
+}
+.section-anchor{
+  position:relative;
+  top:-110px;
+  display:block;
+  height:0;
+}
+.growth-route{
+  display:flex;
+  align-items:stretch;
+  justify-content:center;
+  gap:0;
+  margin-top:0;
+  padding:0;
+  border:1px solid rgba(119,137,166,.18);
+  border-radius:32px;
+  background:rgba(255,255,255,.76);
+  box-shadow:0 24px 80px rgba(28,45,79,.09);
+}
+.growth-route:before{
+  display:none;
+}
+.growth-route article{
+  position:relative;
+  flex:1;
+  min-width:0;
+  padding:30px 20px;
+  text-align:center;
+}
+.growth-route article+article:before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:32px;
+  bottom:32px;
+  width:1px;
+  background:rgba(119,137,166,.2);
+}
+.growth-route article span{
+  position:static;
+  display:block;
+  margin:0 auto 14px;
+  color:#3568ff;
+  font-size:.8rem;
+  font-weight:950;
+}
+.growth-route article h3{
+  margin:0;
+  color:#12203a;
+  font-size:1.05rem;
+  line-height:1.35;
+}
+.pwa-section{
+  padding-bottom:108px;
+}
+.pwa-layout{
+  display:grid;
+  grid-template-columns:.78fr 1.22fr;
+  gap:34px;
+  align-items:center;
+}
+.pwa-phone{
+  justify-self:center;
+  width:min(100%,310px);
+  min-height:560px;
+  padding:22px;
+  border-radius:44px;
+  text-align:center;
+  background:linear-gradient(180deg,#ffffff,#eef5ff);
+}
+.phone-speaker{
+  display:block;
+  width:76px;
+  height:7px;
+  margin:0 auto 86px;
+  border-radius:999px;
+  background:#d6e1f0;
+}
+.phone-app-icon{
+  width:96px;
+  height:96px;
+  margin:auto;
+  border-radius:26px;
+  box-shadow:0 20px 46px rgba(53,104,255,.22);
+}
+.pwa-phone strong{
+  display:block;
+  margin-top:18px;
+  color:#12203a;
+  font-size:1.45rem;
+}
+.phone-lines{
+  display:grid;
+  gap:12px;
+  margin-top:62px;
+}
+.phone-lines i{
+  height:16px;
+  border-radius:999px;
+  background:linear-gradient(90deg,#dbe7f7,#fff);
+}
+.pwa-steps{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:18px;
+}
+.pwa-steps article{
+  padding:28px;
+  border:1px solid rgba(119,137,166,.18);
+  border-radius:28px;
+  background:rgba(255,255,255,.78);
+  box-shadow:0 20px 60px rgba(28,45,79,.08);
+}
+.pwa-steps h3{
+  margin:0 0 18px;
+  color:#12203a;
+  font-size:1.35rem;
+}
+.pwa-steps ol{
+  display:grid;
+  gap:14px;
+  margin:0;
+  padding:0;
+  list-style:none;
+}
+.pwa-steps li{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  color:#536176;
+  font-weight:750;
+}
+.pwa-steps li span{
+  display:grid;
+  width:34px;
+  height:34px;
+  flex:0 0 34px;
+  place-items:center;
+  border-radius:12px;
+  color:#fff;
+  background:#3568ff;
+  font-size:.76rem;
+  font-weight:950;
+}
+.support-strip{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:18px;
+  padding-block:78px;
+}
+.support-strip article{
+  padding:34px;
+  border:1px solid rgba(119,137,166,.18);
+  border-radius:30px;
+  background:rgba(255,255,255,.78);
+  box-shadow:0 20px 60px rgba(28,45,79,.08);
+  text-align:center;
+}
+.support-strip h2{
+  margin:0;
+  color:#12203a;
+  font-size:clamp(1.55rem,2.4vw,2.35rem);
+  line-height:1.12;
+  letter-spacing:-.035em;
+}
+.support-strip p:not(.kicker){
+  color:#5d6b82;
+  line-height:1.65;
+}
+.support-strip a{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  margin-top:14px;
+  color:#3568ff;
+  font-weight:900;
+  text-decoration:none;
+}
+.compact-faq{
+  padding-block:78px;
+}
+.contact-layout{
+  grid-template-columns:.72fr 1.28fr;
+}
+@media(max-width:1180px){
+  .build-annotations{
+    position:static;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:12px;
+    margin-top:18px;
+  }
+  .build-annotations span{
+    position:static;
+    width:auto;
+  }
+  .browser-mockup{
+    width:100%;
+  }
+  .growth-route{
+    flex-wrap:wrap;
+  }
+  .growth-route article{
+    flex:1 1 33.333%;
+  }
+}
+@media(max-width:760px){
+  .landing-section{
+    padding-block:70px;
+  }
+  .section-head{
+    margin-bottom:34px;
+  }
+  .section-head h2{
+    font-size:clamp(2.05rem,10vw,3.1rem);
+  }
+  .section-head p:not(.kicker){
+    font-size:1rem;
+  }
+  .site-showcase,
+  .dashboard-composition{
+    padding:16px;
+    border-radius:26px;
+  }
+  .browser-mockup{
+    min-height:0;
+    padding:14px;
+    border-radius:22px;
+  }
+  .browser-hero{
+    padding:24px;
+  }
+  .browser-grid{
+    grid-template-columns:1fr;
+  }
+  .browser-grid i{
+    height:54px;
+  }
+  .build-annotations,
+  .dashboard-metrics,
+  .dashboard-bottom,
+  .pwa-layout,
+  .pwa-steps,
+  .support-strip,
+  .contact-layout{
+    grid-template-columns:1fr;
+  }
+  .dashboard-card{
+    padding:18px;
+    border-radius:24px;
+  }
+  .dashboard-card__top{
+    align-items:flex-start;
+  }
+  .dashboard-line{
+    margin-top:18px;
+  }
+  .growth-route{
+    display:grid;
+    grid-template-columns:1fr;
+    border-radius:26px;
+  }
+  .growth-route article{
+    padding:22px;
+  }
+  .growth-route article+article:before{
+    top:0;
+    right:22px;
+    bottom:auto;
+    left:22px;
+    width:auto;
+    height:1px;
+  }
+  .pwa-phone{
+    min-height:440px;
+  }
+  .phone-speaker{
+    margin-bottom:54px;
+  }
+  .support-strip{
+    padding-block:64px;
+  }
+  .contact form{
+    grid-template-columns:1fr;
   }
 }
 </style>

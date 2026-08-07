@@ -15,10 +15,10 @@ import {
   Send,
   ShieldCheck,
   X,
-  Zap,
   Crown,
 } from '@lucide/vue'
 
+import TrackNodeIcon from './TrackNodeIcon.vue'
 import { useAuthStore } from '../stores/auth'
 import { useAccessStore } from '../stores/access'
 import { useSiteStore } from '../stores/site'
@@ -87,9 +87,7 @@ function isActive(item) {
     >
       <div class="flex items-center justify-between gap-3 px-2">
         <div class="flex items-center gap-3">
-          <span class="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-[0_14px_30px_rgba(109,93,246,0.28)]">
-            <Zap :size="21" fill="currentColor" stroke-width="2.2" />
-          </span>
+          <TrackNodeIcon class="h-10 w-10 rounded-2xl shadow-[0_14px_30px_rgba(109,93,246,0.28)]" />
           <div>
             <p class="text-lg font-semibold text-[#17223B]">TrackNode</p>
             <p class="text-xs text-slate-500">Платформа аналитики</p>
