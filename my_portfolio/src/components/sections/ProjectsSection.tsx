@@ -19,7 +19,7 @@ export function ProjectsSection() {
     categories?: Array<{ id: string; label: string }>;
     projects?: PortfolioProject[];
   }>("projects");
-  const [activeCategory, setActiveCategory] = useState("all");
+  const [activeCategory, setActiveCategory] = useState("landing");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const categories = content.categories || [];
   const projects = (content.projects || []).map((project) => normalizePortfolioProject(project)) as Project[];
