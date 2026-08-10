@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -380,8 +381,8 @@ class SEOAuditViewsExtendedTests(TestCase):
                 self.assertEqual(issues_response.status_code, 200)
                 self.assertEqual(history_response.status_code, 200)
                 self.assertEqual(compare_response.status_code, 200)
-                self.assertEqual(ai_response.status_code, 200)
-                self.assertEqual(export_response.status_code, 200)
+                self.assertEqual(ai_response.status_code, 409)
+                self.assertEqual(export_response.status_code, 409)
 
                 stop_response = self.http.post(f"/api/mini/seo/{audit_id}/stop/?site_id={self.site.id}")
                 self.assertEqual(stop_response.status_code, 200)
@@ -404,11 +405,12 @@ class SEOAuditViewsExtendedTests(TestCase):
             Permission.objects.get(codename="access_platform", content_type__app_label="platform_admin")
         )
 
-        self.http.force_authenticate(user=another_platform_owner)
-        self.assertEqual(self.http.get(f"/api/mini/seo/{audit.id}/").status_code, 404)
-
-        self.http.force_authenticate(user=self.user)
-        self.assertEqual(self.http.get(f"/api/mini/seo/{audit.id}/").status_code, 404)
+        for user in (another_platform_owner, self.user):
+            with self.subTest(user=user.username):
+                self.http.force_authenticate(user=user)
+                for suffix in ("", "pages/", "issues/", "export/"):
+                    response = self.http.get(f"/api/mini/seo/{audit.id}/{suffix}")
+                    self.assertEqual(response.status_code, 404)
 
     @patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 0))])
     @patch("seo_audit.tasks.run_site_audit_task.delay")
@@ -433,6 +435,59 @@ class SEOAuditViewsExtendedTests(TestCase):
         self.assertEqual(audit.client.owner_id, no_site_user.id)
         self.assertEqual(audit.target_url, "https://example.com/")
         mocked_delay.assert_called_once_with(audit.id)
+
+    @patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 0))])
+    @patch("seo_audit.tasks.run_site_audit_task.delay", side_effect=RuntimeError("broker unavailable"))
+    def test_enqueue_failure_finishes_audit_with_error(self, _mocked_delay, _mocked_dns):
+        response = self.http.post(
+            "/api/mini/seo/start/",
+            {"target_url": "https://example.com/"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 503)
+        audit = SiteSEOAudit.objects.get(id=response.json()["audit_id"])
+        self.assertEqual(audit.status, SiteSEOAudit.Status.ERROR)
+        self.assertIn("broker unavailable", audit.error_message)
+        self.assertIsNotNone(audit.finished_at)
+
+    def test_pending_audit_has_no_unverified_indexing_results_or_pdf(self):
+        audit = SiteSEOAudit.objects.create(
+            client=self.client_obj,
+            requested_by=self.user,
+            domain="pending.example.com",
+            target_url="https://pending.example.com/",
+            status=SiteSEOAudit.Status.PENDING,
+        )
+
+        detail_response = self.http.get(f"/api/mini/seo/{audit.id}/")
+        export_response = self.http.get(f"/api/mini/seo/{audit.id}/export/")
+
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertIsNone(detail_response.json()["has_robots_txt"])
+        self.assertIsNone(detail_response.json()["has_sitemap_xml"])
+        self.assertIsNone(detail_response.json()["recommendations"])
+        self.assertEqual(export_response.status_code, 409)
+
+    @override_settings(SEO_AUDIT_PENDING_TIMEOUT_SECONDS=60)
+    def test_stale_pending_audit_becomes_terminal_error_when_polled(self):
+        audit = SiteSEOAudit.objects.create(
+            client=self.client_obj,
+            requested_by=self.user,
+            domain="stale.example.com",
+            target_url="https://stale.example.com/",
+            status=SiteSEOAudit.Status.PENDING,
+            celery_task_id="lost-task-id",
+        )
+        SiteSEOAudit.objects.filter(id=audit.id).update(created_at=timezone.now() - timedelta(minutes=5))
+
+        response = self.http.get(f"/api/mini/seo/{audit.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], SiteSEOAudit.Status.ERROR)
+        self.assertIn("worker", response.json()["error_message"])
+        audit.refresh_from_db()
+        self.assertIsNotNone(audit.finished_at)
 
     @patch("seo_audit.tasks.run_site_audit_task.delay")
     def test_platform_owner_external_url_rejects_localhost_with_clear_error_without_audit(self, mocked_delay):

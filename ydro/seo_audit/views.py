@@ -1,8 +1,10 @@
 ﻿# -*- coding: utf-8 -*-
 import logging
+from datetime import timedelta
 from urllib.parse import quote, urlparse
 
 from celery.result import AsyncResult
+from django.conf import settings
 from django.db.models import Prefetch
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
@@ -80,6 +82,28 @@ def _audit_allowed_for_request(request, audit: SiteSEOAudit | None) -> bool:
     return _domain_allowed_for_request(request, audit.domain)
 
 
+def _fail_stale_pending_audit(audit: SiteSEOAudit | None) -> SiteSEOAudit | None:
+    if audit is None or audit.status != SiteSEOAudit.Status.PENDING:
+        return audit
+    timeout_seconds = max(60, int(getattr(settings, "SEO_AUDIT_PENDING_TIMEOUT_SECONDS", 900) or 900))
+    if audit.created_at > timezone.now() - timedelta(seconds=timeout_seconds):
+        return audit
+
+    error_message = "SEO-аудит не был запущен worker вовремя. Запустите проверку повторно."
+    finished_at = timezone.now()
+    updated = SiteSEOAudit.objects.filter(id=audit.id, status=SiteSEOAudit.Status.PENDING).update(
+        status=SiteSEOAudit.Status.ERROR,
+        error_message=error_message,
+        finished_at=finished_at,
+    )
+    if updated:
+        audit.status = SiteSEOAudit.Status.ERROR
+        audit.error_message = error_message
+        audit.finished_at = finished_at
+        logger.error("seo_audit.pending timeout audit_id=%s task_id=%s", audit.id, audit.celery_task_id)
+    return audit
+
+
 def _get_audit_for_request(request, audit_id: int, *, prefetch_pages: bool = False) -> SiteSEOAudit | None:
     queryset = SiteSEOAudit.objects.filter(id=audit_id)
     if prefetch_pages:
@@ -89,6 +113,8 @@ def _get_audit_for_request(request, audit_id: int, *, prefetch_pages: bool = Fal
 
     if audit is None:
         audit = queryset.filter(client=request.client).first()
+
+    audit = _fail_stale_pending_audit(audit)
 
     logger.info(
         "seo_audit.resolve audit_id=%s user_id=%s request_client_id=%s platform_admin=%s "
@@ -271,6 +297,7 @@ def _build_audit_detail_payload(*, audit: SiteSEOAudit, client) -> dict:
         "domain": audit_payload.get("domain", audit.domain),
         "target_url": audit_payload.get("target_url", audit.target_url),
         "status": audit_payload.get("status", audit.status),
+        "error_message": audit_payload.get("error_message", getattr(audit, "error_message", "")),
         "score": int(audit_payload.get("score", audit.seo_score or 0) or 0),
         "seo_score": int(audit_payload.get("seo_score", audit.seo_score or 0) or 0),
         "pages_count": int(audit_payload.get("pages_count", 0) or 0),
@@ -302,7 +329,12 @@ def _build_audit_detail_payload(*, audit: SiteSEOAudit, client) -> dict:
     if not (audit.status == SiteSEOAudit.Status.RUNNING and audit.finished_at is None):
         payload["finished_at"] = audit_payload.get("finished_at", audit.finished_at)
 
-    payload["recommendations"] = build_seo_recommendations(payload)
+    if audit.status == SiteSEOAudit.Status.DONE:
+        payload["recommendations"] = build_seo_recommendations(payload)
+    else:
+        payload["has_robots_txt"] = None
+        payload["has_sitemap_xml"] = None
+        payload["recommendations"] = None
     return payload
 
 
@@ -359,9 +391,17 @@ class SEOAuditStartView(APIView):
 
         queued = True
         try:
-            run_site_audit_task.delay(audit.id)
-        except Exception:
+            async_result = run_site_audit_task.delay(audit.id)
+            task_id = getattr(async_result, "id", None)
+            if isinstance(task_id, str) and task_id:
+                audit.celery_task_id = task_id
+                audit.save(update_fields=["celery_task_id"])
+        except Exception as exc:
             queued = False
+            audit.status = SiteSEOAudit.Status.ERROR
+            audit.error_message = f"Не удалось поставить SEO-аудит в очередь: {str(exc).strip() or exc.__class__.__name__}"[:2000]
+            audit.finished_at = timezone.now()
+            audit.save(update_fields=["status", "error_message", "finished_at"])
             logger.exception(
                 "seo_audit.start failed to enqueue task audit_id=%s client_id=%s",
                 audit.id,
@@ -370,14 +410,16 @@ class SEOAuditStartView(APIView):
         logger.info("seo_audit.start created audit_id=%s client_id=%s domain=%s", audit.id, request.client.id, audit.domain)
         return json_response(
             {
-                "ok": True,
+                "ok": queued,
                 "audit_id": audit.id,
                 "status": audit.status,
                 "domain": audit.domain,
                 "target_url": audit.target_url,
                 "queued": queued,
+                "error_message": audit.error_message,
+                "detail": audit.error_message if not queued else "SEO-аудит поставлен в очередь.",
             },
-            http_status=status.HTTP_201_CREATED,
+            http_status=status.HTTP_201_CREATED if queued else status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 
 
@@ -669,6 +711,16 @@ class SEOAuditAiRecommendationsView(APIView):
         if not _audit_allowed_for_request(request, audit):
             return json_response({"detail": "Аудит не найден.", "ok": False}, http_status=status.HTTP_404_NOT_FOUND)
 
+        if audit.status != SiteSEOAudit.Status.DONE:
+            return json_response(
+                {
+                    "ok": False,
+                    "detail": "Рекомендации доступны только после завершения SEO-аудита.",
+                    "status": audit.status,
+                },
+                http_status=status.HTTP_409_CONFLICT,
+            )
+
         detail_payload = _build_audit_detail_payload(audit=audit, client=audit.client)
         return json_response(detail_payload.get("recommendations") or build_seo_recommendations(detail_payload), http_status=status.HTTP_200_OK)
 
@@ -681,6 +733,16 @@ class SEOAuditExportView(APIView):
         audit = _get_audit_for_request(request, audit_id)
         if not _audit_allowed_for_request(request, audit):
             return json_response({"detail": "Аудит не найден.", "ok": False}, http_status=status.HTTP_404_NOT_FOUND)
+
+        if audit.status != SiteSEOAudit.Status.DONE:
+            return json_response(
+                {
+                    "ok": False,
+                    "detail": "PDF-отчёт доступен только после завершения SEO-аудита.",
+                    "status": audit.status,
+                },
+                http_status=status.HTTP_409_CONFLICT,
+            )
 
         detail_payload = _build_audit_detail_payload(audit=audit, client=audit.client)
         compare_with_id = request.query_params.get("with_audit_id")

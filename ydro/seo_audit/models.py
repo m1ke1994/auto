@@ -35,6 +35,7 @@ class SiteSEOAudit(models.Model):
     avg_ttfb_ms = models.PositiveIntegerField(default=0)
     avg_performance_score = models.PositiveIntegerField(default=0)
     celery_task_id = models.CharField(max_length=255, null=True, blank=True)
+    error_message = models.TextField(blank=True, default="")
     is_cancelled = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     finished_at = models.DateTimeField(null=True, blank=True)

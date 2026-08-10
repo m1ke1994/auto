@@ -441,3 +441,47 @@ class SEOCrawlerServiceTests(TestCase):
         signals = _collect_commercial_signals(soup)
         self.assertTrue(signals["has_widget"])
         self.assertTrue(signals["has_conversion_path"])
+
+    def test_crawler_raises_when_no_page_returns_an_http_response(self):
+        audit = SiteSEOAudit.objects.create(
+            client=self.client_obj,
+            domain="timeout.example.com",
+            target_url="https://timeout.example.com/",
+        )
+
+        with patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 0))]), patch(
+            "seo_audit.services.crawler.requests.Session.get",
+            side_effect=requests.Timeout("timed out"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "HTTP-ответ"):
+                crawl_site_audit(audit, max_pages=1)
+
+        page = SEOPage.objects.get(audit=audit, url="https://timeout.example.com/")
+        self.assertEqual(page.status_code, 0)
+        self.assertTrue(SEOIssue.objects.filter(page=page, issue_type="network_error").exists())
+
+    def test_http_error_response_is_not_treated_as_network_failure(self):
+        audit = SiteSEOAudit.objects.create(
+            client=self.client_obj,
+            domain="unavailable.example.com",
+            target_url="https://unavailable.example.com/",
+        )
+
+        def response_for(url, **_kwargs):
+            response = requests.Response()
+            response.url = url
+            response.status_code = 503 if url.endswith("/") else 404
+            response.headers["Content-Type"] = "text/html; charset=utf-8"
+            response._content = b"<html><body>Unavailable</body></html>"
+            return response
+
+        with patch("socket.getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 0))]), patch(
+            "seo_audit.services.crawler.requests.Session.get",
+            side_effect=response_for,
+        ):
+            crawl_site_audit(audit, max_pages=1)
+
+        page = SEOPage.objects.get(audit=audit, url="https://unavailable.example.com/")
+        self.assertEqual(page.status_code, 503)
+        self.assertTrue(SEOIssue.objects.filter(page=page, issue_type="bad_status").exists())
+        self.assertFalse(SEOIssue.objects.filter(page=page, issue_type="network_error").exists())

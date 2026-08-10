@@ -231,6 +231,8 @@ def build_seo_audit_pdf(*, detail_payload: dict[str, Any], comparison: dict[str,
     elements: list = [
         _p("Отчёт SEO-аудита сайта", "title"),
         _p(f"Домен: {domain}", "subtitle"),
+        _p(f"Проверенный URL: {_sanitize_text(detail_payload.get('target_url') or detail_payload.get('domain'))}", "subtitle"),
+        _p(f"Дата проверки: {_sanitize_text(detail_payload.get('finished_at'))}", "subtitle"),
         _p(f"Дата формирования: {generated_at:%d.%m.%Y %H:%M}", "subtitle"),
         Spacer(1, 8),
     ]

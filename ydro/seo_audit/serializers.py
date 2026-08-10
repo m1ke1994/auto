@@ -328,6 +328,7 @@ class SiteSEOAuditSerializer(serializers.ModelSerializer):
             "domain",
             "target_url",
             "status",
+            "error_message",
             "score",
             "seo_score",
             "pages_count",

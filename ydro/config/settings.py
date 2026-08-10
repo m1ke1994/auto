@@ -349,6 +349,7 @@ SEO_AUDIT_USER_AGENT = env(
     "SEO_AUDIT_USER_AGENT",
     f"TrackNode SEO Audit/1.0 (+{SITE_BASE_URL})",
 )
+SEO_AUDIT_PENDING_TIMEOUT_SECONDS = int(env("SEO_AUDIT_PENDING_TIMEOUT_SECONDS", "900"))
 if IS_PRODUCTION:
     invalid_origins = [
         origin

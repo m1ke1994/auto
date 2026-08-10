@@ -473,11 +473,11 @@ def _collect_urls_from_sitemap(
         fetch = _fetch_url(session, current_sitemap, stop_check)
         response = fetch.response
         if current_sitemap == normalized_root_sitemap:
-            root_response_received = bool(response)
-            root_status_code = int(getattr(response, "status_code", 0) or 0) if response else 0
+            root_response_received = response is not None
+            root_status_code = int(getattr(response, "status_code", 0) or 0) if response is not None else 0
             root_is_xml = _is_xml_response(response)
 
-        if not response:
+        if response is None:
             continue
 
         status_code = int(getattr(response, "status_code", 0) or 0)
@@ -1505,7 +1505,7 @@ def _build_indexing_context(
 
     robots_result = _fetch_url(session, robots_url, stop_check)
     robots_response = robots_result.response
-    if not robots_response or int(getattr(robots_response, "status_code", 0) or 0) != 200:
+    if robots_response is None or int(getattr(robots_response, "status_code", 0) or 0) != 200:
         _create_issue(anchor_page, "missing_robots_txt", SEOIssue.Severity.LOW)
     else:
         has_robots_txt = True
@@ -1763,6 +1763,7 @@ def crawl_site_audit(
     queued: set[str] = set(queue)
     visited: set[str] = set()
     crawled_urls: set[str] = set()
+    responses_received = 0
     resource_size_cache: dict[str, Optional[int]] = {}
     resource_fetch_state = {"remaining": MAX_RESOURCE_FETCH_BUDGET}
 
@@ -1778,7 +1779,7 @@ def crawl_site_audit(
             continue
 
         fetch = _fetch_url(local_session, requested_url, stop_check)
-        if not fetch.response:
+        if fetch.response is None:
             page, _ = SEOPage.objects.update_or_create(
                 audit=audit,
                 url=requested_url,
@@ -1815,6 +1816,7 @@ def crawl_site_audit(
             continue
 
         response = fetch.response
+        responses_received += 1
         final_url = _normalize_url(getattr(response, "url", "") or requested_url)
         if final_url and _is_internal_url(final_url, root_host):
             visited.add(final_url)
@@ -1923,6 +1925,8 @@ def crawl_site_audit(
                 queued.add(link)
 
     _check_cancelled(stop_check)
+    if responses_received <= 0:
+        raise RuntimeError("Не удалось получить HTTP-ответ ни от одной страницы сайта.")
     _apply_duplicate_title_checks(audit)
     _apply_indexing_page_checks(audit, context=indexing_context, crawled_urls=crawled_urls)
     _check_cancelled(stop_check)

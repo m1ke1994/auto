@@ -24,6 +24,7 @@ const seoParams = computed(() => ({}))
 const auditTarget = computed(() => targetUrl.value.trim())
 const auditId = computed(() => latest.value?.audit_id || detail.value?.audit_id)
 const running = computed(() => ['pending', 'running'].includes(String(detail.value?.status || latest.value?.status || '').toLowerCase()))
+const completed = computed(() => ['done', 'completed'].includes(auditStatus()))
 const checking = computed(() => startingAudit.value || running.value)
 const score = computed(() => Number(detail.value?.score ?? latest.value?.score ?? 0))
 const displayTarget = computed(() => detail.value?.target_url || latest.value?.target_url || auditTarget.value)
@@ -89,13 +90,17 @@ function firstErrorMessage(value) {
 
 async function loadAudit(id) {
   detail.value = await miniSeoDetail(id, seoParams.value)
-  const result = await miniSeoIssues(id, seoParams.value)
-  issues.value = result?.rows || []
+  if (['done', 'completed'].includes(auditStatus())) {
+    const result = await miniSeoIssues(id, seoParams.value)
+    issues.value = result?.rows || []
+  } else {
+    issues.value = []
+  }
 }
 
 function handleAuditCompletion(showMessage = false) {
   const status = auditStatus()
-  if (!['done', 'completed', 'failed', 'error'].includes(status)) return
+  if (!['done', 'completed', 'failed', 'error', 'stopped'].includes(status)) return
 
   stopPolling()
   if (['done', 'completed'].includes(status)) {
@@ -103,26 +108,30 @@ function handleAuditCompletion(showMessage = false) {
     return
   }
 
-  error.value = 'Не удалось выполнить SEO-аудит. Попробуйте позже.'
+  error.value = detail.value?.error_message || (status === 'stopped'
+    ? 'SEO-аудит остановлен.'
+    : 'Не удалось выполнить SEO-аудит. Попробуйте позже.')
 }
 
 function stopPolling() {
-  if (timer) clearInterval(timer)
+  if (timer) clearTimeout(timer)
   timer = null
 }
 
 function startPolling() {
   stopPolling()
-  timer = setInterval(async () => {
+  const poll = async () => {
     try {
       await loadAudit(auditId.value)
       handleAuditCompletion(true)
+      if (running.value) timer = setTimeout(poll, 4000)
     } catch (e) {
       console.error('SEO audit polling failed', e)
       error.value = 'Не удалось выполнить SEO-аудит. Попробуйте позже.'
       stopPolling()
     }
-  }, 4000)
+  }
+  timer = setTimeout(poll, 1000)
 }
 
 async function findLatest() {
@@ -203,7 +212,7 @@ onUnmounted(stopPolling)
     <p v-if="success" class="notice-success" role="status">{{ success }}</p>
     <section v-if="checking" class="notice-info flex items-start gap-3" aria-live="polite" aria-busy="true">
       <span class="button-spinner mt-0.5 text-brand-700" aria-hidden="true" />
-      <span>Идет SEO-аудит сайта. Это может занять до 30–60 секунд. Не закрывайте страницу.</span>
+      <span>{{ auditStatus() === 'running' ? 'Анализируем сайт и его страницы.' : 'SEO-аудит поставлен в очередь.' }}</span>
     </section>
 
     <template v-if="detail || latest">
@@ -216,7 +225,7 @@ onUnmounted(stopPolling)
         <article class="surface">
           <div class="section-heading">
             <div><h2>Результат проверки</h2><p class="break-words">{{ displayTarget }}</p></div>
-            <button type="button" class="action-button-secondary" :disabled="!auditId || downloading" @click="downloadPdf"><Download :size="17" />{{ downloading ? 'Готовим...' : 'Скачать PDF' }}</button>
+            <button v-if="completed" type="button" class="action-button-secondary" :disabled="downloading" @click="downloadPdf"><Download :size="17" />{{ downloading ? 'Формируем...' : 'Сформировать презентацию' }}</button>
           </div>
           <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div class="rounded-lg bg-slate-50 p-3"><p class="text-xs text-slate-500">Проверено страниц</p><strong class="mt-1 block text-xl">{{ detail?.pages_count || 0 }}</strong></div>
@@ -226,7 +235,7 @@ onUnmounted(stopPolling)
         </article>
       </section>
 
-      <section>
+      <section v-if="completed">
         <div class="section-heading"><div><h2>Найденные проблемы</h2><p>Простые объяснения и рекомендации по исправлению.</p></div></div>
         <div v-if="issues.length" class="grid gap-3">
           <article v-for="issue in issues" :key="issue.id" class="surface">
@@ -240,7 +249,7 @@ onUnmounted(stopPolling)
             </div>
           </article>
         </div>
-        <div v-else class="empty-state"><SearchCheck :size="30" /><h2>Проблем не найдено</h2><p>Или проверка еще выполняется.</p></div>
+        <div v-else class="empty-state"><SearchCheck :size="30" /><h2>Проблем не найдено</h2><p>Проверка завершена без SEO-замечаний.</p></div>
       </section>
     </template>
   </div>
