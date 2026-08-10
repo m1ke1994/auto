@@ -8,7 +8,7 @@ const accessStore = useAccessStore()
 const navItems = computed(() => [
   { label: 'Статистика', to: '/mini', feature: 'dashboard_overview' },
   { label: 'Заявки', to: '/mini/leads', feature: 'leads' },
-  { label: 'Проверка сайта', to: '/mini/seo', feature: 'seo_audit' },
+  { label: 'Проверка сайта', to: '/mini/seo' },
   { label: 'Отчёты', to: '/mini/reports', feature: 'reports' },
   { label: 'Настройки', to: '/mini/settings', feature: 'billing_full_access' },
   { label: 'Telegram', to: '/mini/integration', feature: 'telegram' },

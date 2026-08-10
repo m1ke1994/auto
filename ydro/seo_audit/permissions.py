@@ -5,6 +5,7 @@ from apps.sites.models import Site
 from clients.models import Client
 from clients.services import get_or_create_client_for_site, get_user_client
 from platform_admin.permissions import is_platform_owner
+from seo_audit.models import SiteSEOAudit
 from subscriptions.access import (
     BUSINESS_ANALYTICS_REQUIRED_MESSAGE,
     FEATURE_SEO_AUDIT,
@@ -56,6 +57,40 @@ class SEOAuditAccessPermission(permissions.BasePermission):
             return client
         return Client.objects.create(owner=user, name=(getattr(user, "email", "") or getattr(user, "username", "") or "Platform owner"))
 
+    def _external_audit_client(self, user):
+        client = get_user_client(user)
+        if client is not None:
+            return client
+        return Client.objects.create(
+            owner=user,
+            name=(getattr(user, "email", "") or getattr(user, "username", "") or "SEO audit user"),
+        )
+
+    def _bind_external_audit_context(self, request, *, client=None) -> bool:
+        client = client or self._external_audit_client(request.user)
+        if client is None:
+            return False
+        request.client = client
+        request.seo_platform_admin = self._platform_admin(request.user)
+        request.seo_external_audit = True
+        return True
+
+    def _has_external_target(self, request) -> bool:
+        return bool(str(self._request_value(request, "target_url") or "").strip())
+
+    def _bind_existing_external_audit_context(self, request, view) -> bool:
+        audit_id = self._safe_int(getattr(view, "kwargs", {}).get("audit_id"))
+        if not audit_id:
+            return False
+        audit = (
+            SiteSEOAudit.objects.select_related("client")
+            .filter(id=audit_id, requested_by=request.user, target_url__isnull=False)
+            .first()
+        )
+        if audit is None:
+            return False
+        return self._bind_external_audit_context(request, client=audit.client)
+
     def _bind_site_context(self, request, site_id: int) -> bool:
         user = request.user
         site = Site.objects.select_related("owner").filter(id=site_id, is_active=True).first()
@@ -104,6 +139,12 @@ class SEOAuditAccessPermission(permissions.BasePermission):
         user = request.user
         if not user or not user.is_authenticated:
             return False
+
+        if self._has_external_target(request):
+            return self._bind_external_audit_context(request)
+
+        if self._bind_existing_external_audit_context(request, view):
+            return True
 
         site_id = self._safe_int(
             self._request_value(request, "site_id")

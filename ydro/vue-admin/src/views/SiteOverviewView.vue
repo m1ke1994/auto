@@ -54,7 +54,7 @@ const actions = computed(() => [
   { label: 'Посмотреть заявки', text: 'Новые обращения клиентов', icon: Inbox, to: `/sites/${siteId.value}/leads`, feature: 'leads' },
   { label: 'Изменить сайт', text: 'Тексты, изображения и разделы', icon: Blocks, to: `/sites/${siteId.value}/sections`, feature: 'site_edit' },
   { label: 'Открыть аналитику', text: 'Посетители и популярные страницы', icon: BarChart3, to: `/sites/${siteId.value}/analytics`, feature: 'analytics' },
-  { label: 'Проверить SEO', text: 'Найти проблемы сайта', icon: SearchCheck, to: `/sites/${siteId.value}/seo`, feature: 'seo_audit' },
+  { label: 'Проверить SEO', text: 'Найти проблемы сайта', icon: SearchCheck, to: `/sites/${siteId.value}/seo` },
   { label: telegram.value?.connected ? 'Telegram подключен' : 'Подключить Telegram', text: 'Получать заявки сразу в чат', icon: Send, to: `/sites/${siteId.value}/integration`, feature: 'telegram' },
 ].filter((action) => accessStore.can(action.feature)))
 

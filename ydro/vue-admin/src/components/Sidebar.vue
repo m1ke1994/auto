@@ -44,6 +44,7 @@ const navItems = computed(() => {
   const items = [
     { label: 'Мои сайты', to: '/dashboard', icon: LayoutDashboard, feature: 'dashboard_overview' },
     { label: 'Уведомления', to: '/dashboard/notifications', icon: Bell, feature: 'notifications' },
+    { label: 'SEO-аудит', to: '/seo', icon: SearchCheck },
   ]
   if (siteId.value) {
     items.push(
@@ -52,7 +53,6 @@ const navItems = computed(() => {
       { label: 'Аналитика', to: `/sites/${siteId.value}/analytics`, icon: BarChart3, feature: 'analytics' },
       { label: 'AI-рекомендации', to: `/sites/${siteId.value}/ai-recommendations`, icon: Sparkles, feature: 'ai_recommendations', showWhenLocked: true },
       { label: 'Редактирование сайта', to: `/sites/${siteId.value}/sections`, icon: Blocks, feature: 'site_edit' },
-      { label: 'SEO-аудит', to: `/sites/${siteId.value}/seo`, icon: SearchCheck, feature: 'seo_audit' },
       { label: 'Анализ конкурентов', to: `/sites/${siteId.value}/competitors`, icon: FileSearch, feature: 'competitors' },
       { label: 'Telegram', to: `/sites/${siteId.value}/integration`, icon: Send, feature: 'telegram' },
     )

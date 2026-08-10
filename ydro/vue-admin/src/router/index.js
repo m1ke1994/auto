@@ -120,7 +120,8 @@ const routes = [
         ],
       },
       { path: 'sites/:siteId/leads', name: 'leads', component: LeadsView, props: true, meta: { title: 'Лиды', requiredFeature: 'leads' } },
-      { path: 'sites/:siteId/seo', name: 'site-seo', component: MiniSeoAuditView, props: true, meta: { title: 'SEO-аудит', requiredFeature: 'seo_audit' } },
+      { path: 'seo', name: 'seo', component: MiniSeoAuditView, meta: { title: 'SEO-аудит' } },
+      { path: 'sites/:siteId/seo', name: 'site-seo', component: MiniSeoAuditView, props: true, meta: { title: 'SEO-аудит' } },
       { path: 'sites/:siteId/competitors', name: 'competitor-analysis', component: CompetitorAnalysisView, props: true, meta: { title: 'Анализ конкурентов', requiredFeature: 'competitors' } },
       { path: 'sites/:siteId/integration', name: 'site-integration', component: MiniIntegrationView, props: true, meta: { title: 'Интеграция', requiredFeature: 'telegram' } },
       {
@@ -129,7 +130,7 @@ const routes = [
         children: [
           { path: '', name: 'mini-overview', component: MiniOverviewView, meta: { title: 'Обзор', requiredFeature: 'dashboard_overview' } },
           { path: 'leads', name: 'mini-leads', component: MiniLeadsView, meta: { title: 'Лиды', requiredFeature: 'leads' } },
-          { path: 'seo', name: 'mini-seo', component: MiniSeoAuditView, meta: { title: 'SEO-аудит', requiredFeature: 'seo_audit' } },
+          { path: 'seo', name: 'mini-seo', component: MiniSeoAuditView, meta: { title: 'SEO-аудит' } },
           { path: 'reports', name: 'mini-reports', component: MiniReportsView, meta: { title: 'Отчёты', requiredFeature: 'reports' } },
           { path: 'settings', name: 'mini-settings', component: MiniSettingsView, meta: { title: 'Настройки', requiredFeature: 'billing_full_access' } },
           { path: 'integration', name: 'mini-integration', component: MiniIntegrationView, meta: { title: 'Интеграция', requiredFeature: 'telegram' } },

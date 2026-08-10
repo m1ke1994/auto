@@ -4,15 +4,11 @@ import { useRoute } from 'vue-router'
 import { Download, Globe2, SearchCheck } from '@lucide/vue'
 
 import { miniSeoDetail, miniSeoExport, miniSeoIssues, miniSeoLatest, miniSeoStart } from '../../api/mini'
-import { useAuthStore } from '../../stores/auth'
 import { useSiteStore } from '../../stores/site'
 
 const route = useRoute()
-const authStore = useAuthStore()
 const siteStore = useSiteStore()
-const domain = ref('')
 const targetUrl = ref('')
-const mode = ref('selected')
 const loadingLatest = ref(false)
 const startingAudit = ref(false)
 const downloading = ref(false)
@@ -24,14 +20,13 @@ const issues = ref([])
 let timer = null
 
 const siteId = computed(() => Number(route.params.siteId || 0))
-const isPlatformOwner = computed(() => Boolean(authStore.user?.permissions?.platform_access))
-const canUseExternalUrl = computed(() => isPlatformOwner.value && mode.value === 'external')
-const seoParams = computed(() => (siteId.value && !canUseExternalUrl.value ? { site_id: siteId.value } : {}))
-const auditTarget = computed(() => (canUseExternalUrl.value ? targetUrl.value.trim() : domain.value.trim()))
+const seoParams = computed(() => ({}))
+const auditTarget = computed(() => targetUrl.value.trim())
 const auditId = computed(() => latest.value?.audit_id || detail.value?.audit_id)
 const running = computed(() => ['pending', 'running'].includes(String(detail.value?.status || latest.value?.status || '').toLowerCase()))
 const checking = computed(() => startingAudit.value || running.value)
 const score = computed(() => Number(detail.value?.score ?? latest.value?.score ?? 0))
+const displayTarget = computed(() => detail.value?.target_url || latest.value?.target_url || auditTarget.value)
 
 function auditStatus() {
   return String(detail.value?.status || latest.value?.status || '').toLowerCase()
@@ -131,10 +126,10 @@ function startPolling() {
 }
 
 async function findLatest() {
-  if (!auditTarget.value) { error.value = canUseExternalUrl.value ? 'Введите URL сайта.' : 'Введите домен сайта.'; return }
+  if (!auditTarget.value) { error.value = 'Введите URL сайта.'; return }
   loadingLatest.value = true; error.value = ''; success.value = ''
   try {
-    latest.value = await miniSeoLatest(auditTarget.value, seoParams.value)
+    latest.value = await miniSeoLatest('', { target_url: auditTarget.value })
     if (latest.value?.audit_id) {
       await loadAudit(latest.value.audit_id)
       if (running.value) startPolling()
@@ -144,14 +139,11 @@ async function findLatest() {
 }
 
 async function startAudit() {
-  if (!auditTarget.value) { error.value = canUseExternalUrl.value ? 'Введите URL сайта.' : 'Введите домен сайта.'; return }
+  if (!auditTarget.value) { error.value = 'Введите URL сайта.'; return }
   if (checking.value) return
   startingAudit.value = true; error.value = ''; success.value = ''; issues.value = []
   try {
-    latest.value = await miniSeoStart(
-      canUseExternalUrl.value ? '' : domain.value.trim(),
-      canUseExternalUrl.value ? { target_url: targetUrl.value.trim() } : seoParams.value,
-    )
+    latest.value = await miniSeoStart('', { target_url: auditTarget.value })
     await loadAudit(latest.value.audit_id)
     if (running.value) startPolling()
     else handleAuditCompletion(true)
@@ -168,7 +160,7 @@ async function downloadPdf() {
     const blob = await miniSeoExport(auditId.value, seoParams.value)
     const href = URL.createObjectURL(blob)
     const link = document.createElement('a')
-    link.href = href; link.download = `seo-audit-${auditTarget.value || domain.value}.pdf`; link.click()
+    link.href = href; link.download = `seo-audit-${displayTarget.value || 'site'}.pdf`; link.click()
     URL.revokeObjectURL(href)
   } catch (e) { error.value = errorMessage(e, 'Не удалось скачать PDF-отчет.') }
   finally { downloading.value = false }
@@ -178,10 +170,7 @@ onMounted(async () => {
   if (siteId.value) {
     siteStore.selectSite(siteId.value)
     if (!siteStore.currentSite) await siteStore.fetchSite(siteId.value)
-    domain.value = siteStore.currentSite?.domain || ''
-  }
-  if (!authStore.user) {
-    try { await authStore.getCurrentUser() } catch { /* Auth guard remains authoritative. */ }
+    targetUrl.value = siteStore.currentSite?.domain || ''
   }
 })
 onUnmounted(stopPolling)
@@ -196,22 +185,12 @@ onUnmounted(stopPolling)
     </header>
 
     <section class="surface">
-      <div v-if="isPlatformOwner" class="mb-4 inline-flex rounded-lg bg-slate-100 p-1">
-        <button type="button" class="rounded-md px-3 py-2 text-sm font-semibold" :class="mode === 'selected' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600'" @click="mode = 'selected'">
-          Выбранный сайт
-        </button>
-        <button type="button" class="rounded-md px-3 py-2 text-sm font-semibold" :class="mode === 'external' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600'" @click="mode = 'external'">
-          Проверить любой сайт
-        </button>
-      </div>
-
-      <label class="text-sm font-semibold text-slate-800" :for="canUseExternalUrl ? 'seo-target-url' : 'seo-domain'">{{ canUseExternalUrl ? 'URL сайта' : 'Домен сайта' }}</label>
+      <label class="text-sm font-semibold text-slate-800" for="seo-target-url">URL сайта</label>
       <div class="mt-2 flex flex-col gap-2 sm:flex-row">
-        <input v-if="canUseExternalUrl" id="seo-target-url" v-model="targetUrl" class="form-control flex-1" placeholder="https://example.com или example.com" :disabled="checking">
-        <input v-else id="seo-domain" v-model="domain" class="form-control flex-1" placeholder="example.com" :disabled="checking">
+        <input id="seo-target-url" v-model="targetUrl" class="form-control flex-1" placeholder="https://example.com или example.com" :disabled="checking">
         <button type="button" class="action-button-primary" :disabled="checking" @click="startAudit">
           <span v-if="checking" class="button-spinner" aria-hidden="true" />
-          <component :is="canUseExternalUrl ? Globe2 : SearchCheck" v-else :size="18" />
+          <Globe2 v-else :size="18" />
           {{ checking ? 'Проверяем сайт...' : 'Запустить SEO-аудит' }}
         </button>
         <button type="button" class="action-button-secondary" :disabled="checking || loadingLatest" @click="findLatest">
@@ -236,7 +215,7 @@ onUnmounted(stopPolling)
         </article>
         <article class="surface">
           <div class="section-heading">
-            <div><h2>Результат проверки</h2><p>Исправляйте проблемы сверху вниз.</p></div>
+            <div><h2>Результат проверки</h2><p class="break-words">{{ displayTarget }}</p></div>
             <button type="button" class="action-button-secondary" :disabled="!auditId || downloading" @click="downloadPdf"><Download :size="17" />{{ downloading ? 'Готовим...' : 'Скачать PDF' }}</button>
           </div>
           <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -255,7 +234,7 @@ onUnmounted(stopPolling)
               <div>
                 <span class="status-badge" :class="severityInfo(issue.severity).class">{{ severityInfo(issue.severity).label }}</span>
                 <h3 class="mt-3 font-semibold text-slate-950">{{ issue.issue_title || 'Проблема на странице' }}</h3>
-                <p class="mt-2 break-words text-sm text-slate-500">{{ issue.page_url || domain }}</p>
+                <p class="mt-2 break-words text-sm text-slate-500">{{ issue.page_url || displayTarget }}</p>
                 <p class="mt-3 text-sm leading-6 text-slate-700">{{ issue.recommendation || 'Проверьте страницу и исправьте найденную проблему.' }}</p>
               </div>
             </div>

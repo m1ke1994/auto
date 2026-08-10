@@ -75,8 +75,8 @@ def _domain_allowed_for_request(request, domain: str) -> bool:
 def _audit_allowed_for_request(request, audit: SiteSEOAudit | None) -> bool:
     if audit is None:
         return False
-    if getattr(request, "seo_platform_admin", False) and getattr(audit, "requested_by_id", None) == request.user.id:
-        return True
+    if audit.target_url:
+        return getattr(audit, "requested_by_id", None) == request.user.id
     return _domain_allowed_for_request(request, audit.domain)
 
 
@@ -85,9 +85,7 @@ def _get_audit_for_request(request, audit_id: int, *, prefetch_pages: bool = Fal
     if prefetch_pages:
         queryset = queryset.prefetch_related(Prefetch("pages", queryset=SEOPage.objects.order_by("url", "id")))
 
-    audit = None
-    if getattr(request, "seo_platform_admin", False):
-        audit = queryset.filter(requested_by=request.user, target_url__isnull=False).first()
+    audit = queryset.filter(requested_by=request.user, target_url__isnull=False).first()
 
     if audit is None:
         audit = queryset.filter(client=request.client).first()
@@ -114,11 +112,11 @@ def _forbidden_domain_response():
     )
 
 
-def _platform_owner_audit_client(user):
+def _external_audit_client(user):
     client = get_user_client(user)
     if client is not None:
         return client
-    return Client.objects.create(owner=user, name=(getattr(user, "email", "") or getattr(user, "username", "") or "Platform owner"))
+    return Client.objects.create(owner=user, name=(getattr(user, "email", "") or getattr(user, "username", "") or "SEO audit user"))
 
 
 def _first_serializer_error(errors) -> str:
@@ -327,12 +325,6 @@ class SEOAuditStartView(APIView):
             )
         target_url = serializer.validated_data.get("target_url") or ""
         is_external_target = bool(target_url)
-        if is_external_target and not getattr(request, "seo_platform_admin", False):
-            return json_response(
-                {"ok": False, "detail": "Недостаточно прав для аудита произвольного URL."},
-                http_status=status.HTTP_403_FORBIDDEN,
-            )
-
         if is_external_target:
             try:
                 safe_url = normalize_public_url(target_url)
@@ -349,7 +341,7 @@ class SEOAuditStartView(APIView):
                 )
             domain = safe_url.domain
             target_url = safe_url.url
-            request.client = _platform_owner_audit_client(request.user)
+            request.client = _external_audit_client(request.user)
         else:
             domain = _normalize_domain(serializer.validated_data["domain"])
 
@@ -393,6 +385,47 @@ class SEOAuditLatestView(APIView):
     permission_classes = [permissions.IsAuthenticated, SEOAuditAccessPermission]
 
     def get(self, request):
+        target_url = str(request.query_params.get("target_url") or "").strip()
+        if target_url:
+            try:
+                safe_url = normalize_public_url(target_url)
+            except Exception as exc:
+                return json_response(
+                    {"ok": False, "detail": str(exc) or "URL сайта не прошел проверку безопасности."},
+                    http_status=status.HTTP_400_BAD_REQUEST,
+                )
+            audit = (
+                SiteSEOAudit.objects.filter(
+                    requested_by=request.user,
+                    target_url__isnull=False,
+                    domain=safe_url.domain,
+                )
+                .order_by("-created_at")
+                .first()
+            )
+            if not audit:
+                return json_response(
+                    {
+                        "ok": True,
+                        "audit_id": None,
+                        "domain": safe_url.domain,
+                        "target_url": safe_url.url,
+                    },
+                    http_status=status.HTTP_200_OK,
+                )
+            return json_response(
+                {
+                    "ok": True,
+                    "audit_id": audit.id,
+                    "domain": audit.domain,
+                    "target_url": audit.target_url,
+                    "status": audit.status,
+                    "created_at": audit.created_at,
+                    "finished_at": audit.finished_at,
+                },
+                http_status=status.HTTP_200_OK,
+            )
+
         domain = str(request.query_params.get("domain") or "").strip().lower()
         if not domain:
             domain = _site_domain(request)
@@ -434,11 +467,26 @@ class SEOAuditListView(APIView):
     permission_classes = [permissions.IsAuthenticated, SEOAuditAccessPermission]
 
     def get(self, request):
+        external_requested = str(request.query_params.get("external") or "").strip().lower() in {"1", "true", "yes"}
+        target_url = str(request.query_params.get("target_url") or "").strip()
+        safe_url = None
+        if target_url:
+            try:
+                safe_url = normalize_public_url(target_url)
+            except Exception as exc:
+                return json_response(
+                    {"ok": False, "detail": str(exc) or "URL сайта не прошел проверку безопасности."},
+                    http_status=status.HTTP_400_BAD_REQUEST,
+                )
+            external_requested = True
+
         domain = str(request.query_params.get("domain") or "").strip().lower()
+        if safe_url is not None:
+            domain = safe_url.domain
         if not domain:
             domain = _site_domain(request)
         domain = _normalize_domain(domain)
-        if domain and not _domain_allowed_for_request(request, domain):
+        if domain and not external_requested and not _domain_allowed_for_request(request, domain):
             return _forbidden_domain_response()
         limit_raw = request.query_params.get("limit")
         try:
@@ -447,7 +495,9 @@ class SEOAuditListView(APIView):
             limit = 20
 
         audits_qs = SiteSEOAudit.objects.filter(client=request.client).order_by("-created_at")
-        if getattr(request, "seo_platform_admin", False) and not getattr(request, "seo_site", None):
+        if external_requested:
+            audits_qs = audits_qs.filter(requested_by=request.user, target_url__isnull=False)
+        elif getattr(request, "seo_platform_admin", False) and not getattr(request, "seo_site", None):
             audits_qs = audits_qs.filter(requested_by=request.user, target_url__isnull=False)
         else:
             audits_qs = audits_qs.filter(target_url__isnull=True)
