@@ -55,7 +55,7 @@ function validateForm() {
   }
   if (!form.companyName.trim()) fieldErrors.companyName = 'Укажите название компании или проекта.'
   if (!form.acceptedTerms) {
-    fieldErrors.acceptedTerms = 'Необходимо принять пользовательское соглашение и политику конфиденциальности.'
+    fieldErrors.acceptedTerms = 'Необходимо принять пользовательское соглашение.'
   }
 
   return !Object.values(fieldErrors).some(Boolean)
@@ -192,8 +192,8 @@ async function submit() {
           </div>
 
           <div>
-            <label class="mb-2 block text-sm font-semibold text-[#17223B]">Телефон или Telegram <span class="font-normal text-slate-400">(необязательно)</span></label>
-            <input v-model="form.contact" type="text" autocomplete="tel" class="form-control min-h-12" placeholder="+7… или @username" :aria-invalid="Boolean(fieldErrors.contact)">
+            <label class="mb-2 block text-sm font-semibold text-[#17223B]">Контактный телефон <span class="font-normal text-slate-400">(необязательно)</span></label>
+            <input v-model="form.contact" type="text" autocomplete="tel" class="form-control min-h-12" placeholder="+7 (900) 000-00-00" :aria-invalid="Boolean(fieldErrors.contact)">
             <p v-if="fieldErrors.contact" class="mt-1 text-xs text-rose-700">{{ fieldErrors.contact }}</p>
           </div>
 
@@ -202,14 +202,13 @@ async function submit() {
               <input v-model="form.acceptedTerms" type="checkbox" class="mt-1 h-4 w-4 shrink-0 accent-brand-600">
               <span>
                 Я принимаю
-                <a href="/#footer" target="_blank" rel="noopener noreferrer" class="font-semibold text-brand-700 hover:text-brand-800">пользовательское соглашение</a>
-                и
-                <a href="/#footer" target="_blank" rel="noopener noreferrer" class="font-semibold text-brand-700 hover:text-brand-800">политику конфиденциальности</a>.
+                <RouterLink to="/terms" target="_blank" class="font-semibold text-brand-700 hover:text-brand-800">пользовательское соглашение</RouterLink>.
               </span>
             </label>
             <p v-if="fieldErrors.acceptedTerms" class="mt-1 text-xs text-rose-700">{{ fieldErrors.acceptedTerms }}</p>
           </div>
 
+          <p class="text-xs leading-5 text-slate-500 sm:col-span-2">Данные регистрации используются для создания аккаунта и исполнения соглашения. Подробности — в <RouterLink to="/privacy" target="_blank" class="font-semibold text-brand-700">политике обработки персональных данных</RouterLink>. Согласие на рекламные рассылки не запрашивается.</p>
           <p v-if="errorMessage" class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 sm:col-span-2">
             {{ errorMessage }}
           </p>
