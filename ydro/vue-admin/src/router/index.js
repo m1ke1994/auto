@@ -77,6 +77,20 @@ const routes = [
     meta: { public: true, title: 'Политика конфиденциальности' },
   },
   {
+    path: '/consent',
+    name: 'consent',
+    component: LegalPage,
+    props: { type: 'consent' },
+    meta: { public: true, title: 'Согласие на обработку персональных данных' },
+  },
+  {
+    path: '/cookies',
+    name: 'cookies',
+    component: LegalPage,
+    props: { type: 'cookies' },
+    meta: { public: true, title: 'Файлы cookie и аналитика' },
+  },
+  {
     path: '/onboarding',
     redirect: '/dashboard',
   },

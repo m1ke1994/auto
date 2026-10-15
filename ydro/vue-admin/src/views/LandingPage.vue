@@ -142,6 +142,8 @@ async function submitLead() {
       payload: {
         source: 'tracknode_landing_contact',
         consent_at: new Date().toISOString(),
+        consent_document: '/consent',
+        consent_document_version: '2026-10-15',
         task_type: sanitize(form.taskType),
         has_existing_site: form.hasExistingSite,
         existing_site_url: sanitize(form.existingSiteUrl),
@@ -454,7 +456,7 @@ onUnmounted(() => revealObserver?.disconnect())
               </div>
               <p class="required-note">* Имя и хотя бы один контакт обязательны.</p>
               <label class="honeypot" aria-hidden="true">Сайт<input v-model="form.website" tabindex="-1" autocomplete="off" /></label>
-              <label class="consent"><input v-model="form.consent" type="checkbox" required /><span>Даю отдельное согласие на обработку указанных персональных данных для ответа на моё обращение. Подробнее — в <RouterLink to="/privacy">политике обработки персональных данных</RouterLink>.</span></label>
+              <label class="consent"><input v-model="form.consent" type="checkbox" required /><span>Даю отдельное <RouterLink to="/consent" target="_blank" rel="noopener noreferrer">согласие на обработку данных заявки</RouterLink> для ответа на моё обращение. С условиями обработки можно ознакомиться в <RouterLink to="/privacy" target="_blank" rel="noopener noreferrer">политике персональных данных</RouterLink>.</span></label>
               <p class="form-legal-note">Отправка заявки не означает согласия на рекламу. Условия использования сервиса — в <RouterLink to="/terms">пользовательском соглашении</RouterLink>.</p>
               <p v-if="formState.success" class="success" role="status">{{ formState.success }}</p>
               <p v-if="formState.error" class="error" role="alert">{{ formState.error }}</p>
@@ -470,7 +472,7 @@ onUnmounted(() => revealObserver?.disconnect())
           <nav aria-label="Ссылки в подвале">
             <a href="#website">Создание сайтов</a><a href="#analytics">Платформа</a><a href="#features">Возможности</a><a href="#seo">SEO</a><a href="#pwa">На смартфоне</a><a href="#pricing">Стоимость</a><a href="#contact">Контакты</a>
             <RouterLink to="/login">Вход</RouterLink><RouterLink to="/register">Регистрация</RouterLink>
-            <RouterLink to="/privacy">Политика обработки персональных данных</RouterLink><RouterLink to="/terms">Пользовательское соглашение</RouterLink>
+            <RouterLink to="/privacy">Политика обработки персональных данных</RouterLink><RouterLink to="/consent">Согласие на заявку</RouterLink><RouterLink to="/cookies">Файлы cookie</RouterLink><RouterLink to="/terms">Пользовательское соглашение</RouterLink>
             <a :href="PORTFOLIO_URL" target="_blank" rel="noopener noreferrer" @click="trackPortfolioLink('footer')">Сайт разработчика</a>
           </nav>
           <div class="footer-bottom"><span>Делаем сложное понятным.</span><button type="button" class="cookie-manage" @click="cookiePreferencesOpen = true">Настройки cookies</button></div>
@@ -478,7 +480,7 @@ onUnmounted(() => revealObserver?.disconnect())
       </footer>
 
       <aside v-if="cookieChoice === null || cookiePreferencesOpen" class="cookie-notice" aria-label="Настройки файлов cookie">
-        <div><strong>Вы управляете данными</strong><p>Необходимые файлы и локальные настройки помогают работе сайта. Необязательную аналитику посещений включаем только с вашего разрешения.</p><RouterLink to="/privacy">Подробнее об обработке данных</RouterLink></div>
+        <div><strong>Вы управляете данными</strong><p>Необходимые файлы и локальные настройки помогают работе сайта. Необязательную аналитику посещений включаем только с вашего разрешения.</p><RouterLink to="/privacy">Обработка данных</RouterLink> <RouterLink to="/cookies">Подробнее о cookies</RouterLink></div>
         <div class="cookie-actions">
           <button type="button" class="cookie-accept" @click="setAnalyticsConsent('all')">Разрешить аналитику</button>
           <button type="button" class="cookie-essential" @click="setAnalyticsConsent('essential')">Только необходимые</button>
