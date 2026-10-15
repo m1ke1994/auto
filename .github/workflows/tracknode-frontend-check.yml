@@ -1,0 +1,30 @@
+name: TrackNode frontend checks
+
+on:
+  push:
+    branches: [main, feature/tracknode-ui-legal-20261015]
+    paths:
+      - 'ydro/vue-admin/**'
+      - '.github/workflows/tracknode-frontend-check.yml'
+  pull_request:
+    paths:
+      - 'ydro/vue-admin/**'
+      - '.github/workflows/tracknode-frontend-check.yml'
+
+jobs:
+  vue-build-and-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ydro/vue-admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ydro/vue-admin/package-lock.json
+      - run: npm ci
+      - run: npm run test:tracknode-landing
+      - run: npm run test:auth-routing
+      - run: npm run build:local
