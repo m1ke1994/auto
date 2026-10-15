@@ -8,7 +8,6 @@ import {
   ExternalLink,
   Menu,
   SearchCheck,
-  Send,
   Sparkles,
   UsersRound,
   X,
@@ -28,18 +27,20 @@ const loading = ref(true)
 const loadError = ref('')
 const menuOpen = ref(false)
 const openFaq = ref(0)
+const cookieChoice = ref(null)
+const cookiePreferencesOpen = ref(false)
+const COOKIE_KEY = 'tracknode:analytics-consent:v1'
 let revealObserver
 
 const form = reactive({
   name: '',
   phone: '',
-  telegram: '',
   email: '',
   taskType: 'Создание сайта с нуля',
   hasExistingSite: 'no',
   existingSiteUrl: '',
   message: '',
-  preferredContact: 'telegram',
+  preferredContact: 'email',
   consent: false,
   website: '',
 })
@@ -57,7 +58,7 @@ const capabilityCards = [
   ['Аналитика', BarChart3],
   ['CRM', UsersRound],
   ['SEO-аудит', SearchCheck],
-  ['Telegram', Send],
+  ['Отчёты', BarChart3],
   ['Разработка', Sparkles],
 ]
 
@@ -78,7 +79,7 @@ const taskTypes = [
 const faq = [
   ['Сайт делается по шаблону?', 'Нет. Структура, дизайн и интерфейс проектируются под конкретный бизнес.'],
   ['Что получает клиент после запуска?', 'Сайт и кабинет TrackNode с данными по посетителям, заявкам, источникам и SEO.'],
-  ['Telegram - отдельный продукт?', 'Нет. Это дополнительное уведомление о важных событиях внутри общей системы.'],
+  ['Где смотреть заявки?', 'Все новые обращения отображаются в личном кабинете вместе с аналитикой сайта.'],
   ['Что показывает SEO-блок?', 'Техническое состояние, базовые ошибки и точки для дальнейшего развития сайта.'],
   ['Как рассчитывается стоимость сайта?', 'Стоимость рассчитывается индивидуально после обсуждения структуры, дизайна и функциональности.'],
 ]
@@ -97,6 +98,17 @@ function formStarted() {
   track('lead_form_started', { placement: 'landing_contact' })
 }
 
+function setAnalyticsConsent(choice) {
+  cookieChoice.value = choice
+  cookiePreferencesOpen.value = false
+  try { localStorage.setItem(COOKIE_KEY, choice) } catch { /* Browsers may restrict storage */ }
+  if (choice === 'all' && site.value) ensurePublicSiteTracker(site.value)
+  if (choice === 'essential') {
+    window.__trackNodeTracker?.destroy?.('consent_revoked')
+    document.querySelectorAll('script[data-tracknode-managed="true"]').forEach((el) => el.remove())
+  }
+}
+
 function sanitize(value) {
   return String(value || '').replace(/[<>]/g, '').trim()
 }
@@ -105,7 +117,7 @@ async function submitLead() {
   if (formState.submitting) return
   formState.error = ''
   formState.success = ''
-  const hasContact = [form.phone, form.telegram, form.email].some((value) => sanitize(value))
+  const hasContact = [form.phone, form.email].some((value) => sanitize(value))
   if (!sanitize(form.name) || !hasContact || !form.consent) {
     formState.error = 'Укажите имя, хотя бы один способ связи и подтвердите согласие на обработку данных.'
     return
@@ -116,7 +128,6 @@ async function submitLead() {
     await submitPublicSiteLead(site.value?.slug || 'tracknode', {
       name: sanitize(form.name),
       phone: sanitize(form.phone),
-      telegram: sanitize(form.telegram),
       email: sanitize(form.email),
       message: sanitize(form.message),
       source_url: window.location.href,
@@ -132,7 +143,6 @@ async function submitLead() {
         source: 'tracknode_landing_contact',
         consent_at: new Date().toISOString(),
         task_type: sanitize(form.taskType),
-        telegram: sanitize(form.telegram),
         has_existing_site: form.hasExistingSite,
         existing_site_url: sanitize(form.existingSiteUrl),
         preferred_contact: sanitize(form.preferredContact),
@@ -147,13 +157,12 @@ async function submitLead() {
     Object.assign(form, {
       name: '',
       phone: '',
-      telegram: '',
       email: '',
       taskType: 'Создание сайта с нуля',
       hasExistingSite: 'no',
       existingSiteUrl: '',
       message: '',
-      preferredContact: 'telegram',
+      preferredContact: 'email',
       consent: false,
       website: '',
     })
@@ -178,6 +187,10 @@ function setupReveal() {
 }
 
 onMounted(async () => {
+  try {
+    const saved = localStorage.getItem(COOKIE_KEY)
+    cookieChoice.value = ['all', 'essential'].includes(saved) ? saved : null
+  } catch { cookieChoice.value = null }
   try {
     const payload = await loadTrackNodePublicSite()
     site.value = payload.site
@@ -224,7 +237,7 @@ onMounted(async () => {
         },
       },
     })
-    ensurePublicSiteTracker(payload.site)
+    if (cookieChoice.value === 'all') ensurePublicSiteTracker(payload.site)
     requestAnimationFrame(setupReveal)
   } catch (error) {
     loadError.value = error?.message || 'Не удалось загрузить TrackNode.'
@@ -251,8 +264,6 @@ onUnmounted(() => revealObserver?.disconnect())
             <a href="#features">Возможности</a>
             <a href="#pricing">Тарифы</a>
             <a href="#website">Решения</a>
-            <a href="#developer">О нас</a>
-            <a href="#faq">Блог</a>
             <a href="#analytics">Аналитика</a>
             <a href="#contact">Контакты</a>
           </div>
@@ -268,8 +279,6 @@ onUnmounted(() => revealObserver?.disconnect())
           <a href="#features" @click="closeMenu">Возможности</a>
           <a href="#pricing" @click="closeMenu">Тарифы</a>
           <a href="#website" @click="closeMenu">Решения</a>
-          <a href="#developer" @click="closeMenu">О нас</a>
-          <a href="#faq" @click="closeMenu">Блог</a>
           <a href="#analytics" @click="closeMenu">Аналитика</a>
           <a href="#contact" @click="closeMenu">Контакты</a>
           <RouterLink to="/login" @click="closeMenu">Войти</RouterLink>
@@ -286,41 +295,23 @@ onUnmounted(() => revealObserver?.disconnect())
               <span>Анализируем.</span>
               <span class="accent-text">Помогаем расти.</span>
             </h1>
-            <p class="lead">Создаем современные сайты под задачи бизнеса и подключаем аналитику, SEO-аудит, заявки, CRM и уведомления в Telegram.</p>
+            <p class="lead">Сайты для бизнеса, которые удобно развивать. Заявки, аналитика и SEO-аудит — в одном личном кабинете.</p>
             <div class="hero-actions">
               <a class="button" href="#contact" @click="track('website_order_cta_click', { placement: 'hero' })">Заказать сайт <ArrowRight :size="18" /></a>
               <a class="button secondary" href="#analytics" @click="track('analytics_section_cta_click', { placement: 'hero' })">Посмотреть возможности <ChevronRight :size="17" /></a>
             </div>
           </div>
 
-          <div class="hero-visual" data-reveal aria-label="Компас возможностей TrackNode">
-            <div class="hero-compass-stage">
-              <div class="orbit orbit-one" />
-              <div class="orbit orbit-two" />
-              <div class="orbit-dot dot-a" />
-              <div class="orbit-dot dot-b" />
-              <div class="orbit-dot dot-c" />
-              <img class="compass-img" src="/images/landing/compas.png" alt="Компас TrackNode: сайты, SEO, аналитика и CRM" />
-              <div class="compass-label label-sites">
-                <span><Code2 :size="28" /></span>
-                <b>Сайты</b>
+          <div class="hero-visual insight-shell" data-reveal aria-label="Возможности личного кабинета">
+            <div class="insight-window">
+              <div class="insight-brand"><TrackNodeIcon class="brand-icon" />TrackNode <small>Пример интерфейса</small></div>
+              <h3>Всё важное — на одном экране</h3>
+              <div class="insight-rows">
+                <div><BarChart3 :size="22" /><span><b>Аналитика</b><small>Посетители и источники</small></span></div>
+                <div><UsersRound :size="22" /><span><b>Заявки</b><small>Новые обращения</small></span></div>
+                <div><SearchCheck :size="22" /><span><b>SEO-аудит</b><small>Ошибки и рекомендации</small></span></div>
               </div>
-              <div class="compass-label label-analytics">
-                <span><BarChart3 :size="28" /></span>
-                <b>Аналитика</b>
-              </div>
-              <div class="compass-label label-crm">
-                <span><UsersRound :size="28" /></span>
-                <b>CRM</b>
-              </div>
-              <div class="compass-label label-seo">
-                <span><SearchCheck :size="30" /></span>
-                <b>SEO-аудит</b>
-              </div>
-              <div class="compass-label label-telegram">
-                <span><Send :size="28" /></span>
-                <b>Telegram</b>
-              </div>
+              <p class="insight-note"><Sparkles :size="16" /> Данные, которые помогают принимать решения</p>
             </div>
           </div>
         </section>
@@ -371,13 +362,12 @@ onUnmounted(() => revealObserver?.disconnect())
                 <path class="line-soft" d="M20 120 C110 142 158 106 228 112 S354 150 432 106 560 62 740 88" />
               </svg>
               <div class="dashboard-bottom">
-                <span>Источники<b>Поиск · Реклама · Telegram</b></span>
+                <span>Источники<b>Поиск · Реклама · Прямые переходы</b></span>
                 <span>SEO<b>82 / 100</b></span>
               </div>
             </div>
             <div class="float-chip chip-lead">Новая заявка</div>
             <div class="float-chip chip-source">Получена с сайта</div>
-            <div class="float-chip chip-telegram">Telegram ✓</div>
           </div>
         </section>
 
@@ -454,13 +444,13 @@ onUnmounted(() => revealObserver?.disconnect())
             <form class="glass" data-reveal novalidate @submit.prevent="submitLead" @focusin="formStarted">
               <label>Имя<input v-model="form.name" maxlength="255" autocomplete="name" required /></label>
               <label>Телефон<input v-model="form.phone" maxlength="100" autocomplete="tel" /></label>
-              <label>Telegram<input v-model="form.telegram" maxlength="100" autocomplete="off" /></label>
               <label>Email<input v-model="form.email" maxlength="255" type="email" autocomplete="email" /></label>
               <label>Тип задачи<select v-model="form.taskType"><option v-for="item in taskTypes" :key="item" :value="item">{{ item }}</option></select></label>
-              <label>Предпочтительный способ связи<select v-model="form.preferredContact"><option value="telegram">Telegram</option><option value="phone">Телефон</option><option value="email">Email</option></select></label>
+              <label>Предпочтительный способ связи<select v-model="form.preferredContact"><option value="phone">Телефон</option><option value="email">Email</option></select></label>
               <label class="wide-field">Краткое описание<textarea v-model="form.message" maxlength="2000" rows="5" /></label>
               <label class="honeypot" aria-hidden="true">Сайт<input v-model="form.website" tabindex="-1" autocomplete="off" /></label>
-              <label class="consent"><input v-model="form.consent" type="checkbox" required /><span>Согласен на обработку персональных данных и принимаю <RouterLink to="/privacy">политику конфиденциальности</RouterLink> и <RouterLink to="/terms">пользовательское соглашение</RouterLink>.</span></label>
+              <label class="consent"><input v-model="form.consent" type="checkbox" required /><span>Даю отдельное согласие на обработку данных из заявки для ответа на обращение. Подробнее — в <RouterLink to="/privacy">политике обработки персональных данных</RouterLink>.</span></label>
+              <p class="form-legal-note">Условия пользования платформой приведены в <RouterLink to="/terms">пользовательском соглашении</RouterLink>. Отправка заявки не означает согласия на рекламу.</p>
               <p v-if="formState.success" class="success" role="status">{{ formState.success }}</p>
               <p v-if="formState.error" class="error" role="alert">{{ formState.error }}</p>
               <button class="button" type="submit" :disabled="formState.submitting">{{ formState.submitting ? 'Отправляем...' : 'Обсудить создание сайта' }}</button>
@@ -475,9 +465,16 @@ onUnmounted(() => revealObserver?.disconnect())
           <nav>
             <a href="#website">Создание сайта</a><a href="#analytics">Кабинет TrackNode</a><a href="#features">Развитие</a><a href="#seo">SEO</a><a href="#pwa">На смартфоне</a><a href="#pricing">Стоимость</a><RouterLink to="/terms">Пользовательское соглашение</RouterLink><RouterLink to="/privacy">Политика конфиденциальности</RouterLink><RouterLink to="/login">Вход</RouterLink><RouterLink to="/register">Регистрация</RouterLink><a href="#contact">Контакты</a><a :href="PORTFOLIO_URL" target="_blank" rel="noopener noreferrer" @click="trackPortfolioLink('footer')">Сайт разработчика</a>
           </nav>
-          <small>© {{ new Date().getFullYear() }} TrackNode</small>
+          <div class="footer-meta"><small>© {{ new Date().getFullYear() }} TrackNode</small><button type="button" class="cookie-manage" @click="cookiePreferencesOpen = true">Настройки cookies</button></div>
         </div>
       </footer>
+      <aside v-if="cookieChoice === null || cookiePreferencesOpen" class="cookie-notice" aria-label="Настройки файлов cookie">
+        <div><strong>Конфиденциальность</strong><p>Необходимые cookie обеспечивают работу сайта. Аналитику посещений запускаем только с вашего разрешения. Выбор можно изменить внизу страницы.</p><RouterLink to="/privacy">Политика обработки данных</RouterLink></div>
+        <div class="cookie-actions">
+          <button type="button" class="cookie-accept" @click="setAnalyticsConsent('all')">Разрешить аналитику</button>
+          <button type="button" class="cookie-essential" @click="setAnalyticsConsent('essential')">Только необходимые</button>
+        </div>
+      </aside>
     </template>
   </div>
 </template>
@@ -1976,4 +1973,33 @@ onUnmounted(() => revealObserver?.disconnect())
     min-height:112px;
   }
 }
+
+/* Новый упрощённый лендинг: сохраняем фирменные голубые и синие оттенки. */
+.landing{background:linear-gradient(165deg,#fbfdff,#eef5ff 55%,#fff)}
+.header{top:10px}.nav{border-radius:18px;background:rgba(255,255,255,.94);box-shadow:0 12px 38px rgba(25,55,110,.08)}
+.hero{grid-template-columns:1.04fr .96fr;max-width:1130px;min-height:670px;gap:38px;padding:140px 0 70px}
+.hero h1{font-size:clamp(3rem,5vw,5.2rem);line-height:1.045}
+.hero-visual.insight-shell{display:flex;min-height:390px;padding:14px;border:1px solid #dce9fc;background:#e9f1ff;border-radius:28px;box-shadow:0 23px 58px rgba(40,74,135,.12)}
+.insight-window{width:100%;padding:26px;border:1px solid #eef3ff;border-radius:18px;background:#fff}
+.insight-brand{display:flex;gap:10px;align-items:center;font-size:1.06rem;font-weight:900}
+.insight-brand .brand-icon{width:31px;height:31px}.insight-brand small{margin-left:auto;color:var(--muted);font-size:.69rem;font-weight:550}
+.insight-window h3{margin:28px 0 19px;font-size:1.3rem;letter-spacing:-.03em}
+.insight-rows{display:grid;gap:10px}
+.insight-rows>div{display:flex;gap:14px;align-items:center;padding:14px 15px;border:1px solid #eaf0fc;border-radius:13px;background:#f7faff}
+.insight-rows svg{color:var(--accent)}.insight-rows span{display:grid;gap:3px}.insight-rows b{font-size:.9rem}
+.insight-rows small{font-size:.78rem;color:var(--muted)}
+.insight-note{display:flex;align-items:center;gap:9px;margin-top:18px;color:#4d648b;font-size:.82rem}
+.insight-note svg{color:var(--accent)}.landing-section{padding-top:74px;padding-bottom:74px}
+.section-head h2{font-size:clamp(2rem,3.5vw,3.35rem)}
+.form-legal-note{grid-column:1/-1;color:var(--muted);font-size:.78rem;line-height:1.55}
+.form-legal-note a{color:var(--accent)}
+.footer-meta{display:flex;flex-wrap:wrap;align-items:center;gap:16px}
+.cookie-manage{border:0;background:transparent;color:#496cb3;font:inherit;text-decoration:underline;cursor:pointer}
+.cookie-notice{position:fixed;z-index:150;bottom:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:26px;justify-content:space-between;width:min(930px,calc(100% - 28px));padding:22px;border:1px solid #dce7fa;border-radius:18px;background:white;box-shadow:0 20px 65px rgba(21,43,83,.22);font-size:.88rem}
+.cookie-notice strong{font-size:1rem}.cookie-notice p{margin:6px 0;color:#51647e;line-height:1.5}.cookie-notice a{color:var(--accent)}
+.cookie-actions{display:flex;flex-wrap:wrap;gap:9px;flex-shrink:0}.cookie-actions button{padding:11px 13px;border-radius:11px;font:inherit;font-weight:750;cursor:pointer}
+.cookie-accept{border:1px solid var(--accent);background:var(--accent);color:white}
+.cookie-essential{border:1px solid #d5e1f3;background:#fff;color:#243b63}
+@media(max-width:850px){.hero{grid-template-columns:1fr;min-height:0;gap:28px;padding:145px 0 55px}.hero-visual.insight-shell{min-height:0}.landing-section{padding-top:54px;padding-bottom:54px}.cookie-notice{flex-direction:column;align-items:stretch}.cookie-actions button{flex:1}}
+@media(max-width:480px){.insight-window{padding:16px}.insight-brand{flex-wrap:wrap}.cookie-notice{bottom:8px;padding:14px}.cookie-actions{flex-direction:column}.hero h1{font-size:clamp(2.6rem,11vw,3.4rem)}}
 </style>
