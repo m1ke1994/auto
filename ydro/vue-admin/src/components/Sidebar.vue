@@ -12,7 +12,6 @@ import {
   LayoutDashboard,
   SearchCheck,
   Sparkles,
-  Send,
   ShieldCheck,
   X,
   Crown,
@@ -54,7 +53,6 @@ const navItems = computed(() => {
       { label: 'AI-рекомендации', to: `/sites/${siteId.value}/ai-recommendations`, icon: Sparkles, feature: 'ai_recommendations', showWhenLocked: true },
       { label: 'Редактирование сайта', to: `/sites/${siteId.value}/sections`, icon: Blocks, feature: 'site_edit' },
       { label: 'Анализ конкурентов', to: `/sites/${siteId.value}/competitors`, icon: FileSearch, feature: 'competitors' },
-      { label: 'Telegram', to: `/sites/${siteId.value}/integration`, icon: Send, feature: 'telegram' },
     )
   }
   items.push({ label: 'Оплата', to: '/billing', icon: CreditCard })

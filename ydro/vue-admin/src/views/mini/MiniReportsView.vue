@@ -59,7 +59,7 @@ onMounted(loadDaily)
 
     <label class="flex items-center gap-2 text-sm">
       <input v-model="enabled" type="checkbox" class="h-4 w-4 accent-brand-600">
-      Ежедневный PDF в Telegram
+      Ежедневный PDF-отчёт
     </label>
 
     <div class="flex flex-wrap gap-2">
