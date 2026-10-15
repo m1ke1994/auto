@@ -27,7 +27,7 @@ async function load() {
       telegram.value = await miniTelegramStatus()
     }
   }
-  catch (e) { error.value = e?.response?.data?.detail || 'Не удалось проверить подключение Telegram.' }
+  catch (e) { error.value = e?.response?.data?.detail || 'Не удалось проверить подключение канала уведомлений.' }
   finally { loading.value = false }
 }
 
@@ -68,10 +68,10 @@ async function disconnect() {
   try {
     const result = isSiteMode.value ? await disconnectSiteTelegramRequest(siteId.value) : await miniTelegramDisconnect()
     const data = result?.data || result
-    success.value = data?.detail || 'Telegram отключен.'
+    success.value = data?.detail || 'Канал уведомлений отключён.'
     await load()
   }
-  catch (e) { error.value = e?.response?.data?.detail || 'Не удалось отключить Telegram.' }
+  catch (e) { error.value = e?.response?.data?.detail || 'Не удалось отключить канал уведомлений.' }
   finally { action.value = '' }
 }
 
@@ -82,8 +82,8 @@ onMounted(load)
   <div class="page-stack">
     <header class="page-heading">
       <p class="eyebrow">Мгновенные уведомления</p>
-      <h1>Telegram</h1>
-      <p>Получайте новые заявки в подключенный Telegram-чат.</p>
+      <h1>Канал уведомлений</h1>
+      <p>Получайте уведомления о новых заявках в подключённый чат.</p>
     </header>
     <p v-if="error" class="notice-error">{{ error }}</p>
     <p v-if="success" class="notice-success">{{ success }}</p>
@@ -96,12 +96,12 @@ onMounted(load)
               <CheckCircle2 v-if="connected" :size="24" /><MessageCircle v-else :size="24" />
             </span>
             <div>
-              <h2 class="text-lg font-semibold text-[#17223B]">{{ connected ? 'Telegram подключен' : 'Telegram не подключен' }}</h2>
+              <h2 class="text-lg font-semibold text-[#17223B]">{{ connected ? 'Канал подключён' : 'Канал не подключён' }}</h2>
               <p class="mt-1 text-sm leading-6 text-slate-600">{{ connected ? 'Новые заявки будут приходить в ваш чат.' : 'Подключите чат, чтобы сразу узнавать о новых заявках.' }}</p>
             </div>
           </div>
           <button v-if="!connected && telegram?.telegram_connect_url" type="button" class="action-button-primary" @click="connect">
-            <MessageCircle :size="18" />Подключить Telegram
+            <MessageCircle :size="18" />Подключить канал
           </button>
         </div>
       </section>
@@ -120,7 +120,7 @@ onMounted(load)
             <button v-if="telegram?.telegram_connect_url" type="button" class="action-button-primary" @click="connect"><MessageCircle :size="17" />Открыть бота</button>
             <button type="button" class="action-button-secondary" :disabled="Boolean(action)" @click="copyCommand">Скопировать команду</button>
           </div>
-          <p v-if="!telegram?.telegram_bot_username" class="mt-3 text-sm text-amber-700">В env не указан TELEGRAM_BOT_USERNAME, поэтому автоматическая ссылка на бота недоступна.</p>
+          <p v-if="!telegram?.telegram_bot_username" class="mt-3 text-sm text-amber-700">Параметры автоматического подключения не заданы. Обратитесь к администратору.</p>
         </div>
       </section>
 
@@ -128,7 +128,7 @@ onMounted(load)
         <div class="section-heading"><div><h2>Проверка подключения</h2><p>Тестовое сообщение отправляется только после нажатия кнопки.</p></div></div>
         <div class="flex flex-col gap-2 sm:flex-row">
           <button type="button" class="action-button-primary" :disabled="Boolean(action)" @click="sendTest"><Send :size="17" />{{ action === 'test' ? 'Отправляем...' : 'Отправить тестовое сообщение' }}</button>
-          <button type="button" class="action-button-danger" :disabled="Boolean(action)" @click="disconnect"><Unplug :size="17" />Отключить Telegram</button>
+          <button type="button" class="action-button-danger" :disabled="Boolean(action)" @click="disconnect"><Unplug :size="17" />Отключить канал</button>
         </div>
       </section>
     </template>
