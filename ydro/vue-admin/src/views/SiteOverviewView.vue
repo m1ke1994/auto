@@ -1,10 +1,9 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { AlertTriangle, BarChart3, Blocks, Eraser, ExternalLink, Inbox, SearchCheck, Send, Trash2, X } from '@lucide/vue'
+import { AlertTriangle, BarChart3, Blocks, Eraser, ExternalLink, Inbox, SearchCheck, Trash2, X } from '@lucide/vue'
 
 import { getSiteAnalyticsSummaryRequest } from '../api/analytics'
-import { getSiteTelegramRequest } from '../api/site'
 import DashboardStats from '../components/DashboardStats.vue'
 import { toPublicUrl } from '../config/env'
 import { useAccessStore } from '../stores/access'
@@ -18,7 +17,6 @@ const loading = ref(false)
 const error = ref('')
 const success = ref('')
 const summary = ref(null)
-const telegram = ref(null)
 const clearModalOpen = ref(false)
 const deleteModalOpen = ref(false)
 const clearConfirmation = ref('')
@@ -55,7 +53,6 @@ const actions = computed(() => [
   { label: 'Изменить сайт', text: 'Тексты, изображения и разделы', icon: Blocks, to: `/sites/${siteId.value}/sections`, feature: 'site_edit' },
   { label: 'Открыть аналитику', text: 'Посетители и популярные страницы', icon: BarChart3, to: `/sites/${siteId.value}/analytics`, feature: 'analytics' },
   { label: 'Проверить SEO', text: 'Найти проблемы сайта', icon: SearchCheck, to: `/sites/${siteId.value}/seo` },
-  { label: telegram.value?.connected ? 'Telegram подключен' : 'Подключить Telegram', text: 'Получать заявки сразу в чат', icon: Send, to: `/sites/${siteId.value}/integration`, feature: 'telegram' },
 ].filter((action) => accessStore.can(action.feature)))
 
 const clearConfirmationValid = computed(() => {
@@ -69,7 +66,7 @@ const deleteDataList = [
   'аналитика, события, визиты и просмотры',
   'SEO-аудиты, отчёты анализа конкурентов и AI-рекомендации',
   'медиафайлы, привязанные только к этому сайту',
-  'ключ трекера и Telegram-настройки сайта',
+  'ключ трекера и настройки подключённых каналов',
 ]
 
 function openPublicSite() {
@@ -166,10 +163,7 @@ async function load() {
     if (accessStore.can('analytics')) {
       requests.push(getSiteAnalyticsSummaryRequest(siteId.value, { days: 14 }).then(({ data }) => { summary.value = data }))
     }
-    if (accessStore.can('telegram')) {
-      requests.push(getSiteTelegramRequest(siteId.value).then(({ data }) => { telegram.value = data }))
-    }
-    await Promise.all(requests)
+      await Promise.all(requests)
   } catch (e) {
     if (e?.response?.data?.code === 'protected_template_source') {
       await router.replace(e.response.data.platform_url || '/platform/sites')
