@@ -11,7 +11,6 @@ const navItems = computed(() => [
   { label: 'Проверка сайта', to: '/mini/seo' },
   { label: 'Отчёты', to: '/mini/reports', feature: 'reports' },
   { label: 'Настройки', to: '/mini/settings', feature: 'billing_full_access' },
-  { label: 'Telegram', to: '/mini/integration', feature: 'telegram' },
 ].filter((item) => accessStore.can(item.feature)))
 </script>
 
