@@ -14,12 +14,15 @@
     "test:tracker-integration": "node scripts/test-tracker-integration.mjs",
     "test:portfolio-media-editor": "node scripts/test-portfolio-media-editor.mjs",
     "test:tracknode-landing": "node scripts/test-tracknode-landing.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:landing-story": "node scripts/check-landing-story.mjs",
+    "test:landing-render": "node scripts/check-landing-render.mjs"
   },
   "dependencies": {
     "@lucide/vue": "^1.17.0",
     "axios": "^1.16.1",
     "pinia": "^3.0.4",
+    "three": "^0.180.0",
     "vue": "^3.5.34",
     "vue-router": "^5.0.7"
   },
