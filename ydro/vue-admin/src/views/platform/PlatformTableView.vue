@@ -1,6 +1,7 @@
 <script setup>
+import TrackNodeIcon from '../../components/TrackNodeIcon.vue'
 import { computed, onMounted, ref, watch } from 'vue'
-import { ChevronLeft, ChevronRight, RefreshCw, Search } from '@lucide/vue'
+import { ChevronLeft, ChevronRight, Search } from '@lucide/vue'
 import { useRoute, useRouter } from 'vue-router'
 import PlatformPeriodFilter from '../../components/platform/PlatformPeriodFilter.vue'
 import { getPlatformAudit, getPlatformClients, getPlatformLeads, getPlatformRecommendations, getPlatformSeo, getPlatformSites, getPlatformSubscriptions } from '../../api/platform'
@@ -26,7 +27,7 @@ function searchChanged() { clearTimeout(searchTimer); searchTimer = setTimeout((
 onMounted(load)
 </script>
 <template><section class="space-y-4"><div class="rounded-3xl bg-slate-900 p-4"><div class="flex flex-wrap items-end justify-between gap-3"><div class="text-white"><h2 class="text-lg font-semibold">{{ config.title }}</h2><p class="text-xs text-slate-400">Найдено записей: {{ response.count || 0 }}</p></div><PlatformPeriodFilter v-model="period" @change="page = 1; load()" /></div><label class="relative mt-4 block max-w-md"><Search class="absolute left-3 top-2.5 text-slate-400" :size="17" /><input v-model="search" class="w-full rounded-xl border-0 bg-white py-2 pl-10 pr-3 text-sm" placeholder="Поиск…" @input="searchChanged" /></label></div>
-  <div v-if="error" class="rounded-2xl bg-red-50 p-4 text-red-800">{{ error }}</div><div v-if="loading" class="rounded-3xl bg-white p-12 text-center text-slate-500"><RefreshCw class="mr-2 inline animate-spin" />Загрузка…</div>
+  <div v-if="error" class="rounded-2xl bg-red-50 p-4 text-red-800">{{ error }}</div><div v-if="loading" class="rounded-3xl bg-white p-12 text-center text-slate-500"><TrackNodeIcon animated class="mr-2 inline " />Загрузка…</div>
   <div v-else class="overflow-hidden rounded-3xl border border-violet-100 bg-white shadow-soft"><div class="overflow-x-auto"><table class="min-w-full text-left text-sm"><thead class="bg-violet-50 text-xs uppercase text-slate-500"><tr><th v-for="[,label] in config.columns" :key="label" class="whitespace-nowrap px-4 py-3">{{ label }}</th></tr></thead><tbody class="divide-y divide-slate-100"><tr v-for="row in response.results" :key="row.id" class="hover:bg-violet-50/50" :class="config.open && 'cursor-pointer'" @click="open(row)"><td v-for="[key] in config.columns" :key="key" class="max-w-xs truncate whitespace-nowrap px-4 py-3">{{ display(row[key]) }}</td></tr><tr v-if="!response.results?.length"><td :colspan="config.columns.length" class="p-10 text-center text-slate-500">Записей не найдено.</td></tr></tbody></table></div><footer class="flex items-center justify-between border-t border-slate-100 p-3"><button class="icon-button" :disabled="page <= 1" @click="changePage(page - 1)"><ChevronLeft /></button><span class="text-xs text-slate-500">Страница {{ page }} из {{ pages }}</span><button class="icon-button" :disabled="page >= pages" @click="changePage(page + 1)"><ChevronRight /></button></footer></div>
 </section></template>
 

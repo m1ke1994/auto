@@ -14,6 +14,15 @@ if [ -n "$(git status --porcelain)" ]; then
   git status --short
   exit 1
 fi
+services=(frontend public_site volga_site my_portfolio_site)
+domains=(tracknode.ru leelabird.ru novoe-konakovo.ru tishechkinalexandr.ru)
+if [ "${1:-}" = "--tracknode-only" ]; then
+  services=(frontend)
+  domains=(tracknode.ru)
+elif [ "$#" -gt 0 ]; then
+  echo "Usage: bash scripts/deploy-seo-frontends.sh [--tracknode-only]"
+  exit 1
+fi
 cd ydro
 dc() { docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.https.yml "$@"; }
 mkdir -p /home/alex/auto/backups
@@ -23,13 +32,15 @@ test -s "$backup"
 dc exec -T postgres pg_restore --list < "$backup" > /dev/null
 printf 'Backup readable: %s\n' "$backup"
 # Build first: a failed build leaves the currently running sites untouched.
-dc build frontend public_site volga_site my_portfolio_site
+dc build "${services[@]}"
 # Validate public-site configs in their newly built images before replacing containers.
-for service in public_site volga_site my_portfolio_site; do
+for service in "${services[@]}"; do
+  [ "$service" != frontend ] || continue
   dc run --rm --no-deps --entrypoint nginx "$service" -t
 done
-dc up -d --no-deps frontend public_site volga_site my_portfolio_site
-for container in ydro-frontend-1 ydro-public_site-1 ydro-volga_site-1 ydro-my_portfolio_site-1; do
+dc up -d --no-deps "${services[@]}"
+for service in "${services[@]}"; do
+  container="ydro-${service}-1"
   healthy=0
   for attempt in {1..60}; do
     state="$(docker inspect -f '{{.State.Health.Status}}' "$container")"
@@ -48,7 +59,7 @@ dc exec -T nginx sh -ec '
   fi
   nginx -s reload
 '
-for domain in tracknode.ru leelabird.ru novoe-konakovo.ru tishechkinalexandr.ru; do
+for domain in "${domains[@]}"; do
   curl --fail --silent --show-error --max-time 20 -o /dev/null "https://$domain/"
   curl --fail --silent --show-error --max-time 20 -o /dev/null "https://$domain/robots.txt"
   curl --fail --silent --show-error --max-time 20 -o /dev/null "https://$domain/sitemap.xml"

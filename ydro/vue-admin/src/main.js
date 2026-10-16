@@ -5,6 +5,7 @@ import App from './App.vue'
 import router from './router'
 import { registerServiceWorker } from './pwa'
 import './style.css'
+import './app-theme.css'
 
 const CHUNK_RELOAD_KEY = 'tracknode:chunk-reload-at'
 

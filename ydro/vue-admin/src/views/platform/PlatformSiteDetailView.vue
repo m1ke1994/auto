@@ -1,7 +1,8 @@
 <script setup>
+import TrackNodeIcon from '../../components/TrackNodeIcon.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { AlertTriangle, Eye, RefreshCw, Trash2 } from '@lucide/vue'
+import { AlertTriangle, Eye, Trash2 } from '@lucide/vue'
 
 import PlatformPeriodFilter from '../../components/platform/PlatformPeriodFilter.vue'
 import { deletePlatformTemplate, getPlatformSite } from '../../api/platform'
@@ -94,7 +95,7 @@ onMounted(load)
     <div v-if="error" class="rounded-2xl bg-red-50 p-4 text-red-800">{{ error }}</div>
     <div v-if="success" class="rounded-2xl bg-emerald-50 p-4 text-emerald-800">{{ success }}</div>
     <div v-if="loading" class="rounded-3xl bg-white p-12 text-center">
-      <RefreshCw class="inline animate-spin" />
+      <TrackNodeIcon animated class="inline " />
     </div>
 
     <template v-else-if="site">

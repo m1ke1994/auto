@@ -1,6 +1,7 @@
 <script setup>
+import TrackNodeIcon from '../components/TrackNodeIcon.vue'
 import { computed, onMounted } from 'vue'
-import { Bell, BellRing, CalendarDays, ChevronRight, LoaderCircle, Megaphone } from '@lucide/vue'
+import { Bell, BellRing, CalendarDays, ChevronRight, Megaphone } from '@lucide/vue'
 
 import { useNewsStore } from '../stores/news'
 
@@ -46,7 +47,7 @@ onMounted(loadNews)
     </p>
 
     <section v-if="newsStore.loading" class="surface flex min-h-48 items-center justify-center gap-3 text-sm text-slate-600">
-      <LoaderCircle :size="22" class="animate-spin text-brand-600" />
+      <TrackNodeIcon animated :size="22" class=" text-brand-600" />
       Загружаем новости…
     </section>
 

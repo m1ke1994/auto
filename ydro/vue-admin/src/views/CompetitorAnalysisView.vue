@@ -1,7 +1,8 @@
 <script setup>
+import TrackNodeIcon from '../components/TrackNodeIcon.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Download, FileSearch, Play, RefreshCw, StopCircle } from '@lucide/vue'
+import { Download, FileSearch, Play, StopCircle } from '@lucide/vue'
 
 import {
   cancelCompetitorAnalysis,
@@ -248,7 +249,7 @@ onUnmounted(stopPolling)
           <p>{{ siteStore.currentSite?.domain || siteStore.currentSite?.name || 'Выбранный сайт' }}</p>
         </div>
         <button type="button" class="action-button-secondary" :disabled="loading" @click="loadAnalyses">
-          <RefreshCw :size="17" :class="loading ? 'animate-spin' : ''" />
+          <TrackNodeIcon :animated="loading" :size="17"  />
           Обновить
         </button>
       </div>

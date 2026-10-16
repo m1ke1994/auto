@@ -1,6 +1,7 @@
 <script setup>
+import TrackNodeIcon from '../components/TrackNodeIcon.vue'
 import { computed, watch } from 'vue'
-import { ArrowLeft, CalendarDays, LoaderCircle, Megaphone } from '@lucide/vue'
+import { ArrowLeft, CalendarDays, Megaphone } from '@lucide/vue'
 import { useRoute } from 'vue-router'
 
 import { useNewsStore } from '../stores/news'
@@ -40,7 +41,7 @@ watch(() => route.params.newsId, loadNews, { immediate: true })
     </RouterLink>
 
     <section v-if="newsStore.detailLoading" class="surface flex min-h-64 items-center justify-center gap-3 text-sm text-slate-600">
-      <LoaderCircle :size="22" class="animate-spin text-brand-600" />
+      <TrackNodeIcon animated :size="22" class=" text-brand-600" />
       Загружаем новость…
     </section>
 

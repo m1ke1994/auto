@@ -1,6 +1,7 @@
 <script setup>
+import TrackNodeIcon from '../components/TrackNodeIcon.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Clock3, History, RefreshCw, Trash2 } from '@lucide/vue'
+import { Clock3, History, Trash2 } from '@lucide/vue'
 import { useRoute, useRouter } from 'vue-router'
 import { createAIRecommendationJob, deleteAIRecommendationJob, listAIRecommendationJobs, retryAIRecommendationJob } from '../api/aiRecommendations'
 import AiRecommendationCard from '../components/ai-recommendations/AiRecommendationCard.vue'
@@ -140,10 +141,10 @@ onBeforeUnmount(() => window.clearInterval(pollingTimer))
         <label class="min-w-0 text-xs font-medium text-slate-500">Начало периода<input v-model="periodFrom" type="date" class="input mt-1 w-full min-w-0" /></label>
         <label class="min-w-0 text-xs font-medium text-slate-500">Конец периода<input v-model="periodTo" type="date" class="input mt-1 w-full min-w-0" /></label>
         <label class="min-w-0 text-xs font-medium text-slate-500">Направление<select v-model="type" class="input mt-1 w-full min-w-0"><option value="combined">Комплексный анализ</option><option value="seo">Заметность в поиске</option><option value="conversion">Рост обращений</option></select></label>
-        <div class="flex items-end"><button class="btn-secondary w-full" :disabled="creating || hasActiveJob" @click="createJob"><RefreshCw :size="17" :class="creating && 'animate-spin'" />{{ creating ? 'Подготавливаем…' : 'Запустить анализ' }}</button></div>
+        <div class="flex items-end"><button class="btn-secondary w-full" :disabled="creating || hasActiveJob" @click="createJob"><TrackNodeIcon :animated="creating" :size="17"  />{{ creating ? 'Подготавливаем…' : 'Запустить анализ' }}</button></div>
       </section>
 
-      <div v-if="creating || ['queued','processing'].includes(selected?.status)" class="flex items-center gap-3 rounded-2xl border border-brand-100 bg-brand-50 p-4 text-sm font-medium text-brand-900"><RefreshCw class="shrink-0 animate-spin" :size="19" />Анализируем данные сайта и подготавливаем рекомендации…</div>
+      <div v-if="creating || ['queued','processing'].includes(selected?.status)" class="flex items-center gap-3 rounded-2xl border border-brand-100 bg-brand-50 p-4 text-sm font-medium text-brand-900"><TrackNodeIcon animated class="shrink-0 " :size="19" />Анализируем данные сайта и подготавливаем рекомендации…</div>
       <AiRecommendationsErrorState v-if="requestFailed || selected?.status === 'failed'" :busy="creating" @retry="selected?.status === 'failed' ? retry() : load()" />
 
       <template v-else-if="!creating && !['queued','processing'].includes(selected?.status)">

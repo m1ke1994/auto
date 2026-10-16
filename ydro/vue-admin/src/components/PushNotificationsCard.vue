@@ -1,6 +1,7 @@
 <script setup>
+import TrackNodeIcon from './TrackNodeIcon.vue'
 import { computed, onMounted, ref } from 'vue'
-import { Bell, BellOff, LoaderCircle } from '@lucide/vue'
+import { Bell, BellOff } from '@lucide/vue'
 
 import {
   createPushSubscriptionRequest,
@@ -162,7 +163,7 @@ onMounted(refreshState)
       :disabled="busy"
       @click="enableNotifications"
     >
-      <LoaderCircle v-if="state === 'enabling'" :size="17" class="animate-spin" />
+      <TrackNodeIcon animated v-if="state === 'enabling'" :size="17" class="" />
       <Bell v-else :size="17" />
       Включить уведомления
     </button>

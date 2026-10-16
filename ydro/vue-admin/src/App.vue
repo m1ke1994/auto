@@ -1,6 +1,13 @@
 <script setup>
-import { onBeforeUnmount, onErrorCaptured, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onErrorCaptured, onMounted, ref, watch, onUnmounted } from 'vue'
 import { CircleAlert, RefreshCw } from '@lucide/vue'
+
+import { useRoute } from 'vue-router'
+const route = useRoute()
+watch(() => route.meta.public, (isPublic) => {
+  if (typeof document !== 'undefined') document.body.classList.toggle('tn-app', !isPublic)
+}, { immediate: true })
+onUnmounted(() => document.body.classList.remove('tn-app'))
 
 const fatalError = ref(false)
 
