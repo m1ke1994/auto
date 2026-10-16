@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --mode example",
-    "build": "vite build --mode production",
-    "build:local": "vite build --mode example",
+    "build": "vite build --mode production && node scripts/prerender.mjs",
+    "build:local": "vite build --mode example && node scripts/prerender.mjs --example",
     "test:auth-routing": "node scripts/test-auth-routing.mjs",
     "test:seo-audit-ui": "node scripts/test-seo-audit-ui.mjs",
     "test:ai": "node scripts/test-ai-recommendations.mjs",

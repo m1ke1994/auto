@@ -238,7 +238,7 @@ onMounted(async () => {
       ...payload.site,
       seo: {
         ...(payload.site?.seo || {}),
-        title: 'TrackNode — сайты, аналитика и заявки в единой системе',
+        title: 'TrackNode — платформа для сайтов, аналитики, заявок и SEO',
         description:
           'TrackNode объединяет разработку сайтов, аналитику посетителей, обработку заявок и SEO-аудит. Единое пространство для развития вашего бизнеса.',
         canonical: 'https://tracknode.ru/',
@@ -342,6 +342,11 @@ onUnmounted(() => {
     </header>
     <main id="main">
       <FilmExperience :services="features" />
+      <section class="platform-summary wrap" aria-labelledby="platform-summary-title">
+        <h2 id="platform-summary-title">TrackNode — платформа для сайта и работы с его данными</h2>
+        <p>Создание и развитие сайтов, аналитика посещений, обработка заявок, технический SEO-аудит и редактирование доступных разделов — в одном кабинете TrackNode.</p>
+        <p>Платформа помогает проследить путь посетителя от источника перехода до обращения и определить, что улучшить на сайте. Состав инструментов зависит от проекта и условий подключения.</p>
+      </section>
       <section id="contact" class="contact">
         <div class="wrap contact-layout">
           <div class="contact-copy">
@@ -568,6 +573,10 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.platform-summary { padding-block: 64px; color: #b7c3d5; line-height: 1.8; }
+.platform-summary h2 { max-width: 860px; color: #f1f4fa; font-size: clamp(24px, 3vw, 38px); line-height: 1.2; }
+.platform-summary p { max-width: 880px; margin-top: 20px; }
+
 .landing {
   --blue: #467dff;
   --muted: #a0a9b8;

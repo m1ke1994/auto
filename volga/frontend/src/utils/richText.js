@@ -90,7 +90,9 @@ const sanitizeNode = (node, doc) => {
 
 const sanitizeHtml = (html) => {
   if (typeof window === "undefined" || typeof DOMParser === "undefined") {
-    return escapeHtml(html);
+    // Escape after stripping markup: no browser DOM is available during prerendering.
+    const text = String(html || '').replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, '').replace(/<[^>]*>/g, ' ');
+    return `<p>${escapeHtml(text)}</p>`;
   }
 
   const parser = new DOMParser();

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { publicSiteUrl } from '../config/api'
 
 const diceContainer = ref(null)
 const canRenderDiceModel = ref(
@@ -325,14 +326,17 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <footer class="relative overflow-hidden border-t border-white/10 bg-[#24231F] text-white">
+  <footer class="relative overflow-hidden border-t border-white/10 bg-[#24231F] text-white"
+    itemscope itemtype="https://schema.org/WebSite" :itemid="publicSiteUrl + '/#website'">
+    <meta itemprop="url" :content="publicSiteUrl + '/'">
+    <meta itemprop="name" content="Leelabird">
         
     <div class="relative mx-auto max-w-[1280px] px-6 py-10 md:px-8 md:py-12">
     <div class="grid gap-10 md:grid-cols-3 md:items-start md:justify-items-center">
         <!-- Logo -->
  <div class="space-y-5 md:justify-self-start">
-          <RouterLink
-            to="/"
+          <a
+            href="/"
             class="inline-flex items-center gap-2 text-sm font-semibold uppercase leading-none tracking-[0.22em] text-white"
             :aria-label="footerBrand"
           >
@@ -356,7 +360,7 @@ onBeforeUnmount(() => {
             </span>
 
             <span>{{ footerBrand.split(' ').slice(1).join(' ') || 'МОСКВА' }}</span>
-          </RouterLink>
+          </a>
 
           <p class="text-sm leading-6 text-white/70">
             {{ copyrightText }}
@@ -404,6 +408,11 @@ onBeforeUnmount(() => {
 
       <div class="mt-9 border-t border-white pt-5 text-sm leading-6 text-white/75">
         {{ footerText }}
+        <span itemprop="creator" itemscope itemtype="https://schema.org/Organization" itemid="https://tracknode.ru/#organization">
+          <meta itemprop="name" content="TrackNode">
+          <a itemprop="url" href="https://tracknode.ru/" class="mt-3 block w-fit text-xs text-white/70 hover:text-white"
+            aria-label="by TrackNode — платформа для сайтов, аналитики и заявок">by TrackNode</a>
+        </span>
       </div>
     </div>
   </footer>

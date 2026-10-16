@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { applyPageSeo } from "../composables/usePageSeo";
+import { onServerPrefetch, computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import AppHeader from "../components/AppHeader.vue";
 import AppFooter from "../components/AppFooter.vue";
@@ -27,18 +28,22 @@ const loadArticle = async () => {
 
   try {
     article.value = await getArticleBySlug(route.params.slug);
+    applyPageSeo({path:route.path,title:article.value.title+" — Новое Конаково",description:article.value.preview_description,image:article.value.preview_image});
   } catch (err) {
     console.error("[article] failed to load", err);
     article.value = null;
+    applyPageSeo({path:route.path,title:"Материал не найден — Новое Конаково",noindex:true});
     error.value = "Материал не найден";
   } finally {
     loading.value = false;
   }
 };
 
-onMounted(() => {
-  loadArticle();
-});
+const loadInitialContent = async () => {
+  await loadArticle();
+};
+onMounted(loadInitialContent);
+onServerPrefetch(loadInitialContent);
 </script>
 
 <template>

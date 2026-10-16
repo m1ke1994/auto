@@ -1,4 +1,4 @@
-import { computed, onMounted, ref } from 'vue'
+import { computed, inject, onMounted, ref } from 'vue'
 
 import { buildApiUrl, buildBackendUrl, buildPublicUrl, siteSlug } from '../config/api'
 
@@ -263,8 +263,10 @@ async function fetchSiteContent(force = false) {
 }
 
 export function usePublicSiteContent() {
-  const site = ref(null)
-  const sections = ref([])
+  const initialPayload = inject('seo-public-content', null)
+  const initial = initialPayload ? normalizePayload(initialPayload) : null
+  const site = ref(initial?.site || null)
+  const sections = ref(initial?.sections || [])
   const loading = ref(false)
   const error = ref('')
 

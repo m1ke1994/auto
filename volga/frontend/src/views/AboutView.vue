@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from "vue";
+import { onServerPrefetch, onMounted, ref } from "vue";
 import AppHeader from "../components/AppHeader.vue";
 import AppFooter from "../components/AppFooter.vue";
 import PageTemplate from "../components/PageTemplate.vue";
@@ -9,7 +9,7 @@ const page = ref(null);
 const loading = ref(true);
 const error = ref(null);
 
-onMounted(async () => {
+const loadInitialContent = async () => {
   try {
     const data = await getPage("about");
     page.value = data;
@@ -19,7 +19,9 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
-});
+};
+onMounted(loadInitialContent);
+onServerPrefetch(loadInitialContent);
 </script>
 
 <template>

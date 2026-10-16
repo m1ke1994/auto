@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { onServerPrefetch, computed, onMounted, ref } from "vue";
 import AppHeader from "../components/AppHeader.vue";
 import AppFooter from "../components/AppFooter.vue";
 import ProfileHero from "../components/Profile/ProfileHero.vue";
@@ -66,11 +66,11 @@ const loadNavigation = async () => {
   menuItems.value = await getNavigationItems();
 };
 
-onMounted(() => {
-  loadNavigation();
-  loadArticles();
-  loadNews();
-});
+const loadInitialContent = async () => {
+  await Promise.all([loadNavigation(), loadArticles(), loadNews()]);
+};
+onMounted(loadInitialContent);
+onServerPrefetch(loadInitialContent);
 </script>
 
 <template>

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { onServerPrefetch, computed, onBeforeUnmount, onMounted, ref } from "vue";
 import AppHeader from "../components/AppHeader.vue";
 import AppFooter from "../components/AppFooter.vue";
 import { getSiteSettings } from "../api/siteSettings";
@@ -78,7 +78,7 @@ const handleSubmit = async (event) => {
   }
 };
 
-onMounted(async () => {
+const loadInitialContent = async () => {
   try {
     const data = await getSiteSettings();
     siteSettings.value = {
@@ -91,7 +91,9 @@ onMounted(async () => {
   } catch (error) {
     console.error("Failed to load site settings for contacts page:", error);
   }
-});
+};
+onMounted(loadInitialContent);
+onServerPrefetch(loadInitialContent);
 
 onBeforeUnmount(() => {
   clearSuccessTimer();
