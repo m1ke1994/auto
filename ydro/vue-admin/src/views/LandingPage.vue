@@ -48,12 +48,6 @@ const features = [
       'Открывайте разделы сайта и редактируйте доступные поля в кабинете. Состав настроек зависит от выбранного раздела.',
   },
 ]
-const operatorName = String(
-  import.meta.env.VITE_LEGAL_OPERATOR_NAME || '',
-).trim()
-const operatorInn = String(
-  import.meta.env.VITE_LEGAL_OPERATOR_IDENTIFIER || '',
-).trim()
 const operatorEmail = String(
   import.meta.env.VITE_LEGAL_CONTACT_EMAIL || '',
 ).trim()
@@ -510,8 +504,6 @@ onUnmounted(() => {
         <div class="operator-details">
           <span
             >Исполнитель применяет налог на профессиональный доход (НПД).</span
-          ><span v-if="operatorName">{{ operatorName }}</span
-          ><span v-if="operatorInn">ИНН {{ operatorInn }}</span
           ><a v-if="operatorEmail" :href="'mailto:' + operatorEmail">{{
             operatorEmail
           }}</a
@@ -521,7 +513,7 @@ onUnmounted(() => {
             target="_blank"
             rel="noopener noreferrer"
             @click="trackPortfolioLink('developer')"
-            >Александр Тишечкин · сайт разработчика ↗</a
+            >Сайт разработчика ↗</a
           >
         </div>
         <div class="footer-bottom">
