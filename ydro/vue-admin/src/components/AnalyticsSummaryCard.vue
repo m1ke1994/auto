@@ -16,7 +16,7 @@ defineProps({
 </script>
 
 <template>
-  <section class="surface border-brand-100 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(244,241,255,0.78))]">
+  <section class="surface border-brand-100 app-panel-gradient">
     <div class="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
       <div>
         <p class="eyebrow">{{ title }}</p>

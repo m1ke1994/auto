@@ -70,7 +70,7 @@ onMounted(loadNews)
         :key="news.id"
         :to="{ name: 'notification-detail', params: { newsId: news.id } }"
         class="group relative grid gap-4 rounded-2xl border bg-white/90 p-5 text-left shadow-soft transition hover:-translate-y-0.5 hover:shadow-[0_18px_48px_rgba(32,40,70,0.12)] sm:grid-cols-[auto_1fr_auto] sm:items-center"
-        :class="news.is_important ? 'border-amber-200 bg-gradient-to-r from-amber-50/80 to-white' : 'border-brand-100'"
+        :class="news.is_important ? 'border-amber-200 app-warning-gradient' : 'border-brand-100'"
       >
         <span
           class="flex h-11 w-11 items-center justify-center rounded-xl"

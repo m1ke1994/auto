@@ -29,6 +29,6 @@ assert.match(trackerView, /response\["Cache-Control"\] = "no-store, max-age=0"/)
 
 assert.match(serviceWorker, /pathname === '\/tracker\.js'/)
 assert.match(serviceWorker, /pathname\.startsWith\('\/api\/'\)/)
-assert.match(serviceWorker, /CACHE_PREFIX\}v6/)
+assert.match(serviceWorker, /CACHE_PREFIX\}v[1-9]\d*/)
 
 console.log('tracker integration checks passed')

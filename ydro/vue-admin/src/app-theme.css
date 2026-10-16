@@ -93,14 +93,24 @@ body.tn-app {
 .tn-app :is(a,button,input,select,textarea):focus-visible { --tw-ring-offset-color: #0b0f16; }
 .tn-app [class~="from-violet-700"] { --tw-gradient-from: #3b82f6; }
 .tn-app [class~="to-indigo-900"] { --tw-gradient-to: #172554; }
-.tn-app [class~="to-violet-100/80"] { --tw-gradient-to: #3b82f6; }
 .tn-app [class~="to-violet-400"] { --tw-gradient-to: #3b82f6; }
-.tn-app [class~="to-violet-50"] { --tw-gradient-to: #3b82f6; }
 .tn-app [class~="to-violet-600"] { --tw-gradient-to: #3b82f6; }
-.tn-app [class~="via-violet-950"] { --tw-gradient-via: #172554; }
 .tn-app .eyebrow { background: #172b47; color: #b2ceff; border: 1px solid #34547b; }
 .tn-app :is(.status-success,.notice-success) { border-color: #2d6854; }
 .tn-app .status-warning { border-color: #74603a; }
 .tn-app :is(.status-danger,.notice-error) { border-color: #744052; }
 .tn-app :is(.status-neutral,.notice-info) { border-color: #34547b; }
 .tn-app [class*="shadow-"] { box-shadow: 0 8px 24px #0003; }
+
+/* Panels share an explicit dark gradient, including their translucent layers. */
+.tn-app .app-panel-gradient { background: linear-gradient(135deg, #18283c, #111925); }
+.tn-app .app-warning-gradient { background: linear-gradient(110deg, #382b16, #141e2c); }
+.tn-app .app-panel-glow { background: linear-gradient(to bottom, #213b5c80, transparent); }
+.tn-app .app-skeleton-gradient { background: linear-gradient(90deg, #172131, #213451, #172131); }
+.tn-app :is([class~="bg-[#F5F7FD]/60"], [class~="bg-[#F5F7FD]/70"], [class~="bg-[#F5F7FD]/80"], [class~="bg-slate-300"]) { background-color: #192638; }
+.tn-app :is([class~="hover:bg-white/10"], [class~="hover:bg-white/20"], [class~="hover:bg-slate-100"], [class~="hover:bg-slate-200"], [class~="hover:bg-brand-50/70"], [class~="hover:bg-violet-50"], [class~="hover:bg-violet-50/50"]):hover { background-color: #213451; }
+.tn-app :is([class~="hover:bg-red-50"], [class~="hover:bg-rose-50"]):hover { background-color: #482334; }
+/* Keep small white labels readable on saturated controls and counters. */
+.tn-app [class~="to-brand-500"] { --tw-gradient-to: #2563eb var(--tw-gradient-to-position); }
+.tn-app [class~="bg-rose-500"], .tn-app button[class~="bg-red-500"] { background-color: #be123c; }
+.tn-app button[class~="bg-amber-400"] { background-color: #785020; }

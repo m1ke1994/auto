@@ -275,7 +275,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="flex flex-col justify-center border-t border-brand-100 bg-gradient-to-br from-brand-50/90 to-white p-5 sm:p-7 lg:border-l lg:border-t-0">
+        <div class="flex flex-col justify-center border-t border-brand-100 app-panel-gradient p-5 sm:p-7 lg:border-l lg:border-t-0">
           <CreditCard :size="28" class="text-brand-600" />
           <p class="mt-4 text-sm font-medium text-slate-500">Состояние оплаты</p>
           <p class="mt-1 text-xl font-bold text-[#17223B]">
@@ -347,7 +347,7 @@ onMounted(() => {
           :class="plan.recommended ? 'border-brand-300 ring-1 ring-brand-200' : 'border-brand-100'"
           style="grid-template-rows: auto minmax(6rem, 6rem) auto 1fr auto;"
         >
-          <div class="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-brand-50/80 to-transparent opacity-80 transition group-hover:opacity-100" />
+          <div class="pointer-events-none absolute inset-x-0 top-0 h-28 app-panel-glow opacity-80 transition group-hover:opacity-100" />
           <div v-if="plan.recommended" class="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white shadow-[0_12px_26px_rgba(109,93,246,0.22)]">
             <Sparkles :size="13" /> Рекомендуем
           </div>

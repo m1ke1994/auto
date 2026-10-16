@@ -25,7 +25,7 @@ const description = computed(() => {
 <template>
   <div class="mx-auto grid min-h-[60vh] w-full max-w-3xl place-items-center py-8">
     <section class="surface w-full overflow-hidden p-0 text-center">
-      <div class="bg-gradient-to-br from-brand-50 via-white to-violet-50 px-6 py-10 sm:px-10">
+      <div class="app-panel-gradient px-6 py-10 sm:px-10">
         <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-brand-700 shadow-[0_16px_38px_rgba(109,93,246,0.18)]">
           <LockKeyhole :size="30" />
         </span>
