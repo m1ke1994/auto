@@ -61,7 +61,7 @@
                     </div>
                 </div>
             </header>
-            <div class="hero__project-title">Новое Конаково</div>
+            <h1 class="hero__project-title">Новое Конаково</h1>
         </div>
 
         <div class="hero__bottom">
@@ -93,7 +93,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onServerPrefetch, onMounted, onUnmounted, ref, watch } from 'vue'
 import BurgerMenuButton from './BurgerMenuButton.vue'
 import { useHero } from '../../composables/useHero'
 import RichText from '../ui/RichText.vue';
@@ -174,6 +174,8 @@ const setupHeroPreload = () => {
     preloadLink.href = heroBackgroundImage.value
     document.head.appendChild(preloadLink)
 }
+
+onServerPrefetch(loadHero)
 
 onMounted(async () => {
     await loadHero()

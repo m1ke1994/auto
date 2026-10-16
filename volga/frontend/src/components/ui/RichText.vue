@@ -1,26 +1,18 @@
-<script setup>
-import { computed } from "vue";
-import { formatRichText } from "../../utils/richText";
+<script>
+import { defineComponent, h } from 'vue'
+import { formatRichText } from '../../utils/richText'
 
-const props = defineProps({
-  content: {
-    type: [String, Array],
-    default: "",
+export default defineComponent({
+  props: {
+    content: { type: [String, Array], default: '' },
+    tag: { type: String, default: 'div' },
   },
-  tag: {
-    type: String,
-    default: "div",
+  setup(props) {
+    return () => {
+      const html = formatRichText(props.content)
+      // A native vnode preserves sanitized rich text during both SSR and client rendering.
+      return html ? h(props.tag, { class: 'rich-text', innerHTML: html }) : null
+    }
   },
-});
-
-const formattedContent = computed(() => formatRichText(props.content));
+})
 </script>
-
-<template>
-  <component
-    :is="tag"
-    v-if="formattedContent"
-    class="rich-text"
-    v-html="formattedContent"
-  />
-</template>

@@ -52,7 +52,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from "vue";
+import { onServerPrefetch, computed, onMounted } from "vue";
 import {
   findMinTariffPrice,
   formatPrice,
@@ -63,9 +63,11 @@ import RichText from "../ui/RichText.vue";
 
 const { servicesError, servicesLoading, servicesTree } = useServices();
 
-onMounted(() => {
-  loadServices();
-});
+const loadInitialContent = async () => {
+  await loadServices();
+};
+onMounted(loadInitialContent);
+onServerPrefetch(loadInitialContent);
 
 const cards = computed(() =>
   servicesTree.value.map((service) => {

@@ -77,7 +77,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from "vue"
+import { computed, onServerPrefetch, onMounted, onUnmounted, ref } from "vue"
 import { getReviews } from "../../api/reviews"
 import RichText from "../ui/RichText.vue";
 
@@ -180,6 +180,8 @@ const load = async () => {
     loading.value = false
   }
 }
+
+onServerPrefetch(load)
 
 onMounted(async () => {
   await load()

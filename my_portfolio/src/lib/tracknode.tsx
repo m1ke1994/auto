@@ -384,7 +384,7 @@ const PortfolioContext = createContext<PortfolioContextValue>({
 });
 
 const apiBase = () => (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
-const backendBase = () => (import.meta.env.VITE_BACKEND_URL || window.location.origin).replace(/\/$/, "");
+const backendBase = () => (import.meta.env.VITE_BACKEND_URL || (typeof window !== "undefined" ? window.location.origin : "https://tracknode.ru")).replace(/\/$/, "");
 const siteSlug = () => import.meta.env.VITE_SITE_SLUG || "my-portfolio";
 
 export function resolveMediaUrl(value: unknown, backendUrl = backendBase()): string {
@@ -592,9 +592,9 @@ export function usePortfolioStatus() {
   return { isLoaded, isLoading, error };
 }
 
-export function PortfolioProvider({ children }: { children: ReactNode }) {
-  const [bundle, setBundle] = useState<PublicBundle>({});
-  const [isLoading, setIsLoading] = useState(true);
+export function PortfolioProvider({ children, initialBundle }: { children: ReactNode; initialBundle?: PublicBundle }) {
+  const [bundle, setBundle] = useState<PublicBundle>(initialBundle || {});
+  const [isLoading, setIsLoading] = useState(typeof window !== "undefined" && !initialBundle);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -658,6 +658,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
 }
 
 export function applySeo(site?: PublicSite, settingsContent: JsonObject = DEFAULT_PORTFOLIO_SECTIONS.settings) {
+  if (window.location.pathname !== '/') return;
   const seo = site?.seo || {};
   const settings = settingsContent || DEFAULT_PORTFOLIO_SECTIONS.settings;
   const title = String(seo.title || settings.site_title || document.title);
@@ -685,6 +686,9 @@ export function applySeo(site?: PublicSite, settingsContent: JsonObject = DEFAUL
     document.head.appendChild(link);
   }
   link.href = canonical;
+  setMeta("og:url", canonical, "property");
+  setMeta("twitter:title", title);
+  setMeta("twitter:description", description);
 }
 
 function setMeta(name: string, content: string, attr: "name" | "property" = "name") {

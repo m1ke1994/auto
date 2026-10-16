@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { onServerPrefetch, computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { getNewsBySlug } from "../api/news";
 import AppHeader from "../components/AppHeader.vue";
@@ -31,9 +31,11 @@ const loadNews = async () => {
   }
 };
 
-onMounted(() => {
-  loadNews();
-});
+const loadInitialContent = async () => {
+  await loadNews();
+};
+onMounted(loadInitialContent);
+onServerPrefetch(loadInitialContent);
 </script>
 
 <template>

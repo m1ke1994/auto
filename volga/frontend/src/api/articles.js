@@ -17,7 +17,7 @@ export const getArticles = async () => {
 }
 
 export const getArticleBySlug = async (slug) => {
-  const safeSlug = encodeURIComponent(String(slug || "").trim())
+  const safeSlug = String(slug || "").trim()
   if (!safeSlug) throw new Error("article slug is required")
 
   const items = await getArticles()

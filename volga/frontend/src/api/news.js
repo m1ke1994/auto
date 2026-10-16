@@ -25,7 +25,7 @@ export const getNewsList = async () => {
 }
 
 export const getNewsBySlug = async (slug) => {
-  const safeSlug = encodeURIComponent(String(slug || "").trim())
+  const safeSlug = String(slug || "").trim()
   if (!safeSlug) throw new Error("news slug is required")
 
   const items = await getNewsList()

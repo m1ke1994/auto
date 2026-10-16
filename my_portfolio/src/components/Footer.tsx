@@ -114,6 +114,9 @@ export function Footer() {
             © {currentYear} {content.copyright}{" "}
             <span className="text-gold">♥</span>
           </p>
+          <a href="https://tracknode.ru/" onClick={trackTrackNodeClick}
+            className="mt-3 inline-block text-xs text-muted-foreground hover:text-foreground"
+            aria-label="by TrackNode — платформа для сайтов, аналитики и заявок">by TrackNode</a>
         </div>
       </div>
     </footer>

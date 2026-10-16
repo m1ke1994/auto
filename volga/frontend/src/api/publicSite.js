@@ -74,7 +74,7 @@ function setPropertyMeta(property, value) {
 }
 
 function applySiteSeo(site) {
-  if (typeof document === "undefined") return
+  if (typeof document === "undefined" || window.location.pathname !== '/') return
   const seo = site?.seo && typeof site.seo === "object" ? site.seo : {}
   if (seo.title) {
     document.title = seo.title
@@ -216,3 +216,6 @@ export async function getJsonSectionItems(sectionKey, fieldKey = "items_json") {
   const content = await getSectionContent(sectionKey)
   return parseJsonContent(content, fieldKey, [])
 }
+
+// Build-time renderer supplies only the same public bundle exposed by the API.
+export function seedSsrPublicSite(payload) { writeCache(payload || {site:null,sections:[]}) }

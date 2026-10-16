@@ -43,6 +43,8 @@
           </span>
 
           <div class="footer__bottom-links">
+            <a class="footer__bottom-link" href="https://tracknode.ru/"
+              aria-label="by TrackNode — платформа для сайтов, аналитики и заявок">by TrackNode</a>
             <router-link class="footer__bottom-link" to="/privacy">Политика</router-link>
             <router-link class="footer__bottom-link" to="/terms">Условия</router-link>
 
@@ -57,7 +59,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue"
+import { onServerPrefetch, computed, onMounted, ref } from "vue"
 import { getSiteSettings } from "../api/siteSettings"
 
 const year = new Date().getFullYear()
@@ -88,7 +90,7 @@ const emailHref = computed(() => {
   return email ? `mailto:${email}` : ""
 })
 
-onMounted(async () => {
+const loadInitialContent = async () => {
   try {
     const data = await getSiteSettings()
     siteSettings.value = {
@@ -101,7 +103,9 @@ onMounted(async () => {
   } catch (error) {
     console.error("Не удалось загрузить настройки сайта для футера:", error)
   }
-})
+};
+onMounted(loadInitialContent);
+onServerPrefetch(loadInitialContent);
 
 const scrollToTop = () => {
   if (typeof window === "undefined") return

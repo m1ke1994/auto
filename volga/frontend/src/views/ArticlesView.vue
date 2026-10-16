@@ -1,11 +1,14 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { onServerPrefetch, computed, onMounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import AppHeader from "../components/AppHeader.vue";
 import AppFooter from "../components/AppFooter.vue";
 import ArticleCard from "../components/ArticleCard.vue";
 import { getArticles } from "../api/articles";
 
-const activeTab = ref("article");
+const route = useRoute();
+const activeTab = ref(route.path === '/video' ? 'video' : 'article');
+watch(() => route.path, path => { activeTab.value = path === '/video' ? 'video' : 'article'; });
 const loading = ref(false);
 const error = ref("");
 const materials = ref([]);
@@ -34,9 +37,11 @@ const loadArticles = async () => {
   }
 };
 
-onMounted(() => {
-  loadArticles();
-});
+const loadInitialContent = async () => {
+  await loadArticles();
+};
+onMounted(loadInitialContent);
+onServerPrefetch(loadInitialContent);
 </script>
 
 <template>

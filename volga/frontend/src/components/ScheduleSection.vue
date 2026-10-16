@@ -204,7 +204,7 @@
 
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, onServerPrefetch, ref, watch } from "vue";
 import { getSchedule } from "../api/schedule";
 import RichText from "./ui/RichText.vue";
 
@@ -335,12 +335,12 @@ const normalizeApiSchedule = (payload) => {
   }).filter((month) => month.days.length > 0);
 };
 
-onMounted(async () => {
-  console.log("Schedule mounted");
+const loadScheduleContent = async () => {
+
 
   try {
     const data = await getSchedule();
-    console.log("SCHEDULE API DATA:", data);
+
     schedule.value = normalizeApiSchedule(data);
   } catch (e) {
     console.error("Schedule error:", e);
@@ -348,7 +348,9 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
-});
+};
+onMounted(loadScheduleContent);
+onServerPrefetch(loadScheduleContent);
 
 const groupedEvents = computed(() => schedule.value);
 

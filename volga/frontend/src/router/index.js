@@ -1,6 +1,7 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, createMemoryHistory } from 'vue-router'
 
 import { publicSiteUrl } from '../config/api'
+import { applyPageSeo } from '../composables/usePageSeo'
 
 const DEFAULT_TITLE = 'Новое Конаково — отдых на природе'
 const DEFAULT_DESCRIPTION = 'Новое Конаково — отдых на природе.'
@@ -35,7 +36,7 @@ const routes = [
     component: () => import('../views/HomeView.vue'),
     meta: {
       title: 'Новое Конаково — отдых на природе',
-      description: 'Природный отдых, экскурсии, мероприятия',
+      description: 'Новое Конаково: экскурсии в Братство Лосей, авторские программы, мастер-классы и беговые встречи. Форматы отдыха, расписание, новости и контакты.',
       keywords: 'Новое Конаково, отдых, природа, экскурсии, мероприятия',
     },
   },
@@ -134,7 +135,7 @@ const routes = [
   {
     path: '/services',
     name: 'services',
-    component: () => import('../views/HomeView.vue'),
+    component: () => import('../views/ServicesView.vue'),
     meta: {
       title: 'Услуги — Новое Конаково',
       description: 'Форматы отдыха и экскурсии в Новом Конаково',
@@ -195,7 +196,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: import.meta.env.SSR ? createMemoryHistory() : createWebHistory(),
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) return savedPosition
     if (to.hash) {
@@ -211,11 +212,13 @@ const router = createRouter({
 })
 
 router.afterEach((to) => {
+  if (typeof document === 'undefined') return
   const routeTitle = typeof to.meta.title === 'function' ? to.meta.title(to) : to.meta.title
   const routeDescription =
     typeof to.meta.description === 'function' ? to.meta.description(to) : to.meta.description
   const routeKeywords = typeof to.meta.keywords === 'function' ? to.meta.keywords(to) : to.meta.keywords
 
+  applyPageSeo({path:to.path,title:routeTitle || DEFAULT_TITLE,description:routeDescription || DEFAULT_DESCRIPTION})
   document.title = routeTitle || DEFAULT_TITLE
 
   const descriptionTag = document.querySelector('meta[name="description"]')
@@ -230,7 +233,7 @@ router.afterEach((to) => {
 
   const canonical = document.querySelector('link[rel="canonical"]')
   if (canonical && publicSiteUrl) {
-    canonical.setAttribute('href', `${publicSiteUrl}${to.fullPath}`)
+    canonical.setAttribute('href', `${publicSiteUrl}${to.path}`)
   }
 })
 

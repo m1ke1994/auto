@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { onServerPrefetch, computed, onMounted, ref } from "vue";
 import AppHeader from "../components/AppHeader.vue";
 import AppFooter from "../components/AppFooter.vue";
 import NewsCard from "../components/NewsCard.vue";
@@ -25,9 +25,11 @@ const loadNews = async () => {
   }
 };
 
-onMounted(() => {
-  loadNews();
-});
+const loadInitialContent = async () => {
+  await loadNews();
+};
+onMounted(loadInitialContent);
+onServerPrefetch(loadInitialContent);
 </script>
 
 <template>

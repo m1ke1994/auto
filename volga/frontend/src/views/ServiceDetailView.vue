@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { applyPageSeo } from "../composables/usePageSeo";
+import { onServerPrefetch, computed, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import AppHeader from "../components/AppHeader.vue";
 import AppFooter from "../components/AppFooter.vue";
@@ -21,6 +22,9 @@ const slugPath = computed(() =>
 );
 
 const service = computed(() => getServiceByPath(slugPath.value));
+watch(service, (item) => {
+ if(item) applyPageSeo({path:route.path,title:`${item.fullTitle || item.title} — Новое Конаково`,description:item.description,image:item.image});
+});
 const bookingService = computed(() => selectedBookingService.value || service.value || null);
 const hasTariffs = computed(() => Array.isArray(service.value?.tariffs) && service.value.tariffs.length > 0);
 const hasChildren = computed(() => Array.isArray(service.value?.children) && service.value.children.length > 0);
@@ -84,9 +88,11 @@ const clearBookingSelection = () => {
   selectedTariff.value = null;
 };
 
-onMounted(() => {
-  loadServices();
-});
+const loadInitialContent = async () => {
+  await loadServices();
+};
+onMounted(loadInitialContent);
+onServerPrefetch(loadInitialContent);
 
 watch(
   () => route.params.slugPath,
