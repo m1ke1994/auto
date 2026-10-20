@@ -28,6 +28,17 @@
     text-size-adjust: 100%;
   }
 
+  /* Smooth public in-page anchors; authenticated dashboards are unaffected. */
+  html.tn-public-scroll {
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html.tn-public-scroll {
+      scroll-behavior: auto;
+    }
+  }
+
   html,
   body,
   #app {

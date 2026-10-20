@@ -5,9 +5,15 @@ import { CircleAlert, RefreshCw } from '@lucide/vue'
 import { useRoute } from 'vue-router'
 const route = useRoute()
 watch(() => route.meta.public, (isPublic) => {
-  if (typeof document !== 'undefined') document.body.classList.toggle('tn-app', !isPublic)
+  if (typeof document !== 'undefined') {
+    document.body.classList.toggle('tn-app', !isPublic)
+    document.documentElement.classList.toggle('tn-public-scroll', Boolean(isPublic))
+  }
 }, { immediate: true })
-onUnmounted(() => document.body.classList.remove('tn-app'))
+onUnmounted(() => {
+  document.body.classList.remove('tn-app')
+  document.documentElement.classList.remove('tn-public-scroll')
+})
 
 const fatalError = ref(false)
 

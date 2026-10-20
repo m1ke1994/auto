@@ -27,6 +27,7 @@ jobs:
       - run: npm ci
       - run: npm run test:tracknode-landing
       - run: npm run test:auth-routing
+      - run: npm run test:public-scroll
       - run: npm run build:local
       # Reproduce the production frontend Docker build context, which excludes ../docker/nginx.
       - run: docker build -t tracknode-frontend-ci .

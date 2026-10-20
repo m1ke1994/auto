@@ -21,7 +21,7 @@ const page = computed(() => marketingPages[props.pageKey] || marketingPages.site
           <RouterLink v-for="item in marketingPageList" :key="item.key" :to="item.path"
             :aria-current="page.key === item.key ? 'page' : undefined">{{ item.short }}</RouterLink>
         </nav>
-        <a class="marketing-header-cta" href="/#contact">Обсудить проект <ArrowUpRight :size="16" /></a>
+        <RouterLink class="marketing-header-cta" to="/#contact">Обсудить проект <ArrowUpRight :size="16" /></RouterLink>
       </div>
     </header>
 
@@ -38,7 +38,7 @@ const page = computed(() => marketingPages[props.pageKey] || marketingPages.site
             <h1>{{ page.headline }}</h1>
             <p class="marketing-lead">{{ page.lead }}</p>
             <div class="marketing-actions">
-              <a class="marketing-button" href="/#contact">Обсудить задачу <ArrowRight :size="17" /></a>
+              <RouterLink class="marketing-button" to="/#contact">Обсудить задачу <ArrowRight :size="17" /></RouterLink>
               <RouterLink class="marketing-text-link" to="/">Смотреть 3D-фильм <ArrowUpRight :size="16" /></RouterLink>
             </div>
             <p class="marketing-caption">TrackNode / Решения для сайтов и бизнеса</p>
@@ -120,7 +120,7 @@ const page = computed(() => marketingPages[props.pageKey] || marketingPages.site
           <div><p class="marketing-section-label">/ Следующий шаг</p><h2 id="cta-title">Сложное можно<br><em>сделать понятным.</em></h2>
             <p>Расскажите о задаче. Обсудим подходящий формат работы, возможности платформы и следующие шаги.</p>
           </div>
-          <a class="marketing-button marketing-button-large" href="/#contact">Обсудить проект <ArrowUpRight :size="19" /></a>
+          <RouterLink class="marketing-button marketing-button-large" to="/#contact">Обсудить проект <ArrowUpRight :size="19" /></RouterLink>
         </div>
       </section>
     </main>

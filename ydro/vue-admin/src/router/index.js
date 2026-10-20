@@ -40,6 +40,7 @@ import { useAccessStore } from '../stores/access'
 import { useAuthStore } from '../stores/auth'
 import { useSiteStore } from '../stores/site'
 import { intendedRouteAfterAuth } from './authRedirects'
+import { resolveScrollPosition } from './scrollBehavior.js'
 
 const routes = [
   {
@@ -198,6 +199,10 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+  scrollBehavior(to, from, savedPosition) {
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    return resolveScrollPosition(to, from, savedPosition, { reducedMotion })
+  },
 })
 
 router.beforeEach(async (to) => {
