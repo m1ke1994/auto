@@ -4,6 +4,7 @@ import {readFileSync,writeFileSync,mkdirSync,rmSync} from 'node:fs'
 import {resolve} from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {savePage,discovery,SITE} from './seo.mjs'
+import { marketingPageList } from '../src/content/marketingPages.js'
 const temp='.seo-render'
 const mode=process.argv.includes('--example')?'example':'production'
 mkdirSync(temp,{recursive:true})
