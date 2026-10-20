@@ -15,6 +15,8 @@ import PlatformRecommendationDetailView from '../views/platform/PlatformRecommen
 import PlatformHealthView from '../views/platform/PlatformHealthView.vue'
 import CompetitorAnalysisView from '../views/CompetitorAnalysisView.vue'
 import LandingPage from '../views/LandingPage.vue'
+import MarketingPage from '../views/MarketingPage.vue'
+import { marketingPageList } from '../content/marketingPages.js'
 import LegalPage from '../views/LegalPage.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
@@ -44,8 +46,36 @@ const routes = [
     path: '/',
     name: 'landing',
     component: LandingPage,
-    meta: { public: true },
+    meta: {
+      public: true,
+      seoTitle: 'TrackNode — платформа для сайтов, аналитики, заявок и SEO',
+      description: 'TrackNode: создание и развитие сайтов, аналитика посещений и источников, обработка заявок, технический SEO-аудит и управление разделами в одном кабинете.',
+    },
   },
+  ...marketingPageList.map((page) => ({
+    path: page.path,
+    name: 'marketing-' + page.key,
+    component: MarketingPage,
+    props: { pageKey: page.key },
+    meta: {
+      public: true,
+      title: page.short,
+      seoTitle: page.title,
+      description: page.description,
+      jsonLd: {
+        '@context': 'https://schema.org',
+        '@graph': [
+          { '@type': 'Organization', '@id': 'https://tracknode.ru/#organization', name: 'TrackNode', url: 'https://tracknode.ru/' },
+          { '@type': 'WebSite', '@id': 'https://tracknode.ru/#website', url: 'https://tracknode.ru/', name: 'TrackNode', inLanguage: 'ru-RU' },
+          { '@type': 'WebPage', '@id': 'https://tracknode.ru' + page.path + '#webpage', url: 'https://tracknode.ru' + page.path, name: page.title, description: page.description, inLanguage: 'ru-RU' },
+          { '@type': 'BreadcrumbList', itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'TrackNode', item: 'https://tracknode.ru/' },
+            { '@type': 'ListItem', position: 2, name: page.short, item: 'https://tracknode.ru' + page.path },
+          ] },
+        ],
+      },
+    },
+  })),
   {
     path: '/login',
     name: 'login',

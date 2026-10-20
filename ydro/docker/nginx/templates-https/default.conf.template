@@ -3,7 +3,7 @@
 map $request_uri $tracknode_indexing {
     default "noindex, follow";
     ~^/(\?.*)?$ "index, follow";
-    ~^/(privacy|terms|consent|cookies)/?(\?.*)?$ "index, follow";
+    ~^/(privacy|terms|consent|cookies|sozdanie-saitov|seo-audit|analitika-saita|upravlenie-zayavkami)/?(\?.*)?$ "index, follow";
 }
 
 map $http_upgrade $connection_upgrade {
@@ -32,6 +32,9 @@ server {
     listen [::]:80;
     server_name tracknode.ru www.tracknode.ru leelabird.ru www.leelabird.ru novoe-konakovo.ru www.novoe-konakovo.ru tishechkinalexandr.ru www.tishechkinalexandr.ru;
 
+    if ($host = www.tracknode.ru) {
+        return 301 https://tracknode.ru$request_uri;
+    }
     location / {
         return 301 https://$host$request_uri;
     }
@@ -42,6 +45,10 @@ server {
     listen [::]:443 ssl;
     http2 on;
     server_name tracknode.ru www.tracknode.ru;
+
+    if ($host = www.tracknode.ru) {
+        return 301 https://tracknode.ru$request_uri;
+    }
 
     ssl_certificate /etc/letsencrypt/live/tracknode.ru/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/tracknode.ru/privkey.pem;

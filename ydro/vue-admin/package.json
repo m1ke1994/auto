@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --mode example",
-    "build": "vite build --mode production && node scripts/prerender.mjs",
-    "build:local": "vite build --mode example && node scripts/prerender.mjs --example",
+    "build": "vite build --mode production && node scripts/prerender.mjs && node scripts/check-marketing-pages.mjs",
+    "build:local": "vite build --mode example && node scripts/prerender.mjs --example && node scripts/check-marketing-pages.mjs",
     "test:auth-routing": "node scripts/test-auth-routing.mjs",
     "test:seo-audit-ui": "node scripts/test-seo-audit-ui.mjs",
     "test:ai": "node scripts/test-ai-recommendations.mjs",
@@ -16,7 +16,8 @@
     "test:tracknode-landing": "node scripts/test-tracknode-landing.mjs",
     "preview": "vite preview",
     "test:landing-story": "node scripts/check-landing-story.mjs",
-    "test:landing-render": "node scripts/check-landing-render.mjs"
+    "test:landing-render": "node scripts/check-landing-render.mjs",
+    "test:marketing": "node scripts/check-marketing-pages.mjs --source-only"
   },
   "dependencies": {
     "@lucide/vue": "^1.17.0",

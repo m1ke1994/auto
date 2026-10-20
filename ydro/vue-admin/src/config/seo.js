@@ -37,7 +37,7 @@ function setCanonical(url) {
 }
 
 function setJsonLd(value) {
-  const selector = 'script[data-route-json-ld="true"]'
+  const selector = 'script[data-route-json-ld="true"], script#tracknode-platform-json-ld'
   if (!value) {
     removeElement(selector)
     return
@@ -47,10 +47,9 @@ function setJsonLd(value) {
   if (!element) {
     element = document.createElement('script')
     element.setAttribute('type', 'application/ld+json')
-    element.setAttribute('data-route-json-ld', 'true')
     document.head.appendChild(element)
   }
-
+  element.setAttribute('data-route-json-ld', 'true')
   element.textContent = JSON.stringify(value)
 }
 

@@ -3,7 +3,8 @@ import { computed } from 'vue'
 
 const props = defineProps({ type: { type: String, required: true } })
 const operatorName = String(import.meta.env.VITE_LEGAL_OPERATOR_NAME || '').trim()
-const operatorEmail = String(import.meta.env.VITE_LEGAL_CONTACT_EMAIL || '').trim()
+const configuredContact = String(import.meta.env.VITE_LEGAL_CONTACT_EMAIL || '').trim()
+const operatorEmail = /^(email@example\.ru|[^@]+@example\.(ru|com|org))$/i.test(configuredContact) ? '' : configuredContact
 const operatorInn = String(import.meta.env.VITE_LEGAL_OPERATOR_IDENTIFIER || '').trim()
 const operatorAddress = String(import.meta.env.VITE_LEGAL_OPERATOR_ADDRESS || '').trim()
 const operatorConfirmed = computed(() => Boolean(operatorName && operatorEmail && operatorInn))

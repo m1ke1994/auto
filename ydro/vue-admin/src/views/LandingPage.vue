@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import { ArrowRight, Menu, X } from '@lucide/vue'
 
 import FilmExperience from '../components/landing/FilmExperience.vue'
+import { marketingPageList } from '../content/marketingPages.js'
 import TrackNodeIcon from '../components/TrackNodeIcon.vue'
 import {
   applyPublicSiteSeo,
@@ -48,9 +49,8 @@ const features = [
       'Открывайте разделы сайта и редактируйте доступные поля в кабинете. Состав настроек зависит от выбранного раздела.',
   },
 ]
-const operatorEmail = String(
-  import.meta.env.VITE_LEGAL_CONTACT_EMAIL || '',
-).trim()
+const configuredContact = String(import.meta.env.VITE_LEGAL_CONTACT_EMAIL || '').trim()
+const operatorEmail = /^(email@example\.ru|[^@]+@example\.(ru|com|org))$/i.test(configuredContact) ? '' : configuredContact
 
 const form = reactive({
   name: '',
@@ -234,7 +234,7 @@ onMounted(async () => {
         ...(payload.site?.seo || {}),
         title: 'TrackNode — платформа для сайтов, аналитики, заявок и SEO',
         description:
-          'TrackNode объединяет разработку сайтов, аналитику посетителей, обработку заявок и SEO-аудит. Единое пространство для развития вашего бизнеса.',
+          'TrackNode: создание и развитие сайтов, аналитика посещений и источников, обработка заявок, технический SEO-аудит и управление разделами в одном кабинете.',
         canonical: 'https://tracknode.ru/',
         og_title:
           'TrackNode - цифровая платформа для сайта, заявок, аналитики и SEO',
@@ -302,7 +302,7 @@ onUnmounted(() => {
           ></a
         >
         <div class="desktop-nav">
-          <a href="#system">Фильм</a><a href="#features">Возможности</a
+          <a href="#system">Фильм</a><a href="#solutions">Решения</a><a href="#features">Возможности</a
           ><a href="#pricing">Условия</a>
         </div>
         <div class="nav-actions">
@@ -324,7 +324,7 @@ onUnmounted(() => {
         </button>
       </nav>
       <div v-if="menuOpen" id="tracknode-mobile-menu" class="mobile-nav">
-        <a href="#features" @click="closeMenu">Возможности</a
+        <a href="#solutions" @click="closeMenu">Решения</a><a href="#features" @click="closeMenu">Возможности</a
         ><a href="#system" @click="closeMenu">Фильм</a
         ><a href="#pricing" @click="closeMenu">Условия</a
         ><a href="#contact" @click="closeMenu">Обсудить сайт</a
@@ -340,6 +340,20 @@ onUnmounted(() => {
         <h2 id="platform-summary-title">TrackNode — платформа для сайта и работы с его данными</h2>
         <p>Создание и развитие сайтов, аналитика посещений, обработка заявок, технический SEO-аудит и редактирование доступных разделов — в одном кабинете TrackNode.</p>
         <p>Платформа помогает проследить путь посетителя от источника перехода до обращения и определить, что улучшить на сайте. Состав инструментов зависит от проекта и условий подключения.</p>
+      </section>
+      <section id="solutions" class="seo-directions wrap" aria-labelledby="seo-directions-title">
+        <div class="seo-directions-head">
+          <div><span class="section-number">Истории / Возможности</span><h2 id="seo-directions-title">Каждой задаче — свой маршрут.</h2></div>
+          <p>От разработки сайта до работы с данными — познакомьтесь с отдельными направлениями TrackNode.</p>
+        </div>
+        <div class="seo-directions-grid">
+          <RouterLink v-for="page in marketingPageList" :key="page.key" class="seo-directions-card" :to="page.path">
+            <span class="seo-directions-top"><span>{{ page.number }} / 04</span><ArrowRight :size="18" aria-hidden="true" /></span>
+            <strong>{{ page.short }}</strong>
+            <span class="seo-directions-desc">{{ page.lead }}</span>
+            <span class="seo-directions-more">Подробнее о решении ↗</span>
+          </RouterLink>
+        </div>
       </section>
       <section id="contact" class="contact">
         <div class="wrap contact-layout">
@@ -482,9 +496,11 @@ onUnmounted(() => {
           <small>© {{ new Date().getFullYear() }} TrackNode</small>
         </div>
         <nav aria-label="Ссылки в подвале">
-          <a href="#website">Создание сайтов</a
-          ><a href="#analytics">Платформа</a><a href="#features">Возможности</a
-          ><a href="#features">SEO</a><a href="#pwa">На смартфоне</a
+          <RouterLink to="/sozdanie-saitov">Создание сайтов</RouterLink>
+          <RouterLink to="/analitika-saita">Аналитика</RouterLink>
+          <RouterLink to="/seo-audit">SEO-аудит</RouterLink>
+          <RouterLink to="/upravlenie-zayavkami">Заявки</RouterLink>
+          <a href="#features">Возможности</a><a href="#pwa">На смартфоне</a
           ><a href="#pricing">Стоимость</a><a href="#contact">Контакты</a>
           <RouterLink to="/login">Вход</RouterLink
           ><RouterLink to="/register">Регистрация</RouterLink>
@@ -568,6 +584,19 @@ onUnmounted(() => {
 .platform-summary { padding-block: 64px; color: #b7c3d5; line-height: 1.8; }
 .platform-summary h2 { max-width: 860px; color: #f1f4fa; font-size: clamp(24px, 3vw, 38px); line-height: 1.2; }
 .platform-summary p { max-width: 880px; margin-top: 20px; }
+.seo-directions{padding-block:clamp(55px,7vw,110px) clamp(95px,10vw,150px)}
+.seo-directions-head{display:flex;justify-content:space-between;gap:40px;align-items:end;margin-bottom:44px}
+.seo-directions-head h2{margin-top:22px;max-width:660px;font-size:clamp(31px,3.7vw,52px)}
+.seo-directions-head>p{max-width:360px;font-size:14px;line-height:1.85;color:#aeb9c9;margin:0}
+.seo-directions-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid #ffffff26;border-left:1px solid #ffffff26}
+.seo-directions-card{display:flex;flex-direction:column;padding:27px;min-height:300px;border-right:1px solid #ffffff26;border-bottom:1px solid #ffffff26;transition:background .22s}
+.seo-directions-card:hover{background:#22344d7b}
+.seo-directions-top{display:flex;justify-content:space-between;align-items:center;color:#80a4f8;font-size:10px;letter-spacing:.14em}
+.seo-directions-card strong{margin-top:50px;letter-spacing:-.04em;line-height:1.15;font-weight:550;font-size:clamp(20px,2vw,28px)}
+.seo-directions-desc{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;margin-top:18px;line-height:1.6;font-size:12px;color:#9eabbc}
+.seo-directions-more{margin-top:auto;padding-top:22px;color:#91b0ff;font-size:12px}
+@media(max-width:1020px){.seo-directions-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.seo-directions-head{align-items:start;flex-direction:column;gap:18px}.seo-directions-grid{grid-template-columns:1fr}.seo-directions-card{min-height:250px}.seo-directions-card strong{margin-top:26px}}
 
 .landing {
   --blue: #467dff;
