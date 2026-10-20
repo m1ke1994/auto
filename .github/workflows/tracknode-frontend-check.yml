@@ -28,3 +28,7 @@ jobs:
       - run: npm run test:tracknode-landing
       - run: npm run test:auth-routing
       - run: npm run build:local
+      # Reproduce the production frontend Docker build context, which excludes ../docker/nginx.
+      - run: docker build -t tracknode-frontend-ci .
+      - run: bash -n ../../scripts/deploy-seo-frontends.sh
+      - run: docker run --rm -e VITE_API_URL=https://tracknode.ru/api -e VITE_BACKEND_URL=https://tracknode.ru -e VITE_SITE_URL=https://tracknode.ru -e VITE_PUBLIC_SITE_URL=https://tracknode.ru tracknode-frontend-ci npm run build

@@ -25,14 +25,21 @@ for (const page of marketingPageList) {
 const router = read('src/router/index.js')
 const prerender = read('scripts/prerender.mjs')
 const landing = read('src/views/LandingPage.vue')
-const nginx = read('../docker/nginx/templates-https/default.conf.template')
+// The frontend Docker image contains /app only, not the sibling docker/nginx tree.
+// Keep HTML/SEO checks mandatory in every build; verify Nginx only when that file exists.
+const nginxTemplate = resolve(root, '../docker/nginx/templates-https/default.conf.template')
+const nginx = existsSync(nginxTemplate) ? readFileSync(nginxTemplate, 'utf8') : null
 assert.match(router, /marketingPageList\.map/, 'Vue router must include new public pages')
 assert.match(prerender, /marketingPageList\.map/, 'Prerender must include new pages')
 assert.match(prerender, /import \{ marketingPageList \} from '\.\.\/src\/content\/marketingPages\.js'/, 'Prerender must import data into the Node execution scope')
 assert.match(prerender, /marketingPageList\) savePage/, 'Prerender must write individual HTML documents')
 assert.match(landing, /id="solutions"/, 'Keep integrated landing navigation')
-assert.match(nginx, /sozdanie-saitov\|seo-audit\|analitika-saita\|upravlenie-zayavkami/, 'Nginx must allow commercial pages to index')
-assert.match(nginx, /return 301 https:\/\/tracknode\.ru\$request_uri/, 'Canonical www redirect required')
+if (nginx) {
+  assert.match(nginx, /sozdanie-saitov\|seo-audit\|analitika-saita\|upravlenie-zayavkami/, 'Nginx must allow commercial pages to index')
+  assert.match(nginx, /return 301 https:\/\/tracknode\.ru\$request_uri/, 'Canonical www redirect required')
+} else {
+  console.log('SEO: Nginx configuration is outside frontend Docker context; production deploy checks the host template.')
+}
 if (!process.argv.includes('--source-only')) {
   const xml = read('dist/sitemap.xml')
   const urls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1])
@@ -56,4 +63,4 @@ if (!process.argv.includes('--source-only')) {
     }
   }
 }
-console.log('SEO CHECK PASSED: 4 commercial pages, canonical URLs, schema, sitemap and Nginx indexability')
+console.log('SEO CHECK PASSED: 4 commercial pages, canonical URLs, schema and sitemap' + (nginx ? ', Nginx indexability' : ' (Nginx verified on deploy host)'))

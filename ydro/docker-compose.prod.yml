@@ -23,7 +23,7 @@ services:
       - frontend_dist:/app-dist
     command: ["sh", "-c", "npm run build && cp -a dist/. /app-dist/ && tail -f /dev/null"]
     healthcheck:
-      test: ["CMD-SHELL", "test -f /app-dist/index.html"]
+      test: ["CMD-SHELL", "test -s /app-dist/index.html && test -s /app-dist/seo-audit/index.html && grep -Fq https://tracknode.ru/seo-audit /app-dist/sitemap.xml"]
       interval: 15s
       timeout: 5s
       retries: 10
