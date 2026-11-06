@@ -100,3 +100,44 @@ class VodopyanovSiteTests(TestCase):
         with self.assertRaises(CommandError):
             self.register()
         self.assertFalse(Site.objects.filter(slug="vodopyanov").exists())
+
+    def test_catalog_pages_are_editable_and_existing_poems_survive(self):
+        self.register()
+        site = Site.objects.get(slug="vodopyanov")
+        poet = SiteSection.objects.get(site=site, key="catalog-poems")
+        songs_page = SiteSection.objects.get(site=site, key="catalog-songs")
+        self.assertEqual(poet.content["heading_accent"], "стихи.")
+        self.assertEqual(songs_page.content["heading_accent"], "песни.")
+        original = SiteSection.objects.get(site=site, key="poems")
+        original.content["items"].append({
+            "id": "new-author-poem", "title": "Новая работа",
+            "theme": "Лирика", "lines": "Моя строка",
+            "publishedAt": "2026-11-06", "demo": False,
+        })
+        original.save(update_fields=["content"])
+        payload = dict(poet.content)
+        payload["intro"] = "Новый текст страницы стихов"
+        api = APIClient()
+        api.force_authenticate(self.owner)
+        response = api.patch(
+            f"/api/admin/my-sites/{site.id}/sections/{poet.id}/",
+            {"content": payload}, format="json",
+        )
+        self.assertEqual(response.status_code, 200, getattr(response, "data", None))
+        self.register()
+        poet.refresh_from_db()
+        original.refresh_from_db()
+        self.assertEqual(poet.content["intro"], "Новый текст страницы стихов")
+        self.assertEqual(original.content["items"][-1]["title"], "Новая работа")
+        api_data = APIClient().get("/api/sites/vodopyanov/").data
+        sections = {row["key"]: row["content"] for row in api_data["sections"]}
+        self.assertEqual(sections["catalog-poems"]["intro"], "Новый текст страницы стихов")
+        self.assertEqual(len(sections["poems"]["items"]), 4)
+        self.assertEqual(len(sections), len(SECTION_SEEDS))
+
+    def test_check_mode_does_not_modify_existing_site(self):
+        self.register()
+        before = {s.key: s.content for s in SiteSection.objects.filter(site__slug="vodopyanov")}
+        call_command("seed_vodopyanov_site", "--check", stdout=StringIO())
+        after = {s.key: s.content for s in SiteSection.objects.filter(site__slug="vodopyanov")}
+        self.assertEqual(after, before)

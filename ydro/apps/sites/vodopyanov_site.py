@@ -168,5 +168,88 @@ SECTION_SEEDS = [
     },
 ]
 
+
+# Additional editor pages. New rows are created only if missing: prior edits to
+# the original seven sections and to these pages remain intact on every rerun.
+SECTION_SEEDS.extend([
+    {
+        "key": "catalog-poems", "title": "Страница «Все стихи»", "order": 80,
+        "fields": [
+            field("eyebrow", "Подпись над заголовком"),
+            field("heading_start", "Начало заголовка"),
+            field("heading_accent", "Выделенная часть заголовка"),
+            field("intro", "Текст под заголовком", "textarea"),
+            field("back_label", "Кнопка возврата на главную"),
+            field("count_label", "Подпись количества работ"),
+            field("sort_label", "Подпись выбора сортировки"),
+            field("sort_newest", "Сортировка: сначала новые"),
+            field("sort_oldest", "Сортировка: сначала старые"),
+            field("more_label", "Кнопка «Показать ещё»"),
+            field("empty_message", "Текст при отсутствии стихов"),
+            field("footer_link", "Переход к странице песен"),
+            field("seo_title", "SEO: Title для страницы", help_text="Статический Title задаётся в HTML, здесь меняется после загрузки CMS."),
+            field("seo_description", "SEO: описание страницы", "textarea", help_text="Заменяет описание в браузере после загрузки CMS; начальное описание для роботов задаётся в HTML."),
+        ],
+        "content": {
+            "eyebrow": "МЕЖДУ СТРОК / ПОЭЗИЯ",
+            "heading_start": "Все", "heading_accent": "стихи.",
+            "intro": "Строки о близости, расстояниях и внутреннем мире.",
+            "back_label": "← Вернуться к истории",
+            "count_label": "Всего работ", "sort_label": "По дате публикации",
+            "sort_newest": "Сначала новые", "sort_oldest": "Сначала старые",
+            "more_label": "Показать ещё",
+            "empty_message": "Здесь скоро появятся стихи автора.",
+            "footer_link": "Перейти к песням",
+            "seo_title": "Стихи Александра Водопьянова — читать онлайн",
+            "seo_description": "Стихотворения Александра Водопьянова: тексты, темы и даты публикаций. Читайте произведения автора в каталоге.",
+        },
+    },
+    {
+        "key": "catalog-songs", "title": "Страница «Все песни»", "order": 90,
+        "fields": [
+            field("eyebrow", "Подпись над заголовком"),
+            field("heading_start", "Начало заголовка"),
+            field("heading_accent", "Выделенная часть заголовка"),
+            field("intro", "Текст под заголовком", "textarea"),
+            field("back_label", "Кнопка возврата на главную"),
+            field("count_label", "Подпись количества работ"),
+            field("sort_label", "Подпись выбора сортировки"),
+            field("sort_newest", "Сортировка: сначала новые"),
+            field("sort_oldest", "Сортировка: сначала старые"),
+            field("more_label", "Кнопка «Показать ещё»"),
+            field("empty_message", "Текст при отсутствии песен"),
+            field("footer_link", "Переход к странице стихов"),
+            field("seo_title", "SEO: Title для страницы",
+                  help_text="Начальный Title задаётся в HTML; CMS обновляет его после загрузки."),
+            field("seo_description", "SEO: описание страницы", "textarea",
+                  help_text="Начальное описание задаётся в HTML; CMS обновляет его после загрузки."),
+        ],
+        "content": {
+            "eyebrow": "МЕЖДУ СТРОК / МУЗЫКА",
+            "heading_start": "Все", "heading_accent": "песни.",
+            "intro": "Истории, которые обретают голос.",
+            "back_label": "← Вернуться к истории",
+            "count_label": "Всего работ", "sort_label": "По дате публикации",
+            "sort_newest": "Сначала новые", "sort_oldest": "Сначала старые",
+            "more_label": "Показать ещё",
+            "empty_message": "Здесь скоро появятся песни автора.",
+            "footer_link": "Перейти к стихам",
+            "seo_title": "Песни Александра Водопьянова — каталог",
+            "seo_description": "Песни Александра Водопьянова: темы, даты публикаций и доступные звуковые эскизы.",
+        },
+    },
+    {
+        "key": "home-seo", "title": "Главная — SEO", "order": 100,
+        "fields": [
+            field("seo_title", "Заголовок вкладки и SEO Title"),
+            field("seo_description", "Описание страницы", "textarea"),
+        ],
+        "content": {
+            "seo_title": "Между строк — Александр Водопьянов | Стихи и песни",
+            "seo_description": "Александр Водопьянов — автор песен и стихов. Кинематографическая история о творчестве, музыке и поэзии.",
+        },
+    },
+])
+
 for seed in SECTION_SEEDS:
     seed["schema"] = {"fields": seed.pop("fields")}
