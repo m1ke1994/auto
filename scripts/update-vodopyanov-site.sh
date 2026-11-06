@@ -67,7 +67,7 @@ if [[ "$state" != healthy ]]; then
 fi
 
 echo "=== Public author site checks ==="
-for path in / /poems.html /songs.html /favicon.ico; do
+for path in / /poems.html /songs.html /favicon.ico /favicon-16.png /favicon-32.png; do
   curl --fail --silent --show-error --max-time 20 -o /dev/null "https://stariy-site.ru$path"
   echo "OK: https://stariy-site.ru$path"
 done

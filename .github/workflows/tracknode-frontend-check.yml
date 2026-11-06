@@ -48,7 +48,7 @@ jobs:
       - run: npm run build:local
       # Reproduce the production frontend Docker build context, which excludes ../docker/nginx.
       # Exercise the separately version-pinned author site build as well.
-      - run: docker build -t vodopyanov-site-ci 'https://github.com/m1ke1994/vodopyanov-site.git#20d6aa6b7541c5232f25428c2fa94bc1f06da59b'
+      - run: docker build -t vodopyanov-site-ci 'https://github.com/m1ke1994/vodopyanov-site.git#c62cbd5295425d14b53bb17ccd3642a363b1383e'
       - run: docker run --rm --entrypoint sh vodopyanov-site-ci -ec 'nginx -t && test -s /usr/share/nginx/html/index.html && test -s /usr/share/nginx/html/poems.html && test -s /usr/share/nginx/html/songs.html'
       - run: docker build -t tracknode-frontend-ci .
       - run: bash -n ../../scripts/deploy-seo-frontends.sh
