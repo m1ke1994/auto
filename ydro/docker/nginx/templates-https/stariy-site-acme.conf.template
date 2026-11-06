@@ -1,5 +1,6 @@
 # This HTTP-only phase works BEFORE the HTTPS certificate exists.
-# Certbot writes the token to docker/nginx/acme-challenge/ on the host.
+# Certbot writes tokens under templates-https/.well-known/acme-challenge/ on the host.
+# The existing /etc/nginx/templates bind mount already exposes that directory.
 server {
     listen 80;
     listen [::]:80;
@@ -7,7 +8,7 @@ server {
     server_tokens off;
 
     location ^~ /.well-known/acme-challenge/ {
-        root /var/www/acme;
+        root /etc/nginx/templates;
         default_type text/plain;
         try_files $uri =404;
     }

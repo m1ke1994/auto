@@ -19,12 +19,12 @@ TrackNode slug: `vodopyanov`
 1. Проверить, что DNS A-записи `stariy-site.ru` и `www.stariy-site.ru` ведут на **публичный IPv4 самого сервера**, а TCP 80/443 доступны извне.
 2. Поставить автодеплой на паузу: `sudo systemctl stop yadro-autodeploy.timer`.
 3. Проверить чистый Git: `git status --short`. Существующие локальные шаблоны других сайтов должны быть сохранены и не перезаписаны.
-4. `bash scripts/deploy-vodopyanov-site.sh` — проверяемая резервная копия БД, сборка и запуск только `vodopyanov_site`, затем пересоздание только общего Nginx для нового ACME bind-mount.
+4. `bash scripts/deploy-vodopyanov-site.sh` — проверяемая резервная копия БД, сборка и запуск только `vodopyanov_site`, затем проверка и плавная перезагрузка конфигурации существующего Nginx (без пересоздания контейнера).
 5. Проверить HTTP-01 до сертификата:
 
    ```bash
-   mkdir -p ydro/docker/nginx/acme-challenge/.well-known/acme-challenge
-   echo ping-vodopyanov > ydro/docker/nginx/acme-challenge/.well-known/acme-challenge/check
+   mkdir -p ydro/docker/nginx/templates-https/.well-known/acme-challenge
+   echo ping-vodopyanov > ydro/docker/nginx/templates-https/.well-known/acme-challenge/check
    curl -f http://stariy-site.ru/.well-known/acme-challenge/check
    curl -f http://www.stariy-site.ru/.well-known/acme-challenge/check
    ```
@@ -33,7 +33,7 @@ TrackNode slug: `vodopyanov`
 
    ```bash
    sudo certbot certonly --webroot \
-     -w /home/alex/auto/auto/ydro/docker/nginx/acme-challenge \
+     -w /home/alex/auto/auto/ydro/docker/nginx/templates-https \
      -d stariy-site.ru -d www.stariy-site.ru
    ```
 

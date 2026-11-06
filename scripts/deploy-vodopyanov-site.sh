@@ -48,9 +48,8 @@ if [ "${state:-}" != healthy ]; then
   echo "Author site is not healthy; proxy was not changed." >&2
   exit 1
 fi
-# Recreate only the reverse proxy so it receives the new ACME bind mount.
-# PostgreSQL, backend and the existing site containers are NOT restarted.
-dc up -d --no-deps nginx
+# Nginx already has templates-https bind-mounted. Reload in place, without
+# restarting the proxy or interrupting existing site containers.
 dc exec -T nginx sh -ec '
   /docker-entrypoint.d/20-envsubst-on-templates.sh
   nginx -t
