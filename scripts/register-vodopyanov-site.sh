@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Isolated management command: creates only missing author-site content.
+# Standalone non-destructive CMS registration, sharing the same lock as updates.
 set -Eeuo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MODE="--check"
@@ -9,30 +9,29 @@ if [[ "$MODE" != "--check" && "$MODE" != "--apply" ]]; then
   exit 2
 fi
 if systemctl is-active --quiet yadro-autodeploy.timer; then
-  echo "Pause full autodeploy first: sudo systemctl stop yadro-autodeploy.timer" >&2
+  echo "Pause autodeploy first: sudo systemctl stop yadro-autodeploy.timer" >&2
+  exit 1
+fi
+if systemctl is-active --quiet yadro-autodeploy.service; then
+  echo "Full autodeploy service is running; refusing simultaneous registration." >&2
+  exit 1
+fi
+cd "$ROOT"
+if [[ -n "$(git status --porcelain)" ]]; then
+  git status --short
+  echo "Git is not clean; review server changes before continuing." >&2
   exit 1
 fi
 exec 9>/tmp/yadro-autodeploy.lock
-flock -n 9 || { echo "Another deployment is running; stopped." >&2; exit 1; }
-cd "$ROOT"
-if [ -n "$(git status --porcelain)" ]; then
-  git status --short
-  echo "Git not clean; review local changes before continuing." >&2
+if ! flock -w 30 9; then
+  echo "Deployment lock is busy. Nothing changed; check the owner:" >&2
+  if command -v fuser > /dev/null; then fuser -v /tmp/yadro-autodeploy.lock || true; fi
   exit 1
 fi
 cd ydro
-dc() { docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.https.yml "$@"; }
-
-# Rebuild the backend IMAGE; the production backend container keeps running.
-dc build backend
-if [[ "$MODE" == "--apply" ]]; then
-  mkdir -p /home/alex/auto/backups
-  backup="/home/alex/auto/backups/before_vodopyanov_cms_$(date +%F_%H-%M-%S).dump"
-  dc exec -T postgres pg_dump -U yadro_user -Fc yadro_db > "$backup"
-  test -s "$backup"
-  dc exec -T postgres pg_restore --list < "$backup" > /dev/null
-  echo "Readable backup: $backup"
-fi
-# Entry point deliberately bypassed: no migration, old-site seed or restart.
-dc run --rm --no-deps -T --entrypoint python backend manage.py seed_vodopyanov_site "$MODE"
-echo "Existing production containers have not been restarted."
+dc() {
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.https.yml "$@" 9>&-
+}
+. "$ROOT/scripts/lib/vodopyanov-cms.sh"
+vodopyanov_cms_register "$MODE"
+echo "Registration finished; existing containers were not restarted."

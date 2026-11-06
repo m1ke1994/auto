@@ -44,7 +44,7 @@ jobs:
       - run: npm run test:public-scroll
       - run: npm run test:dashboard-clarity
       - run: node ../../scripts/test-vodopyanov-integration.mjs
-      - run: bash -n ../../scripts/register-vodopyanov-site.sh ../../scripts/deploy-vodopyanov-site.sh ../../scripts/activate-vodopyanov-https.sh ../../scripts/update-vodopyanov-site.sh
+      - run: bash -n ../../scripts/register-vodopyanov-site.sh ../../scripts/deploy-vodopyanov-site.sh ../../scripts/activate-vodopyanov-https.sh ../../scripts/update-vodopyanov-site.sh ../../scripts/lib/vodopyanov-cms.sh
       - run: npm run build:local
       # Reproduce the production frontend Docker build context, which excludes ../docker/nginx.
       # Exercise the separately version-pinned author site build as well.
