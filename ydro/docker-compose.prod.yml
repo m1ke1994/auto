@@ -123,6 +123,24 @@ services:
     command: ["nginx", "-g", "daemon off;"]
     restart: unless-stopped
 
+
+  # Cinematic author's site, independently built from a pinned public repository revision.
+  # No database/backend dependency; tracking uses the existing public TrackNode API.
+  vodopyanov_site:
+    build:
+      context: ${VODOPYANOV_BUILD_CONTEXT:-https://github.com/m1ke1994/vodopyanov-site.git#b1c4fd7020ed9a2ea531da5d5f80a3db3fb2c66b}
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports: !reset []
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/ && wget -q -O /dev/null http://127.0.0.1:3000/poems.html && wget -q -O /dev/null http://127.0.0.1:3000/songs.html"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - yadro_network
+
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped
@@ -138,6 +156,8 @@ services:
       volga_site:
         condition: service_healthy
       my_portfolio_site:
+        condition: service_healthy
+      vodopyanov_site:
         condition: service_healthy
     ports:
       - "${HTTP_PORT:-80}:80"

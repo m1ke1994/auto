@@ -1,0 +1,18 @@
+# This HTTP-only phase works BEFORE the HTTPS certificate exists.
+# Certbot writes the token to docker/nginx/acme-challenge/ on the host.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name stariy-site.ru www.stariy-site.ru;
+    server_tokens off;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/acme;
+        default_type text/plain;
+        try_files $uri =404;
+    }
+
+    location / {
+        return 308 https://stariy-site.ru$request_uri;
+    }
+}

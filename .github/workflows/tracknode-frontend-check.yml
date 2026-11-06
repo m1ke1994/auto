@@ -5,10 +5,18 @@ on:
     branches: [main, feature/tracknode-ui-legal-20261015]
     paths:
       - 'ydro/vue-admin/**'
+      - 'scripts/*vodopyanov*'
+      - 'scripts/VODOPYANOV_SETUP.md'
+      - 'ydro/docker-compose*.yml'
+      - 'ydro/docker/nginx/templates-https/stariy-site-*'
       - '.github/workflows/tracknode-frontend-check.yml'
   pull_request:
     paths:
       - 'ydro/vue-admin/**'
+      - 'scripts/*vodopyanov*'
+      - 'scripts/VODOPYANOV_SETUP.md'
+      - 'ydro/docker-compose*.yml'
+      - 'ydro/docker/nginx/templates-https/stariy-site-*'
       - '.github/workflows/tracknode-frontend-check.yml'
 
 jobs:
@@ -29,8 +37,13 @@ jobs:
       - run: npm run test:auth-routing
       - run: npm run test:public-scroll
       - run: npm run test:dashboard-clarity
+      - run: node ../../scripts/test-vodopyanov-integration.mjs
+      - run: bash -n ../../scripts/register-vodopyanov-site.sh ../../scripts/deploy-vodopyanov-site.sh ../../scripts/activate-vodopyanov-https.sh
       - run: npm run build:local
       # Reproduce the production frontend Docker build context, which excludes ../docker/nginx.
+      # Exercise the separately version-pinned author site build as well.
+      - run: docker build -t vodopyanov-site-ci 'https://github.com/m1ke1994/vodopyanov-site.git#b1c4fd7020ed9a2ea531da5d5f80a3db3fb2c66b'
+      - run: docker run --rm --entrypoint sh vodopyanov-site-ci -ec 'nginx -t && test -s /usr/share/nginx/html/index.html && test -s /usr/share/nginx/html/poems.html && test -s /usr/share/nginx/html/songs.html'
       - run: docker build -t tracknode-frontend-ci .
       - run: bash -n ../../scripts/deploy-seo-frontends.sh
       - run: docker run --rm -e VITE_API_URL=https://tracknode.ru/api -e VITE_BACKEND_URL=https://tracknode.ru -e VITE_SITE_URL=https://tracknode.ru -e VITE_PUBLIC_SITE_URL=https://tracknode.ru tracknode-frontend-ci npm run build
