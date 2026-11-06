@@ -9,6 +9,9 @@ on:
       - 'scripts/VODOPYANOV_SETUP.md'
       - 'ydro/docker-compose*.yml'
       - 'ydro/docker/nginx/templates-https/stariy-site-*'
+      - 'ydro/apps/sites/vodopyanov_site.py'
+      - 'ydro/apps/sites/tests_vodopyanov_site.py'
+      - 'ydro/apps/sites/management/commands/seed_vodopyanov_site.py'
       - '.github/workflows/tracknode-frontend-check.yml'
   pull_request:
     paths:
@@ -17,6 +20,9 @@ on:
       - 'scripts/VODOPYANOV_SETUP.md'
       - 'ydro/docker-compose*.yml'
       - 'ydro/docker/nginx/templates-https/stariy-site-*'
+      - 'ydro/apps/sites/vodopyanov_site.py'
+      - 'ydro/apps/sites/tests_vodopyanov_site.py'
+      - 'ydro/apps/sites/management/commands/seed_vodopyanov_site.py'
       - '.github/workflows/tracknode-frontend-check.yml'
 
 jobs:
@@ -47,3 +53,26 @@ jobs:
       - run: docker build -t tracknode-frontend-ci .
       - run: bash -n ../../scripts/deploy-seo-frontends.sh
       - run: docker run --rm -e VITE_API_URL=https://tracknode.ru/api -e VITE_BACKEND_URL=https://tracknode.ru -e VITE_SITE_URL=https://tracknode.ru -e VITE_PUBLIC_SITE_URL=https://tracknode.ru tracknode-frontend-ci npm run build
+
+  vodopyanov-django-cms-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ydro
+    env:
+      DJANGO_ENV: development
+      DB_ENGINE: sqlite
+      SQLITE_NAME: /tmp/tracknode-vodopyanov-tests.sqlite3
+      RUN_SEED_DEMO_DATA: "0"
+      RUN_SEED_TRACKNODE_SITE: "0"
+      RUN_SEED_MY_PORTFOLIO_SITE: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: ydro/requirements.txt
+      - run: python -m pip install -r requirements.txt
+      - run: python manage.py check
+      - run: python manage.py test apps.sites.tests_vodopyanov_site --noinput --verbosity 2

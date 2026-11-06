@@ -128,7 +128,7 @@ services:
   # No database/backend dependency; tracking uses the existing public TrackNode API.
   vodopyanov_site:
     build:
-      context: ${VODOPYANOV_BUILD_CONTEXT:-https://github.com/m1ke1994/vodopyanov-site.git#b1c4fd7020ed9a2ea531da5d5f80a3db3fb2c66b}
+      context: ${VODOPYANOV_BUILD_CONTEXT:-https://github.com/m1ke1994/vodopyanov-site.git#28cdecf55ce8cf541c20cbd8eb36d42a657bec7a}
       dockerfile: Dockerfile
     restart: unless-stopped
     ports: !reset []
