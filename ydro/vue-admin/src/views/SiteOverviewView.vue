@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AlertTriangle, BarChart3, Blocks, Eraser, ExternalLink, Inbox, SearchCheck, Trash2, X } from '@lucide/vue'
 
 import { getSiteAnalyticsSummaryRequest } from '../api/analytics'
+import { overviewMetrics, overviewMessage } from './dashboardPresentation.js'
 import DashboardStats from '../components/DashboardStats.vue'
 import { toPublicUrl } from '../config/env'
 import { useAccessStore } from '../stores/access'
@@ -17,6 +18,7 @@ const loading = ref(false)
 const error = ref('')
 const success = ref('')
 const summary = ref(null)
+const analyticsError = ref('')
 const clearModalOpen = ref(false)
 const deleteModalOpen = ref(false)
 const clearConfirmation = ref('')
@@ -33,26 +35,17 @@ const ownerLabel = computed(() => {
   if (!site?.owner_id) return ''
   return site.owner_email || site.owner_name ? `${site.owner_name || site.owner_email} · ID ${site.owner_id}` : `ID ${site.owner_id}`
 })
-const stats = computed(() => {
-  if (!accessStore.can('analytics')) {
-    return [
-      { label: 'Разделы сайта', value: siteStore.currentSite?.sections_count ?? 0, sub: 'доступно для редактирования' },
-      { label: 'Состояние', value: siteStore.currentSite?.is_active ? 'Работает' : 'Отключён', sub: 'текущий статус сайта' },
-    ]
-  }
-  return [
-    { label: 'Заявки', value: summary.value?.leads_count ?? 0, sub: 'за последние 14 дней' },
-    { label: 'Посетители', value: summary.value?.visitors_unique ?? 0, sub: 'уникальные пользователи' },
-    { label: 'Просмотры', value: summary.value?.pageviews_count ?? 0, sub: 'просмотры страниц' },
-    { label: 'Конверсия', value: `${summary.value?.conversion ?? 0}%`, sub: 'посетители, оставившие заявку' },
-  ]
-})
+const stats = computed(() => overviewMetrics(summary.value, { showLeads: accessStore.can('leads') }))
+const nextStep = computed(() => overviewMessage(summary.value, {
+  showLeads: accessStore.can('leads'),
+  isActive: siteStore.currentSite?.is_active,
+}))
 
 const actions = computed(() => [
-  { label: 'Посмотреть заявки', text: 'Новые обращения клиентов', icon: Inbox, to: `/sites/${siteId.value}/leads`, feature: 'leads' },
+  { label: 'Проверить заявки', text: 'Обращения, которые оставили клиенты', icon: Inbox, to: `/sites/${siteId.value}/leads`, feature: 'leads' },
   { label: 'Изменить сайт', text: 'Тексты, изображения и разделы', icon: Blocks, to: `/sites/${siteId.value}/sections`, feature: 'site_edit' },
-  { label: 'Открыть аналитику', text: 'Посетители и популярные страницы', icon: BarChart3, to: `/sites/${siteId.value}/analytics`, feature: 'analytics' },
-  { label: 'Проверить SEO', text: 'Найти проблемы сайта', icon: SearchCheck, to: `/sites/${siteId.value}/seo` },
+  { label: 'Посмотреть посещения', text: 'Посетители и популярные страницы', icon: BarChart3, to: `/sites/${siteId.value}/analytics`, feature: 'analytics' },
+  { label: 'Проверить сайт на ошибки', text: 'Техническая проверка и SEO', icon: SearchCheck, to: `/sites/${siteId.value}/seo` },
 ].filter((action) => accessStore.can(action.feature)))
 
 const clearConfirmationValid = computed(() => {
@@ -119,8 +112,14 @@ async function confirmClearAnalytics() {
     clearConfirmation.value = ''
     success.value = `Аналитика очищена. Удалено записей: ${result.deleted_total ?? 0}.`
     if (accessStore.can('analytics')) {
-      const { data } = await getSiteAnalyticsSummaryRequest(siteId.value, { days: 14 })
-      summary.value = data
+      try {
+        const { data } = await getSiteAnalyticsSummaryRequest(siteId.value, { days: 14 })
+        summary.value = data
+        analyticsError.value = ''
+      } catch {
+        summary.value = null
+        analyticsError.value = 'Аналитика очищена, но обновить показатели не удалось. Повторите загрузку.'
+      }
     }
   } catch (e) {
     error.value = requestErrorMessage(e, 'Не удалось очистить аналитику сайта.')
@@ -155,15 +154,12 @@ async function confirmDeleteSite() {
 async function load() {
   loading.value = true
   error.value = ''
+  analyticsError.value = ''
+  summary.value = null
   success.value = ''
   try {
     siteStore.selectSite(siteId.value)
     if (!siteStore.currentSite) await siteStore.fetchSite(siteId.value)
-    const requests = []
-    if (accessStore.can('analytics')) {
-      requests.push(getSiteAnalyticsSummaryRequest(siteId.value, { days: 14 }).then(({ data }) => { summary.value = data }))
-    }
-      await Promise.all(requests)
   } catch (e) {
     if (e?.response?.data?.code === 'protected_template_source') {
       await router.replace(e.response.data.platform_url || '/platform/sites')
@@ -173,78 +169,135 @@ async function load() {
       await router.replace('/dashboard')
       return
     }
-    error.value = e?.response?.data?.detail || 'Не удалось загрузить данные сайта.'
-  } finally {
+    error.value = e?.response?.data?.detail || 'Не удалось загрузить сведения о сайте.'
     loading.value = false
+    return
   }
+
+  if (accessStore.can('analytics')) {
+    try {
+      const { data } = await getSiteAnalyticsSummaryRequest(siteId.value, { days: 14 })
+      summary.value = data
+    } catch {
+      // Do not show false zeros or hide site controls when only analytics fails.
+      analyticsError.value = 'Не удалось получить статистику. Данные сайта не изменены.'
+    }
+  }
+  loading.value = false
 }
 
 onMounted(load)
+watch(siteId, load)
 </script>
 
 <template>
   <div class="page-stack">
     <header class="page-heading page-heading-actions">
       <div>
-        <p class="eyebrow">Главная</p>
+        <p class="eyebrow">Обзор сайта</p>
         <h1>{{ siteStore.currentSite?.name || 'Ваш сайт' }}</h1>
         <p>{{ siteStore.currentSite?.domain || 'Домен пока не указан' }}</p>
-        <p v-if="ownerLabel" class="mt-1 text-xs text-slate-500">Владелец: {{ ownerLabel }}</p>
       </div>
-      <button type="button" class="action-button-secondary" :disabled="!siteStore.currentSite?.domain" @click="openPublicSite">
-        <ExternalLink :size="17" />
-        Открыть сайт
+      <button
+        type="button"
+        class="action-button-secondary"
+        :disabled="!siteStore.currentSite?.domain"
+        @click="openPublicSite"
+      >
+        <ExternalLink :size="17" /> Посмотреть сайт
       </button>
     </header>
 
-    <p v-if="error" class="notice-error">{{ error }}</p>
-    <p v-if="success" class="notice-success">{{ success }}</p>
-    <section v-if="loading" class="empty-state"><span class="loading-dot" /><p>Собираем информацию...</p></section>
+    <p v-if="error" class="notice-error" role="alert">{{ error }}</p>
+    <p v-if="success" class="notice-success" role="status">{{ success }}</p>
+    <section v-if="loading" class="empty-state" role="status">
+      <span class="loading-dot" />
+      <p>Загружаем информацию о сайте...</p>
+    </section>
 
-    <template v-else>
-      <DashboardStats :items="stats" />
-      <section>
-        <div class="section-heading">
+    <template v-else-if="siteStore.currentSite && !error">
+      <section class="surface">
+        <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2>Быстрые действия</h2>
-            <p>Основные задачи всегда под рукой.</p>
+            <h2 class="text-xl font-semibold text-[#17223B]">С чего начать</h2>
+            <p class="mt-1 text-sm text-slate-500">Выберите то, что хотите сделать с сайтом.</p>
           </div>
+          <span
+            class="status-badge"
+            :class="siteStore.currentSite?.is_active === true ? 'status-success' : siteStore.currentSite?.is_active === false ? 'status-warning' : 'status-neutral'"
+          >
+            {{ siteStore.currentSite?.is_active === true ? 'Сайт подключён' : siteStore.currentSite?.is_active === false ? 'Сайт отключён' : 'Статус не определён' }}
+          </span>
         </div>
-        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <button v-for="action in actions" :key="action.to" type="button" class="quick-action" @click="router.push(action.to)">
-            <component :is="action.icon" :size="21" />
+        <div class="grid gap-3 sm:grid-cols-2">
+          <button
+            v-for="action in actions"
+            :key="action.to"
+            type="button"
+            class="quick-action text-left"
+            @click="router.push(action.to)"
+          >
+            <component :is="action.icon" :size="21" class="shrink-0" />
             <span>
               <strong>{{ action.label }}</strong>
               <small>{{ action.text }}</small>
             </span>
           </button>
         </div>
-        <p v-if="!actions.length" class="notice-info mt-3">
-          Подключите тариф, чтобы открыть управление сайтом и дополнительные инструменты.
+        <p v-if="!actions.length" class="notice-info mt-4">
+          Доступные инструменты зависят от тарифа. Проверьте условия подключения в разделе «Оплата».
         </p>
       </section>
 
-      <section v-if="canClearAnalytics || canDeleteSite" class="surface border-rose-200 bg-rose-50/40">
-        <div class="section-heading">
-          <div>
-            <h2 class="flex items-center gap-2 text-rose-900">
-              <AlertTriangle :size="21" class="text-rose-600" />
-              Опасная зона
-            </h2>
-            <p>Действия ниже необратимы и применяются только к текущему сайту.</p>
+      <section class="space-y-4" aria-labelledby="overview-statistics-title">
+        <div>
+          <h2 id="overview-statistics-title" class="text-xl font-semibold text-[#17223B]">Результаты за 14 дней</h2>
+          <p class="mt-1 text-sm text-slate-500">Посетители, открытые страницы и заявки за последние две недели.</p>
+        </div>
+
+        <div v-if="!accessStore.can('analytics')" class="surface">
+          <p class="text-sm leading-6 text-slate-600">
+            Статистика недоступна на текущем тарифе. Заявки и редактирование сайта остаются доступны, если предусмотрены вашим тарифом.
+          </p>
+        </div>
+        <div v-else-if="analyticsError" class="surface" role="alert">
+          <p class="font-semibold text-[#17223B]">Статистика временно недоступна</p>
+          <p class="mt-2 text-sm leading-6 text-slate-500">{{ analyticsError }}</p>
+          <button type="button" class="action-button-secondary mt-4" @click="load">Повторить загрузку</button>
+        </div>
+        <template v-else-if="summary">
+          <DashboardStats :items="stats" />
+          <p class="surface text-sm leading-7 text-slate-600">{{ nextStep }}</p>
+        </template>
+        <div v-else class="surface text-sm text-slate-500">Показатели пока не получены.</div>
+      </section>
+
+      <details v-if="ownerLabel || canClearAnalytics || canDeleteSite" class="surface group">
+        <summary class="cursor-pointer text-sm font-semibold text-[#17223B]">
+          Дополнительные настройки сайта
+          <span class="mt-1 block text-xs font-normal text-slate-500">Технические сведения и необратимые действия — только при необходимости.</span>
+        </summary>
+        <div class="mt-5 space-y-4 border-t border-brand-100 pt-5">
+          <p v-if="ownerLabel" class="text-sm text-slate-500">Владелец: {{ ownerLabel }}</p>
+
+          <div v-if="canClearAnalytics || canDeleteSite" class="rounded-2xl border border-rose-200 bg-rose-50/40 p-4">
+            <h3 class="flex items-center gap-2 font-semibold text-rose-900">
+              <AlertTriangle :size="19" class="text-rose-600" /> Опасная зона
+            </h3>
+            <p class="mt-2 text-sm leading-6 text-slate-600">
+              Эти действия удаляют данные без возможности восстановления. Используйте их только осознанно.
+            </p>
+            <div class="mt-4 flex flex-col gap-3 sm:flex-row">
+              <button v-if="canClearAnalytics" type="button" class="action-button-danger" :disabled="clearing || deleting" @click="openClearModal">
+                <Eraser :size="18" /> Очистить аналитику
+              </button>
+              <button v-if="canDeleteSite" type="button" class="action-button-danger bg-rose-600 text-white hover:bg-rose-700" :disabled="clearing || deleting" @click="openDeleteModal">
+                <Trash2 :size="18" /> Удалить сайт
+              </button>
+            </div>
           </div>
         </div>
-        <div class="flex flex-col gap-3 sm:flex-row">
-          <button v-if="canClearAnalytics" type="button" class="action-button-danger" :disabled="clearing || deleting" @click="openClearModal">
-            <Eraser :size="18" />
-            Очистить аналитику
-          </button>
-          <button v-if="canDeleteSite" type="button" class="action-button-danger bg-rose-600 text-white hover:bg-rose-700" :disabled="clearing || deleting" @click="openDeleteModal">
-            <Trash2 :size="18" />
-            Удалить сайт
-          </button>
-        </div>
-      </section>
+      </details>
     </template>
 
     <div v-if="clearModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">

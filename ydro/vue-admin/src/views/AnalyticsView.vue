@@ -51,6 +51,7 @@ const sectionData = ref({})
 const sessionDetail = ref(null)
 const sessionDetailBlock = ref(null)
 const activeTab = ref('overview')
+const advancedTabsOpen = ref(false)
 const days = ref(14)
 const includeBots = ref(false)
 const action = ref('')
@@ -75,6 +76,9 @@ const tabs = [
   { key: 'performance', label: 'Производительность', icon: Gauge },
   { key: 'recommendations', label: 'AI-рекомендации', icon: Sparkles },
 ]
+
+const primaryTabs = tabs.filter(tab => ['overview', 'pages', 'heatmap', 'sessions'].includes(tab.key))
+const advancedTabs = tabs.filter(tab => !primaryTabs.includes(tab))
 
 const endpointByTab = {
   heatmap: 'heatmap',
@@ -521,6 +525,7 @@ async function loadSummary() {
     })
     summary.value = data
   } catch (e) {
+    summary.value = null
     error.value = e?.response?.data?.detail || 'Не удалось загрузить аналитику.'
   } finally {
     loading.value = false
@@ -614,6 +619,7 @@ async function openSession(sessionId) {
 }
 
 function setTab(tabKey) {
+  if (advancedTabs.some(tab => tab.key === tabKey)) advancedTabsOpen.value = true
   activeTab.value = tabKey
 }
 
@@ -641,8 +647,8 @@ onMounted(async () => {
     <header class="page-heading page-heading-actions">
       <div>
         <p class="eyebrow">Посетители сайта</p>
-        <h1>Аналитика</h1>
-        <p>Обзор, поведенческие события, страницы, пути и технические сигналы.</p>
+        <h1>Посещения и поведение</h1>
+        <p>Кто приходит на сайт, что смотрит и где можно улучшить результат.</p>
       </div>
       <div class="flex flex-col gap-2 sm:flex-row">
         <div class="inline-flex rounded-2xl border border-brand-100 bg-white/86 p-1 shadow-sm">
@@ -678,19 +684,46 @@ onMounted(async () => {
     <p v-if="error" class="notice-error">{{ error }}</p>
     <p v-if="success" class="notice-success">{{ success }}</p>
 
-    <nav class="overflow-x-auto rounded-2xl border border-brand-100 bg-white/90 p-2 shadow-soft backdrop-blur">
-      <div class="flex min-w-max gap-1">
+    <nav class="rounded-2xl border border-brand-100 bg-white/90 p-3 shadow-soft backdrop-blur" aria-label="Отчёты по посетителям">
+      <div class="mb-2 px-1 text-xs font-medium text-slate-500">Основные отчёты</div>
+      <div class="flex flex-wrap gap-2">
         <button
-          v-for="tab in tabs"
+          v-for="tab in primaryTabs"
           :key="tab.key"
           type="button"
           class="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition"
-          :class="activeTab === tab.key ? 'bg-brand-600 text-white shadow-[0_10px_24px_rgba(109,93,246,0.22)]' : 'text-slate-600 hover:bg-brand-50 hover:text-brand-800'"
+          :class="activeTab === tab.key ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-brand-50 hover:text-brand-800'"
+          :aria-current="activeTab === tab.key ? 'page' : undefined"
           @click="setTab(tab.key)"
         >
-          <component :is="tab.icon" :size="16" />
-          {{ tab.label }}
+          <component :is="tab.icon" :size="16" /> {{ tab.label }}
         </button>
+        <button
+          type="button"
+          class="inline-flex min-h-10 items-center gap-2 rounded-xl border border-brand-100 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-brand-50"
+          :aria-expanded="advancedTabsOpen"
+          aria-controls="advanced-analytics-tabs"
+          @click="advancedTabsOpen = !advancedTabsOpen"
+        >
+          {{ advancedTabsOpen ? 'Скрыть дополнительные' : 'Другие отчёты' }}
+          <span class="text-xs text-slate-500">({{ advancedTabs.length }})</span>
+        </button>
+      </div>
+      <div v-if="advancedTabsOpen" id="advanced-analytics-tabs" class="mt-3 border-t border-brand-100 pt-3">
+        <p class="mb-3 text-xs leading-5 text-slate-500">Подробные инструменты для анализа кликов, пути посетителя и технических ошибок.</p>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="tab in advancedTabs"
+            :key="tab.key"
+            type="button"
+            class="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition"
+            :class="activeTab === tab.key ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-brand-50 hover:text-brand-800'"
+            :aria-current="activeTab === tab.key ? 'page' : undefined"
+            @click="setTab(tab.key)"
+          >
+            <component :is="tab.icon" :size="16" /> {{ tab.label }}
+          </button>
+        </div>
       </div>
     </nav>
 
@@ -707,11 +740,18 @@ onMounted(async () => {
           :usage="sectionGuide.usage"
           :insight="sectionGuide.insight"
         />
-        <AnalyticsInsightBlock :items="sectionGuide.meaning" />
-        <WhatToDoNextBlock :items="sectionGuide.actions" />
+        <details class="surface">
+          <summary class="cursor-pointer text-sm font-semibold text-[#17223B]">
+            Как читать этот отчёт и что делать с результатами
+          </summary>
+          <div class="mt-4 space-y-4 border-t border-brand-100 pt-4">
+            <AnalyticsInsightBlock :items="sectionGuide.meaning" />
+            <WhatToDoNextBlock :items="sectionGuide.actions" />
+          </div>
+        </details>
       </template>
 
-      <template v-if="activeTab === 'overview'">
+      <template v-if="activeTab === 'overview' && summary">
         <section class="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <article v-for="metric in overviewMetricCards" :key="metric.label" class="surface min-h-[96px] p-4">
             <div class="flex items-center gap-2"><h2 class="text-sm font-semibold text-slate-600">{{ metric.label }}</h2><MetricHelpTooltip :text="metric.tooltip" /></div>
@@ -721,7 +761,12 @@ onMounted(async () => {
 
         <AnalyticsSummaryCard :text="periodSummaryText" :attention-items="attentionItems.slice(0, 2)" />
 
-        <section class="surface">
+        <details class="surface">
+          <summary class="cursor-pointer">
+            <strong class="block text-base text-[#17223B]">Подключение и настройка аналитики</strong>
+            <span class="mt-1 block text-xs text-slate-500">Технический код и смена ключа — только для настройки сайта.</span>
+          </summary>
+          <div class="mt-4 border-t border-brand-100 pt-4">
           <div class="section-heading">
             <div>
               <h2>Скрипт аналитики</h2>
@@ -740,7 +785,8 @@ onMounted(async () => {
               {{ action === 'key' ? 'Обновляем...' : 'Обновить ключ' }}
             </button>
           </div>
-        </section>
+          </div>
+        </details>
 
         <div class="grid gap-4 xl:grid-cols-2">
           <section class="surface">
@@ -777,6 +823,12 @@ onMounted(async () => {
             <EmptyAnalyticsState v-else />
           </section>
 
+          <details class="surface xl:col-span-2">
+            <summary class="cursor-pointer text-sm font-semibold text-[#17223B]">
+              Подробнее об устройствах и браузерах
+              <span class="mt-1 block text-xs font-normal text-slate-500">Технические сведения — по желанию.</span>
+            </summary>
+            <div class="mt-4 grid gap-4 border-t border-brand-100 pt-4 lg:grid-cols-2">
           <section class="surface">
             <div class="section-heading"><div><h2>Браузеры</h2><p>Клиентские браузеры посетителей.</p></div></div>
             <div v-if="browserRows.length" class="space-y-2">
@@ -799,6 +851,9 @@ onMounted(async () => {
             <EmptyAnalyticsState v-else />
           </section>
 
+            </div>
+          </details>
+
           <section class="surface">
             <div class="section-heading"><div><h2>Источники переходов</h2><p>Откуда приходит трафик.</p></div></div>
             <div v-if="(summary?.sources || []).length" class="space-y-2">
@@ -816,6 +871,16 @@ onMounted(async () => {
             <p class="mt-2 text-sm text-slate-500">Всего: {{ formatSeconds(summary?.total_time_on_site_seconds || 0) }}</p>
           </section>
         </div>
+      </template>
+
+      <template v-else-if="activeTab === 'overview'">
+        <section class="surface">
+          <h2 class="text-lg font-semibold text-[#17223B]">Показатели пока не доступны</h2>
+          <p class="mt-2 text-sm leading-6 text-slate-500">
+            Не удалось получить данные за выбранный период. Это не означает, что посещений или заявок нет.
+          </p>
+          <button type="button" class="action-button-secondary mt-4" @click="loadSummary">Попробовать снова</button>
+        </section>
       </template>
 
       <template v-else-if="activeTab === 'heatmap'">

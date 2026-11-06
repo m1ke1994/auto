@@ -43,24 +43,53 @@ const navItems = computed(() => {
   const items = [
     { label: 'Мои сайты', to: '/dashboard', icon: LayoutDashboard, feature: 'dashboard_overview' },
     { label: 'Уведомления', to: '/dashboard/notifications', icon: Bell, feature: 'notifications' },
-    { label: 'SEO-аудит', to: '/seo', icon: SearchCheck },
+    { label: 'Проверка SEO', to: '/seo', icon: SearchCheck },
   ]
   if (siteId.value) {
     items.push(
-      { label: 'Главная', to: `/sites/${siteId.value}/overview`, icon: CircleGauge, feature: 'dashboard_overview' },
+      { label: 'Обзор сайта', to: `/sites/${siteId.value}/overview`, icon: CircleGauge, feature: 'dashboard_overview' },
       { label: 'Заявки', to: `/sites/${siteId.value}/leads`, icon: Inbox, feature: 'leads' },
-      { label: 'Аналитика', to: `/sites/${siteId.value}/analytics`, icon: BarChart3, feature: 'analytics' },
-      { label: 'AI-рекомендации', to: `/sites/${siteId.value}/ai-recommendations`, icon: Sparkles, feature: 'ai_recommendations', showWhenLocked: true },
-      { label: 'Редактирование сайта', to: `/sites/${siteId.value}/sections`, icon: Blocks, feature: 'site_edit' },
-      { label: 'Анализ конкурентов', to: `/sites/${siteId.value}/competitors`, icon: FileSearch, feature: 'competitors' },
+      { label: 'Посещения', to: `/sites/${siteId.value}/analytics`, icon: BarChart3, feature: 'analytics' },
+      { label: 'AI-подсказки', to: `/sites/${siteId.value}/ai-recommendations`, icon: Sparkles, feature: 'ai_recommendations', showWhenLocked: true },
+      { label: 'Содержимое сайта', to: `/sites/${siteId.value}/sections`, icon: Blocks, feature: 'site_edit' },
+      { label: 'Конкуренты', to: `/sites/${siteId.value}/competitors`, icon: FileSearch, feature: 'competitors' },
     )
   }
   items.push({ label: 'Оплата', to: '/billing', icon: CreditCard })
-  items.push({ label: 'Безопасность', to: '/security', icon: ShieldCheck })
+  items.push({ label: 'Безопасность аккаунта', to: '/security', icon: ShieldCheck })
   if (authStore.user?.permissions?.platform_access) {
     items.unshift({ label: 'Управление платформой', to: '/platform', icon: Crown })
   }
   return items.filter((item) => item.showWhenLocked || accessStore.can(item.feature))
+})
+
+const navGroups = computed(() => {
+  const current = siteId.value
+  const mainRoutes = ['/dashboard']
+  if (current) mainRoutes.push(
+    `/sites/${current}/overview`,
+    `/sites/${current}/leads`,
+    `/sites/${current}/analytics`,
+    `/sites/${current}/sections`,
+  )
+  const groups = [
+    { title: 'Главное', routes: mainRoutes },
+    {
+      title: 'Дополнительные инструменты',
+      routes: ['/seo', '/dashboard/notifications',
+        ...(current ? [
+          `/sites/${current}/ai-recommendations`,
+          `/sites/${current}/competitors`,
+        ] : []),
+      ],
+    },
+    { title: 'Аккаунт и настройки', routes: ['/billing', '/security'] },
+    { title: 'Администрирование', routes: ['/platform'] },
+  ]
+  return groups.map(group => ({
+    title: group.title,
+    items: group.routes.flatMap(path => navItems.value.filter(item => item.to === path)),
+  })).filter(group => group.items.length > 0)
 })
 
 function isActive(item) {
@@ -101,18 +130,26 @@ function isActive(item) {
         <p class="mt-1 truncate text-sm font-semibold text-[#17223B]">{{ siteLabel }}</p>
       </div>
 
-      <nav class="mt-5 flex-1 space-y-1 overflow-y-auto">
-        <RouterLink
-          v-for="item in navItems"
-          :key="item.to"
-          :to="item.to"
-          class="flex min-h-11 items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition duration-300"
-          :class="isActive(item) ? 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-[0_12px_28px_rgba(109,93,246,0.22)]' : 'text-slate-600 hover:bg-brand-50 hover:text-brand-800'"
-          @click="emit('close')"
-        >
-          <component :is="item.icon" :size="19" class="shrink-0" />
-          <span>{{ item.label }}</span>
-        </RouterLink>
+      <nav class="mt-5 flex-1 space-y-6 overflow-y-auto pb-4" aria-label="Разделы кабинета">
+        <section v-for="group in navGroups" :key="group.title">
+          <h2 class="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[.13em] text-slate-500">
+            {{ group.title }}
+          </h2>
+          <div class="space-y-1">
+            <RouterLink
+              v-for="item in group.items"
+              :key="item.to"
+              :to="item.to"
+              class="flex min-h-11 items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition duration-200"
+              :class="isActive(item) ? 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-[0_12px_28px_rgba(109,93,246,0.22)]' : 'text-slate-600 hover:bg-brand-50 hover:text-brand-800'"
+              :aria-current="isActive(item) ? 'page' : undefined"
+              @click="emit('close')"
+            >
+              <component :is="item.icon" :size="19" class="shrink-0" />
+              <span>{{ item.label }}</span>
+            </RouterLink>
+          </div>
+        </section>
       </nav>
 
       <div class="rounded-2xl border border-brand-100 bg-white/72 p-3">
