@@ -64,6 +64,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", api_root),
     path("api/health/", healthcheck),
+    path("api/studio/", include("ai_builder.urls")),
     path("api/auth/", include("apps.accounts.urls")),
     path("api/mini/", include("config.mini_urls")),
     # Mini SaaS compatibility aliases

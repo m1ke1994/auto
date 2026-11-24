@@ -1,0 +1,5 @@
+services:
+  backend:
+    environment:
+      STUDIO_DEMO_ENABLED: "1"
+      RUN_SEED_TRACKNODE_SITE: "0"

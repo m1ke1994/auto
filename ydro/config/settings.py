@@ -96,6 +96,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.analytics",
     "apps.sites",
+    "ai_builder.apps.AiBuilderConfig",
     "apps.mediafiles",
     "apps.notifications",
     "clients",
@@ -448,3 +449,6 @@ CELERY_BEAT_SCHEDULE = {
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Studio is deliberately disabled outside explicit local development.
+STUDIO_DEMO_ENABLED = not IS_PRODUCTION and env_bool("STUDIO_DEMO_ENABLED", False)

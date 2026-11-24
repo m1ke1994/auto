@@ -1,0 +1,9 @@
+from html import escape
+
+def generate_demo(name, prompt, instruction=""):
+    """Deterministic static fixture; no LLM or arbitrary execution."""
+    title, description, change = map(escape, (name, prompt, instruction))
+    dark = any(word in instruction.lower() for word in ("темн", "dark", "чёрн"))
+    bg, fg, panel = ("#121827", "#f8fafc", "#202b3c") if dark else ("#f5f5f0", "#162c30", "#ffffff")
+    return f"""<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="{description[:150]}"><title>{title}</title><style>
+*{{box-sizing:border-box}}body{{margin:0;font:16px/1.6 system-ui,sans-serif;background:{bg};color:{fg}}}header,main,footer{{max-width:1080px;margin:auto;padding:24px}}header{{display:flex;justify-content:space-between;align-items:center}}a{{color:inherit}}.hero{{padding:clamp(24px,8vw,90px) 0}}h1{{font-size:clamp(38px,8vw,84px);line-height:1.05;letter-spacing:-.04em}}.cta{{display:inline-block;background:#457d70;color:white;padding:14px 24px;border-radius:10px;text-decoration:none}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px}}article{{background:{panel};padding:24px;border-radius:16px}}p{{white-space:pre-wrap;overflow-wrap:anywhere}}small{{opacity:.7}}</style></head><body><header><strong>{title}</strong><a href="#contacts">Контакты</a></header><main><section class="hero"><small>Демонстрационный проект TrackNode</small><h1>{title}</h1><p>{description}</p><a class="cta" href="#contacts">Узнать больше</a></section><section class="grid"><article><h2>О проекте</h2><p>Расскажите о вашем бизнесе.</p></article><article><h2>Услуги</h2><p>Добавьте описание услуг.</p></article><article id="contacts"><h2>Контакты</h2><p>Добавьте контактные данные.</p></article></section><p>{change}</p></main><footer>Создано в TrackNode Studio · демо</footer></body></html>"""

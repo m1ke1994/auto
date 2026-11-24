@@ -134,6 +134,7 @@ const routes = [
     component: AdminLayout,
     meta: { requiresAuth: true },
     children: [
+      { path: 'studio', name: 'studio', component: () => import('../views/StudioView.vue'), meta: { title: 'TrackNode Studio', billingExempt: true } },
       { path: 'dashboard', name: 'dashboard', component: DashboardView, meta: { title: 'Панель управления', requiredFeature: 'dashboard_overview' } },
       { path: 'dashboard/notifications', name: 'notifications', component: NotificationsView, meta: { title: 'Уведомления', requiredFeature: 'notifications' } },
       { path: 'dashboard/notifications/:newsId', name: 'notification-detail', component: NotificationDetailView, meta: { title: 'Новость', requiredFeature: 'notifications' } },
