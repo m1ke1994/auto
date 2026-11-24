@@ -52,7 +52,7 @@ def generate(name,prompt,style="auto",instruction="",previous=None):
         if choice.get("finish_reason")=="length":
             raise GenerationError("AI не завершил ответ. Попробуйте сократить запрос.")
         content=choice["message"]["content"].strip()
-        if content.startswith("**") or content.startswith("\x60\x60\x60"):
+        if content.startswith("\x60\x60\x60"):
             content=content.removeprefix("\x60\x60\x60json").removeprefix("\x60\x60\x60").removesuffix("\x60\x60\x60").strip()
         return validate(json.loads(content))
     except GenerationError:

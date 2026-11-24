@@ -16,7 +16,7 @@ def clean(value, limit):
     return value.strip()
 
 def validate(raw):
-    if not isinstance(raw, dict) or raw.get("theme") not in THEMES:
+    if not isinstance(raw, dict) or not isinstance(raw.get("theme"),str) or raw.get("theme") not in THEMES:
         raise ValidationError("Некорректная дизайн-тема.")
     pages = raw.get("pages")
     if not isinstance(pages, list) or not 2 <= len(pages) <= 5:

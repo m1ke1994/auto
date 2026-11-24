@@ -32,3 +32,24 @@ class StudioTests(APITestCase):
     @override_settings(STUDIO_DEMO_ENABLED=False)
     def test_disabled(self):
         self.assertEqual(self.client.get("/api/studio/projects/").status_code, 404)
+
+    def test_vue_export_and_edit_base(self):
+        import io
+        import json
+        import zipfile
+        url="/api/studio/projects/"
+        p=self.client.post(url,{"name":"Поэт","prompt":"Стихи","style":"premium"},format="json").data
+        root=url+p["id"]+"/"
+        original=p["revisions"][0]["id"]
+        edit=self.client.post(root+"edit/",{"instruction":"тёмный фон","revision":original},format="json")
+        self.assertEqual(edit.status_code,200)
+        dark=edit.data["revisions"][0]["id"]
+        response=self.client.get(root+f"export/{dark}/")
+        with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+            self.assertIn("src/App.vue",z.namelist())
+            spec=json.loads(z.read("src/design.json"))
+            self.assertEqual(spec["theme"],"dark")
+        second=self.client.post(root+"edit/",{"instruction":"оставь как есть","revision":original},format="json")
+        self.assertEqual(second.status_code,200)
+        from .models import Revision
+        self.assertEqual(Revision.objects.get(pk=second.data["revisions"][0]["id"]).design["theme"],"editorial")

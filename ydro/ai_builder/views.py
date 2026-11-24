@@ -42,7 +42,7 @@ class StudioView(APIView):
 class Config(StudioView):
     def get(self,request):
         provider=mode()
-        configured=provider=="demo" or bool(settings.STUDIO_AI_KEY and settings.STUDIO_AI_MODEL and (provider!="yandex" or settings.STUDIO_AI_FOLDER))
+        configured=provider=="demo" or (provider in ("yandex","deepseek") and bool(settings.STUDIO_AI_KEY and settings.STUDIO_AI_MODEL and (provider!="yandex" or settings.STUDIO_AI_FOLDER)))
         return Response({"provider":provider,"configured":configured,"styles":STYLES})
 
 class Projects(StudioView):
