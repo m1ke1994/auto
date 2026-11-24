@@ -1,4 +1,5 @@
 <script setup>
+const studioEnabled = import.meta.env.VITE_STUDIO_ENABLED === '1'
 import { onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight, ExternalLink, Globe2, RefreshCw } from '@lucide/vue'
@@ -90,7 +91,7 @@ onMounted(async () => {
     <section v-else-if="siteStore.loaded && siteStore.sites.length === 0" class="empty-state">
       <Globe2 :size="28" />
       <h2>Здесь появятся ваши сайты</h2>
-      <p>Аккаунт готов. Для подключения первого сайта свяжитесь с администратором платформы.</p>
+      <template v-if="studioEnabled"><p>Создайте первый сайт в TrackNode Studio.</p><RouterLink to="/studio" class="inline-block mt-4 rounded-xl bg-blue-600 px-5 py-3 text-white">Создать сайт с ИИ</RouterLink></template><p v-else>Аккаунт готов. Для подключения первого сайта свяжитесь с администратором платформы.</p>
     </section>
 
     <section v-else aria-label="Ваши подключённые сайты">

@@ -3,7 +3,7 @@ from django.test import override_settings
 from rest_framework.test import APITestCase
 from .generator import generate_demo
 
-@override_settings(STUDIO_DEMO_ENABLED=True)
+@override_settings(STUDIO_DEMO_ENABLED=True, STUDIO_AI_PROVIDER='demo')
 class StudioTests(APITestCase):
     def setUp(self):
         User = get_user_model()

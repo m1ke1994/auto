@@ -2,4 +2,12 @@ services:
   backend:
     environment:
       STUDIO_DEMO_ENABLED: "1"
+      STUDIO_AI_PROVIDER: ${STUDIO_AI_PROVIDER:-demo}
+      STUDIO_AI_KEY: ${STUDIO_AI_KEY:-}
+      STUDIO_AI_FOLDER: ${STUDIO_AI_FOLDER:-}
+      STUDIO_AI_MODEL: ${STUDIO_AI_MODEL:-}
       RUN_SEED_TRACKNODE_SITE: "0"
+      GUNICORN_TIMEOUT: "120"
+  frontend:
+    environment:
+      VITE_STUDIO_ENABLED: "1"

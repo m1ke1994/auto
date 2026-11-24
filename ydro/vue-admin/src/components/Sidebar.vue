@@ -45,6 +45,7 @@ const navItems = computed(() => {
     { label: 'Уведомления', to: '/dashboard/notifications', icon: Bell, feature: 'notifications' },
     { label: 'Проверка SEO', to: '/seo', icon: SearchCheck },
   ]
+  if (import.meta.env.VITE_STUDIO_ENABLED === '1') items.unshift({ label: 'Создать сайт с ИИ', to: '/studio', icon: Sparkles })
   if (siteId.value) {
     items.push(
       { label: 'Обзор сайта', to: `/sites/${siteId.value}/overview`, icon: CircleGauge, feature: 'dashboard_overview' },
@@ -65,7 +66,7 @@ const navItems = computed(() => {
 
 const navGroups = computed(() => {
   const current = siteId.value
-  const mainRoutes = ['/dashboard']
+  const mainRoutes = ['/studio', '/dashboard']
   if (current) mainRoutes.push(
     `/sites/${current}/overview`,
     `/sites/${current}/leads`,

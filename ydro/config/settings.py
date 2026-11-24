@@ -452,3 +452,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Studio is deliberately disabled outside explicit local development.
 STUDIO_DEMO_ENABLED = not IS_PRODUCTION and env_bool("STUDIO_DEMO_ENABLED", False)
+
+STUDIO_AI_PROVIDER = env("STUDIO_AI_PROVIDER", "demo").strip().lower()
+STUDIO_AI_KEY = env("STUDIO_AI_KEY", "")
+STUDIO_AI_FOLDER = env("STUDIO_AI_FOLDER", "")
+STUDIO_AI_MODEL = env("STUDIO_AI_MODEL", "")

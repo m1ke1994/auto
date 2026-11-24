@@ -7,6 +7,7 @@ class Project(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     name = models.CharField(max_length=120)
     prompt = models.TextField()
+    style = models.CharField(max_length=20, default="auto")
     created_at = models.DateTimeField(auto_now_add=True)
     published_revision = models.ForeignKey("Revision", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     class Meta:
@@ -16,6 +17,8 @@ class Revision(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="revisions")
     instruction = models.TextField()
     html = models.TextField()
+    design = models.JSONField(default=dict, blank=True)
+    provider = models.CharField(max_length=20, default="demo")
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         ordering = ["-id"]
