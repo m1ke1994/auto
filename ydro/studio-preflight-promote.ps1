@@ -8,16 +8,17 @@ if (!(Test-Path -LiteralPath ".env.studio.local" -PathType Leaf)) { throw "Missi
 $run=(Resolve-Path -LiteralPath $RunDirectory).Path
 if ($Prompt) {
     if ($Prompt.Length -lt 1 -or $Prompt.Length -gt 8000) { throw "Prompt must contain 1..8000 characters" }
-    $planPath=Join-Path $run "plan.json"
-    $plan=Get-Content -LiteralPath $planPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $selectionPath=Join-Path $run "selection.json"
+    $selection=Get-Content -LiteralPath $selectionPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (!$selection.plan) { throw "Saved selection has no plan" }
     $sha=[System.Security.Cryptography.SHA256]::Create()
     try {
         $hash=$sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Prompt))
-        $plan.brief_sha256=([BitConverter]::ToString($hash)).Replace("-","").ToLowerInvariant()
+        $selection.plan.brief_sha256=([BitConverter]::ToString($hash)).Replace("-","").ToLowerInvariant()
     } finally { $sha.Dispose() }
-    $json=$plan | ConvertTo-Json -Depth 12
-    [System.IO.File]::WriteAllText($planPath,$json,([System.Text.UTF8Encoding]::new($false)))
-    Write-Host "PREFLIGHT_BRIEF_BOUND: supplied prompt hash saved; no planning API request"
+    $json=$selection | ConvertTo-Json -Depth 20
+    [System.IO.File]::WriteAllText($selectionPath,$json,([System.Text.UTF8Encoding]::new($false)))
+    Write-Host "PREFLIGHT_BRIEF_BOUND: supplied prompt hash saved in selection; no planning API request"
 }
 $compose=@("compose","--env-file",".env.studio.local","-p","tracknode20-agent","-f","docker-compose.openhands.yml")
 & docker @compose build openhands | Out-Host
