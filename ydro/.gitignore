@@ -14,3 +14,4 @@ env/
 backups/
 
 .env.studio.local
+/studio-agent-output/

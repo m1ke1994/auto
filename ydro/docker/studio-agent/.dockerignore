@@ -1,0 +1,6 @@
+*
+!requirements.txt
+!runner.py
+!site_store.py
+!test_site_store.py
+!Dockerfile

@@ -19,3 +19,4 @@ vue-admin/dist
 .env.local
 .env.*.local
 **/.env.studio.local
+studio-agent-output

@@ -41,3 +41,16 @@ If a previous local Git patch conflicts during pull, keep a backup and resolve t
 
 ## DeepSeek local setup
 Create .env.studio.local with STUDIO_AI_PROVIDER=deepseek, STUDIO_AI_KEY=<your private key>, STUDIO_AI_MODEL=deepseek-v4-pro (or deepseek-flash), STUDIO_AI_FOLDER empty. Obtain a key and API balance from https://platform.deepseek.com/. Use --env-file .env.studio.local with all Compose commands, in particular up -d --build postgres redis backend frontend. The provider sends non-thinking JSON mode requests to the official API. No API key is required for the mocked tests. Live requests incur provider charges and send the project prompt and prior design to DeepSeek. This remains a structured design generator, not arbitrary code generation.
+
+## Stage 3a: OpenHands SDK local proof of integration
+Separate Compose project, no changes to the running Django/Vue app and no new migrations.
+Pinned OpenHands SDK 1.63.1, DeepSeek Chat Completions (non-thinking). The SDK agent has a custom, bounded in-memory project-file tool; no terminal, file editor, shell, Docker socket, app DB or repo mount. Only the final ZIP is written to a fresh host output directory. The agent's network has outbound access; this is not a hostile multi-tenant sandbox. No generated code is run in the agent. Keep artifacts untrusted. Budget target $0.30 per run is SDK-estimated, not a guaranteed hard billing cap; iteration limit 12 and wall limit 600s. Prompt is sent to DeepSeek. Use trusted local prompts only.
+Windows PowerShell from ydro:
+```powershell
+docker compose --env-file .env.studio.local -p tracknode20-agent -f docker-compose.openhands.yml build openhands
+docker compose --env-file .env.studio.local -p tracknode20-agent -f docker-compose.openhands.yml run --rm --no-deps openhands --check
+$out = (New-Item -ItemType Directory -Path (Join-Path $PWD ("studio-agent-output/" + [guid]::NewGuid().ToString())) -Force).FullName
+docker compose --env-file .env.studio.local -p tracknode20-agent -f docker-compose.openhands.yml run --rm --no-deps -v "${out}:/output" openhands --prompt "Create a premium architecture studio website in Russian with original editorial design, responsive navigation, portfolio concepts and subtle animation."
+Get-ChildItem $out
+```
+This is a CLI proof; Studio UI still uses the structured design provider. Next stage: isolated offline build, async jobs, revision import/preview and per-project context. No arbitrary generated dependencies or automated deployment yet.

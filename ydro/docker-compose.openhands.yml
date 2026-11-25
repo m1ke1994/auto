@@ -1,0 +1,27 @@
+# Standalone, local-only OpenHands runner. No TrackNode DB/network/socket mounts.
+services:
+  openhands:
+    build:
+      context: ./docker/studio-agent
+    environment:
+      STUDIO_AI_KEY: ${STUDIO_AI_KEY:-}
+      STUDIO_AI_MODEL: ${STUDIO_AI_MODEL:-deepseek-v4-pro}
+      HOME: /tmp
+      XDG_CACHE_HOME: /tmp/cache
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=512m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 128
+    init: true
+    networks: [agent_egress]
+networks:
+  agent_egress:
+    driver: bridge
