@@ -177,6 +177,8 @@ def main():
         if profile not in ("standard","premium","cinema"):
             raise ValueError("Invalid audit profile.")
         report["technical_passed"]=audit.get("passed") is True
+        if not report["technical_passed"] or audit.get("screenshotsComplete") is False:
+            raise ValueError("Incomplete technical audit or screenshot set; no visual API call.")
         report["devices"]["desktop"]=review_device(root,"desktop",args.brief,profile,key)
         save()
         if not report["devices"]["desktop"]["passed"]:

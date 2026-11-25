@@ -10,6 +10,10 @@ Set-Location $PSScriptRoot
 $run = (Resolve-Path -LiteralPath $RunDirectory).Path
 $audit = (Resolve-Path -LiteralPath (Join-Path $run "quality-report")).Path
 if (!(Test-Path -LiteralPath (Join-Path $audit "quality-report.json"))) { throw "Missing technical audit report" }
+$technical = Get-Content -LiteralPath (Join-Path $audit "quality-report.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+if ($technical.passed -ne $true -or $technical.screenshotsComplete -eq $false) {
+    throw "Technical audit or screenshot set incomplete. No paid visual review."
+}
 if (!(Test-Path -LiteralPath .env.studio.local)) { throw "Missing .env.studio.local" }
 $reviewFiles = @((Get-Item -LiteralPath (Join-Path $audit "quality-report.json"))) + @(Get-ChildItem -LiteralPath $audit -File -Filter "*.png")
 $reviewFiles = @($reviewFiles | Sort-Object Name)

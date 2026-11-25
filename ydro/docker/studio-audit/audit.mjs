@@ -1,5 +1,6 @@
 // Test only local build artifacts. Network is disabled by Docker and requests are intercepted.
 import { chromium } from 'playwright';
+import { createCapture, finalizeAudit } from './capture.mjs';
 import { readFile, writeFile, realpath, readdir } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 const root = await realpath('/site');
@@ -11,9 +12,14 @@ const expectedModels=modelDirs.map(dir=>'tn-models/'+dir+'/model.gltf');
 report.expectedModels=expectedModels;
 const sceneContract=await readFile(resolve(root,'tn-scene-contract.json'),'utf8').then(JSON.parse).catch(()=>null);
 report.sceneEngine=sceneContract?.version||0;
-const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+const capture=createCapture(report);
+let browser;
+let stage='browser launch';
 try {
+  browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
   for (const [name,width,height,reducedMotion] of [['desktop',1440,900,'no-preference'],['mobile',390,844,'reduce']]) {
+    stage=name+' browser context';
+    console.log('AUDIT_DEVICE: '+name);
     const context=await browser.newContext({viewport:{width,height},reducedMotion,serviceWorkers:'block',acceptDownloads:false});
     const errors=[], blocked=[], missing=[];
     await context.route('**/*',async route=>{
@@ -30,6 +36,7 @@ try {
     });
     const page=await context.newPage();
     page.on('pageerror',e=>errors.push(String(e).slice(0,400)));
+    stage=name+' page load';
     await page.goto(origin+'/',{waitUntil:'load',timeout:30000});
     await page.waitForTimeout(1500);
     if(expectedModels.length) await page.waitForFunction(()=>{const nodes=[...document.querySelectorAll('[data-tn-model]')];return nodes.length>0&&nodes.every(n=>n.dataset.tnModelState!=='loading');},{},{timeout:30000}).catch(()=>{});
@@ -41,6 +48,7 @@ try {
     });
     const steps=[];
     for (const fraction of [0,.25,.5,.75,1]) {
+      stage=name+' scroll '+Math.round(fraction*100)+'%';
       await page.evaluate(f=>{const r=document.scrollingElement;window.scrollTo({top:(r.scrollHeight-r.clientHeight)*f,behavior:'instant'});},fraction);
       await page.waitForTimeout(1200);
       const state=await page.evaluate(()=>{
@@ -55,18 +63,19 @@ try {
       });
       const models=await page.locator('[data-tn-model]').evaluateAll(nodes=>nodes.map((n,index)=>({index,path:n.dataset.tnModel,state:n.dataset.tnModelState,frames:Number(n.dataset.tnFrames||0),pose:n.dataset.tnCameraPose||'',motionPose:n.dataset.tnModelMotionPose||n.dataset.tnCameraPose||'',nativeMotion:!!n.dataset.tnModelMotionPose,preset:n.dataset.tnMotionPreset||'custom',progress:Number(n.dataset.tnCameraProgress||0),canvas:!!n.querySelector('canvas')})));
       steps.push({...state,models});
-      await page.screenshot({path:'/report/'+name+'-'+Math.round(fraction*100)+'.png',timeout:15000});
+      await capture(page,name+'-'+Math.round(fraction*100)+'.png');
     }
     // Visit actual content sections individually; sample-based screenshots alone
     // can miss short sections and reveal-on-scroll content.
     const required=['home','about','services','benefits','contacts'];
     const sections=[],sectionModelSamples=[];
     for(const id of required){
+      stage=name+' section '+id;
       const section=page.locator('main section[data-tn-section="'+id+'"][id="'+id+'"]');
       if(await section.count()!==1){sections.push({id,exists:false});continue;}
       await section.evaluate(e=>e.scrollIntoView({block:'start',behavior:'instant'}));
       await page.waitForTimeout(900);
-      await page.screenshot({path:'/report/'+name+'-section-'+id+'.png',timeout:15000});
+      await capture(page,name+'-section-'+id+'.png');
       sectionModelSamples.push(...await page.locator('[data-tn-model]').evaluateAll(nodes=>nodes.map((n,index)=>({index,path:n.dataset.tnModel,state:n.dataset.tnModelState,frames:Number(n.dataset.tnFrames||0),pose:n.dataset.tnCameraPose||'',motionPose:n.dataset.tnModelMotionPose||n.dataset.tnCameraPose||'',nativeMotion:!!n.dataset.tnModelMotionPose,preset:n.dataset.tnMotionPreset||'custom',canvas:!!n.querySelector('canvas')}))));
       sections.push(await section.evaluate((e,id)=>{
         const visible=x=>{
@@ -91,6 +100,7 @@ try {
     }
     await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
     await page.waitForTimeout(900);
+    stage=name+' interaction checks';
     const navState=()=>page.evaluate(()=>{
       const header=document.querySelector('header[data-tn-header]');
       const visible=x=>{
@@ -282,9 +292,9 @@ try {
     report.checks.push({name,checks,metrics:result,sections,navigation,heroFraming,steps,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
     await context.close();
   }
-} catch(error){report.error=String(error).slice(0,500);}
-finally { await browser.close(); }
-report.passed=!report.error&&report.checks.length===2&&report.checks.every(c=>Object.values(c.checks).every(Boolean));
+} catch(error){report.error=String(error).slice(0,700);report.errorStage=stage;}
+finally { if(browser) await browser.close().catch(error=>{if(!report.error){report.error=String(error).slice(0,700);report.errorStage='browser close';}}); }
+finalizeAudit(report);
 await writeFile('/report/quality-report.json',JSON.stringify(report,null,2));
-console.log(JSON.stringify({passed:report.passed,checks:report.checks.map(({name,checks})=>({name,checks})),error:report.error},null,2));
+console.log(JSON.stringify({passed:report.passed,functionalPassed:report.functionalPassed,screenshotsComplete:report.screenshotsComplete,screenshotFailures:report.screenshotFailures,checks:report.checks.map(({name,checks})=>({name,checks})),error:report.error,errorStage:report.errorStage},null,2));
 if(!report.passed) process.exitCode=1;

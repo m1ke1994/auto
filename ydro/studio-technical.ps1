@@ -66,6 +66,7 @@ for ($attempt=0; $attempt -le $MaxTechnicalRepairs; $attempt++) {
                 if ($attempt -gt 0) { Write-Host "TECHNICAL_REPAIR_ACCEPTED: $run" }
                 return $run
             }
+            if ($audit.screenshotFailures -and @($audit.screenshotFailures).Count -gt 0) { throw "Screenshot capture incomplete; functional checks are recorded. No paid repair: $reportPath" }
             if ($auditExit -ne 1 -or $audit.passed -ne $false -or $audit.error -or @($audit.checks).Count -ne 2) { throw "Browser audit infrastructure or invalid report; no paid repair: $run" }
             $failed=@(foreach ($device in $audit.checks) {
                 foreach ($check in $device.checks.PSObject.Properties) {
