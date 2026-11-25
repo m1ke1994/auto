@@ -40,7 +40,7 @@ onBeforeUnmount(()=>{
     <div class="tn-story-stage">
       <div class="tn-story-visual">
         <slot name="visual" :item="items[active]" :index="active">
-          <img v-for="(item,index) in items" v-show="index===active && item.image" :key="index" :src="item.image||undefined" :alt="item.alt||''" loading="lazy">
+          <img v-if="items[active]?.image" :src="items[active].image" :alt="items[active].alt||''" loading="lazy">
         </slot>
       </div>
       <span class="tn-story-counter" aria-hidden="true">{{ String(active+1).padStart(2,'0') }} / {{ String(items.length).padStart(2,'0') }}</span>

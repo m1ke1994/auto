@@ -154,7 +154,7 @@ def technical_notes(path):
                 "errors":d.get("errors",[]),"missing":d.get("missing",[]),
                 "heroFraming":d.get("heroFraming",[]),
                 "overflowCandidates":[s.get("overflowCandidates",[]) for s in d.get("steps",[]) if isinstance(s,dict)][:5],
-                "sections":d.get("sections",[])}
+                "sections":d.get("sections",[]),"sceneDiagnostics":d.get("sceneDiagnostics",{})}
         notes.append(detail)
     require(any(d["failed"] for d in notes),"No failed technical check.")
     return json.dumps({"stage":stage,"devices":notes},ensure_ascii=False)[:18000]

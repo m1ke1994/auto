@@ -158,6 +158,7 @@ try {
       const track=c.locator('[data-tn-carousel-track]');
       let ok=false;
       try {
+        if(!await c.isVisible())throw Error('Carousel not visible');
         await c.scrollIntoViewIfNeeded({timeout:3000});
         const count=await c.locator('[data-tn-slide]').count();
         await track.evaluate(el=>el.scrollTo({left:0,behavior:'instant'}));
@@ -180,6 +181,7 @@ try {
       const story=stories.nth(i),chapters=story.locator('[data-tn-story-chapter]');
       let ok=false;
       try{
+        if(!await story.isVisible())throw Error('Story not visible');
         const count=await chapters.count();
         if(count>=2){
           await chapters.first().evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'}));
@@ -221,7 +223,13 @@ try {
     }
     if(report.profile==='cinema') {checks.scenes=result.scenes>=3;if(name==='desktop') checks.scrollMotion=motionChanged;}
     if(sceneContract?.version===1||sceneDiagnostics.carousels.length||sceneDiagnostics.stories.length){
-      if(sceneContract?.version===1) checks.sceneComponents=sceneDiagnostics.carousels.length>0&&sceneDiagnostics.stories.length>0;
+      if(sceneContract?.version===1) {
+        const middle='section[data-tn-section="about"],section[data-tn-section="services"],section[data-tn-section="benefits"]';
+        checks.sceneComponents=await page.evaluate(selector=>{
+          const sections=[...document.querySelectorAll(selector)];
+          return sections.some(s=>s.querySelector('[data-tn-carousel]'))&&sections.some(s=>s.querySelector('[data-tn-story]'));
+        },middle);
+      }
       if(sceneContract?.version===1||sceneDiagnostics.carousels.length) checks.carouselControls=sceneDiagnostics.carousels.length>0&&sceneDiagnostics.carousels.every(x=>x.ok);
       if(sceneContract?.version===1||sceneDiagnostics.stories.length) checks.storyProgress=sceneDiagnostics.stories.length>0&&sceneDiagnostics.stories.every(x=>x.ok);
     }
