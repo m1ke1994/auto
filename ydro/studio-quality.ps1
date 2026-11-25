@@ -4,6 +4,7 @@ param(
     [ValidateSet("realistic","stylized")][string]$AssetStyle="realistic",
     [switch]$SkipVisualReview,
     [ValidateRange(0,1)][int]$MaxRepairs=0,
+    [ValidateRange(0,1)][int]$MaxTechnicalRepairs=1,
     [ValidateSet("auto","immersive","product","split","cinematic","editorial","environment")][string]$HeroMode="auto",
     [switch]$RequireModel,
     [string]$PreflightDirectory=""
@@ -33,22 +34,15 @@ if ($selection.status -notin @("approved","no_model")) { throw "Preflight did no
 if ($RequireModel -and $selection.status -ne "approved") { throw "Required model not approved" }
 $out = (New-Item -ItemType Directory -Path (Join-Path $PWD ("studio-agent-output/" + [guid]::NewGuid().ToString())) -Force).FullName
 Write-Host "Output: $out"
-& docker @compose run --rm --no-deps -v "$($preflight):/preflight:ro" -v "$($out):/output" openhands --preflight --profile $Profile --asset-style $AssetStyle --prompt $Prompt
-Assert-Exit "AI generation"
-$archive = Join-Path $out "tracknode-agent-site.zip"
-if (!(Test-Path -LiteralPath $archive)) { throw "Missing source ZIP" }
-$source = Join-Path $out "site"
-Expand-Archive -LiteralPath $archive -DestinationPath $source
-$dist = (New-Item -ItemType Directory -Path (Join-Path $out "dist")).FullName
-docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 1g --cpus 2 --pids-limit 128 --tmpfs "/work:rw,exec,size=256m,uid=1000,gid=1000" --tmpfs "/tmp:rw,size=64m" -v "$($source):/source:ro" -v "$($dist):/output" tracknode-studio-build
-Assert-Exit "Offline Vite build"
-if (!(Test-Path (Join-Path $dist "index.html"))) { throw "No built index.html" }
-Write-Host "SOURCE_AND_BUILD_READY: $out"
-Write-Host "Preview folder: $dist"
-$report = (New-Item -ItemType Directory -Path (Join-Path $out "quality-report")).FullName
-docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 3 --pids-limit 256 --shm-size 256m --tmpfs "/tmp:rw,exec,size=512m,mode=1777" -v "$($dist):/site:ro" -v "$($report):/report" tracknode-studio-audit $Profile
-Assert-Exit "Browser quality audit (source and dist preserved)"
-Write-Host "QUALITY_CHECKS_PASSED: $report"
+$prompt64=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Prompt))
+& docker @compose run --rm --no-deps -v "$($preflight):/preflight:ro" -v "$($out):/output" openhands --preflight --profile $Profile --asset-style $AssetStyle --prompt-b64 $prompt64
+$generationExit=$LASTEXITCODE
+if ($generationExit -ne 0 -and ($generationExit -ne 42 -or !(Test-Path -LiteralPath (Join-Path $out "source-failure.json")))) {
+    throw "AI generation failed ($generationExit); checkpoint, if any, preserved: $out. No automatic paid retry for API or infrastructure errors."
+}
+$out = & (Join-Path $PSScriptRoot "studio-technical.ps1") -RunDirectory $out -Prompt $Prompt -Profile $Profile -AssetStyle $AssetStyle -MaxTechnicalRepairs $MaxTechnicalRepairs
+$dist=Join-Path $out "dist"
+$report=Join-Path $out "quality-report"
 if ($SkipVisualReview) {
     Write-Host "Visual review skipped by request; artistic quality unverified."
 } else {

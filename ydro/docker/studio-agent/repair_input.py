@@ -17,7 +17,7 @@ def require(ok,message):
     if not ok:
         raise ValueError(message)
 
-def restore(store,path):
+def restore(store,path,*,allow_checkpoint=False):
     require(Path(path).stat().st_size<=40*1024*1024,"Source archive exceeds limit.")
     with zipfile.ZipFile(path) as z:
         members={}
@@ -37,10 +37,15 @@ def restore(store,path):
             return json.loads(read(name,128*1024)) if name in members else default
         info=metadata("tracknode-agent.json",{})
         require(isinstance(info,dict) and info.get("engine")=="openhands-sdk","Expected a TrackNode export.")
+        checkpoint=info.get("checkpoint",False)
+        require(type(checkpoint) is bool and (not checkpoint or allow_checkpoint),"Checkpoint is not an approved source export.")
         for name in sorted(members):
             if ALLOWED.fullmatch(name) and name not in RESERVED:
                 store.write(name,read(name,64000).decode("utf-8"))
-        store.validate()
+        if checkpoint:
+            require(bool(store.files),"Empty checkpoint.")
+        else:
+            store.validate()
         plan=read("ART_DIRECTION.md",16000).decode("utf-8")
         plan=plan.partition("\n\n")[2] or plan
         store.set_plan(plan[:8000])
@@ -106,3 +111,44 @@ def critic_notes(path):
             issues.append({k:str(item[k])[:1000] for k in ("severity","image","problem","fix")})
         notes[device]={"score":d["score"],"summary":str(d["summary"])[:1500],"issues":issues}
     return json.dumps(notes,ensure_ascii=False)[:18000]
+
+
+TECHNICAL_CHECKS=frozenset({
+    "rendered","noHorizontalOverflow","footer","progress","noBrokenImages",
+    "noJsErrors","noMissingAssets","noExternalRequests","completeSections",
+    "headerNavigation","heroCTA","serviceCards","heroFraming","heroImportedModel",
+    "cameraChanges","modelMotionChanges","scenes","scrollMotion"
+})
+
+def technical_notes(path):
+    """Validate bounded diagnostics, never accept a raw prompt as repair control."""
+    p=Path(path)
+    require(0<p.stat().st_size<=512*1024,"Invalid technical report size.")
+    report=json.loads(p.read_text(encoding="utf-8-sig"))
+    require(isinstance(report,dict) and report.get("kind")=="tracknode-technical-failure","Expected technical failure report.")
+    stage=report.get("stage")
+    require(stage in ("source","build","audit"),"Unsupported technical failure stage.")
+    if stage in ("source","build"):
+        diagnostic=report.get("diagnostic")
+        require(isinstance(diagnostic,str) and 0<len(diagnostic)<=12000,"Invalid failure diagnostic.")
+        return json.dumps({"stage":stage,"diagnostic":diagnostic},ensure_ascii=False)
+    audit=report.get("audit")
+    require(isinstance(audit,dict) and audit.get("passed") is False and not audit.get("error"),"Browser infrastructure failure is not a repair.")
+    devices=audit.get("checks")
+    require(isinstance(devices,list) and len(devices)==2 and all(isinstance(d,dict) for d in devices),"Incomplete audit.")
+    require({d.get("name") for d in devices}=={"desktop","mobile"},"Incomplete device audit.")
+    notes=[]
+    for d in devices:
+        checks=d.get("checks")
+        require(isinstance(checks,dict) and bool(checks) and all(type(v) is bool for v in checks.values()),"Invalid audit checks.")
+        failed=[k for k,v in checks.items() if not v]
+        require(all(k in TECHNICAL_CHECKS for k in failed),"Non-repairable or unknown audit failure.")
+        metrics=d.get("metrics") if isinstance(d.get("metrics"),dict) else {}
+        detail={"name":d["name"],"failed":failed,"overflow":metrics.get("overflow"),
+                "errors":d.get("errors",[]),"missing":d.get("missing",[]),
+                "heroFraming":d.get("heroFraming",[]),
+                "overflowCandidates":[s.get("overflowCandidates",[]) for s in d.get("steps",[]) if isinstance(s,dict)][:5],
+                "sections":d.get("sections",[])}
+        notes.append(detail)
+    require(any(d["failed"] for d in notes),"No failed technical check.")
+    return json.dumps({"stage":stage,"devices":notes},ensure_ascii=False)[:18000]

@@ -1,0 +1,13 @@
+# Self-Healing Engine — phase 1
+
+The local studio-quality.ps1 pipeline now keeps a separate source-checkpoint.zip after successful source/asset mutations when a plan and at least one source file exist. Atomic replacement preserves the last completed checkpoint across interruption; it is explicitly marked unapproved, and ordinary restore cannot use it. Checkpoints never bypass final source gates or replace a successful source ZIP. A final source-gate failure returns exit 42 and a structured source-failure.json. Other SDK/API/timeout/infra failures retain their checkpoint, but do not trigger automatic paid retries.
+
+Default budget: one technical repair attempt (-MaxTechnicalRepairs 0 to disable; 1 maximum), separate from the existing opt-in visual repair (-MaxRepairs 1). Each SDK run retains its existing estimated $0.60 budget and 900-second wall clock; this is not a provider-enforced hard monetary ceiling. Repairs restore the existing local photo/model bytes and credits, lock new photo/model calls, and run in a fresh directory. No overwrite, no deployment, no relaxed quality thresholds. A failed attempt is retained alongside its predecessor. No automatic fallback publication.
+
+Technical repair handles explicit source-gate errors with checkpoints, recognized Vite compiler failures, and completed desktop/mobile browser reports containing known repairable checks. Unclassified errors, Docker/storage/permission failures, browser infrastructure crashes, and imported-model readiness failures do not trigger an automatic paid repair. Diagnostic messages are bounded untrusted evidence, not instructions. Layout errors are repaired by editing source and rerunning both the build and audit, not by blindly masking overflow.
+
+Quality pipeline passes the UTF-8 brief as base64 to avoid quoting/encoding differences at the generation/technical repair boundary. Existing preflight hash checks remain strict; preflight planning and legacy visual repair retain their previous transport in this phase.
+
+Regression: existing agent Docker build runs test_repair_input (checkpoint isolation and diagnostic validation tests included). Local Windows integration testing is still needed for PowerShell orchestration and Docker fault cases. Existing output directories are never modified by this pipeline; recovery from an arbitrary old run or API interruption is not yet exposed as an automatic resume command.
+
+Example: .\studio-quality.ps1 -Prompt $brief -Profile cinema -PreflightDirectory $preflight -RequireModel -MaxTechnicalRepairs 1

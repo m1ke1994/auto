@@ -1,5 +1,6 @@
 """All tool-controlled files live in memory; no user-supplied filesystem paths."""
 import json
+import os
 import re
 import zipfile
 from pathlib import Path
@@ -91,9 +92,27 @@ class SiteStore:
         if "<template" not in self.files["src/App.vue"]:
             raise ValueError("App.vue needs a Vue template.")
 
-    def export(self, output, model, profile=None):
-        self.validate()
-        if profile is not None:
+    def checkpoint(self, output, model, profile):
+        """Atomically replace a separate, explicitly unapproved recovery archive."""
+        if not self.design_brief or not self.files:
+            return False
+        dest=Path(output)
+        temp=dest.with_name(dest.name+".tmp")
+        # Fixed paths in a disposable output directory, never tool-controlled.
+        if temp.exists():
+            temp.unlink()
+        try:
+            self.export(temp,model,profile,checkpoint=True)
+            os.replace(temp,dest)
+        finally:
+            if temp.exists():
+                temp.unlink()
+        return True
+
+    def export(self, output, model, profile=None, *, checkpoint=False):
+        if not checkpoint:
+            self.validate()
+        if profile is not None and not checkpoint:
             issues = quality_issues(self.files,profile)+self.model_issues()
             if issues:
                 raise ValueError("Source quality gate: " + " | ".join(issues))
@@ -118,7 +137,7 @@ class SiteStore:
             "src/components/CinemaModel.vue": Path(__file__).with_name("CinemaModel.vue").read_text(encoding="utf-8"),
             "src/cinematic-motion.js": Path(__file__).with_name("cinematic-motion.js").read_text(encoding="utf-8"),
             "README.md": "# TrackNode OpenHands source\nUntrusted AI-generated source. Inspect it and build only in an isolated, credential-free environment. No build or visual verification has been performed.\n",
-            "tracknode-agent.json": json.dumps({"engine":"openhands-sdk","model":model,"build_verified":False,"visual_verified":False,"profile":profile,"files":sorted(self.files),"rejected_models":sorted(self.models.rejected) if self.models else []},indent=2),
+            "tracknode-agent.json": json.dumps({"engine":"openhands-sdk","model":model,"build_verified":False,"visual_verified":False,"checkpoint":checkpoint,"profile":profile,"files":sorted(self.files),"rejected_models":sorted(self.models.rejected) if self.models else []},indent=2),
         }
         if self.design_brief:
             trusted["ART_DIRECTION.md"] = "# AI art direction (unverified)\n\n" + self.design_brief
