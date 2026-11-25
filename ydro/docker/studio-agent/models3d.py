@@ -64,6 +64,7 @@ class ModelLibrary:
         self.searches=0
         self.downloads=0
         self.style='realistic'
+        self.rejected=set()
 
     def search(self,query):
         if not 2<=len(query.strip())<=100 or self.searches>=5:
@@ -78,7 +79,7 @@ class ModelLibrary:
             raise ValueError("Use English search keywords.")
         matches=[]
         for slug,item in self.catalog.items():
-            if not SLUG.fullmatch(slug) or not isinstance(item,dict) or item.get("type")!=2:
+            if slug in self.rejected or not SLUG.fullmatch(slug) or not isinstance(item,dict) or item.get("type")!=2:
                 continue
             count=item.get("polycount")
             if type(count) is not int or not 0<count<=MAX_POLYS:
@@ -97,6 +98,8 @@ class ModelLibrary:
         return result
 
     def save(self,slug):
+        if slug in self.rejected:
+            raise ValueError("Previously rejected model cannot be reused.")
         if slug not in self.candidates:
             raise ValueError("Select a model ID returned by model_search.")
         if slug in self.credits:

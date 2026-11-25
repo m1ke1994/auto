@@ -29,10 +29,38 @@ class SiteStore:
         self.design_brief = content.strip()
         self.self_review = ""
 
+    def model_issues(self):
+        if not self.models:
+            return []
+        source="\n".join(self.files.values())
+        refs=set(re.findall(r"tn-models/[A-Za-z0-9_-]+/model\.gltf",source))
+        paths={c["path"] for c in self.models.credits.values()}
+        issues=[]
+        if refs-paths:
+            issues.append("Remove stale model references: "+", ".join(sorted(refs-paths)))
+        if paths-refs:
+            issues.append("Unused imported models: "+", ".join(sorted(paths-refs)))
+        if paths and not re.search(r"<CinemaModel\b",source):
+            issues.append("Use the trusted CinemaModel component.")
+        if len(paths)>2:
+            issues.append("At most two imported models per project.")
+        return issues
+
+    def remove_model(self,key):
+        if not self.models or key not in self.models.credits:
+            raise ValueError("Choose an exact key from model_inventory.")
+        if len(self.models.rejected)>=12:
+            raise ValueError("Rejected model history limit.")
+        prefix="public/tn-models/"+key+"/"
+        self.models.assets={p:b for p,b in self.models.assets.items() if not p.startswith(prefix)}
+        del self.models.credits[key]
+        self.models.rejected.add(key)
+        self.self_review=""
+
     def set_review(self, content):
         self.validate()
         if self.profile:
-            issues = quality_issues(self.files,self.profile)
+            issues = quality_issues(self.files,self.profile)+self.model_issues()
             if issues:
                 raise ValueError("Fix before review: " + " | ".join(issues))
         if not 40 <= len(content.strip()) <= 6000:
@@ -66,7 +94,7 @@ class SiteStore:
     def export(self, output, model, profile=None):
         self.validate()
         if profile is not None:
-            issues = quality_issues(self.files,profile)
+            issues = quality_issues(self.files,profile)+self.model_issues()
             if issues:
                 raise ValueError("Source quality gate: " + " | ".join(issues))
             if self.models and self.models.credits:
@@ -89,7 +117,7 @@ class SiteStore:
             "src/landing-progress.js": Path(__file__).with_name("landing-progress.js").read_text(encoding="utf-8"),
             "src/components/CinemaModel.vue": Path(__file__).with_name("CinemaModel.vue").read_text(encoding="utf-8"),
             "README.md": "# TrackNode OpenHands source\nUntrusted AI-generated source. Inspect it and build only in an isolated, credential-free environment. No build or visual verification has been performed.\n",
-            "tracknode-agent.json": json.dumps({"engine":"openhands-sdk","model":model,"build_verified":False,"visual_verified":False,"profile":profile,"files":sorted(self.files)},indent=2),
+            "tracknode-agent.json": json.dumps({"engine":"openhands-sdk","model":model,"build_verified":False,"visual_verified":False,"profile":profile,"files":sorted(self.files),"rejected_models":sorted(self.models.rejected) if self.models else []},indent=2),
         }
         if self.design_brief:
             trusted["ART_DIRECTION.md"] = "# AI art direction (unverified)\n\n" + self.design_brief

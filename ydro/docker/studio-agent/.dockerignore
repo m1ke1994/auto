@@ -19,3 +19,5 @@
 !asset_quality.py
 !visual_critic.py
 !test_visual_critic.py
+!repair_input.py
+!test_repair_input.py

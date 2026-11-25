@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory=$true)][string]$Prompt,
     [ValidateSet("standard","premium","cinema")][string]$Profile="cinema",
     [ValidateSet("realistic","stylized")][string]$AssetStyle="realistic",
-    [switch]$SkipVisualReview
+    [switch]$SkipVisualReview,
+    [ValidateRange(0,2)][int]$MaxRepairs=0
 )
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -40,6 +41,12 @@ Write-Host "QUALITY_CHECKS_PASSED: $report"
 if ($SkipVisualReview) {
     Write-Host "Visual review skipped by request; artistic quality unverified."
 } else {
-    & (Join-Path $PSScriptRoot "studio-visual-review.ps1") -RunDirectory $out -Prompt $Prompt -NoBuild
-    Write-Host "Technical and AI visual reviews passed; human acceptance remains separate."
+    $result=& (Join-Path $PSScriptRoot "studio-visual-review.ps1") -RunDirectory $out -Prompt $Prompt -NoBuild -ReturnResult
+    if ($result.Code -eq 2 -and $MaxRepairs -gt 0) {
+        & (Join-Path $PSScriptRoot "studio-repair.ps1") -RunDirectory $out -ReviewFile $result.Report -Prompt $Prompt -Profile $Profile -AssetStyle $AssetStyle -MaxRepairs $MaxRepairs -NoBuild
+    } elseif ($result.Code -ne 0) {
+        throw "Visual review failed or requires revision. Outputs preserved: $out"
+    } else {
+        Write-Host "Technical and AI visual reviews passed; human acceptance remains separate."
+    }
 }

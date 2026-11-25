@@ -110,7 +110,7 @@ class SketchfabLibrary:
         for item in result.get("results",[]):
             uid=item.get("uid")
             faces=item.get("faceCount")
-            if isinstance(uid,str) and UID.fullmatch(uid) and type(faces) is int and 0<faces<=MAX_POLYS:
+            if isinstance(uid,str) and UID.fullmatch(uid) and 'sketchfab-'+uid not in self.shared.rejected and type(faces) is int and 0<faces<=MAX_POLYS:
                 rank=rank_asset(item,query,faces,self.style)
                 if rank is not None:
                     candidates.append((-rank["metadata_score"],len(candidates),uid))
@@ -149,6 +149,8 @@ class SketchfabLibrary:
         if uid not in self.candidates:
             raise ValueError("Select an ID returned by sketchfab_search.")
         key="sketchfab-"+uid
+        if key in self.shared.rejected:
+            raise ValueError("Previously rejected model cannot be reused.")
         if key in self.shared.credits:
             return self.shared.credits[key]
         if self.shared.downloads>=2:

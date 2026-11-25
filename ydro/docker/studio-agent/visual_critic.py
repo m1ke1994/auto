@@ -33,7 +33,7 @@ Assess all supplied frames, not only hero. Consider section hierarchy, diversity
 layouts, typography, cards, spacing, palette, lighting, header, footer, CTA and usability.
 For mobile assess the actual mobile frames, including scroll and readability. Do not
 claim to test clicks, frame rates or motion from still screenshots. Optional sections
-not seen should be reported as unverified, not invented. Score independently using
+not seen should be reported as unverified, not invented. Missing real contact details in a fictional brief or an explicitly labeled demo form are not defects by themselves. Do not request fabricated contacts, fake submissions, or hiding mandatory readable license attribution. Score independently using
 the provided maxima, not inflated scores. Provide specific changes a developer can apply.
 Return only a JSON object in Russian text with the exact keys shown:
 {"scores":{"asset_quality":0,"composition":0,"originality":0,"typography":0,
