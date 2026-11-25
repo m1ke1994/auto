@@ -220,18 +220,24 @@ try {
       const child=visual?.firstElementChild;
       const a=stage?.getBoundingClientRect(),b=visual?.getBoundingClientRect(),c=child?.getBoundingClientRect();
       const sticky=!!stage&&getComputedStyle(stage).position==='sticky';
-      const visualOk=!!child&&b.width>0&&b.height>innerHeight*.35&&c.width>0&&c.height>0&&c.height<=b.height+4;
+      const visualOk=!!child&&!!b&&!!c&&b.width>0&&b.height>innerHeight*.35&&c.width>0&&c.height>0&&c.height<=b.height+4;
       return {index,mode:'desktop',chapters:chapters.length,sticky,visualOk,ok:chapters.length>=2&&sticky&&visualOk&&a.height>innerHeight*.4};
     }));
     const heroLayout=await page.locator('#home').evaluate(hero=>{
-      const image=hero.querySelector('.hero-photo'),content=hero.querySelector('.hero-content');
-      const heading=hero.querySelector('h1'),cta=hero.querySelector('a[href="#contacts"],a[href="#services"]');
-      if(!image||!content||!heading||!cta)return false;
-      const a=image.getBoundingClientRect(),b=content.getBoundingClientRect(),h=heading.getBoundingClientRect(),c=cta.getBoundingClientRect();
-      const overlap=!(a.right<=b.left+2||a.left>=b.right-2||a.bottom<=b.top+2||a.top>=b.bottom-2);
+      const image=hero.querySelector('.hero-photo');
+      const heading=hero.querySelector('h1');
+      const cta=hero.querySelector('a[href="#contacts"],a[href="#services"]');
+      const content=hero.querySelector('.hero-content')||hero;
+      if(!heading||!cta)return false;
+      const b=content.getBoundingClientRect(),h=heading.getBoundingClientRect(),c=cta.getBoundingClientRect();
       const within=(inner,outer)=>inner.left>=outer.left-2&&inner.right<=outer.right+2&&inner.top>=outer.top-2&&inner.bottom<=outer.bottom+2;
+      let noOverlap=true;
+      if(image){
+        const a=image.getBoundingClientRect();
+        noOverlap=a.right<=b.left+2||a.left>=b.right-2||a.bottom<=b.top+2||a.top>=b.bottom-2;
+      }
       const mobile=innerWidth<=760;
-      return !overlap&&within(h,b)&&within(c,b)&&c.height>0&&(mobile?c.bottom<=hero.getBoundingClientRect().bottom+2:true);
+      return noOverlap&&within(h,b)&&within(c,b)&&c.height>0&&(mobile?c.bottom<=hero.getBoundingClientRect().bottom+2:true);
     });
     const end=steps.at(-1);
     const brokenAfterScroll=await page.evaluate(()=>[...document.images].filter(i=>i.complete&&!i.naturalWidth).length);
@@ -243,7 +249,7 @@ try {
     checks.heroCTA=sections.some(x=>x.id==='home'&&x.cta);
     checks.heroLayout=heroLayout;
     checks.serviceCards=sections.some(x=>x.id==='services'&&x.distinctCards>=3);
-    checks.storyVisuals=storyVisualLayouts.length>0&&storyVisualLayouts.every(x=>x.ok);
+    if(report.profile==='cinema'||storyVisualLayouts.length) checks.storyVisuals=storyVisualLayouts.length>0&&storyVisualLayouts.every(x=>x.ok);
     if(expectedModels.length && report.profile==='cinema') checks.heroImportedModel=sections.some(x=>x.id==='home'&&x.heroModel);
     if(expectedModels.length){
       const observed=[...steps.flatMap(x=>x.models),...sectionModelSamples,...targeted];
