@@ -104,19 +104,43 @@ def restore(store,path,*,allow_checkpoint=False):
     return info
 
 def critic_notes(path):
+    """Return bounded visual evidence, including criterion scores for repair policy."""
     p=Path(path)
     require(0<p.stat().st_size<=512*1024,"Invalid visual report size.")
     report=json.loads(p.read_text(encoding="utf-8"))
     require(report.get("model")=="deepseek-flash" and report.get("status")=="needs_revision" and report.get("passed") is False,"Only a completed rejected visual review can trigger repair.")
+    limits={"asset_quality":25,"composition":20,"originality":15,"typography":10,
+            "sections":10,"lighting_palette":10,"usability":10}
     notes={}
     for device in ("desktop","mobile"):
         d=report["devices"][device]
+        raw_scores=d.get("scores")
+        require(isinstance(raw_scores,dict) and set(raw_scores)==set(limits),"Invalid visual score fields.")
+        require(all(type(raw_scores[k]) is int and 0<=raw_scores[k]<=limit for k,limit in limits.items()),"Invalid visual score range.")
         issues=[]
         for item in d["issues"][:20]:
             require(item["severity"] in ("critical","major","minor"),"Invalid issue severity.")
             issues.append({k:str(item[k])[:1000] for k in ("severity","image","problem","fix")})
-        notes[device]={"score":d["score"],"summary":str(d["summary"])[:1500],"issues":issues}
+        notes[device]={"score":d["score"],"scores":raw_scores,
+                       "summary":str(d["summary"])[:1500],"issues":issues}
     return json.dumps(notes,ensure_ascii=False)[:18000]
+
+
+def photo_repair_allowed(model_credits, notes):
+    """Photo repair is allowed only for a model-free site with a critic-identified asset deficit."""
+    if model_credits:
+        return False
+    try:
+        data=json.loads(notes)
+    except (TypeError,ValueError):
+        return False
+    return any(
+        isinstance(device,dict)
+        and isinstance(device.get("scores"),dict)
+        and type(device["scores"].get("asset_quality")) is int
+        and device["scores"]["asset_quality"] < 18
+        for device in data.values()
+    )
 
 
 TECHNICAL_CHECKS=frozenset({

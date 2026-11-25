@@ -14,6 +14,34 @@ $review=(Resolve-Path -LiteralPath $ReviewFile).Path
 function Assert-Exit([string]$Step) {
     if ($LASTEXITCODE -ne 0) { throw "$Step failed ($LASTEXITCODE); all previous outputs preserved" }
 }
+function Test-ArchiveHasImportedModel([string]$ArchivePath) {
+    Add-Type -AssemblyName System.IO.Compression
+    $stream = [System.IO.File]::OpenRead($ArchivePath)
+    $zip = $null
+    try {
+        $zip = [System.IO.Compression.ZipArchive]::new(
+            $stream,
+            [System.IO.Compression.ZipArchiveMode]::Read,
+            $false
+        )
+        $entry = $zip.GetEntry("MODEL_CREDITS.json")
+        if ($null -eq $entry) { return $false }
+        if ($entry.Length -le 0 -or $entry.Length -gt 131072) {
+            throw "Invalid MODEL_CREDITS.json size in source archive."
+        }
+        $reader = [System.IO.StreamReader]::new($entry.Open(), [Text.Encoding]::UTF8)
+        try {
+            $credits = ConvertFrom-Json -InputObject $reader.ReadToEnd()
+        }
+        finally {
+            $reader.Dispose()
+        }
+        return (@($credits).Count -gt 0)
+    }
+    finally {
+        if ($null -ne $zip) { $zip.Dispose() } else { $stream.Dispose() }
+    }
+}
 $compose=@("compose","--env-file",".env.studio.local","-p","tracknode20-agent","-f","docker-compose.openhands.yml")
 if (!(Test-Path -LiteralPath .env.studio.local)) { throw "Missing .env.studio.local" }
 if (!$NoBuild) {
@@ -28,7 +56,19 @@ for ($i=1; $i -le $MaxRepairs; $i++) {
     $archive=(Resolve-Path -LiteralPath (Join-Path $run "tracknode-agent-site.zip")).Path
     $inputReview=Get-Content -LiteralPath $review -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($inputReview.status -ne "needs_revision" -or $inputReview.passed -ne $false) { throw "Expected a rejected visual review" }
-    if ($inputReview.devices.desktop.scores.asset_quality -lt 18 -or $inputReview.devices.mobile.scores.asset_quality -lt 18) { throw "Asset quality too low; do not spend repair tokens until the asset has passed preflight." }
+    foreach ($device in @("desktop","mobile")) {
+        $assetScore = $inputReview.devices.$device.scores.asset_quality
+        if ($null -eq $assetScore -or $assetScore -isnot [int] -and $assetScore -isnot [long] -or $assetScore -lt 0 -or $assetScore -gt 25) {
+            throw "Visual review has an invalid asset_quality score for $device."
+        }
+    }
+    $lowAssetQuality = $inputReview.devices.desktop.scores.asset_quality -lt 18 -or $inputReview.devices.mobile.scores.asset_quality -lt 18
+    if ($lowAssetQuality) {
+        if (Test-ArchiveHasImportedModel $archive) {
+            throw "Imported 3D model asset quality is below 18/25; do not spend repair tokens. Re-run model preflight first."
+        }
+        Write-Host "PHOTO_ASSET_REPAIR_ALLOWED: no imported 3D model; targeted Pexels photo repair may address the visual critic's asset deficit." -ForegroundColor Yellow
+    }
     $out=(New-Item -ItemType Directory -Path (Join-Path $PWD ("studio-agent-output/repair-" + [guid]::NewGuid().ToString()))).FullName
     Write-Host "REPAIR_ATTEMPT: $i/$MaxRepairs"
     Write-Host "REPAIR_OUTPUT: $out"

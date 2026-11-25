@@ -6,7 +6,7 @@ from pathlib import Path
 from site_store import SiteStore
 from media import MediaLibrary
 from models3d import ModelLibrary
-from repair_input import restore, technical_notes
+from repair_input import restore, technical_notes, critic_notes, photo_repair_allowed
 
 class RepairTests(unittest.TestCase):
     def test_restore_source_and_remove_model(self):
@@ -55,6 +55,30 @@ class RepairTests(unittest.TestCase):
             self.assertEqual(old.files,new.files)
             with self.assertRaises(ValueError):
                 new.export(Path(d)/"final.zip","test","cinema")
+
+    def test_photo_asset_repair_policy_is_model_aware(self):
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/"visual-review.json"
+            report={
+                "model":"deepseek-flash","status":"needs_revision","passed":False,
+                "devices":{
+                    "desktop":{"score":52,"summary":"Photo assets are weak.","scores":{
+                        "asset_quality":12,"composition":12,"originality":8,"typography":6,
+                        "sections":5,"lighting_palette":5,"usability":4},"issues":[]},
+                    "mobile":{"score":54,"summary":"Some images lack impact.","scores":{
+                        "asset_quality":15,"composition":12,"originality":8,"typography":6,
+                        "sections":5,"lighting_palette":5,"usability":3},"issues":[]}
+                }
+            }
+            p.write_text(json.dumps(report),encoding="utf-8")
+            notes=critic_notes(p)
+            self.assertTrue(photo_repair_allowed({},notes))
+            self.assertFalse(photo_repair_allowed({"approved-car-model":{}},notes))
+            report["devices"]["desktop"]["scores"]["asset_quality"]=18
+            report["devices"]["mobile"]["scores"]["asset_quality"]=20
+            p.write_text(json.dumps(report),encoding="utf-8")
+            notes=critic_notes(p)
+            self.assertFalse(photo_repair_allowed({},notes))
 
     def test_technical_diagnostics_reject_infrastructure(self):
         with tempfile.TemporaryDirectory() as d:
