@@ -103,8 +103,20 @@ class SiteStore:
             assets = {**assets, **self.models.assets}
             model_credits = list(self.models.credits.values())
             trusted["MODEL_CREDITS.json"] = json.dumps(model_credits,ensure_ascii=False,indent=2)
-            links = " · ".join('<a href="' + escape(c["url"],quote=True) + '" style="color:inherit">' + escape(c["name"]) + ' (CC0)</a>' for c in model_credits)
-            strip = '<aside style="padding:12px;text-align:center;background:var(--tn-footer-bg,#171717);color:var(--tn-footer-fg,#e5e5e5);font:12px/1.6 system-ui">3D: <a href="https://polyhaven.com/" style="color:inherit">Poly Haven</a> · ' + links + '</aside>'
+            links = []
+            for c in model_credits:
+                provider = c.get("source","Poly Haven")
+                name = escape(c["name"])
+                author = escape(c.get("author",""))
+                license = escape(c.get("license","CC0"))
+                model_link = '<a href="' + escape(c["url"],quote=True) + '" style="color:inherit">' + name + '</a>'
+                license_url = c.get("license_url","https://creativecommons.org/publicdomain/zero/1.0/")
+                license_link = '<a href="' + escape(license_url,quote=True) + '" style="color:inherit">' + license + '</a>'
+                provider_url = "https://sketchfab.com/" if provider=="Sketchfab" else "https://polyhaven.com/"
+                links.append(model_link + (" — " + author if author else "") + " — " + license_link +
+                             ' · <a href="' + provider_url + '" style="color:inherit">' + escape(provider) + '</a>' +
+                             (" · " + escape(c["changes"]) if c.get("changes") else ""))
+            strip = '<aside aria-label="3D model credits" style="padding:12px;text-align:center;background:var(--tn-footer-bg,#171717);color:var(--tn-footer-fg,#e5e5e5);font:12px/1.6 system-ui">3D: ' + " | ".join(links) + '</aside>'
             trusted["index.html"] = trusted["index.html"].replace("</body>",strip+"</body>")
         dest = Path(output)
         # Refuse to overwrite a previous artifact or a symlink.

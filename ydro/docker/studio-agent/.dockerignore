@@ -13,3 +13,5 @@
 !test_models3d.py
 !sketchfab_probe.py
 !test_sketchfab_probe.py
+!sketchfab_models.py
+!test_sketchfab_models.py
