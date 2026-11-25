@@ -41,11 +41,11 @@ try{
     stage='model-ready-'+yaw;
     await page.waitForFunction(()=>{const n=document.querySelector('[data-tn-model]');return n&&(n.dataset.tnModelState==='fallback'||(n.dataset.tnModelState==='ready'&&Number(n.dataset.tnFrames)>0));},{},{timeout:30000});
     await page.waitForTimeout(500);
-    const state=await page.locator('[data-tn-model]').evaluate(n=>({state:n.dataset.tnModelState,frames:Number(n.dataset.tnFrames||0),coverage:Number(n.dataset.tnModelCoverage||0),yaw:n.dataset.tnCameraYaw,pose:n.dataset.tnCameraPose,canvas:!!n.querySelector('canvas'),width:n.clientWidth,height:n.clientHeight}));
+    const state=await page.locator('[data-tn-model]').evaluate(n=>({state:n.dataset.tnModelState,failure:n.dataset.tnModelFailure||null,frames:Number(n.dataset.tnFrames||0),coverage:Number(n.dataset.tnModelCoverage||0),yaw:n.dataset.tnCameraYaw,pose:n.dataset.tnCameraPose,canvas:!!n.querySelector('canvas'),width:n.clientWidth,height:n.clientHeight}));
     report.views.push({yaw,...state});
     stage='screenshot-'+yaw;
     await page.locator('[data-tn-model]').screenshot({path:'/report/view-'+yaw+'.png',timeout:15000});
-    if(state.state!=='ready'||state.frames<1||!state.canvas||state.width<100||state.height<100)throw Error('Model did not render: '+state.state);
+    if(state.state!=='ready'||state.frames<1||!state.canvas||state.width<100||state.height<100)throw Error('Model did not render: '+state.state+'; stage='+state.failure);
     console.log('ASSET_VIEW_READY: '+yaw+'; coverage='+state.coverage+'; frames='+state.frames);
   }
   stage='validate';

@@ -209,7 +209,9 @@ def select():
     if not selected and plan["use_model"]:
         status="blocked" if plan["required"] else "no_model"
         if not plan["required"]: plan["mode"]="editorial"
-    dump("selection.json",{"status":status,"plan":plan,"selected":selected,"reviews":reviews})
+    reason=("approved" if selected else "no_model_requested" if not plan["use_model"] else "no_downloaded_candidates" if not candidates else "no_successful_renders" if not rendered else "visual_rejection")
+    dump("selection.json",{"status":status,"reason":reason,"plan":plan,"selected":selected,"reviews":reviews})
+    print("ASSET_SELECTION_REASON: "+reason,flush=True)
     print("ASSET_PREFLIGHT: "+status+("; score="+str(selected["visual_score"]) if selected else ""),flush=True)
     return 2 if status=="blocked" else 0
 

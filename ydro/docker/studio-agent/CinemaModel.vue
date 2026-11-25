@@ -69,8 +69,12 @@ function cleanup() {
     renderer=null
   }
 }
-function fail() { state.value='fallback'; cleanup() }
-function lost(e) { e.preventDefault(); fail() }
+let loadStage='initializing'
+function fail(reason=loadStage) {
+  if(host.value) host.value.dataset.tnModelFailure=reason
+  state.value='fallback'; cleanup()
+}
+function lost(e) { e.preventDefault(); fail('webgl-context-lost') }
 function resize() {
   if(!renderer || !host.value) return
   const w=Math.max(1,host.value.clientWidth), h=Math.max(1,host.value.clientHeight)
@@ -82,6 +86,9 @@ function resize() {
 function schedule() { if(!disposed && renderer && !raf) raf=requestAnimationFrame(draw) }
 function draw() {
   raf=0
+  try { renderFrame() } catch { fail('render-frame') }
+}
+function renderFrame() {
   if(!renderer || !model || !host.value || !visible) return
   // Use the surrounding narrative chapter, not a nested scroll container.
   const chapter=host.value.closest('[data-tn-camera-track]') || host.value
@@ -141,6 +148,7 @@ onMounted(async()=>{
     if(!/^tn-models\/[A-Za-z0-9_-]+\/model\.gltf$/.test(props.modelPath)) throw new Error('Invalid local path')
     motionQuery=matchMedia('(prefers-reduced-motion: reduce)')
     shots=normalizedShots()
+    loadStage='webgl-renderer'
     renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'})
     renderer.outputColorSpace=THREE.SRGBColorSpace
     renderer.toneMapping=THREE.ACESFilmicToneMapping
@@ -154,6 +162,7 @@ onMounted(async()=>{
     host.value.append(renderer.domElement)
     scene=new THREE.Scene()
     camera=new THREE.PerspectiveCamera(38,1,.01,100)
+    loadStage='studio-environment'
     pmrem=new THREE.PMREMGenerator(renderer)
     const room=new RoomEnvironment()
     try { env=pmrem.fromScene(room,.04); scene.environment=env.texture }
@@ -174,9 +183,11 @@ onMounted(async()=>{
     const fill=new THREE.HemisphereLight(0xc3d8ff,0x28221d,1)
     scene.add(fill)
     resize()
+    loadStage='gltf-load'
     const loader=new GLTFLoader()
     const gltf=await loader.loadAsync(import.meta.env.BASE_URL+props.modelPath)
     if(disposed || !renderer){disposeModel(gltf.scene);return}
+    loadStage='model-bounds'
     model=gltf.scene
     const box=new THREE.Box3().setFromObject(model)
     if(box.isEmpty())throw new Error('Empty model')
@@ -201,6 +212,7 @@ onMounted(async()=>{
       groundPlane.receiveShadow=true
       scene.add(groundPlane)
     }
+    loadStage='ready'
     state.value='ready'
     observer=new ResizeObserver(resize); observer.observe(host.value)
     intersection=new IntersectionObserver(entries=>{visible=entries[0].isIntersecting;schedule()},{rootMargin:'120px'})
