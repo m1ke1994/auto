@@ -6,6 +6,7 @@ import zipfile
 from pathlib import Path
 from html import escape
 from quality import quality_issues
+from storyboard import validate_storyboard
 
 ALLOWED = re.compile(r"src/(?:[A-Za-z0-9_-]+/){0,3}[A-Za-z0-9_-]+\.(?:vue|js|ts|css|svg)")
 MAX_FILE = 64_000
@@ -13,7 +14,7 @@ MAX_TOTAL = 300_000
 MAX_FILES = 30
 DEPENDENCIES = {"vue":"3.5.34", "three":"0.180.0", "gsap":"3.13.0", "lenis":"1.3.20"}
 REQUIRED = {"src/App.vue", "src/style.css"}
-RESERVED = {"src/main.js", "src/main.ts", "src/landing-progress.js", "src/components/CinemaModel.vue", "src/cinematic-motion.js"}
+RESERVED = {"src/main.js", "src/main.ts", "src/landing-progress.js", "src/components/CinemaModel.vue", "src/cinematic-motion.js", "src/components/SceneCarousel.vue", "src/components/SceneStory.vue"}
 
 class SiteStore:
     def __init__(self, media=None, models=None):
@@ -23,12 +24,30 @@ class SiteStore:
         self.profile = None
         self.design_brief = ""
         self.self_review = ""
+        self.scene_required = False
+        self.storyboard = None
 
     def set_plan(self, content):
         if not 80 <= len(content.strip()) <= 8000:
             raise ValueError("Art direction plan must contain 80-8000 characters.")
         self.design_brief = content.strip()
         self.self_review = ""
+
+    def set_storyboard(self, content):
+        self.storyboard=validate_storyboard(content)
+        self.self_review=""
+
+    def scene_issues(self):
+        if not self.scene_required:
+            return []
+        issues=[]
+        if not self.storyboard:
+            issues.append("Save a valid storyboard before source generation.")
+        source="\n".join(v for p,v in self.files.items() if p.endswith(".vue"))
+        for name in ("SceneCarousel","SceneStory"):
+            if not re.search(r"<"+name+r"\b",source) or not re.search(r"import\s+"+name+r"\s+from\s+['\"][^'\"]*/"+name+r"\.vue['\"]",source):
+                issues.append("Import and render trusted "+name+" in a middle chapter.")
+        return issues
 
     def model_issues(self):
         if not self.models:
@@ -61,7 +80,7 @@ class SiteStore:
     def set_review(self, content):
         self.validate()
         if self.profile:
-            issues = quality_issues(self.files,self.profile)+self.model_issues()
+            issues = quality_issues(self.files,self.profile)+self.model_issues()+self.scene_issues()
             if issues:
                 raise ValueError("Fix before review: " + " | ".join(issues))
         if not 40 <= len(content.strip()) <= 6000:
@@ -113,7 +132,7 @@ class SiteStore:
         if not checkpoint:
             self.validate()
         if profile is not None and not checkpoint:
-            issues = quality_issues(self.files,profile)+self.model_issues()
+            issues = quality_issues(self.files,profile)+self.model_issues()+self.scene_issues()
             if issues:
                 raise ValueError("Source quality gate: " + " | ".join(issues))
             if self.models and self.models.credits:
@@ -136,9 +155,15 @@ class SiteStore:
             "src/landing-progress.js": Path(__file__).with_name("landing-progress.js").read_text(encoding="utf-8"),
             "src/components/CinemaModel.vue": Path(__file__).with_name("CinemaModel.vue").read_text(encoding="utf-8"),
             "src/cinematic-motion.js": Path(__file__).with_name("cinematic-motion.js").read_text(encoding="utf-8"),
+            "src/components/SceneCarousel.vue": Path(__file__).with_name("SceneCarousel.vue").read_text(encoding="utf-8"),
+            "src/components/SceneStory.vue": Path(__file__).with_name("SceneStory.vue").read_text(encoding="utf-8"),
             "README.md": "# TrackNode OpenHands source\nUntrusted AI-generated source. Inspect it and build only in an isolated, credential-free environment. No build or visual verification has been performed.\n",
-            "tracknode-agent.json": json.dumps({"engine":"openhands-sdk","model":model,"build_verified":False,"visual_verified":False,"checkpoint":checkpoint,"profile":profile,"files":sorted(self.files),"rejected_models":sorted(self.models.rejected) if self.models else []},indent=2),
+            "tracknode-agent.json": json.dumps({"engine":"openhands-sdk","model":model,"build_verified":False,"visual_verified":False,"checkpoint":checkpoint,"scene_engine":1 if self.scene_required else 0,"profile":profile,"files":sorted(self.files),"rejected_models":sorted(self.models.rejected) if self.models else []},indent=2),
         }
+        if self.storyboard:
+            trusted["STORYBOARD.json"]=json.dumps(self.storyboard,ensure_ascii=False,indent=2)
+        if self.scene_required:
+            trusted["public/tn-scene-contract.json"]=json.dumps({"version":1,"carousel":True,"story":True})
         if self.design_brief:
             trusted["ART_DIRECTION.md"] = "# AI art direction (unverified)\n\n" + self.design_brief
         if self.self_review:

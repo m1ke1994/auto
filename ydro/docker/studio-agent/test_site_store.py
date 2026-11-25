@@ -30,6 +30,8 @@ class StoreTests(unittest.TestCase):
                 self.assertIn("src/landing-progress.js",z.namelist())
                 self.assertIn("src/components/CinemaModel.vue",z.namelist())
                 self.assertIn("src/cinematic-motion.js",z.namelist())
+                self.assertIn("src/components/SceneCarousel.vue",z.namelist())
+                self.assertIn("src/components/SceneStory.vue",z.namelist())
                 self.assertIn("installLandingProgress();",z.read("src/main.js").decode())
                 progress=z.read("src/landing-progress.js").decode()
                 self.assertIn("transform-origin:left center",progress)
@@ -59,6 +61,33 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(normal,cinematic_direction(plan,item,"car detailing"))
         with self.assertRaises(ValueError):
             SiteStore().write("src/cinematic-motion.js","override")
+
+    def test_storyboard_contract(self):
+        from storyboard import validate_storyboard
+        layouts=("full_bleed","sticky_story","horizontal_gallery","quote_scene","finale")
+        sections=("home","about","services","benefits","contacts")
+        raw={"concept":"A deliberate film about design","rhythm":"Quiet light and changing typography","chapters":[
+            dict(section=s,layout=l,visual="a specific product",caption="an honest title",start="opening frame",end="closing frame",transition="slow dissolve",mobile="readable stacked fallback") for s,l in zip(sections,layouts)]}
+        store=SiteStore()
+        store.scene_required=True
+        self.assertTrue(store.scene_issues())
+        store.set_storyboard(json.dumps(raw))
+        self.assertEqual(store.storyboard,validate_storyboard(raw))
+        self.assertEqual(len(store.scene_issues()),2)
+        for name in ("SceneStory","SceneCarousel"):
+            with self.assertRaises(ValueError):
+                store.write("src/components/"+name+".vue","override")
+        with tempfile.TemporaryDirectory() as d:
+            store.set_plan("Original art direction and storyboard for a product film. "*2)
+            store.write("src/style.css","main{color:red}")
+            p=Path(d)/"checkpoint.zip"
+            store.checkpoint(p,"test","cinema")
+            with zipfile.ZipFile(p) as z:
+                self.assertEqual(json.loads(z.read("STORYBOARD.json")),store.storyboard)
+                self.assertEqual(json.loads(z.read("public/tn-scene-contract.json"))["version"],1)
+        raw["chapters"][1]["layout"]="full_bleed"
+        with self.assertRaises(ValueError):
+            validate_storyboard(raw)
 
     def test_limits(self):
         with self.assertRaises(ValueError):

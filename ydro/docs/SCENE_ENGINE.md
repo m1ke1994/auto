@@ -1,0 +1,9 @@
+# TrackNode Scene Engine — phase 1
+
+New Cinema runs require a bounded storyboard before source writes, with ordered home/about/services/benefits/contacts chapters, distinct scene layouts, caption, opening and closing pose, transition and mobile fallback. The plan is exported as STORYBOARD.json and retained during checkpoint restore. Legacy repair does not require redesign. No additional model API requests or dependencies are introduced for planning: the existing agent authors the storyboard before coding.
+
+Trusted SceneCarousel provides six snap-based styles (narrative, horizontal, stack, showcase, chapter, editorial), custom slots, previous/next, dots, swipe and keyboard track navigation. Stack is a layered card treatment, not a pinned deck; the narrative carousel uses user-controlled horizontal slides, not hijacked vertical scrolling. SceneStory supports split/reverse/overlay, sticky stage, scroll-selected chapter, custom visual and text slots, readable mobile/reduced-motion flow. Place one persistent CinemaModel in the visual slot for 3D story choreography; author the desired camera/object/light keyframes and optional GSAP wrapper motion. No automatic cross-page renderer or standalone before/after component in this phase.
+
+Use original CSS inspired by premium product storytelling and common responsive layout patterns. No Tailwind packages or proprietary Tailwind Plus templates are copied. Art direction remains subject-specific, not hard-coded to a dark automotive layout.
+
+Source gate checks the storyboard and trusted component usage; a public version marker lets the offline audit check presence, carousel navigation and scroll chapter changes on desktop/mobile. Existing checks remain intact. Self-Healing accepts new scene check failures for bounded repair. Browser tests must still be run using Docker; Python tests in agent build check export, reserved paths and storyboard validation. 

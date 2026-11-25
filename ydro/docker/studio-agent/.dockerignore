@@ -24,3 +24,6 @@
 !test_repair_input.py
 !asset_preflight.py
 !test_asset_preflight.py
+!SceneCarousel.vue
+!SceneStory.vue
+!storyboard.py

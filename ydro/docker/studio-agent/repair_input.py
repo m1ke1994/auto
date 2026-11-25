@@ -49,6 +49,12 @@ def restore(store,path,*,allow_checkpoint=False):
         plan=read("ART_DIRECTION.md",16000).decode("utf-8")
         plan=plan.partition("\n\n")[2] or plan
         store.set_plan(plan[:8000])
+        scene_engine=info.get("scene_engine",0)
+        require(type(scene_engine) is int and scene_engine in (0,1),"Unsupported scene engine version.")
+        store.scene_required=scene_engine==1
+        if "STORYBOARD.json" in members:
+            store.set_storyboard(metadata("STORYBOARD.json",{}))
+        require(not store.scene_required or store.storyboard is not None or checkpoint,"Missing required storyboard.")
         history=info.get("rejected_models",[])
         require(isinstance(history,list) and len(history)<=12 and all(isinstance(x,str) and MODEL_KEY.fullmatch(x) for x in history),"Invalid rejected model history.")
         store.models.rejected.update(history)
@@ -117,7 +123,7 @@ TECHNICAL_CHECKS=frozenset({
     "rendered","noHorizontalOverflow","footer","progress","noBrokenImages",
     "noJsErrors","noMissingAssets","noExternalRequests","completeSections",
     "headerNavigation","heroCTA","serviceCards","heroFraming","heroImportedModel",
-    "cameraChanges","modelMotionChanges","scenes","scrollMotion"
+    "cameraChanges","modelMotionChanges","scenes","scrollMotion","sceneComponents","carouselControls","storyProgress"
 })
 
 def technical_notes(path):

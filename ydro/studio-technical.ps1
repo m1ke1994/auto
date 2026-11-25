@@ -12,7 +12,7 @@ Set-Location $PSScriptRoot
 $run=(Resolve-Path -LiteralPath $RunDirectory).Path
 $compose=@("compose","--env-file",".env.studio.local","-p","tracknode20-agent","-f","docker-compose.openhands.yml")
 $prompt64=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Prompt))
-$repairableChecks=@("rendered","noHorizontalOverflow","footer","progress","noBrokenImages","noJsErrors","noMissingAssets","noExternalRequests","completeSections","headerNavigation","heroCTA","serviceCards","heroFraming","heroImportedModel","cameraChanges","modelMotionChanges","scenes","scrollMotion")
+$repairableChecks=@("rendered","noHorizontalOverflow","footer","progress","noBrokenImages","noJsErrors","noMissingAssets","noExternalRequests","completeSections","headerNavigation","heroCTA","serviceCards","heroFraming","heroImportedModel","cameraChanges","modelMotionChanges","scenes","scrollMotion","sceneComponents","carouselControls","storyProgress")
 for ($attempt=0; $attempt -le $MaxTechnicalRepairs; $attempt++) {
     $archive=Join-Path $run "tracknode-agent-site.zip"
     $failure=Join-Path $run "technical-failure.json"

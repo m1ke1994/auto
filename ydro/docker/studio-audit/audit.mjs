@@ -9,6 +9,8 @@ const report = { profile: process.argv[2] || 'cinema', checks: [], artistic_qual
 const modelDirs=await readdir(resolve(root,'tn-models')).catch(()=>[]);
 const expectedModels=modelDirs.map(dir=>'tn-models/'+dir+'/model.gltf');
 report.expectedModels=expectedModels;
+const sceneContract=await readFile(resolve(root,'tn-scene-contract.json'),'utf8').then(JSON.parse).catch(()=>null);
+report.sceneEngine=sceneContract?.version||0;
 const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 try {
   for (const [name,width,height,reducedMotion] of [['desktop',1440,900,'no-preference'],['mobile',390,844,'reduce']]) {
@@ -147,6 +149,50 @@ try {
         targeted.push(...await page.locator('[data-tn-model]').evaluateAll(nodes=>nodes.map((n,index)=>({index,path:n.dataset.tnModel,state:n.dataset.tnModelState,frames:Number(n.dataset.tnFrames||0),pose:n.dataset.tnCameraPose||'',motionPose:n.dataset.tnModelMotionPose||n.dataset.tnCameraPose||'',nativeMotion:!!n.dataset.tnModelMotionPose,preset:n.dataset.tnMotionPreset||'custom',canvas:!!n.querySelector('canvas')}))));
       }
     }
+    const sceneDiagnostics={carousels:[],stories:[]};
+    const carousels=page.locator('[data-tn-carousel]');
+    const stories=page.locator('[data-tn-story]');
+    // Test the actual trusted controls, independently of sampled whole-page screenshots.
+    for(let i=0;i<Math.min(await carousels.count(),6);i++){
+      const c=carousels.nth(i);
+      const track=c.locator('[data-tn-carousel-track]');
+      let ok=false;
+      try {
+        await c.scrollIntoViewIfNeeded({timeout:3000});
+        const count=await c.locator('[data-tn-slide]').count();
+        await track.evaluate(el=>el.scrollTo({left:0,behavior:'instant'}));
+        await page.waitForTimeout(150);
+        const before=await track.evaluate(el=>el.scrollLeft);
+        const button=c.locator('[data-tn-carousel-next]');
+        if(count>=3&&await button.isEnabled()){
+          await button.click({timeout:3000});
+          await page.waitForFunction(({i,before})=>{
+            const node=document.querySelectorAll('[data-tn-carousel]')[i];
+            return Number(node?.dataset.tnActive)>0&&(node?.querySelector('[data-tn-carousel-track]')?.scrollLeft||0)>before+5;
+          },{i,before},{timeout:3500});
+          ok=true;
+        }
+        await track.evaluate(el=>el.scrollTo({left:0,behavior:'instant'}));
+      }catch{}
+      sceneDiagnostics.carousels.push({index:i,ok});
+    }
+    for(let i=0;i<Math.min(await stories.count(),6);i++){
+      const story=stories.nth(i),chapters=story.locator('[data-tn-story-chapter]');
+      let ok=false;
+      try{
+        const count=await chapters.count();
+        if(count>=2){
+          await chapters.first().evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'}));
+          await page.waitForTimeout(250);
+          const first=await story.getAttribute('data-tn-active');
+          await chapters.last().evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'}));
+          await page.waitForTimeout(250);
+          const last=await story.getAttribute('data-tn-active');
+          ok=first==='0'&&Number(last)===count-1;
+        }
+      }catch{}
+      sceneDiagnostics.stories.push({index:i,ok});
+    }
     const end=steps.at(-1);
     const brokenAfterScroll=await page.evaluate(()=>[...document.images].filter(i=>i.complete&&!i.naturalWidth).length);
     const motionChanged=steps.some((x,i)=>i>0&&JSON.stringify(x.layers)!==JSON.stringify(steps[i-1].layers));
@@ -174,7 +220,12 @@ try {
       }
     }
     if(report.profile==='cinema') {checks.scenes=result.scenes>=3;if(name==='desktop') checks.scrollMotion=motionChanged;}
-    report.checks.push({name,checks,metrics:result,sections,navigation,heroFraming,steps,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
+    if(sceneContract?.version===1||sceneDiagnostics.carousels.length||sceneDiagnostics.stories.length){
+      if(sceneContract?.version===1) checks.sceneComponents=sceneDiagnostics.carousels.length>0&&sceneDiagnostics.stories.length>0;
+      if(sceneContract?.version===1||sceneDiagnostics.carousels.length) checks.carouselControls=sceneDiagnostics.carousels.length>0&&sceneDiagnostics.carousels.every(x=>x.ok);
+      if(sceneContract?.version===1||sceneDiagnostics.stories.length) checks.storyProgress=sceneDiagnostics.stories.length>0&&sceneDiagnostics.stories.every(x=>x.ok);
+    }
+    report.checks.push({name,checks,metrics:result,sections,navigation,heroFraming,steps,sceneDiagnostics,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
     await context.close();
   }
 } catch(error){report.error=String(error).slice(0,500);}
