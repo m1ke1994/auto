@@ -10,10 +10,55 @@ param(
     [string]$AssetSubject="",
     [string[]]$ExcludeModelId=@(),
     [switch]$NoBuild,
-    [switch]$ReturnResult
+    [switch]$ReturnResult,
+    [switch]$SelfTest
 )
 $ErrorActionPreference="Stop"
 Set-Location $PSScriptRoot
+
+function Get-CandidateNames([string]$Json) {
+    # Windows PowerShell 5.1 may emit a top-level JSON array as ONE pipeline
+    # object. Parse an object containing the array instead; emit scalar names.
+    $manifest=ConvertFrom-Json -InputObject ('{"items":' + $Json + '}') -ErrorAction Stop
+    $items=$manifest.items
+    if ($items -isnot [System.Array] -or $items.Count -gt 2) {
+        throw "Invalid candidate manifest: expected an array of zero to two records"
+    }
+    for ($index=0; $index -lt $items.Count; $index++) {
+        $expected="candidate-$($index+1)"
+        $item=$items[$index]
+        if ($item -isnot [PSCustomObject] -or $item.folder -cne $expected) {
+            throw "Invalid candidate record at index $index; expected $expected"
+        }
+    }
+    # Return individual strings, never the original array as a pipeline object.
+    for ($index=0; $index -lt $items.Count; $index++) {
+        Write-Output ("candidate-" + ($index+1))
+    }
+}
+
+function Test-CandidateManifest {
+    $samples=@(
+        @{ Json='[]'; Expected='' },
+        @{ Json='[{"folder":"candidate-1"}]'; Expected='candidate-1' },
+        @{ Json='[{"folder":"candidate-1"},{"folder":"candidate-2"}]'; Expected='candidate-1,candidate-2' }
+    )
+    foreach ($sample in $samples) {
+        $actual=@(Get-CandidateNames $sample.Json)
+        if (($actual -join ',') -cne $sample.Expected) {
+            throw "Candidate manifest regression test failed"
+        }
+    }
+    foreach ($invalid in @('{}','null','[{"folder":"../outside"}]','[{"folder":"candidate-1"},{"folder":"candidate-1"}]','[{},{},{}]')) {
+        $rejected=$false
+        try { $null=Get-CandidateNames $invalid } catch { $rejected=$true }
+        if (!$rejected) { throw "Candidate manifest accepted invalid input" }
+    }
+    Write-Host "CANDIDATE_MANIFEST_TESTS_PASSED: 0/1/2 candidates and invalid inputs"
+}
+Test-CandidateManifest
+if ($SelfTest) { return }
+
 if (!$ResumeDirectory -and [string]::IsNullOrWhiteSpace($Prompt)) {
     throw "Prompt required for a new search"
 }
@@ -44,14 +89,11 @@ if ($ResumeDirectory) {
     foreach ($name in @("plan.json","candidates.json")) {
         Copy-Item -LiteralPath (Join-Path $previous $name) -Destination (Join-Path $out $name)
     }
-    $oldCandidates=@(Get-Content -LiteralPath (Join-Path $out "candidates.json") -Raw -Encoding UTF8 | ConvertFrom-Json)
-    if ($oldCandidates.Count -gt 2) { throw "Too many saved candidates" }
-    # Folder names are derived from manifest order, never trusted from JSON properties.
-    # This avoids PowerShell 5.1 ConvertFrom-Json comparison quirks and path traversal.
-    $candidateIndex=0
-    foreach ($candidate in $oldCandidates) {
-        $candidateIndex++
-        $folderName="candidate-$candidateIndex"
+    $oldCandidates=@(Get-CandidateNames (Get-Content -LiteralPath (Join-Path $out "candidates.json") -Raw -Encoding UTF8))
+    if (Test-Path -LiteralPath (Join-Path $previous "catalog-review.json") -PathType Leaf) {
+        Copy-Item -LiteralPath (Join-Path $previous "catalog-review.json") -Destination (Join-Path $out "catalog-review.json")
+    }
+    foreach ($folderName in $oldCandidates) {
         $sourceArchive=Join-Path (Join-Path $previous $folderName) "candidate.zip"
         if (!(Test-Path -LiteralPath $sourceArchive -PathType Leaf)) {
             throw "Saved candidate archive missing: $folderName"
@@ -71,13 +113,16 @@ if ($ResumeDirectory) {
     & docker @compose run --rm --no-deps --entrypoint python -v "$($out):/preflight" openhands /opt/studio-agent/asset_preflight.py prepare --brief $Prompt --profile $Profile --style $AssetStyle --hero $HeroMode @extra | Out-Host
     Check "Asset preparation"
 }
-$candidates=@(Get-Content -LiteralPath (Join-Path $out "candidates.json") -Raw -Encoding UTF8 | ConvertFrom-Json)
-if ($candidates.Count -gt 2) { throw "Too many candidates" }
+$candidates=@(Get-CandidateNames (Get-Content -LiteralPath (Join-Path $out "candidates.json") -Raw -Encoding UTF8))
+Write-Host "ASSET_CANDIDATE_COUNT: $($candidates.Count)"
+foreach ($folderName in $candidates) {
+    if (!(Test-Path -LiteralPath (Join-Path (Join-Path $out $folderName) "candidate.zip") -PathType Leaf)) {
+        throw "Candidate archive missing: $folderName"
+    }
+}
 $rendered=0
-$candidateIndex=0
-foreach ($candidate in $candidates) {
-    $candidateIndex++
-    $folderName="candidate-$candidateIndex"
+foreach ($folderName in $candidates) {
+    Write-Host "ASSET_RENDER_START: $folderName"
     $folder=Join-Path $out $folderName
     $archive=Join-Path $folder "candidate.zip"
     if (!(Test-Path -LiteralPath $archive -PathType Leaf)) {
@@ -99,7 +144,7 @@ foreach ($candidate in $candidates) {
     }
     if (Test-Path -LiteralPath (Join-Path $folder "render-ok.json")) { $rendered++ }
 }
-Write-Host "ASSET_RENDER_COUNT: $rendered"
+Write-Host "ASSET_RENDER_COUNT: $rendered/$($candidates.Count)"
 if ($RenderOnly) {
     Write-Host "RENDER_ONLY: no paid visual critic request; output: $out"
     if ($rendered -eq 0) { throw "No candidate rendered; inspect render-diagnostics.json" }
