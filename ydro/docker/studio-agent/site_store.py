@@ -12,7 +12,7 @@ MAX_TOTAL = 300_000
 MAX_FILES = 30
 DEPENDENCIES = {"vue":"3.5.34", "three":"0.180.0", "gsap":"3.13.0", "lenis":"1.3.20"}
 REQUIRED = {"src/App.vue", "src/style.css"}
-RESERVED = {"src/main.js", "src/main.ts", "src/landing-progress.js"}
+RESERVED = {"src/main.js", "src/main.ts", "src/landing-progress.js", "src/components/CinemaModel.vue"}
 
 class SiteStore:
     def __init__(self, media=None, models=None):
@@ -69,6 +69,13 @@ class SiteStore:
             issues = quality_issues(self.files,profile)
             if issues:
                 raise ValueError("Source quality gate: " + " | ".join(issues))
+            if self.models and self.models.credits:
+                source = "\n".join(self.files.values())
+                if not re.search(r"<CinemaModel\b", source):
+                    raise ValueError("Imported models must use the trusted CinemaModel component.")
+                for credit in self.models.credits.values():
+                    if credit["path"] not in source:
+                        raise ValueError("Imported model is not referenced by generated source.")
             if not self.design_brief or not self.self_review:
                 raise ValueError("Art direction plan and final self-review are required.")
             if not any(p.startswith("src/components/") and p.endswith(".vue") for p in self.files):
@@ -80,6 +87,7 @@ class SiteStore:
             "vite.config.js": "import {defineConfig} from 'vite';\nimport vue from '@vitejs/plugin-vue';\nexport default defineConfig({plugins:[vue()],base:'./'});\n",
             "src/main.js": "import {createApp} from 'vue';\nimport App from './App.vue';\nimport './style.css';\nimport {installLandingProgress} from './landing-progress.js';\ncreateApp(App).mount('#app');\ninstallLandingProgress();\n",
             "src/landing-progress.js": Path(__file__).with_name("landing-progress.js").read_text(encoding="utf-8"),
+            "src/components/CinemaModel.vue": Path(__file__).with_name("CinemaModel.vue").read_text(encoding="utf-8"),
             "README.md": "# TrackNode OpenHands source\nUntrusted AI-generated source. Inspect it and build only in an isolated, credential-free environment. No build or visual verification has been performed.\n",
             "tracknode-agent.json": json.dumps({"engine":"openhands-sdk","model":model,"build_verified":False,"visual_verified":False,"profile":profile,"files":sorted(self.files)},indent=2),
         }

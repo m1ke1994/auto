@@ -15,6 +15,8 @@ Assert-Exit "Agent build"
 Assert-Exit "SDK check"
 docker build -t tracknode-studio-build -f docker/studio-build/Dockerfile docker/studio-build
 Assert-Exit "Site builder build"
+docker build -t tracknode-studio-audit docker/studio-audit
+Assert-Exit "Browser audit image build"
 $out = (New-Item -ItemType Directory -Path (Join-Path $PWD ("studio-agent-output/" + [guid]::NewGuid().ToString())) -Force).FullName
 Write-Host "Output: $out"
 & docker @compose run --rm --no-deps -v "$($out):/output" openhands --profile $Profile --prompt $Prompt
@@ -29,4 +31,8 @@ Assert-Exit "Offline Vite build"
 if (!(Test-Path (Join-Path $dist "index.html"))) { throw "No built index.html" }
 Write-Host "SOURCE_AND_BUILD_READY: $out"
 Write-Host "Preview folder: $dist"
-Write-Host "Build passed; visual validation still pending."
+$report = (New-Item -ItemType Directory -Path (Join-Path $out "quality-report")).FullName
+docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 3 --pids-limit 256 --shm-size 256m --tmpfs "/tmp:rw,exec,size=512m,mode=1777" -v "$($dist):/site:ro" -v "$($report):/report" tracknode-studio-audit $Profile
+Assert-Exit "Browser quality audit (source and dist preserved)"
+Write-Host "QUALITY_CHECKS_PASSED: $report"
+Write-Host "Technical browser checks passed; human visual review still pending."

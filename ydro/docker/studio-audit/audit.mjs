@@ -1,12 +1,15 @@
 // Test only local build artifacts. Network is disabled by Docker and requests are intercepted.
 import { chromium } from 'playwright';
-import { readFile, writeFile, realpath } from 'node:fs/promises';
+import { readFile, writeFile, realpath, readdir } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 const root = await realpath('/site');
 const origin = 'http://studio.invalid';
 const types = {'.html':'text/html; charset=utf-8','.js':'text/javascript','.css':'text/css','.webp':'image/webp','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml','.woff2':'font/woff2','.json':'application/json','.gltf':'model/gltf+json','.glb':'model/gltf-binary','.bin':'application/octet-stream','.jpeg':'image/jpeg'};
 const report = { profile: process.argv[2] || 'cinema', checks: [], artistic_quality_verified: false };
-const browser=await chromium.launch({headless:true});
+const modelDirs=await readdir(resolve(root,'tn-models')).catch(()=>[]);
+const expectedModels=modelDirs.map(dir=>'tn-models/'+dir+'/model.gltf');
+report.expectedModels=expectedModels;
+const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 try {
   for (const [name,width,height,reducedMotion] of [['desktop',1440,900,'no-preference'],['mobile',390,844,'reduce']]) {
     const context=await browser.newContext({viewport:{width,height},reducedMotion,serviceWorkers:'block',acceptDownloads:false});
@@ -27,6 +30,7 @@ try {
     page.on('pageerror',e=>errors.push(String(e).slice(0,400)));
     await page.goto(origin+'/',{waitUntil:'load',timeout:30000});
     await page.waitForTimeout(1500);
+    if(expectedModels.length) await page.waitForFunction(()=>{const nodes=[...document.querySelectorAll('[data-tn-model]')];return nodes.length>0&&nodes.every(n=>n.dataset.tnModelState!=='loading');},{},{timeout:30000}).catch(()=>{});
     const result=await page.evaluate(()=>{
       const root=document.scrollingElement;
       const visible=e=>{if(!e)return false;const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'&&Number(s.opacity)>0;};
@@ -45,7 +49,8 @@ try {
         const layers=[...document.querySelectorAll('[data-tn-motion]')].slice(0,20).map(e=>{const s=getComputedStyle(e);return [s.transform,s.opacity,s.clipPath,s.filter].join('|');});
         return {actual,scale,top:rect?.top??null,width:rect?.width??0,viewport:innerWidth,layers};
       });
-      steps.push(state);
+      const models=await page.locator('[data-tn-model]').evaluateAll(nodes=>nodes.map(n=>({path:n.dataset.tnModel,state:n.dataset.tnModelState,frames:Number(n.dataset.tnFrames||0),pose:n.dataset.tnCameraPose||'',progress:Number(n.dataset.tnCameraProgress||0),canvas:!!n.querySelector('canvas')})));
+      steps.push({...state,models});
       await page.screenshot({path:'/report/'+name+'-'+Math.round(fraction*100)+'.png',timeout:15000});
     }
     const end=steps.at(-1);
@@ -53,6 +58,11 @@ try {
     const motionChanged=steps.some((x,i)=>i>0&&JSON.stringify(x.layers)!==JSON.stringify(steps[i-1].layers));
     const progressOk=steps.every(x=>x.scale!==null&&Math.abs(x.scale-x.actual)<.08&&Math.abs(x.top)<2&&x.width>=x.viewport-24)&&end.actual>.95;
     const checks={rendered:result.bodyText>80,noHorizontalOverflow:result.overflow<=2,footer:result.footer&&result.footerLinks>0,progress:progressOk,noBrokenImages:Math.max(result.brokenImages,brokenAfterScroll)===0,noJsErrors:errors.length===0,noMissingAssets:missing.length===0,noExternalRequests:blocked.length===0};
+    if(expectedModels.length){
+      const observed=steps.flatMap(x=>x.models);
+      checks.importedModelsReady=expectedModels.every(path=>observed.some(m=>m.path===path&&m.state==='ready'&&m.canvas&&m.frames>0));
+      if(name==='desktop') checks.cameraChanges=expectedModels.every(path=>new Set(observed.filter(m=>m.path===path&&m.state==='ready'&&m.frames>0&&m.pose).map(m=>m.pose)).size>=2);
+    }
     if(report.profile==='cinema') {checks.scenes=result.scenes>=3;if(name==='desktop') checks.scrollMotion=motionChanged;}
     report.checks.push({name,checks,metrics:result,steps,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
     await context.close();

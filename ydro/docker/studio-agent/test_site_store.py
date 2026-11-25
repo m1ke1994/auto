@@ -28,6 +28,7 @@ class StoreTests(unittest.TestCase):
             with zipfile.ZipFile(output) as z:
                 self.assertIn("src/App.vue",z.namelist())
                 self.assertIn("src/landing-progress.js",z.namelist())
+                self.assertIn("src/components/CinemaModel.vue",z.namelist())
                 self.assertIn("installLandingProgress();",z.read("src/main.js").decode())
                 progress=z.read("src/landing-progress.js").decode()
                 self.assertIn("transform-origin:left center",progress)
@@ -37,6 +38,10 @@ class StoreTests(unittest.TestCase):
                 self.assertEqual(json.loads(z.read("package.json"))["scripts"]["build"],"vite build")
             with self.assertRaises(FileExistsError):
                 store.export(output,"deepseek-v4-pro")
+    def test_trusted_cinema_component(self):
+        with self.assertRaises(ValueError):
+            SiteStore().write("src/components/CinemaModel.vue","override")
+
     def test_limits(self):
         with self.assertRaises(ValueError):
             SiteStore().write("src/App.vue","x"*64001)
