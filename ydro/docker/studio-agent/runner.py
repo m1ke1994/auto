@@ -16,7 +16,7 @@ from site_store import SiteStore
 from media import MediaLibrary
 from models3d import ModelLibrary
 from sketchfab_models import SketchfabLibrary
-from art_direction import PROFILES, build_prompt
+from art_direction import PROFILES, build_prompt, cinematic_direction
 from quality import quality_issues
 from repair_input import restore, critic_notes
 
@@ -256,8 +256,11 @@ def main():
                     credit["visual_quality_tier"]=tier
             elif selection["status"]!="no_model" or plan["required"]:
                 raise ValueError("Preflight blocked generation.")
+            direction=cinematic_direction(plan,selection["selected"],args.prompt)
+            print("STUDIO_CINEMATIC_DIRECTION: "+json.dumps(direction,ensure_ascii=True),flush=True)
             ASSETS_LOCKED=True
-            prompt += "\n\nFINAL PRE-GENERATION ART DIRECTION (overrides earlier asset-search instructions): "+json.dumps({"mode":plan["mode"],"direction":plan["direction"],"subject":plan["subject"],"selected":selection["selected"]},ensure_ascii=False)+"\nNo additional 3D searches, downloads or removals. Use model_inventory for the approved local path. If selected, use exactly this model in the hero, with opening yaw from selection. For a conditional asset, preserve honest expectations: do not describe it as photorealistic; use a deliberate premium studio composition, strong but controlled reflections, shaped key/rim lighting, a convincing contact shadow and a close three-quarter camera. Keep the model large and recognizable without clipping; let the page art direction elevate its presentation, not pretend its geometry was changed. Otherwise use the selected non-imported design approach; do not invent model paths. Follow the chosen hero composition, not a generic split layout. Respect readable overlay text and mobile. If no 3D model was requested, use an editorial or other non-3D approach without claiming imported 3D. Save the plan and source review."
+            prompt += "\n\nCINEMATIC DIRECTION RECOMMENDATION (adapt to user brief; not a fixed template): "+json.dumps(direction,ensure_ascii=True)
+            prompt += "\n\nFINAL PRE-GENERATION ART DIRECTION (overrides earlier asset-search instructions): "+json.dumps({"mode":plan["mode"],"direction":plan["direction"],"subject":plan["subject"],"selected":selection["selected"]},ensure_ascii=False)+"\nNo additional 3D searches, downloads or removals. Use model_inventory for the approved local path. If selected, use exactly this model in the hero, with opening yaw from selection. For a conditional asset, preserve honest expectations: do not describe it as photorealistic; use a deliberate premium studio composition, strong but controlled reflections, shaped key/rim lighting, a convincing contact shadow and a close three-quarter camera. Keep primary models large and recognizable without clipping; explicitly requested accent models may use a smaller clear stage; let the page art direction elevate its presentation, not pretend its geometry was changed. Otherwise use the selected non-imported design approach; do not invent model paths. Follow the chosen hero composition, not a generic split layout. Respect readable overlay text and mobile. If no 3D model was requested, use an editorial or other non-3D approach without claiming imported 3D. Save the plan and source review."
         if args.repair:
             ASSETS_LOCKED=True
             info=restore(STORE,"/repair-source.zip")

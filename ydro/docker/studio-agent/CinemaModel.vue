@@ -3,6 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots } from '../cinematic-motion.js'
 
 const props = defineProps({
   modelPath: { type: String, required: true },
@@ -10,8 +11,17 @@ const props = defineProps({
   shots: { type: Array, default: () => [] },
   exposure: { type: Number, default: 1.1 },
   accent: { type: String, default: '#d6b48a' },
-  ground: { type: Boolean, default: true }
+  ground: { type: Boolean, default: true },
+  motionPreset: { type: String, default: 'custom' },
+  openingYaw: { type: Number, default: 50 },
+  motionStrength: { type: Number, default: 1 },
+  lighting: { type: String, default: 'studio' },
+  modelRole: { type: String, default: 'primary' }
 })
+const motionName = MOTION_PRESETS.includes(props.motionPreset) ? props.motionPreset : 'custom'
+const role = props.modelRole === 'accent' ? 'accent' : 'primary'
+const lightingName = Object.hasOwn(LIGHTING_PRESETS,props.lighting) ? props.lighting : 'studio'
+const lighting = LIGHTING_PRESETS[lightingName]
 const host = ref(null)
 const state = ref('loading')
 const defaults = [
@@ -23,13 +33,17 @@ const defaults = [
 const finite = (n, fallback) => typeof n === 'number' && Number.isFinite(n) ? n : fallback
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi,n))
 function normalizedShots() {
-  const source = props.shots.length >= 2 && props.shots.length <= 8 ? props.shots : defaults
+  const preset = presetShots(motionName,props.openingYaw,props.motionStrength)
+  const source = props.shots.length >= 2 && props.shots.length <= 8 ? props.shots : (preset.length ? preset : defaults)
   const list=source.map((s,i)=>({
     at:clamp(finite(s?.at,i/(source.length-1)),0,1),
-    yaw:clamp(finite(s?.yaw,38),-360,360),
+    yaw:clamp(finite(s?.yaw,38),-720,720),
     pitch:clamp(finite(s?.pitch,12),-50,65),
     distance:clamp(finite(s?.distance,1),.72,1.35),
-    target:[0,1,2].map(j=>clamp(finite(s?.target?.[j],0),-.45,.45))
+    target:[0,1,2].map(j=>clamp(finite(s?.target?.[j],0),-.45,.45)),
+    modelYaw:clamp(finite(s?.modelYaw,0),-720,720),
+    lift:clamp(finite(s?.lift,0),-.12,.12),
+    light:clamp(finite(s?.light,0),-90,90)
   })).sort((a,b)=>a.at-b.at)
   if(list[0].at>0) list.unshift({...list[0],at:0})
   if(list.at(-1).at<1) list.push({...list.at(-1),at:1})
@@ -37,7 +51,8 @@ function normalizedShots() {
 }
 let renderer, scene, camera, model, env, pmrem, observer, intersection, raf=0, disposed=false
 let visible=true, motionQuery, current=0, radius=1, frameCount=0, shots
-let corners=[], bounds, groundPlane, keyLight
+let corners=[], bounds, groundPlane, keyLight, modelPivot
+const yAxis=new THREE.Vector3(0,1,0)
 function disposeModel(root) {
   const geometries=new Set(), materials=new Set(), textures=new Set()
   root?.traverse(o=>{
@@ -101,13 +116,21 @@ function renderFrame() {
   const t=clamp((current-from.at)/Math.max(.00001,to.at-from.at),0,1)
   const blend=(a,b)=>THREE.MathUtils.lerp(a,b,t*t*(3-2*t))
   let yaw=THREE.MathUtils.degToRad(blend(from.yaw,to.yaw))
+  const modelYaw=THREE.MathUtils.degToRad(blend(from.modelYaw,to.modelYaw))
+  const lift=props.ground?0:blend(from.lift,to.lift)
+  const lightAngle=THREE.MathUtils.degToRad(blend(from.light,to.light))
+  modelPivot.rotation.y=modelYaw
+  modelPivot.position.y=lift
+  // Fit the transformed bounds, not the original unrotated box.
+  const posedCorners=corners.map(c=>c.clone().applyAxisAngle(yAxis,modelYaw).addScaledVector(yAxis,lift))
+  keyLight.position.set(4*Math.cos(lightAngle)+5*Math.sin(lightAngle),6,5*Math.cos(lightAngle)-4*Math.sin(lightAngle))
   const pitch=THREE.MathUtils.degToRad(blend(from.pitch,to.pitch))
   // Avoid an end-on opening shot of elongated horizontal objects.
   const size=bounds.getSize(new THREE.Vector3())
   const opening=1-THREE.MathUtils.smoothstep(current,0,.25)
-  if(size.z>size.x*1.5 && size.z>size.y*1.4 && Math.abs(Math.sin(yaw))<.5){
+  if(motionName==='custom' && size.z>size.x*1.5 && size.z>size.y*1.4 && Math.abs(Math.sin(yaw))<.5){
     yaw+=(Math.sin(yaw)<0?-1:1)*.65*opening
-  } else if(size.x>size.z*1.5 && size.x>size.y*1.4 && Math.abs(Math.cos(yaw))<.5){
+  } else if(motionName==='custom' && size.x>size.z*1.5 && size.x>size.y*1.4 && Math.abs(Math.cos(yaw))<.5){
     yaw+=.65*opening
   }
   const direction=new THREE.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch))
@@ -119,7 +142,7 @@ function renderFrame() {
   // Solve perspective fit for all eight corners, taking depth into account.
   // A factor of 1 fits the box inside 84% of the limiting screen dimension.
   let fit=.15
-  for(const corner of corners){
+  for(const corner of posedCorners){
     const rel=corner.clone().sub(target)
     const depth=rel.dot(direction)
     fit=Math.max(fit,depth+Math.abs(rel.dot(right))/(tanH*.84),depth+Math.abs(rel.dot(up))/(tanV*.84),depth+.15)
@@ -130,7 +153,7 @@ function renderFrame() {
   camera.lookAt(target)
   camera.updateMatrixWorld()
   renderer.render(scene,camera)
-  const projected=corners.map(v=>v.clone().project(camera))
+  const projected=posedCorners.map(v=>v.clone().project(camera))
   const xs=projected.map(v=>v.x),ys=projected.map(v=>v.y)
   const extentX=(Math.max(...xs)-Math.min(...xs))/2
   const extentY=(Math.max(...ys)-Math.min(...ys))/2
@@ -141,6 +164,8 @@ function renderFrame() {
   host.value.dataset.tnCameraProgress=current.toFixed(4)
   host.value.dataset.tnCameraYaw=yaw.toFixed(4)
   host.value.dataset.tnCameraPose=[...camera.position.toArray(),...target.toArray()].map(x=>x.toFixed(4)).join(',')
+  host.value.dataset.tnModelMotionPose=[...camera.position.toArray(),...target.toArray(),modelYaw,lift,...keyLight.position.toArray()].map(x=>x.toFixed(4)).join(',')
+  host.value.dataset.tnObjectYaw=modelYaw.toFixed(4)
   host.value.dataset.tnFrames=String(++frameCount)
 }
 onMounted(async()=>{
@@ -167,8 +192,8 @@ onMounted(async()=>{
     const room=new RoomEnvironment()
     try { env=pmrem.fromScene(room,.04); scene.environment=env.texture }
     finally { room.dispose() }
-    scene.environmentIntensity=1.0
-    const key=new THREE.DirectionalLight(0xfff4e6,3)
+    scene.environmentIntensity=lighting.environment
+    const key=new THREE.DirectionalLight(0xfff4e6,lighting.key)
     keyLight=key
     key.position.set(4,6,5); scene.add(key)
     if(props.ground){
@@ -178,9 +203,9 @@ onMounted(async()=>{
       key.shadow.camera.updateProjectionMatrix()
       key.shadow.normalBias=.025
     }
-    const rim=new THREE.DirectionalLight(props.accent,2.8)
+    const rim=new THREE.DirectionalLight(props.accent,lighting.rim)
     rim.position.set(-4,2,-5); scene.add(rim)
-    const fill=new THREE.HemisphereLight(0xc3d8ff,0x28221d,1)
+    const fill=new THREE.HemisphereLight(0xc3d8ff,0x28221d,lighting.fill)
     scene.add(fill)
     resize()
     loadStage='gltf-load'
@@ -195,6 +220,7 @@ onMounted(async()=>{
     if(!Number.isFinite(sphere.radius)||sphere.radius<=0)throw new Error('Invalid model bounds')
     // Normalize without changing the source geometry or materials.
     const pivot=new THREE.Group()
+    modelPivot=pivot
     model.position.sub(sphere.center)
     pivot.add(model); pivot.scale.setScalar(1/sphere.radius); scene.add(pivot)
     radius=1
@@ -226,7 +252,7 @@ onMounted(async()=>{
 onBeforeUnmount(()=>{disposed=true;cleanup()})
 </script>
 <template>
-  <div ref="host" class="tn-cinema-model" :data-tn-model="modelPath" :data-tn-model-state="state" role="img" :aria-label="label">
+  <div ref="host" class="tn-cinema-model" :class="{ 'tn-cinema-accent': role==='accent' }" :data-tn-model="modelPath" :data-tn-model-role="role" :data-tn-motion-preset="motionName" :data-tn-lighting="lightingName" :data-tn-model-state="state" role="img" :aria-label="label">
     <div v-if="state !== 'ready'" class="tn-cinema-fallback">
       <slot name="fallback"><span>{{ label }}</span></slot>
     </div>
@@ -234,6 +260,7 @@ onBeforeUnmount(()=>{disposed=true;cleanup()})
 </template>
 <style scoped>
 .tn-cinema-model{position:relative;display:block;width:100%;height:100%;min-height:240px;overflow:hidden;isolation:isolate}
+.tn-cinema-model.tn-cinema-accent{min-height:100px}
 .tn-cinema-fallback{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
 .tn-cinema-fallback :deep(img){width:100%;height:100%;object-fit:cover}
 </style>

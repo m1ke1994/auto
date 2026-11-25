@@ -12,7 +12,7 @@ MAX_TOTAL = 300_000
 MAX_FILES = 30
 DEPENDENCIES = {"vue":"3.5.34", "three":"0.180.0", "gsap":"3.13.0", "lenis":"1.3.20"}
 REQUIRED = {"src/App.vue", "src/style.css"}
-RESERVED = {"src/main.js", "src/main.ts", "src/landing-progress.js", "src/components/CinemaModel.vue"}
+RESERVED = {"src/main.js", "src/main.ts", "src/landing-progress.js", "src/components/CinemaModel.vue", "src/cinematic-motion.js"}
 
 class SiteStore:
     def __init__(self, media=None, models=None):
@@ -116,6 +116,7 @@ class SiteStore:
             "src/main.js": "import {createApp} from 'vue';\nimport App from './App.vue';\nimport './style.css';\nimport {installLandingProgress} from './landing-progress.js';\ncreateApp(App).mount('#app');\ninstallLandingProgress();\n",
             "src/landing-progress.js": Path(__file__).with_name("landing-progress.js").read_text(encoding="utf-8"),
             "src/components/CinemaModel.vue": Path(__file__).with_name("CinemaModel.vue").read_text(encoding="utf-8"),
+            "src/cinematic-motion.js": Path(__file__).with_name("cinematic-motion.js").read_text(encoding="utf-8"),
             "README.md": "# TrackNode OpenHands source\nUntrusted AI-generated source. Inspect it and build only in an isolated, credential-free environment. No build or visual verification has been performed.\n",
             "tracknode-agent.json": json.dumps({"engine":"openhands-sdk","model":model,"build_verified":False,"visual_verified":False,"profile":profile,"files":sorted(self.files),"rejected_models":sorted(self.models.rejected) if self.models else []},indent=2),
         }

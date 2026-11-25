@@ -84,7 +84,7 @@ def restore(store,path):
                     pending[prefix+uri]=read(prefix+uri,MAX_BYTES)
             require(len(pending)<=25 and sum(map(len,pending.values()))+sum(map(len,store.models.assets.values()))<=MAX_BYTES,"Model budget exceeded.")
             store.models.assets.update(pending)
-            credit={k:c[k] for k in ("id","name","author","path","source","url","license","license_url","changes","polycount","metadata_score","visual_verified") if k in c}
+            credit={k:c[k] for k in ("id","name","author","path","source","url","license","license_url","changes","polycount","metadata_score","visual_verified","visual_score","visual_quality_tier") if k in c}
             if credit.get("source")!="Sketchfab":
                 credit["license_url"]="https://creativecommons.org/publicdomain/zero/1.0/"
             credit["bytes"]=sum(map(len,pending.values()))

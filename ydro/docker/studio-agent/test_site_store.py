@@ -29,6 +29,7 @@ class StoreTests(unittest.TestCase):
                 self.assertIn("src/App.vue",z.namelist())
                 self.assertIn("src/landing-progress.js",z.namelist())
                 self.assertIn("src/components/CinemaModel.vue",z.namelist())
+                self.assertIn("src/cinematic-motion.js",z.namelist())
                 self.assertIn("installLandingProgress();",z.read("src/main.js").decode())
                 progress=z.read("src/landing-progress.js").decode()
                 self.assertIn("transform-origin:left center",progress)
@@ -41,6 +42,23 @@ class StoreTests(unittest.TestCase):
     def test_trusted_cinema_component(self):
         with self.assertRaises(ValueError):
             SiteStore().write("src/components/CinemaModel.vue","override")
+
+    def test_cinematic_direction(self):
+        from art_direction import cinematic_direction
+        plan={"mode":"immersive","subject":"sports car"}
+        item={"quality_tier":"conditional","yaw":225}
+        normal=cinematic_direction(plan,item,"car detailing")
+        self.assertEqual(normal["opening_yaw"],225)
+        self.assertEqual(normal["model_role"],"primary")
+        self.assertNotIn(normal["motion"],("idle_float","detail_focus"))
+        accent=cinematic_direction(plan,item,"маленькая модель по краям")
+        self.assertEqual(accent["layout"],"floating_edges")
+        self.assertEqual(accent["model_role"],"accent")
+        self.assertNotEqual(accent["motion"],"idle_float")
+        self.assertEqual(cinematic_direction(plan,None,"site")["layout"],"editorial_photo")
+        self.assertEqual(normal,cinematic_direction(plan,item,"car detailing"))
+        with self.assertRaises(ValueError):
+            SiteStore().write("src/cinematic-motion.js","override")
 
     def test_limits(self):
         with self.assertRaises(ValueError):

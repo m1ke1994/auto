@@ -49,7 +49,7 @@ try {
         const layers=[...document.querySelectorAll('[data-tn-motion]')].slice(0,20).map(e=>{const s=getComputedStyle(e);return [s.transform,s.opacity,s.clipPath,s.filter].join('|');});
         return {actual,scale,top:rect?.top??null,width:rect?.width??0,viewport:innerWidth,layers};
       });
-      const models=await page.locator('[data-tn-model]').evaluateAll(nodes=>nodes.map(n=>({path:n.dataset.tnModel,state:n.dataset.tnModelState,frames:Number(n.dataset.tnFrames||0),pose:n.dataset.tnCameraPose||'',progress:Number(n.dataset.tnCameraProgress||0),canvas:!!n.querySelector('canvas')})));
+      const models=await page.locator('[data-tn-model]').evaluateAll(nodes=>nodes.map(n=>({path:n.dataset.tnModel,state:n.dataset.tnModelState,frames:Number(n.dataset.tnFrames||0),pose:n.dataset.tnCameraPose||'',motionPose:n.dataset.tnModelMotionPose||n.dataset.tnCameraPose||'',preset:n.dataset.tnMotionPreset||'custom',progress:Number(n.dataset.tnCameraProgress||0),canvas:!!n.querySelector('canvas')})));
       steps.push({...state,models});
       await page.screenshot({path:'/report/'+name+'-'+Math.round(fraction*100)+'.png',timeout:15000});
     }
@@ -115,7 +115,7 @@ try {
     }
     const heroFraming=await page.locator('#home [data-tn-model]').evaluateAll(nodes=>nodes.map(n=>{
       const r=n.getBoundingClientRect();
-      return {path:n.dataset.tnModel,state:n.dataset.tnModelState,coverage:Number(n.dataset.tnModelCoverage||0),
+      return {path:n.dataset.tnModel,role:n.dataset.tnModelRole||'primary',state:n.dataset.tnModelState,coverage:Number(n.dataset.tnModelCoverage||0),
         clipped:n.dataset.tnModelClipped==='true',width:r.width,height:r.height,viewportWidth:innerWidth,viewportHeight:innerHeight};
     }));
     // Target the hero's own scroll track rather than relying only on whole-page quartiles.
@@ -128,7 +128,7 @@ try {
           if(track){const r=track.getBoundingClientRect();window.scrollTo({top:scrollY+r.top+Math.max(innerHeight*.4,r.height-innerHeight*.35)*f,behavior:'instant'});}
         },f);
         await page.waitForTimeout(900);
-        targeted.push(...await page.locator('[data-tn-model]').evaluateAll(nodes=>nodes.map(n=>({path:n.dataset.tnModel,state:n.dataset.tnModelState,frames:Number(n.dataset.tnFrames||0),pose:n.dataset.tnCameraPose||'',canvas:!!n.querySelector('canvas')}))));
+        targeted.push(...await page.locator('[data-tn-model]').evaluateAll(nodes=>nodes.map(n=>({path:n.dataset.tnModel,state:n.dataset.tnModelState,frames:Number(n.dataset.tnFrames||0),pose:n.dataset.tnCameraPose||'',motionPose:n.dataset.tnModelMotionPose||n.dataset.tnCameraPose||'',preset:n.dataset.tnMotionPreset||'custom',canvas:!!n.querySelector('canvas')}))));
       }
     }
     const end=steps.at(-1);
@@ -143,9 +143,14 @@ try {
     if(expectedModels.length && report.profile==='cinema') checks.heroImportedModel=sections.some(x=>x.id==='home'&&x.heroModel);
     if(expectedModels.length){
       const observed=[...steps.flatMap(x=>x.models),...targeted];
-      if(report.profile==='cinema') checks.heroFraming=heroFraming.length>0&&heroFraming.every(m=>m.state==='ready'&&m.coverage>=.62&&m.coverage<=.98&&!m.clipped&&m.width>=m.viewportWidth*(name==='desktop'?.32:.70)&&m.height>=m.viewportHeight*(name==='desktop'?.38:.25));
+      if(report.profile==='cinema') checks.heroFraming=heroFraming.length>0&&heroFraming.every(m=>m.state==='ready'&&m.coverage>=.62&&m.coverage<=.98&&!m.clipped&&(m.role==='accent'?(m.width>=m.viewportWidth*(name==='desktop'?.12:.25)&&m.height>=100):(m.width>=m.viewportWidth*(name==='desktop'?.32:.70)&&m.height>=m.viewportHeight*(name==='desktop'?.38:.25))));
       checks.importedModelsReady=expectedModels.every(path=>observed.some(m=>m.path===path&&m.state==='ready'&&m.canvas&&m.frames>0));
-      if(name==='desktop') checks.cameraChanges=expectedModels.every(path=>new Set(observed.filter(m=>m.path===path&&m.state==='ready'&&m.frames>0&&m.pose).map(m=>m.pose)).size>=2);
+      if(name==='desktop') {
+        // Legacy custom sites retain their camera-motion requirement. New presets
+        // may move only the object or light, which must actually change on scroll.
+        if(observed.every(m=>m.preset==='custom')) checks.cameraChanges=expectedModels.every(path=>new Set(observed.filter(m=>m.path===path&&m.state==='ready'&&m.frames>0&&m.pose).map(m=>m.pose)).size>=2);
+        else checks.modelMotionChanges=expectedModels.every(path=>new Set(observed.filter(m=>m.path===path&&m.state==='ready'&&m.frames>0&&m.motionPose).map(m=>m.motionPose)).size>=2);
+      }
     }
     if(report.profile==='cinema') {checks.scenes=result.scenes>=3;if(name==='desktop') checks.scrollMotion=motionChanged;}
     report.checks.push({name,checks,metrics:result,sections,navigation,heroFraming,steps,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
