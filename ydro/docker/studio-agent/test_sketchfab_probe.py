@@ -3,7 +3,7 @@ import json
 import unittest
 import zipfile
 from unittest.mock import patch
-from sketchfab_probe import probe, license_ok, allowed_cdn, validate_archive
+from sketchfab_probe import probe, license_ok, allowed_cdn, validate_archive, NetworkFailure
 
 class SketchfabTests(unittest.TestCase):
     def test_license_and_hosts(self):
@@ -26,6 +26,20 @@ class SketchfabTests(unittest.TestCase):
         probe("fake-test-token")
         self.assertNotIn("headers",request.call_args.kwargs)
         self.assertEqual(api.call_args.args[0],"/models/"+uid+"/download")
+    @patch("sketchfab_probe.cdn_diagnostics")
+    @patch("sketchfab_probe.time.sleep")
+    @patch("sketchfab_probe.request_bytes",side_effect=NetworkFailure("network request failed: ReadTimeout"))
+    @patch("sketchfab_probe.api")
+    def test_network_retry(self, api, request, sleep, diagnostics):
+        uid="a"*32
+        link={"gltf":{"url":"https://sketchfab-prod-media.s3.amazonaws.com/archives/a"}}
+        api.side_effect=[{"uid":"test"},{"results":[{"uid":uid,"faceCount":30}]},
+                         {"isDownloadable":True,"license":{"slug":"cc0"}},link,link]
+        with self.assertRaisesRegex(ValueError,"SKETCHFAB_CDN_DOWNLOAD_FAILED"):
+            probe("fake-test-token")
+        self.assertEqual(request.call_count,2)
+        self.assertEqual(api.call_count,5)
+        diagnostics.assert_called_once_with("sketchfab-prod-media.s3.amazonaws.com")
     def test_invalid_archive(self):
         with self.assertRaises(ValueError):
             validate_archive(b"not a zip")
