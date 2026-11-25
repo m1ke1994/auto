@@ -94,6 +94,7 @@ class SketchfabLibrary:
         self.candidates={}
         self.searches=0
         self.style='realistic'
+        self.detail_limit=8
 
     @property
     def enabled(self):
@@ -116,7 +117,7 @@ class SketchfabLibrary:
                     candidates.append((-rank["metadata_score"],len(candidates),uid))
         found=[]
         print("SKETCHFAB_RANK: eligible="+str(len(candidates))+"; style="+self.style,flush=True)
-        for _,_,uid in sorted(candidates)[:8]:
+        for _,_,uid in sorted(candidates)[:self.detail_limit]:
             try:
                 detail=api("/models/"+uid,self._token)
             except NetworkFailure:

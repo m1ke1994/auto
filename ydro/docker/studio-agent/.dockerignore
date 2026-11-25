@@ -21,3 +21,5 @@
 !test_visual_critic.py
 !repair_input.py
 !test_repair_input.py
+!asset_preflight.py
+!test_asset_preflight.py
