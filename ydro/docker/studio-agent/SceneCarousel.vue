@@ -54,6 +54,14 @@ onBeforeUnmount(()=>{observer?.disconnect();cancelAnimationFrame(raf)})
 
 <template>
   <div class="tn-carousel" :class="'tn-carousel--'+variant" data-tn-carousel :data-tn-carousel-mode="variant" :data-tn-active="active" :aria-label="label" role="region">
+    <div v-if="slides.length>1" class="tn-carousel-controls">
+      <span class="tn-carousel-count" aria-live="polite">{{ String(active+1).padStart(2,'0') }} / {{ String(slides.length).padStart(2,'0') }}</span>
+      <div class="tn-carousel-dots">
+        <button v-for="(_,index) in slides" :key="index" type="button" :aria-label="label+' '+(index+1)" :aria-current="active===index?'true':undefined" @click="go(index)"></button>
+      </div>
+      <button type="button" data-tn-carousel-prev :disabled="active===0" :aria-label="previousLabel" @click="go(active-1)">←</button>
+      <button type="button" data-tn-carousel-next :disabled="active===slides.length-1" :aria-label="nextLabel" @click="go(active+1)">→</button>
+    </div>
     <div ref="track" class="tn-carousel-track" data-tn-carousel-track tabindex="0" @scroll.passive="schedule" @keydown.self="key">
       <article v-for="(item,index) in slides" :key="index" class="tn-carousel-slide" data-tn-slide :data-active="index===active">
         <slot name="slide" :item="item" :index="index" :active="index===active">
@@ -65,14 +73,6 @@ onBeforeUnmount(()=>{observer?.disconnect();cancelAnimationFrame(raf)})
           </div>
         </slot>
       </article>
-    </div>
-    <div v-if="slides.length>1" class="tn-carousel-controls">
-      <span class="tn-carousel-count" aria-live="polite">{{ String(active+1).padStart(2,'0') }} / {{ String(slides.length).padStart(2,'0') }}</span>
-      <div class="tn-carousel-dots">
-        <button v-for="(_,index) in slides" :key="index" type="button" :aria-label="label+' '+(index+1)" :aria-current="active===index?'true':undefined" @click="go(index)"></button>
-      </div>
-      <button type="button" data-tn-carousel-prev :disabled="active===0" :aria-label="previousLabel" @click="go(active-1)">←</button>
-      <button type="button" data-tn-carousel-next :disabled="active===slides.length-1" :aria-label="nextLabel" @click="go(active+1)">→</button>
     </div>
   </div>
 </template>
@@ -87,8 +87,8 @@ onBeforeUnmount(()=>{observer?.disconnect();cancelAnimationFrame(raf)})
 .tn-carousel-copy h3{font-size:clamp(1.35rem,3.4vw,3rem);line-height:1.08;margin:.6em 0 .35em;letter-spacing:-.035em}
 .tn-carousel-copy p{max-width:58ch;line-height:1.6;margin:.4em 0}
 .tn-carousel-kicker,.tn-carousel-count{font-size:.78rem;letter-spacing:.12em;font-variant-numeric:tabular-nums}
-.tn-carousel-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0}
-.tn-carousel-dots{display:flex;gap:8px;flex:1;flex-wrap:wrap;justify-content:center}
+.tn-carousel-controls{display:grid;grid-template-columns:auto minmax(0,1fr) 44px 44px;align-items:center;gap:10px;padding:0 0 14px}
+.tn-carousel-dots{display:flex;gap:8px;flex:1;flex-wrap:wrap;justify-content:center;min-width:0}
 .tn-carousel-controls button{font:inherit;color:inherit;border:1px solid currentColor;background:transparent;border-radius:999px;min-width:44px;min-height:44px;cursor:pointer}
 .tn-carousel-controls button:disabled{opacity:.35;cursor:default}
 .tn-carousel-dots button{min-width:24px;min-height:24px;border:0;position:relative}
@@ -109,6 +109,6 @@ onBeforeUnmount(()=>{observer?.disconnect();cancelAnimationFrame(raf)})
 .tn-carousel--chapter .tn-carousel-copy img{grid-row:span 3;height:clamp(220px,40vw,520px)}
 .tn-carousel--editorial{--tn-slide-width:62%;--tn-slide-radius:2px}
 .tn-carousel--editorial .tn-carousel-copy{padding:clamp(12px,2vw,24px)}
-@media(max-width:640px){.tn-carousel{--tn-slide-width:90%;--tn-slide-gap:12px}.tn-carousel--narrative,.tn-carousel--chapter{--tn-slide-width:100%}.tn-carousel--chapter .tn-carousel-copy{display:block}.tn-carousel-dots{order:3;flex-basis:100%}}
+@media(max-width:640px){.tn-carousel{--tn-slide-width:90%;--tn-slide-gap:12px}.tn-carousel--narrative,.tn-carousel--chapter{--tn-slide-width:100%}.tn-carousel--chapter .tn-carousel-copy{display:block}.tn-carousel-controls{grid-template-columns:auto minmax(0,1fr) 44px 44px;gap:6px}.tn-carousel-dots{justify-content:flex-start;gap:4px}.tn-carousel-dots button{min-width:20px;min-height:20px}.tn-carousel-dots button::after{inset:7px}}
 @media(prefers-reduced-motion:reduce){.tn-carousel-slide{transform:none!important;transition:none!important}}
 </style>
