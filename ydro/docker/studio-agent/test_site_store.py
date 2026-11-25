@@ -43,7 +43,16 @@ class StoreTests(unittest.TestCase):
 
     def test_premium_art_direction_and_review(self):
         store=SiteStore()
-        store.write("src/App.vue","<template><main>Site</main></template>")
+        store.write("src/App.vue", """<script setup>
+import SiteFooter from './components/SiteFooter.vue'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
+const options = { scrub: true }
+</script><template><main>
+<section data-tn-scene="opening"><div data-tn-motion>One</div></section>
+<section data-tn-scene="middle"><div data-tn-motion>Two</div></section>
+<section data-tn-scene="finale">Three</section>
+</main><SiteFooter /></template>""")
+        store.write("src/components/SiteFooter.vue","<template><footer data-tn-footer><a href='#top'>Top</a></footer></template>")
         store.write("src/style.css","main { color: red; }")
         store.write("src/components/Hero.vue","<template><h1>Hero</h1></template>")
         with tempfile.TemporaryDirectory() as directory:
@@ -63,6 +72,18 @@ class StoreTests(unittest.TestCase):
                 self.assertFalse(json.loads(z.read("tracknode-agent.json"))["visual_verified"])
                 deps=json.loads(z.read("package.json"))["dependencies"]
                 self.assertEqual(set(deps),{"vue","three","gsap","lenis"})
+
+    def test_quality_gate(self):
+        from quality import quality_issues
+        store=SiteStore()
+        store.profile="cinema"
+        store.write("src/App.vue","<template><main>Site</main></template>")
+        store.write("src/style.css","main { color: red; }")
+        issues=quality_issues(store.files,"cinema")
+        self.assertTrue(any("SiteFooter" in issue for issue in issues))
+        self.assertTrue(any("scrubbed" in issue for issue in issues))
+        with self.assertRaisesRegex(ValueError,"Fix before review"):
+            store.set_review("Source review should reject incomplete cinematic pages.")
 
     def test_profiles(self):
         from art_direction import PROFILES, build_prompt

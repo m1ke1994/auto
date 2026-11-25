@@ -13,12 +13,13 @@ from openhands.sdk.tool import Tool, ToolExecutor, register_tool
 from site_store import SiteStore
 from media import MediaLibrary
 from art_direction import PROFILES, build_prompt
+from quality import quality_issues
 
 MEDIA = MediaLibrary(os.environ.get("PEXELS_API_KEY",""))
 STORE = SiteStore(MEDIA)
 
 class SiteFileAction(Action):
-    operation: str = Field(description="plan, write, read, list, review, photo_search, or photo_save")
+    operation: str = Field(description="plan, write, read, list, quality_check, review, photo_search, or photo_save")
     path: str = Field(default="", description="Relative project path, e.g. src/App.vue")
     content: str = Field(default="", description="Full source, plan/review, or English search query for photo_search")
     orientation: str = Field(default="landscape", description="Photo orientation: landscape, portrait, square")
@@ -37,6 +38,9 @@ class SiteFileExecutor(ToolExecutor[SiteFileAction, SiteFileObservation]):
             if action.operation == "plan":
                 STORE.set_plan(action.content)
                 message = "Art direction saved."
+            elif action.operation == "quality_check":
+                issues=quality_issues(STORE.files,STORE.profile or "premium")
+                message="Source structural checks passed (not browser or visual verification)." if not issues else "\n".join(issues)
             elif action.operation == "review":
                 STORE.set_review(action.content)
                 message = "Source self-review saved (not a build or visual check)."
@@ -64,7 +68,7 @@ class SiteFileTool(ToolDefinition[SiteFileAction, SiteFileObservation]):
     @classmethod
     def create(cls, conv_state, **params):
         return [cls(
-            description="Plan art direction, read/list/write project source, and record final source review. Save plan before writing. Write complete files under src/. Required: src/App.vue, src/style.css, and at least one Vue component. Review after last write. photo_search searches Pexels by query and orientation; photo_save downloads a returned photo id as a local WebP, max six downloads. No shell or filesystem access.",
+            description="Plan art direction, read/list/write project source, and record final source review. Save plan before writing. Write complete files under src/. Required: src/App.vue, src/style.css, and at least one Vue component. Run quality_check and fix the reported issues, then review after last write. photo_search searches Pexels by query and orientation; photo_save downloads a returned photo id as a local WebP, max six downloads. No shell or filesystem access.",
             action_type=SiteFileAction,
             observation_type=SiteFileObservation,
             executor=SiteFileExecutor(),
@@ -130,10 +134,11 @@ def main():
     signal.signal(signal.SIGALRM, lambda *_: os._exit(124))
     signal.alarm(900)
     try:
+        STORE.profile=args.profile
         agent=make_agent(key,model)
         with tempfile.TemporaryDirectory(prefix="studio-") as workspace:
             conversation=Conversation(agent=agent,workspace=workspace,
-                max_iteration_per_run=18,max_budget_per_run=0.60,visualizer=None)
+                max_iteration_per_run=24,max_budget_per_run=0.60,visualizer=None)
             print("OPENHANDS_PROFILE: "+args.profile+" (art direction, source, self-review)",flush=True)
             conversation.send_message(build_prompt(args.prompt,args.profile,MEDIA.enabled))
             conversation.run()
@@ -142,6 +147,8 @@ def main():
     except Exception as exc:
         # Avoid dumping credentials or untrusted prompts in exception logs.
         print("OpenHands generation failed: "+type(exc).__name__,flush=True)
+        if isinstance(exc,ValueError):
+            print("Source checks: "+" | ".join(quality_issues(STORE.files,args.profile)),flush=True)
         raise SystemExit(1) from None
     finally:
         signal.alarm(0)

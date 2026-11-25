@@ -4,6 +4,7 @@ import re
 import zipfile
 from pathlib import Path
 from html import escape
+from quality import quality_issues
 
 ALLOWED = re.compile(r"src/(?:[A-Za-z0-9_-]+/){0,3}[A-Za-z0-9_-]+\.(?:vue|js|ts|css|svg)")
 MAX_FILE = 64_000
@@ -17,6 +18,7 @@ class SiteStore:
     def __init__(self, media=None):
         self.files = {}
         self.media = media
+        self.profile = None
         self.design_brief = ""
         self.self_review = ""
 
@@ -28,6 +30,10 @@ class SiteStore:
 
     def set_review(self, content):
         self.validate()
+        if self.profile:
+            issues = quality_issues(self.files,self.profile)
+            if issues:
+                raise ValueError("Fix before review: " + " | ".join(issues))
         if not 40 <= len(content.strip()) <= 6000:
             raise ValueError("Self review must contain 40-6000 characters.")
         self.self_review = content.strip()
@@ -59,6 +65,9 @@ class SiteStore:
     def export(self, output, model, profile=None):
         self.validate()
         if profile is not None:
+            issues = quality_issues(self.files,profile)
+            if issues:
+                raise ValueError("Source quality gate: " + " | ".join(issues))
             if not self.design_brief or not self.self_review:
                 raise ValueError("Art direction plan and final self-review are required.")
             if not any(p.startswith("src/components/") and p.endswith(".vue") for p in self.files):
@@ -85,9 +94,9 @@ class SiteStore:
                 '<a href="' + escape(c["url"],quote=True) + '" rel="noopener noreferrer">'
                 + escape(c["photographer"] or "Pexels photographer") + '</a>' for c in credits
             )
-            footer = ('<footer aria-label="Photo credits" style="padding:16px;text-align:center;background:#fafafa;color:#222;font:14px/1.6 system-ui">'
-                      '<a href="https://www.pexels.com/" style="color:#222">Photos provided by Pexels</a> · '
-                      + links + '</footer>')
+            footer = ('<aside aria-label="Photo credits" style="padding:12px;text-align:center;background:var(--tn-footer-bg,#171717);color:var(--tn-footer-fg,#e5e5e5);font:12px/1.6 system-ui">'
+                      '<a href="https://www.pexels.com/" style="color:inherit">Photos provided by Pexels</a> · '
+                      + links + '</aside>')
             trusted["index.html"] = trusted["index.html"].replace("</body>",footer+"</body>")
         dest = Path(output)
         # Refuse to overwrite a previous artifact or a symlink.
