@@ -41,8 +41,10 @@ class SiteFileExecutor(ToolExecutor[SiteFileAction, SiteFileObservation]):
         try:
             if action.operation == "plan":
                 STORE.set_plan(action.content)
+                print("STUDIO_STAGE: art direction ready",flush=True)
                 message = "Art direction saved."
             elif action.operation == "quality_check":
+                print("STUDIO_STAGE: source quality check",flush=True)
                 issues=quality_issues(STORE.files,STORE.profile or "premium")
                 message="Source structural checks passed (not browser or visual verification)." if not issues else "\n".join(issues)
             elif action.operation == "review":
@@ -67,6 +69,7 @@ class SiteFileExecutor(ToolExecutor[SiteFileAction, SiteFileObservation]):
                 if not STORE.design_brief:
                     raise ValueError("Save art direction first using plan.")
                 STORE.write(action.path, action.content)
+                print("STUDIO_SOURCE: "+action.path,flush=True)
                 message = "Saved " + action.path
             elif action.operation == "read":
                 message = STORE.read(action.path)
@@ -193,7 +196,7 @@ def main():
         agent=make_agent(key,model)
         with tempfile.TemporaryDirectory(prefix="studio-") as workspace:
             conversation=Conversation(agent=agent,workspace=workspace,
-                max_iteration_per_run=24,max_budget_per_run=0.60,visualizer=None)
+                max_iteration_per_run=30,max_budget_per_run=0.60,visualizer=None)
             print("OPENHANDS_PROFILE: "+args.profile+" (art direction, source, self-review)",flush=True)
             conversation.send_message(build_prompt(args.prompt,args.profile,MEDIA.enabled,SKETCHFAB.enabled))
             conversation.run()

@@ -50,14 +50,18 @@ class StoreTests(unittest.TestCase):
         store=SiteStore()
         store.write("src/App.vue", """<script setup>
 import SiteFooter from './components/SiteFooter.vue'
+import SiteHeader from './components/SiteHeader.vue'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 const options = { scrub: true }
-</script><template><main>
-<section data-tn-scene="opening"><div data-tn-motion>One</div></section>
-<section data-tn-scene="middle"><div data-tn-motion>Two</div></section>
-<section data-tn-scene="finale">Three</section>
+</script><template><SiteHeader /><main>
+<section id="home" data-tn-section="home" data-tn-scene="opening"><h1>Hero</h1><div data-tn-motion>One</div></section>
+<section id="about" data-tn-section="about" data-tn-scene="middle"><div data-tn-motion>Two</div></section>
+<section id="services" data-tn-section="services" data-tn-scene="finale"><article data-tn-service>Three</article></section>
+<section id="benefits" data-tn-section="benefits">Benefits</section>
+<section id="contacts" data-tn-section="contacts">Contacts</section>
 </main><SiteFooter /></template>""")
-        store.write("src/components/SiteFooter.vue","<template><footer data-tn-footer><a href='#top'>Top</a></footer></template>")
+        store.write("src/components/SiteHeader.vue","<template><header data-tn-header><nav><a href='#home'>Home</a><a href='#about'>About</a><a href='#services'>Services</a><a href='#contacts'>Contacts</a></nav></header></template>")
+        store.write("src/components/SiteFooter.vue","<template><footer data-tn-footer><a href='#home'>Top</a></footer></template>")
         store.write("src/style.css","main { color: red; }")
         store.write("src/components/Hero.vue","<template><h1>Hero</h1></template>")
         with tempfile.TemporaryDirectory() as directory:
@@ -87,8 +91,17 @@ const options = { scrub: true }
         issues=quality_issues(store.files,"cinema")
         self.assertTrue(any("SiteFooter" in issue for issue in issues))
         self.assertTrue(any("scrubbed" in issue for issue in issues))
+        self.assertTrue(any("SiteHeader" in issue for issue in issues))
+        self.assertTrue(any("id=contacts" in issue for issue in issues))
+        self.assertTrue(any("data-tn-service" in issue for issue in issues))
         with self.assertRaisesRegex(ValueError,"Fix before review"):
             store.set_review("Source review should reject incomplete cinematic pages.")
+
+    def test_required_section_attributes(self):
+        from quality import literal_attribute
+        self.assertTrue(literal_attribute('<section id="home">',"id","home"))
+        self.assertFalse(literal_attribute('<section :id="home">',"id","home"))
+        self.assertFalse(literal_attribute('<section data-id="home">',"id","home"))
 
     def test_profiles(self):
         from art_direction import PROFILES, build_prompt
