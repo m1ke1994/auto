@@ -5,6 +5,7 @@ import re
 from urllib.parse import quote
 import requests
 from media import allowed_url
+from asset_quality import rank_asset
 
 API="https://api.polyhaven.com"
 HEADERS={"User-Agent":"TrackNode-Studio/2.0 (3D asset importer)"}
@@ -62,6 +63,7 @@ class ModelLibrary:
         self.credits={}
         self.searches=0
         self.downloads=0
+        self.style='realistic'
 
     def search(self,query):
         if not 2<=len(query.strip())<=100 or self.searches>=5:
@@ -83,14 +85,14 @@ class ModelLibrary:
                 continue
             title=str(item.get("name",slug))[:150]
             haystack=(" ".join([slug,title,str(item.get("tags",[])),str(item.get("categories",[]))])).lower()
-            score=sum(1 for token in tokens if token in haystack)
-            if score:
+            rank=rank_asset({**item,"slug":slug},query,count,self.style)
+            if rank is not None:
                 authors=item.get("authors",{})
                 record={"id":slug,"name":title,"polycount":count,"license":"CC0",
                         "author":", ".join(authors)[:300] if isinstance(authors,dict) else "",
-                        "url":"https://polyhaven.com/a/"+slug}
-                matches.append((score,slug,record))
-        result=[x[2] for x in sorted(matches,key=lambda x:(-x[0],x[2]["polycount"],x[1]))[:6]]
+                        "url":"https://polyhaven.com/a/"+slug,**rank}
+                matches.append((rank["metadata_score"],slug,record))
+        result=[x[2] for x in sorted(matches,key=lambda x:(-x[0],x[1]))[:6]]
         self.candidates.update({x["id"]:x for x in result})
         return result
 

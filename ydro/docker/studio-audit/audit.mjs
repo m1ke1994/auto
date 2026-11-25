@@ -112,6 +112,24 @@ try {
         }catch{menuOperable=false;}
       }else{menuOperable=false;}
     }
+    const heroFraming=await page.locator('#home [data-tn-model]').evaluateAll(nodes=>nodes.map(n=>{
+      const r=n.getBoundingClientRect();
+      return {path:n.dataset.tnModel,state:n.dataset.tnModelState,coverage:Number(n.dataset.tnModelCoverage||0),
+        clipped:n.dataset.tnModelClipped==='true',width:r.width,height:r.height,viewportWidth:innerWidth,viewportHeight:innerHeight};
+    }));
+    // Target the hero's own scroll track rather than relying only on whole-page quartiles.
+    const targeted=[];
+    if(name==='desktop'&&heroFraming.length){
+      for(const f of [.18,.45]){
+        await page.evaluate(f=>{
+          const host=document.querySelector('#home [data-tn-model]');
+          const track=host?.closest('[data-tn-camera-track]')||host;
+          if(track){const r=track.getBoundingClientRect();window.scrollTo({top:scrollY+r.top+Math.max(innerHeight*.4,r.height-innerHeight*.35)*f,behavior:'instant'});}
+        },f);
+        await page.waitForTimeout(900);
+        targeted.push(...await page.locator('[data-tn-model]').evaluateAll(nodes=>nodes.map(n=>({path:n.dataset.tnModel,state:n.dataset.tnModelState,frames:Number(n.dataset.tnFrames||0),pose:n.dataset.tnCameraPose||'',canvas:!!n.querySelector('canvas')}))));
+      }
+    }
     const end=steps.at(-1);
     const brokenAfterScroll=await page.evaluate(()=>[...document.images].filter(i=>i.complete&&!i.naturalWidth).length);
     const motionChanged=steps.some((x,i)=>i>0&&JSON.stringify(x.layers)!==JSON.stringify(steps[i-1].layers));
@@ -123,12 +141,13 @@ try {
     checks.serviceCards=sections.some(x=>x.id==='services'&&x.distinctCards>=3);
     if(expectedModels.length && report.profile==='cinema') checks.heroImportedModel=sections.some(x=>x.id==='home'&&x.heroModel);
     if(expectedModels.length){
-      const observed=steps.flatMap(x=>x.models);
+      const observed=[...steps.flatMap(x=>x.models),...targeted];
+      if(report.profile==='cinema') checks.heroFraming=heroFraming.length>0&&heroFraming.every(m=>m.state==='ready'&&m.coverage>=.62&&m.coverage<=.98&&!m.clipped&&m.width>=m.viewportWidth*(name==='desktop'?.32:.70)&&m.height>=m.viewportHeight*(name==='desktop'?.38:.25));
       checks.importedModelsReady=expectedModels.every(path=>observed.some(m=>m.path===path&&m.state==='ready'&&m.canvas&&m.frames>0));
       if(name==='desktop') checks.cameraChanges=expectedModels.every(path=>new Set(observed.filter(m=>m.path===path&&m.state==='ready'&&m.frames>0&&m.pose).map(m=>m.pose)).size>=2);
     }
     if(report.profile==='cinema') {checks.scenes=result.scenes>=3;if(name==='desktop') checks.scrollMotion=motionChanged;}
-    report.checks.push({name,checks,metrics:result,sections,navigation,steps,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
+    report.checks.push({name,checks,metrics:result,sections,navigation,heroFraming,steps,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
     await context.close();
   }
 } catch(error){report.error=String(error).slice(0,500);}

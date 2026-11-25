@@ -53,7 +53,9 @@ class SiteFileExecutor(ToolExecutor[SiteFileAction, SiteFileObservation]):
             elif action.operation == "sketchfab_search":
                 message = json.dumps(SKETCHFAB.search(action.content),ensure_ascii=False)
             elif action.operation == "sketchfab_save":
+                print("STUDIO_STAGE: importing Sketchfab model",flush=True)
                 message = json.dumps(SKETCHFAB.save(action.content.strip()),ensure_ascii=False)
+                print("STUDIO_STAGE: model imported",flush=True)
                 STORE.self_review = ""
             elif action.operation == "model_search":
                 message = json.dumps(MODELS.search(action.content),ensure_ascii=False)
@@ -118,9 +120,23 @@ def main():
     parser.add_argument("--check-models",action="store_true")
     parser.add_argument("--check-sketchfab",action="store_true")
     parser.add_argument("--check-sketchfab-import",action="store_true")
+    parser.add_argument("--check-asset-search", metavar="QUERY")
+    parser.add_argument("--asset-style", choices=("realistic","stylized"), default="realistic")
     parser.add_argument("--prompt")
     parser.add_argument("--profile", choices=tuple(PROFILES), default="premium")
     args=parser.parse_args()
+    MODELS.style=SKETCHFAB.style=args.asset_style
+    if args.check_asset_search:
+        try:
+            results=SKETCHFAB.search(args.check_asset_search)
+            print("ASSET_SEARCH_RESULTS: "+json.dumps(results,ensure_ascii=True),flush=True)
+            if not results:
+                print("No eligible models; try a different subject query.",flush=True)
+                raise SystemExit(1)
+        except ValueError as exc:
+            print(str(exc),flush=True)
+            raise SystemExit(1) from None
+        return
     if args.check:
         # No LLM request, no key required.
         result=SiteFileExecutor()(SiteFileAction(operation="list"))
@@ -198,7 +214,7 @@ def main():
             conversation=Conversation(agent=agent,workspace=workspace,
                 max_iteration_per_run=30,max_budget_per_run=0.60,visualizer=None)
             print("OPENHANDS_PROFILE: "+args.profile+" (art direction, source, self-review)",flush=True)
-            conversation.send_message(build_prompt(args.prompt,args.profile,MEDIA.enabled,SKETCHFAB.enabled))
+            conversation.send_message(build_prompt(args.prompt,args.profile,MEDIA.enabled,SKETCHFAB.enabled,args.asset_style))
             conversation.run()
             STORE.export("/output/tracknode-agent-site.zip",model,args.profile)
         print("OPENHANDS_SOURCE_READY: /output/tracknode-agent-site.zip (build not verified)")

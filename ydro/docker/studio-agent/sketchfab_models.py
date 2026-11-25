@@ -8,6 +8,7 @@ import zipfile
 from urllib.parse import urlsplit
 from PIL import Image
 from models3d import MAX_BYTES, MAX_POLYS, EXTENSIONS, safe_relative
+from asset_quality import rank_asset
 from sketchfab_probe import api, allowed_cdn, request_bytes, NetworkFailure, UID, MAX_ARCHIVE
 
 LICENSES = {
@@ -92,6 +93,7 @@ class SketchfabLibrary:
         self.shared=shared
         self.candidates={}
         self.searches=0
+        self.style='realistic'
 
     @property
     def enabled(self):
@@ -109,9 +111,12 @@ class SketchfabLibrary:
             uid=item.get("uid")
             faces=item.get("faceCount")
             if isinstance(uid,str) and UID.fullmatch(uid) and type(faces) is int and 0<faces<=MAX_POLYS:
-                candidates.append((faces,uid))
+                rank=rank_asset(item,query,faces,self.style)
+                if rank is not None:
+                    candidates.append((-rank["metadata_score"],len(candidates),uid))
         found=[]
-        for _,uid in sorted(candidates)[:8]:
+        print("SKETCHFAB_RANK: eligible="+str(len(candidates))+"; style="+self.style,flush=True)
+        for _,_,uid in sorted(candidates)[:8]:
             try:
                 detail=api("/models/"+uid,self._token)
             except NetworkFailure:
@@ -127,15 +132,18 @@ class SketchfabLibrary:
                 not isinstance(author,str) or not author.strip() or
                 type(faces) is not int or not 0<faces<=MAX_POLYS):
                 continue
+            rank=rank_asset(detail,query,faces,self.style)
+            if rank is None:
+                continue
             item={"id":uid,"name":str(detail.get("name",uid))[:150],
                   "author":author[:150],"license":license[0],"license_url":license[1],
                   "source":"Sketchfab","url":"https://sketchfab.com/3d-models/"+uid,
-                  "polycount":faces}
-            self.candidates[uid]=item
+                  "polycount":faces,**rank}
             found.append(item)
-            if len(found)>=4:
-                break
-        return found
+        selected=sorted(found,key=lambda x:-x["metadata_score"])[:4]
+        self.candidates.update({x["id"]:x for x in selected})
+        print("SKETCHFAB_RANK: verified="+str(len(selected))+"; scores="+str([x["metadata_score"] for x in selected]),flush=True)
+        return selected
 
     def save(self,uid):
         if uid not in self.candidates:
@@ -149,7 +157,8 @@ class SketchfabLibrary:
         detail=api("/models/"+uid,self._token)
         license=license_info(detail)
         current=self.candidates[uid]
-        if detail.get("isDownloadable") is not True or not license or license[1]!=current["license_url"]:
+        faces=detail.get("faceCount")
+        if detail.get("isDownloadable") is not True or not license or license[1]!=current["license_url"] or type(faces) is not int or not 0<faces<=MAX_POLYS:
             raise ValueError("Model license or availability changed.")
         budget=MAX_BYTES-sum(map(len,self.shared.assets.values()))
         if budget<=0:

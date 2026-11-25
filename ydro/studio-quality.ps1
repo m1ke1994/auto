@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory=$true)][string]$Prompt,
-    [ValidateSet("standard","premium","cinema")][string]$Profile="cinema"
+    [ValidateSet("standard","premium","cinema")][string]$Profile="cinema",
+    [ValidateSet("realistic","stylized")][string]$AssetStyle="realistic"
 )
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -19,7 +20,7 @@ docker build -t tracknode-studio-audit docker/studio-audit
 Assert-Exit "Browser audit image build"
 $out = (New-Item -ItemType Directory -Path (Join-Path $PWD ("studio-agent-output/" + [guid]::NewGuid().ToString())) -Force).FullName
 Write-Host "Output: $out"
-& docker @compose run --rm --no-deps -v "$($out):/output" openhands --profile $Profile --prompt $Prompt
+& docker @compose run --rm --no-deps -v "$($out):/output" openhands --profile $Profile --asset-style $AssetStyle --prompt $Prompt
 Assert-Exit "AI generation"
 $archive = Join-Path $out "tracknode-agent-site.zip"
 if (!(Test-Path -LiteralPath $archive)) { throw "Missing source ZIP" }
