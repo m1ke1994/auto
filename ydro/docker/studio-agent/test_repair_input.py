@@ -56,6 +56,21 @@ class RepairTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 new.export(Path(d)/"final.zip","test","cinema")
 
+    def test_critic_notes_accept_desktop_gate_mobile_skip(self):
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/"visual-review.json"
+            scores={"asset_quality":17,"composition":13,"originality":9,"typography":7,
+                    "sections":6,"lighting_palette":7,"usability":6}
+            report={"model":"deepseek-flash","status":"needs_revision","passed":False,
+                    "devices":{"desktop":{"score":65,"scores":scores,"summary":"Desktop failed.","issues":[]},
+                               "mobile":{"status":"skipped_desktop_failed","passed":False,
+                                         "summary":"Skipped to avoid unnecessary token use.","issues":[]}}}
+            p.write_text(json.dumps(report),encoding="utf-8")
+            notes=json.loads(critic_notes(p))
+            self.assertEqual(notes["desktop"]["score"],65)
+            self.assertEqual(notes["mobile"]["status"],"skipped")
+            self.assertTrue(photo_repair_allowed({},json.dumps(notes)))
+
     def test_photo_asset_repair_policy_is_model_aware(self):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/"visual-review.json"
