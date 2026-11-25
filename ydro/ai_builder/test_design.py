@@ -32,3 +32,15 @@ class DesignTests(SimpleTestCase):
         response.json.return_value={"choices":[{"message":{"content":"invalid"}}]}
         with self.assertRaises(GenerationError):
             generate("Поэт","Сайт")
+
+    def test_all_themes_render_css_and_preview(self):
+        from .design import THEMES, css
+        for theme in THEMES:
+            with self.subTest(theme=theme):
+                spec=demo_spec("Поэт","Стихи")
+                spec["theme"]=theme
+                stylesheet=css(spec)
+                self.assertEqual(stylesheet.count("{"),stylesheet.count("}"))
+                self.assertIn(".num{",stylesheet)
+                self.assertIn("<style>"+stylesheet+"</style>",preview(spec))
+                self.assertEqual(source_files(spec)["src/style.css"],stylesheet)
