@@ -51,11 +51,23 @@ def cdn_diagnostics(host):
     print("SKETCHFAB_HTTPS_PROXY_CONFIGURED: "+str(bool(requests.utils.get_environ_proxies("https://"+host).get("https"))),flush=True)
 
 def api(path, token, params=None):
-    try:
-        return json.loads(request_bytes(API+path,
-            headers={"Authorization":"Token "+token},params=params))
-    except (UnicodeError, json.JSONDecodeError):
-        raise ValueError("invalid JSON response") from None
+    # GET requests are bounded and retried only on transient transport errors.
+    # Never log the token, query parameters or signed CDN URL.
+    stage = ("search" if path == "/search" else "auth" if path == "/me"
+             else "download-link" if path.endswith("/download") else "model-detail")
+    for attempt in range(1,3):
+        try:
+            print("SKETCHFAB_API: "+stage+"; attempt="+str(attempt)+"/2",flush=True)
+            data=request_bytes(API+path,headers={"Authorization":"Token "+token},
+                               params=params,timeout=(12,45))
+            return json.loads(data)
+        except NetworkFailure as exc:
+            print("SKETCHFAB_API_ERROR: "+stage+"; "+str(exc),flush=True)
+            if attempt==2:
+                raise NetworkFailure("Sketchfab "+stage+" failed after two attempts: "+str(exc)) from None
+            time.sleep(2)
+        except (UnicodeError, json.JSONDecodeError):
+            raise ValueError("invalid JSON response") from None
 
 def license_ok(item):
     license = item.get("license")

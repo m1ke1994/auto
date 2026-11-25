@@ -3,7 +3,7 @@ import json
 import unittest
 import zipfile
 from unittest.mock import patch
-from sketchfab_probe import probe, license_ok, allowed_cdn, validate_archive, NetworkFailure
+from sketchfab_probe import api, probe, license_ok, allowed_cdn, validate_archive, NetworkFailure
 
 class SketchfabTests(unittest.TestCase):
     def test_license_and_hosts(self):
@@ -40,6 +40,18 @@ class SketchfabTests(unittest.TestCase):
         self.assertEqual(request.call_count,2)
         self.assertEqual(api.call_count,5)
         diagnostics.assert_called_once_with("sketchfab-prod-media.s3.amazonaws.com")
+    @patch("sketchfab_probe.time.sleep")
+    @patch("sketchfab_probe.request_bytes",side_effect=[NetworkFailure("ReadTimeout"),b'{"results":[]}'])
+    def test_api_retry(self,request,sleep):
+        self.assertEqual(api("/search","fake-token"),{"results":[]})
+        self.assertEqual(request.call_count,2)
+        self.assertEqual(request.call_args.kwargs["timeout"],(12,45))
+        sleep.assert_called_once_with(2)
+    @patch("sketchfab_probe.request_bytes",side_effect=ValueError("HTTP 401"))
+    def test_api_does_not_retry_auth_failure(self,request):
+        with self.assertRaisesRegex(ValueError,"HTTP 401"):
+            api("/me","fake-token")
+        request.assert_called_once()
     def test_invalid_archive(self):
         with self.assertRaises(ValueError):
             validate_archive(b"not a zip")

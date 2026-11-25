@@ -112,7 +112,13 @@ class SketchfabLibrary:
                 candidates.append((faces,uid))
         found=[]
         for _,uid in sorted(candidates)[:8]:
-            detail=api("/models/"+uid,self._token)
+            try:
+                detail=api("/models/"+uid,self._token)
+            except NetworkFailure:
+                # A slow detail endpoint must not discard already verified candidates.
+                if found:
+                    break
+                raise
             license=license_info(detail)
             user=detail.get("user",{})
             author=user.get("username") if isinstance(user,dict) else None
