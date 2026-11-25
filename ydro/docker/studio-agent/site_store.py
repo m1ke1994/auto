@@ -3,6 +3,7 @@ import json
 import re
 import zipfile
 from pathlib import Path
+from html import escape
 
 ALLOWED = re.compile(r"src/(?:[A-Za-z0-9_-]+/){0,3}[A-Za-z0-9_-]+\.(?:vue|js|ts|css|svg)")
 MAX_FILE = 64_000
@@ -13,8 +14,9 @@ REQUIRED = {"src/App.vue", "src/style.css"}
 RESERVED = {"src/main.js", "src/main.ts"}
 
 class SiteStore:
-    def __init__(self):
+    def __init__(self, media=None):
         self.files = {}
+        self.media = media
         self.design_brief = ""
         self.self_review = ""
 
@@ -74,8 +76,20 @@ class SiteStore:
             trusted["ART_DIRECTION.md"] = "# AI art direction (unverified)\n\n" + self.design_brief
         if self.self_review:
             trusted["SELF_REVIEW.md"] = "# AI source review (not build or browser testing)\n\n" + self.self_review
+        assets = self.media.assets if self.media else {}
+        credits = list(self.media.credits.values()) if self.media else []
+        if credits:
+            trusted["MEDIA_CREDITS.json"] = json.dumps(credits,ensure_ascii=False,indent=2)
+            links = " · ".join(
+                '<a href="' + escape(c["url"],quote=True) + '" rel="noopener noreferrer">'
+                + escape(c["photographer"] or "Pexels photographer") + '</a>' for c in credits
+            )
+            footer = ('<footer aria-label="Photo credits" style="padding:16px;text-align:center;background:#fafafa;color:#222;font:14px/1.6 system-ui">'
+                      '<a href="https://www.pexels.com/" style="color:#222">Photos provided by Pexels</a> · '
+                      + links + '</footer>')
+            trusted["index.html"] = trusted["index.html"].replace("</body>",footer+"</body>")
         dest = Path(output)
         # Refuse to overwrite a previous artifact or a symlink.
         with dest.open("xb") as stream, zipfile.ZipFile(stream,"w",zipfile.ZIP_DEFLATED) as archive:
-            for name, content in sorted({**self.files, **trusted}.items()):
+            for name, content in sorted({**self.files, **assets, **trusted}.items()):
                 archive.writestr(name, content)
