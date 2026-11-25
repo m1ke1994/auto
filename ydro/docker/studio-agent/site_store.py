@@ -8,12 +8,27 @@ ALLOWED = re.compile(r"src/(?:[A-Za-z0-9_-]+/){0,3}[A-Za-z0-9_-]+\.(?:vue|js|ts|
 MAX_FILE = 64_000
 MAX_TOTAL = 300_000
 MAX_FILES = 30
+DEPENDENCIES = {"vue":"3.5.34", "three":"0.180.0", "gsap":"3.13.0", "lenis":"1.3.20"}
 REQUIRED = {"src/App.vue", "src/style.css"}
 RESERVED = {"src/main.js", "src/main.ts"}
 
 class SiteStore:
     def __init__(self):
         self.files = {}
+        self.design_brief = ""
+        self.self_review = ""
+
+    def set_plan(self, content):
+        if not 80 <= len(content.strip()) <= 8000:
+            raise ValueError("Art direction plan must contain 80-8000 characters.")
+        self.design_brief = content.strip()
+        self.self_review = ""
+
+    def set_review(self, content):
+        self.validate()
+        if not 40 <= len(content.strip()) <= 6000:
+            raise ValueError("Self review must contain 40-6000 characters.")
+        self.self_review = content.strip()
 
     def write(self, path, content):
         if not ALLOWED.fullmatch(path) or path in RESERVED:
@@ -25,6 +40,7 @@ class SiteStore:
         if len(candidate) > MAX_FILES or sum(len(s.encode("utf-8")) for s in candidate.values()) > MAX_TOTAL:
             raise ValueError("Project exceeds file count or size limit.")
         self.files = candidate
+        self.self_review = ""
 
     def read(self, path):
         if path not in self.files:
@@ -38,17 +54,26 @@ class SiteStore:
         if "<template" not in self.files["src/App.vue"]:
             raise ValueError("App.vue needs a Vue template.")
 
-    def export(self, output, model):
+    def export(self, output, model, profile=None):
         self.validate()
+        if profile is not None:
+            if not self.design_brief or not self.self_review:
+                raise ValueError("Art direction plan and final self-review are required.")
+            if not any(p.startswith("src/components/") and p.endswith(".vue") for p in self.files):
+                raise ValueError("At least one Vue component is required.")
         # Only trusted code controls the package manifest and Vite entrypoint.
         trusted = {
-            "package.json": json.dumps({"name":"tracknode-agent-site","private":True,"version":"0.1.0","type":"module","scripts":{"dev":"vite","build":"vite build"},"dependencies":{"vue":"3.5.34"},"devDependencies":{"vite":"6.4.1","@vitejs/plugin-vue":"5.2.4"}},indent=2),
+            "package.json": json.dumps({"name":"tracknode-agent-site","private":True,"version":"0.1.0","type":"module","scripts":{"dev":"vite","build":"vite build"},"dependencies":DEPENDENCIES,"devDependencies":{"vite":"6.4.1","@vitejs/plugin-vue":"5.2.4"}},indent=2),
             "index.html": '<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>TrackNode Studio</title></head><body><div id="app"></div><script type="module" src="/src/main.js"></script></body></html>',
             "vite.config.js": "import {defineConfig} from 'vite';\nimport vue from '@vitejs/plugin-vue';\nexport default defineConfig({plugins:[vue()],base:'./'});\n",
             "src/main.js": "import {createApp} from 'vue';\nimport App from './App.vue';\nimport './style.css';\ncreateApp(App).mount('#app');\n",
             "README.md": "# TrackNode OpenHands source\nUntrusted AI-generated source. Inspect it and build only in an isolated, credential-free environment. No build or visual verification has been performed.\n",
-            "tracknode-agent.json": json.dumps({"engine":"openhands-sdk","model":model,"build_verified":False,"files":sorted(self.files)},indent=2),
+            "tracknode-agent.json": json.dumps({"engine":"openhands-sdk","model":model,"build_verified":False,"visual_verified":False,"profile":profile,"files":sorted(self.files)},indent=2),
         }
+        if self.design_brief:
+            trusted["ART_DIRECTION.md"] = "# AI art direction (unverified)\n\n" + self.design_brief
+        if self.self_review:
+            trusted["SELF_REVIEW.md"] = "# AI source review (not build or browser testing)\n\n" + self.self_review
         dest = Path(output)
         # Refuse to overwrite a previous artifact or a symlink.
         with dest.open("xb") as stream, zipfile.ZipFile(stream,"w",zipfile.ZIP_DEFLATED) as archive:

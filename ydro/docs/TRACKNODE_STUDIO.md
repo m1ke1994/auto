@@ -54,3 +54,8 @@ docker compose --env-file .env.studio.local -p tracknode20-agent -f docker-compo
 Get-ChildItem $out
 ```
 This is a CLI proof; Studio UI still uses the structured design provider. Next stage: isolated offline build, async jobs, revision import/preview and per-project context. No arbitrary generated dependencies or automated deployment yet.
+
+## Stage 3b: quality profiles and motion toolkit
+The standalone OpenHands runner accepts --profile standard, premium (default), or cinema. It must save an art-direction plan before writing and a source self-review after the final write. Both are included in the ZIP and are AI-generated, not independently verified. Vue, Three.js r180, GSAP 3.13 and Lenis 1.3.20 are preinstalled in the trusted offline builder and pinned in the exported package manifest. No generated package installation, shell or network tools. GSAP's standard license FAQ allows AI-generated code; revisit the license before expanding into a competing visual animation editor. https://gsap.com/standard-license/
+SDK custom cost estimates use official peak cache-miss rates as of 2026-11-25 (Pro $1.32 input/$3.96 output per million; Flash $0.30/$1.20). Target $0.60/run, 18 iterations, 900 second wall timeout; not a hard billing cap and pricing may change. Check actual DeepSeek usage. No separate paid art-director request, and no visual critic or automatic repair yet.
+Rebuild BOTH agent and builder before using new exports. Use studio-quality.ps1 to generate in a fresh directory then run the trusted build without networking or credentials. Output source and dist are kept separate; do not mount main repo or secrets. Build success does not mean visual quality is verified. Studio web UI unchanged.

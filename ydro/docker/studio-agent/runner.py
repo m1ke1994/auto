@@ -10,13 +10,14 @@ from pydantic import Field, SecretStr
 from openhands.sdk import Action, Agent, Conversation, LLM, Observation, TextContent, ToolDefinition
 from openhands.sdk.tool import Tool, ToolExecutor, register_tool
 from site_store import SiteStore
+from art_direction import PROFILES, build_prompt
 
 STORE = SiteStore()
 
 class SiteFileAction(Action):
-    operation: str = Field(description="write, read, or list")
+    operation: str = Field(description="plan, write, read, list, or review")
     path: str = Field(default="", description="Relative project path, e.g. src/App.vue")
-    content: str = Field(default="", description="Full UTF-8 source for write")
+    content: str = Field(default="", description="Full UTF-8 source for write; art direction or source review text for plan/review")
 
 class SiteFileObservation(Observation):
     message: str
@@ -28,7 +29,15 @@ class SiteFileObservation(Observation):
 class SiteFileExecutor(ToolExecutor[SiteFileAction, SiteFileObservation]):
     def __call__(self, action, conversation=None):
         try:
-            if action.operation == "write":
+            if action.operation == "plan":
+                STORE.set_plan(action.content)
+                message = "Art direction saved."
+            elif action.operation == "review":
+                STORE.set_review(action.content)
+                message = "Source self-review saved (not a build or visual check)."
+            elif action.operation == "write":
+                if not STORE.design_brief:
+                    raise ValueError("Save art direction first using plan.")
                 STORE.write(action.path, action.content)
                 message = "Saved " + action.path
             elif action.operation == "read":
@@ -45,7 +54,7 @@ class SiteFileTool(ToolDefinition[SiteFileAction, SiteFileObservation]):
     @classmethod
     def create(cls, conv_state, **params):
         return [cls(
-            description="Read/list/write project source only. Write complete files under src/. Required: src/App.vue and src/style.css. No shell or filesystem access.",
+            description="Plan art direction, read/list/write project source, and record final source review. Save plan before writing. Write complete files under src/. Required: src/App.vue, src/style.css, and at least one Vue component. Review after last write. No shell or filesystem access.",
             action_type=SiteFileAction,
             observation_type=SiteFileObservation,
             executor=SiteFileExecutor(),
@@ -54,12 +63,17 @@ class SiteFileTool(ToolDefinition[SiteFileAction, SiteFileObservation]):
 register_tool(SiteFileTool.name, SiteFileTool)
 
 def make_agent(key, model):
+    # Conservative peak/cache-miss USD rates per token (official pricing 2026-11-25).
+    # SDK accounting is an estimate; a single completion may overshoot.
+    input_rate, output_rate = {"deepseek-v4-pro": (1.32, 3.96), "deepseek-flash": (0.30, 1.20)}[model]
     llm = LLM(
         model="openai/" + model,
         base_url="https://api.deepseek.com/v1",
         api_key=SecretStr(key),
         usage_id="tracknode-agent",
         max_output_tokens=8192,
+        input_cost_per_token=input_rate / 1_000_000,
+        output_cost_per_token=output_rate / 1_000_000,
         litellm_extra_body={"thinking":{"type":"disabled"}},
         caching_prompt=False,
         log_completions_to_file=False,
@@ -70,12 +84,14 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--check",action="store_true")
     parser.add_argument("--prompt")
+    parser.add_argument("--profile", choices=tuple(PROFILES), default="premium")
     args=parser.parse_args()
     if args.check:
         # No LLM request, no key required.
         result=SiteFileExecutor()(SiteFileAction(operation="list"))
         assert result.message == "Empty project."
-        print("OpenHands SDK and bounded tool import OK")
+        make_agent("offline-check-only","deepseek-v4-pro")
+        print("OpenHands SDK and bounded tool import OK; premium profiles initialized")
         return
     if not args.prompt or not 1 <= len(args.prompt.strip()) <= 8000:
         parser.error("--prompt is required, maximum 8000 characters")
@@ -90,26 +106,16 @@ def main():
     logging.disable(logging.INFO)
     # Independent wall-clock stop even if the model stalls. Container is disposable.
     signal.signal(signal.SIGALRM, lambda *_: os._exit(124))
-    signal.alarm(600)
+    signal.alarm(900)
     try:
         agent=make_agent(key,model)
         with tempfile.TemporaryDirectory(prefix="studio-") as workspace:
             conversation=Conversation(agent=agent,workspace=workspace,
-                max_iteration_per_run=12,max_budget_per_run=0.30,visualizer=None)
-            conversation.send_message(
-                "Build a polished, original Vue 3 website in Russian. Use SiteFileTool to actually save "
-                "src/App.vue, src/style.css, and at least one meaningful Vue component. "
-                "Only Vue and browser APIs are available; no external dependencies, fetches or remote assets. "
-                "The entrypoint and Vite config are supplied separately. Use relative imports. "
-                "Create a distinctive responsive layout with accessible navigation, editorial typography, "
-                "CSS or inline SVG artwork and purposeful animations respecting reduced motion. "
-                "No false client claims, testimonials, or invented contact details; clearly label examples. "
-                "Do not collect real personal data or use external forms. Do not claim to have built or tested. "
-                "Keep file sizes compact, save essential files early, and finish within 12 steps. "
-                "User brief:\n" + args.prompt
-            )
+                max_iteration_per_run=18,max_budget_per_run=0.60,visualizer=None)
+            print("OPENHANDS_PROFILE: "+args.profile+" (art direction, source, self-review)",flush=True)
+            conversation.send_message(build_prompt(args.prompt,args.profile))
             conversation.run()
-            STORE.export("/output/tracknode-agent-site.zip",model)
+            STORE.export("/output/tracknode-agent-site.zip",model,args.profile)
         print("OPENHANDS_SOURCE_READY: /output/tracknode-agent-site.zip (build not verified)")
     except Exception as exc:
         # Avoid dumping credentials or untrusted prompts in exception logs.
