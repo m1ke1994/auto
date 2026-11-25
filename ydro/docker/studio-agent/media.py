@@ -1,6 +1,7 @@
 """Bounded Pexels photo retrieval. No user-supplied download URLs or secret output."""
 import io
 import json
+import re
 from urllib.parse import urlsplit
 import requests
 from PIL import Image, ImageOps
@@ -86,7 +87,6 @@ class MediaLibrary:
             return self.credits[path]
         if self.downloads >= MAX_PHOTOS:
             raise ValueError("Photo download limit reached.")
-        self.downloads += 1
         item=self.candidates[photo_id]
         try:
             # No API key on CDN requests; no redirects, only a vetted CDN URL.
@@ -110,4 +110,27 @@ class MediaLibrary:
                 "alt":item["alt"],"url":item["url"],"width":image.width,"height":image.height}
         self.assets[path]=data
         self.credits[path]=credit
+        self.downloads=len(self.assets)
         return credit
+
+    def replace(self, path, photo_id):
+        """Replace one existing credited photo without increasing the active asset count."""
+        if not isinstance(path,str) or not re.fullmatch(r"src/media/pexels-[0-9]{1,15}\.webp",path):
+            raise ValueError("Choose an exact existing local Pexels asset path.")
+        if path not in self.assets or path not in self.credits:
+            raise ValueError("The photo to replace is not present in this project.")
+        if type(photo_id) is not int or photo_id not in self.candidates:
+            raise ValueError("Choose a replacement photo id from the current Pexels search.")
+        new_path=f"src/media/pexels-{photo_id}.webp"
+        if new_path==path:
+            return self.credits[path]
+        old_asset=self.assets.pop(path)
+        old_credit=self.credits.pop(path)
+        self.downloads=len(self.assets)
+        try:
+            return self.save(photo_id)
+        except Exception:
+            self.assets[path]=old_asset
+            self.credits[path]=old_credit
+            self.downloads=len(self.assets)
+            raise

@@ -47,6 +47,29 @@ class MediaTests(unittest.TestCase):
                 self.assertIn("A &amp; B",z.read("index.html").decode())
                 self.assertIn("MEDIA_CREDITS.json",z.namelist())
                 self.assertNotIn(b"secret-test",b"".join(z.read(n) for n in z.namelist()))
+    @patch("media.requests.get")
+    def test_replace_keeps_six_photo_limit_and_credits(self,get):
+        img=io.BytesIO()
+        Image.new("RGB",(40,20),"tan").save(img,"JPEG")
+        get.return_value=response(img.getvalue())
+        library=MediaLibrary("secret-test")
+        for i in range(6):
+            path=f"src/media/pexels-{100+i}.webp"
+            library.assets[path]=b"old"
+            library.credits[path]={"path":path,"id":100+i,"photographer":"Old","url":"https://www.pexels.com/photo/old/"}
+        library.downloads=6
+        library.candidates[456]={"id":456,"photographer":"New Artist","alt":"Warm salon portrait",
+                                 "url":"https://www.pexels.com/photo/example-456/",
+                                 "download":"https://images.pexels.com/photos/456/x.jpg",
+                                 "width":40,"height":20}
+        replaced=library.replace("src/media/pexels-100.webp",456)
+        self.assertEqual(replaced["id"],456)
+        self.assertEqual(len(library.assets),6)
+        self.assertEqual(library.downloads,6)
+        self.assertNotIn("src/media/pexels-100.webp",library.assets)
+        self.assertIn("src/media/pexels-456.webp",library.assets)
+        self.assertEqual(library.credits["src/media/pexels-456.webp"]["photographer"],"New Artist")
+
     def test_disabled_and_unknown(self):
         lib=MediaLibrary("")
         with self.assertRaises(ValueError):
