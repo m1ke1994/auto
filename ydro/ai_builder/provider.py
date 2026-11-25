@@ -42,6 +42,10 @@ def generate(name,prompt,style="auto",instruction="",previous=None):
         url="https://api.deepseek.com/chat/completions"
         headers={"Authorization":"Bearer "+key}
     payload={"model":model,"messages":[{"role":"system","content":SYSTEM},{"role":"user","content":json.dumps({"name":name,"request":prompt,"style":style,"instruction":instruction,"previous":previous},ensure_ascii=False)}],"max_tokens":6000}
+    if provider=="deepseek":
+        # Structured output needs non-thinking mode on the current DeepSeek API.
+        payload["thinking"]={"type":"disabled"}
+        payload["response_format"]={"type":"json_object"}
     try:
         response=requests.post(url,headers=headers,json=payload,timeout=(8,75),allow_redirects=False)
         if not response.ok:
