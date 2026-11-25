@@ -158,10 +158,14 @@ onBeforeUnmount(() => {
 .tn-story-caption {
   max-width: 56ch;
   padding: 24px 0;
-  transition: transform .45s ease;
+  opacity: .36;
+  transition: opacity .45s ease, transform .45s ease;
   transform: translateY(12px);
 }
-.tn-story-chapter[data-active='true'] .tn-story-caption { transform: translateY(0); }
+.tn-story-chapter[data-active='true'] .tn-story-caption {
+  opacity: 1;
+  transform: translateY(0);
+}
 .tn-story-caption h3 {
   font-size: clamp(1.9rem, 4.5vw, 4.2rem);
   line-height: 1.02;
@@ -214,6 +218,7 @@ onBeforeUnmount(() => {
     overflow: visible;
   }
   .tn-story .tn-story-caption {
+    opacity: 1;
     transform: none;
     transition: none;
     max-width: none;

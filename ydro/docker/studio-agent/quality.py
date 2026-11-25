@@ -38,6 +38,11 @@ def quality_issues(files, profile):
     if not re.search(r"<a\b|<nav\b",footer):
         issues.append("Footer needs useful navigation or contact links, not only copyright.")
     if profile=="cinema":
+        # A custom desktop SceneStory visual is not enough: each chapter needs a
+        # matching mobile visual slot or the mobile story silently renders empty.
+        if re.search(r"<SceneStory\b",app) and re.search(r"<template\s+#visual\b",app):
+            if not re.search(r"<template\s+#mobile-visual\b",app):
+                issues.append("SceneStory custom #visual requires a per-chapter #mobile-visual slot; otherwise mobile chapters render empty.")
         source="\n".join(v for p,v in files.items() if p.endswith((".vue",".js",".ts")))
         scenes=set(re.findall(r'\bdata-tn-scene\s*=\s*["\']([a-zA-Z0-9_-]+)["\']',source))
         if len(scenes)<3:
