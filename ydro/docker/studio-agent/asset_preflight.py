@@ -254,7 +254,7 @@ def image_url(path):
         image.convert("RGB").save(buf,format="JPEG",quality=85)
     return "data:image/jpeg;base64,"+base64.b64encode(buf.getvalue()).decode("ascii")
 
-def choose_review(data,names):
+def choose_review(data,names,min_score=85):
     require(isinstance(data,dict) and set(data)=={"reviews"} and isinstance(data["reviews"],list),"Invalid asset critic response.")
     seen=set()
     accepted=[]
@@ -263,7 +263,7 @@ def choose_review(data,names):
         n=e["candidate"]
         require(isinstance(n,str) and n in names and n not in seen and type(e["score"]) is int and 0<=e["score"]<=100 and type(e["critical"]) is bool and isinstance(e["reason"],str) and 1<=len(e["reason"])<=700 and type(e["yaw"]) is int and e["yaw"] in ANGLES,"Invalid evaluation fields.")
         seen.add(n)
-        if e["score"]>=85 and not e["critical"]: accepted.append(e)
+        if e["score"]>=min_score and not e["critical"]: accepted.append(e)
     require(seen==set(names),"All rendered candidates must be evaluated.")
     return max(accepted,key=lambda x:x["score"]) if accepted else None
 
@@ -277,6 +277,41 @@ def canonical_candidates(items):
         record["folder"]="candidate-"+str(index)
         normalized.append(record)
     return normalized
+
+def promote_best():
+    """Explicitly approve the best already-reviewed non-critical fallback; no LLM/API calls."""
+    selection=load("selection.json")
+    require(isinstance(selection,dict) and selection.get("status")=="blocked" and selection.get("reason")=="visual_rejection","Only a visually reviewed blocked run can be promoted.")
+    plan=selection.get("plan")
+    require(isinstance(plan,dict) and plan.get("required") is True and plan.get("use_model") is True,"A required 3D model must be present in the saved plan.")
+    candidates=canonical_candidates(load("candidates.json"))
+    names=[]
+    for item in candidates:
+        folder=ROOT/item["folder"]
+        archive=folder/"candidate.zip"
+        report=folder/"render-ok.json"
+        require(archive.is_file() and not archive.is_symlink() and 0<archive.stat().st_size<=32*1024*1024,"Candidate archive missing or outside size limit.")
+        require(report.is_file() and not report.is_symlink(),"Candidate render report missing.")
+        render=json.loads(report.read_text(encoding="utf-8"))
+        require(isinstance(render,dict) and render.get("passed") is True,"Candidate render did not pass.")
+        views=render.get("views")
+        require(isinstance(views,list) and len(views)==len(ANGLES),"Candidate render is incomplete.")
+        require(all(isinstance(v,dict) and v.get("state")=="ready" and v.get("canvas") is True and type(v.get("frames")) is int and v["frames"]>=2 for v in views),"Candidate has an incomplete 3D view.")
+        require(all((folder/f"view-{yaw}.png").is_file() for yaw in ANGLES),"Candidate screenshots are incomplete.")
+        names.append(item["folder"])
+    winner=choose_review({"reviews":selection.get("reviews")},names,min_score=75)
+    require(winner is not None,"No non-critical candidate reached the conditional threshold of 75.")
+    item=next(x for x in candidates if x["folder"]==winner["candidate"])
+    model_path=item.get("path")
+    require(isinstance(model_path,str) and model_path.startswith("tn-models/") and ".." not in model_path.split("/") and not model_path.startswith("/"),"Invalid selected model path.")
+    tier="premium" if winner["score"]>=85 else "conditional"
+    selected={**item,"visual_score":winner["score"],"yaw":winner["yaw"],"critical":False,"quality_tier":tier,"quality_warning":winner["reason"]}
+    selection["status"]="approved"
+    selection["reason"]="approved" if tier=="premium" else "approved_conditional"
+    selection["selected"]=selected
+    dump("selection.json",selection)
+    print("ASSET_PREFLIGHT_PROMOTED: "+winner["candidate"]+"; score="+str(winner["score"])+"; tier="+tier+"; no model search/download/DeepSeek request",flush=True)
+    return 0
 
 def select():
     plan=load("plan.json")
@@ -312,7 +347,7 @@ def select():
 
 def main():
     p=argparse.ArgumentParser()
-    p.add_argument("stage",choices=("prepare","select"))
+    p.add_argument("stage",choices=("prepare","select","promote"))
     p.add_argument("--brief",default="")
     p.add_argument("--profile",choices=("standard","premium","cinema"),default="cinema")
     p.add_argument("--style",choices=("realistic","stylized"),default="realistic")
@@ -323,11 +358,13 @@ def main():
     p.add_argument("--exclude-model-id",action="append",default=[])
     args=p.parse_args()
     signal.signal(signal.SIGALRM,lambda *_: os._exit(124))
-    signal.alarm(420 if args.stage=="prepare" else 150)
+    signal.alarm(420 if args.stage=="prepare" else 30 if args.stage=="promote" else 150)
     try:
         if args.stage=="prepare":
             prepare(args)
             return 0
+        if args.stage=="promote":
+            return promote_best()
         return select()
     except PreflightError as exc:
         print("ASSET_PREFLIGHT_UNAVAILABLE: "+args.stage+"; "+str(exc),flush=True)

@@ -234,8 +234,16 @@ def main():
                 raise ValueError("Preflight does not match the brief, profile or style.")
             if selection["status"]=="approved":
                 item=selection["selected"]
-                if item["folder"] not in ("candidate-1","candidate-2") or type(item["visual_score"]) is not int or not 85<=item["visual_score"]<=100 or item["yaw"] not in (45,135,225):
+                score=item.get("visual_score")
+                tier=item.get("quality_tier","premium")
+                if item["folder"] not in ("candidate-1","candidate-2") or type(score) is not int or not 75<=score<=100 or item["yaw"] not in (45,135,225):
                     raise ValueError("Invalid approved candidate.")
+                if tier=="premium" and score<85:
+                    raise ValueError("Premium asset approval requires at least 85 points.")
+                if tier=="conditional" and (score<75 or score>=85 or item.get("critical") is not False or not isinstance(item.get("quality_warning"),str)):
+                    raise ValueError("Invalid conditional asset approval.")
+                if tier not in ("premium","conditional"):
+                    raise ValueError("Unknown asset quality tier.")
                 restore(STORE,root/item["folder"]/"candidate.zip")
                 if len(MODELS.credits)!=1 or item["path"] not in [c["path"] for c in MODELS.credits.values()]:
                     raise ValueError("Selected model does not match archive.")
@@ -244,11 +252,12 @@ def main():
                 STORE.self_review=""
                 for credit in MODELS.credits.values():
                     credit["visual_verified"]=True
-                    credit["visual_score"]=item["visual_score"]
+                    credit["visual_score"]=score
+                    credit["visual_quality_tier"]=tier
             elif selection["status"]!="no_model" or plan["required"]:
                 raise ValueError("Preflight blocked generation.")
             ASSETS_LOCKED=True
-            prompt += "\n\nFINAL PRE-GENERATION ART DIRECTION (overrides earlier asset-search instructions): "+json.dumps({"mode":plan["mode"],"direction":plan["direction"],"subject":plan["subject"],"selected":selection["selected"]},ensure_ascii=False)+"\nNo additional 3D searches, downloads or removals. Use model_inventory for the approved local path. If selected, use exactly this model in the hero, with opening yaw from selection. Otherwise use the selected non-imported design approach; do not invent model paths. Follow the chosen hero composition, not a generic split layout. Respect readable overlay text and mobile. If no 3D model was requested, use an editorial or other non-3D approach without claiming imported 3D. Save the plan and source review."
+            prompt += "\n\nFINAL PRE-GENERATION ART DIRECTION (overrides earlier asset-search instructions): "+json.dumps({"mode":plan["mode"],"direction":plan["direction"],"subject":plan["subject"],"selected":selection["selected"]},ensure_ascii=False)+"\nNo additional 3D searches, downloads or removals. Use model_inventory for the approved local path. If selected, use exactly this model in the hero, with opening yaw from selection. For a conditional asset, preserve honest expectations: do not describe it as photorealistic; use a deliberate premium studio composition, strong but controlled reflections, shaped key/rim lighting, a convincing contact shadow and a close three-quarter camera. Keep the model large and recognizable without clipping; let the page art direction elevate its presentation, not pretend its geometry was changed. Otherwise use the selected non-imported design approach; do not invent model paths. Follow the chosen hero composition, not a generic split layout. Respect readable overlay text and mobile. If no 3D model was requested, use an editorial or other non-3D approach without claiming imported 3D. Save the plan and source review."
         if args.repair:
             ASSETS_LOCKED=True
             info=restore(STORE,"/repair-source.zip")

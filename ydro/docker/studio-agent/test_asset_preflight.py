@@ -54,3 +54,13 @@ class PreflightTests(unittest.TestCase):
             canonical_candidates([{}, {}, {}])
         with self.assertRaises(ValueError):
             canonical_candidates(["not-an-object"])
+
+    def test_conditional_threshold_accepts_best_noncritical_candidate(self):
+        result=choose_review({"reviews":[{"candidate":"candidate-1","score":72,"critical":False,"reason":"Weak materials","yaw":135},{"candidate":"candidate-2","score":78,"critical":False,"reason":"Good bodywork; materials need cinematic presentation","yaw":225}]},["candidate-1","candidate-2"],min_score=75)
+        self.assertEqual(result["candidate"],"candidate-2")
+    def test_conditional_threshold_still_rejects_critical_and_low_scores(self):
+        result=choose_review({"reviews":[{"candidate":"candidate-1","score":100,"critical":True,"reason":"Wrong geometry","yaw":45},{"candidate":"candidate-2","score":74,"critical":False,"reason":"Too weak","yaw":225}]},["candidate-1","candidate-2"],min_score=75)
+        self.assertIsNone(result)
+    def test_default_premium_threshold_remains_85(self):
+        result=choose_review({"reviews":[{"candidate":"candidate-1","score":84,"critical":False,"reason":"Not premium threshold","yaw":45}]},["candidate-1"])
+        self.assertIsNone(result)
