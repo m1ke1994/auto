@@ -8,6 +8,10 @@ STOP = {"realistic","photorealistic","photo","real","high","detail","detailed","
 VEHICLE = {"car","cars","vehicle","automobile","automotive","supercar","sports car","sedan","coupe","suv","truck","roadster"}
 ALIASES = {"car","cars","vehicle","vehicles","automobile","automobiles","automotive","supercar","supercars","sedan","coupe","suv","truck","roadster","sportscar"}
 
+# A vehicle search must not select a human character or isolated car part
+# merely because the description contains automotive keywords.
+VEHICLE_PART = re.compile(r"\b(?:driver|racer|character|human|person|avatar|mannequin|t[\s_-]*pose|a[\s_-]*pose|steering[\s_-]*wheel|wheel[\s_-]*rim|tire|tyre|engine[\s_-]*block|car[\s_-]*seat|headlight|bumper|gearbox|transmission)\b",re.I)
+
 def text_fields(item):
     tags=item.get("tags",[])
     categories=item.get("categories",[])
@@ -22,7 +26,10 @@ def rank_asset(item,query,faces,style="realistic"):
     metadata=primary+" "+desc
     words=set(re.findall(r"[a-z0-9]+",query.lower()))-STOP
     tokens=set(re.findall(r"[a-z0-9]+",metadata.lower()))
-    vehicle=bool(words & ALIASES)
+    vehicle=bool(words & ALIASES) and not VEHICLE_PART.search(query)
+    title=str(item.get("name",""))[:200].replace("_"," ")
+    if vehicle and VEHICLE_PART.search(title):
+        return None
     if style=="realistic":
         if BAD.search(primary) or BAD.search(desc):
             return None
