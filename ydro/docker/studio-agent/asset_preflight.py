@@ -267,9 +267,20 @@ def choose_review(data,names):
     require(seen==set(names),"All rendered candidates must be evaluated.")
     return max(accepted,key=lambda x:x["score"]) if accepted else None
 
+def canonical_candidates(items):
+    """Derive trusted candidate directory names from manifest order, not JSON paths."""
+    require(isinstance(items,list) and len(items)<=2,"Invalid candidate manifest.")
+    normalized=[]
+    for index,item in enumerate(items,1):
+        require(isinstance(item,dict),"Invalid candidate record.")
+        record=dict(item)
+        record["folder"]="candidate-"+str(index)
+        normalized.append(record)
+    return normalized
+
 def select():
     plan=load("plan.json")
-    candidates=load("candidates.json")
+    candidates=canonical_candidates(load("candidates.json"))
     rendered=[]
     content=[{"type":"text","text":"Intended subject: "+plan["subject"]+"; style: "+plan["style"]+"; composition: "+plan["mode"]+". Evaluate all candidate views."}]
     for item in candidates:

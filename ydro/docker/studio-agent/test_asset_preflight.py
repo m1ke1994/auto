@@ -1,5 +1,5 @@
 import unittest
-from asset_preflight import choose_review, validate_plan, thumbnail_url, rank_previews
+from asset_preflight import choose_review, validate_plan, thumbnail_url, rank_previews, canonical_candidates
 class PreflightTests(unittest.TestCase):
     def test_critical_overrides_score(self):
         self.assertIsNone(choose_review({"reviews":[{"candidate":"candidate-1","score":100,"critical":True,"reason":"Huge podium","yaw":45}]},["candidate-1"]))
@@ -45,3 +45,12 @@ class PreflightTests(unittest.TestCase):
             rank_previews({"reviews":[]},["a"])
         with self.assertRaises(ValueError):
             rank_previews({"reviews":[{"id":"a","score":101,"critical":False}]},["a"])
+
+    def test_candidate_folders_are_canonical_and_ignore_untrusted_manifest_paths(self):
+        items=[{"folder":"../../outside","id":"a"},{"folder":"unexpected","id":"b"}]
+        self.assertEqual([x["folder"] for x in canonical_candidates(items)],["candidate-1","candidate-2"])
+    def test_candidate_manifest_limit_and_shape(self):
+        with self.assertRaises(ValueError):
+            canonical_candidates([{}, {}, {}])
+        with self.assertRaises(ValueError):
+            canonical_candidates(["not-an-object"])

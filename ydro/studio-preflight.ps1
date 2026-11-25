@@ -46,10 +46,18 @@ if ($ResumeDirectory) {
     }
     $oldCandidates=@(Get-Content -LiteralPath (Join-Path $out "candidates.json") -Raw -Encoding UTF8 | ConvertFrom-Json)
     if ($oldCandidates.Count -gt 2) { throw "Too many saved candidates" }
+    # Folder names are derived from manifest order, never trusted from JSON properties.
+    # This avoids PowerShell 5.1 ConvertFrom-Json comparison quirks and path traversal.
+    $candidateIndex=0
     foreach ($candidate in $oldCandidates) {
-        if ($candidate.folder -notin @("candidate-1","candidate-2")) { throw "Unexpected saved candidate folder" }
-        $folder=(New-Item -ItemType Directory -Path (Join-Path $out $candidate.folder)).FullName
-        Copy-Item -LiteralPath (Join-Path (Join-Path $previous $candidate.folder) "candidate.zip") -Destination (Join-Path $folder "candidate.zip")
+        $candidateIndex++
+        $folderName="candidate-$candidateIndex"
+        $sourceArchive=Join-Path (Join-Path $previous $folderName) "candidate.zip"
+        if (!(Test-Path -LiteralPath $sourceArchive -PathType Leaf)) {
+            throw "Saved candidate archive missing: $folderName"
+        }
+        $folder=(New-Item -ItemType Directory -Path (Join-Path $out $folderName)).FullName
+        Copy-Item -LiteralPath $sourceArchive -Destination (Join-Path $folder "candidate.zip")
     }
     Write-Host "ASSET_RESUME: saved plan and archives; no search, downloads or planner API"
 } else {
@@ -66,11 +74,17 @@ if ($ResumeDirectory) {
 $candidates=@(Get-Content -LiteralPath (Join-Path $out "candidates.json") -Raw -Encoding UTF8 | ConvertFrom-Json)
 if ($candidates.Count -gt 2) { throw "Too many candidates" }
 $rendered=0
+$candidateIndex=0
 foreach ($candidate in $candidates) {
-    if ($candidate.folder -notin @("candidate-1","candidate-2")) { throw "Unexpected candidate folder" }
-    $folder=Join-Path $out $candidate.folder
+    $candidateIndex++
+    $folderName="candidate-$candidateIndex"
+    $folder=Join-Path $out $folderName
+    $archive=Join-Path $folder "candidate.zip"
+    if (!(Test-Path -LiteralPath $archive -PathType Leaf)) {
+        throw "Candidate archive missing: $folderName"
+    }
     $source=Join-Path $folder "site"
-    Expand-Archive -LiteralPath (Join-Path $folder "candidate.zip") -DestinationPath $source
+    Expand-Archive -LiteralPath $archive -DestinationPath $source
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot "docker/studio-agent/CinemaModel.vue") -Destination (Join-Path $source "src/components/CinemaModel.vue") -Force
     $dist=(New-Item -ItemType Directory -Path (Join-Path $folder "dist")).FullName
     docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 1g --cpus 2 --pids-limit 128 --tmpfs "/work:rw,exec,size=256m,uid=1000,gid=1000" --tmpfs "/tmp:rw,size=64m" -v "$($source):/source:ro" -v "$($dist):/output" tracknode-studio-build | Out-Host
