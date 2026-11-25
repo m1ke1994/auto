@@ -12,3 +12,5 @@ Local regression: Docker agent build runs existing Python tests including the re
   node --experimental-default-type=module --test docker/studio-agent/cinematic-motion.test.mjs
 
 Then run studio-quality.ps1 with a matching, existing preflight to test full browser output. Inspect desktop/mobile screenshots; technical checks are not artistic acceptance. No deployment is implied.
+
+Audit diagnostics now include projected 3D bounding-box overlap with hero headlines/CTAs (advisory, not a silhouette test), horizontal overflow at all sampled scroll positions, and per-instance motion comparison. The visual critic checks the cinematic story beyond the hero, photo reuse, negative space and text collisions. No score thresholds were lowered.

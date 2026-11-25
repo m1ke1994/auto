@@ -47,22 +47,25 @@ try {
         const rect=host?.getBoundingClientRect();
         const scale=fill?new DOMMatrixReadOnly(getComputedStyle(fill).transform).a:null;
         const layers=[...document.querySelectorAll('[data-tn-motion]')].slice(0,20).map(e=>{const s=getComputedStyle(e);return [s.transform,s.opacity,s.clipPath,s.filter].join('|');});
-        return {actual,scale,top:rect?.top??null,width:rect?.width??0,viewport:innerWidth,layers};
+        const horizontalOverflow=Math.max(0,r.scrollWidth-r.clientWidth);
+        const overflowCandidates=horizontalOverflow>2?[...document.querySelectorAll('main *')].filter(e=>{const b=e.getBoundingClientRect();return b.width>0&&b.right>r.clientWidth+2;}).slice(0,12).map(e=>({tag:e.tagName.toLowerCase(),id:e.id||'',className:typeof e.className==='string'?e.className.slice(0,100):''})):[]; 
+        return {actual,scale,top:rect?.top??null,width:rect?.width??0,viewport:innerWidth,layers,horizontalOverflow,overflowCandidates};
       });
-      const models=await page.locator('[data-tn-model]').evaluateAll(nodes=>nodes.map(n=>({path:n.dataset.tnModel,state:n.dataset.tnModelState,frames:Number(n.dataset.tnFrames||0),pose:n.dataset.tnCameraPose||'',motionPose:n.dataset.tnModelMotionPose||n.dataset.tnCameraPose||'',preset:n.dataset.tnMotionPreset||'custom',progress:Number(n.dataset.tnCameraProgress||0),canvas:!!n.querySelector('canvas')})));
+      const models=await page.locator('[data-tn-model]').evaluateAll(nodes=>nodes.map((n,index)=>({index,path:n.dataset.tnModel,state:n.dataset.tnModelState,frames:Number(n.dataset.tnFrames||0),pose:n.dataset.tnCameraPose||'',motionPose:n.dataset.tnModelMotionPose||n.dataset.tnCameraPose||'',nativeMotion:!!n.dataset.tnModelMotionPose,preset:n.dataset.tnMotionPreset||'custom',progress:Number(n.dataset.tnCameraProgress||0),canvas:!!n.querySelector('canvas')})));
       steps.push({...state,models});
       await page.screenshot({path:'/report/'+name+'-'+Math.round(fraction*100)+'.png',timeout:15000});
     }
     // Visit actual content sections individually; sample-based screenshots alone
     // can miss short sections and reveal-on-scroll content.
     const required=['home','about','services','benefits','contacts'];
-    const sections=[];
+    const sections=[],sectionModelSamples=[];
     for(const id of required){
       const section=page.locator('main section[data-tn-section="'+id+'"][id="'+id+'"]');
       if(await section.count()!==1){sections.push({id,exists:false});continue;}
       await section.evaluate(e=>e.scrollIntoView({block:'start',behavior:'instant'}));
       await page.waitForTimeout(900);
       await page.screenshot({path:'/report/'+name+'-section-'+id+'.png',timeout:15000});
+      sectionModelSamples.push(...await page.locator('[data-tn-model]').evaluateAll(nodes=>nodes.map((n,index)=>({index,path:n.dataset.tnModel,state:n.dataset.tnModelState,frames:Number(n.dataset.tnFrames||0),pose:n.dataset.tnCameraPose||'',motionPose:n.dataset.tnModelMotionPose||n.dataset.tnCameraPose||'',nativeMotion:!!n.dataset.tnModelMotionPose,preset:n.dataset.tnMotionPreset||'custom',canvas:!!n.querySelector('canvas')}))));
       sections.push(await section.evaluate((e,id)=>{
         const visible=x=>{
           if(!x||!x.getClientRects().length)return false;
@@ -115,7 +118,20 @@ try {
     }
     const heroFraming=await page.locator('#home [data-tn-model]').evaluateAll(nodes=>nodes.map(n=>{
       const r=n.getBoundingClientRect();
-      return {path:n.dataset.tnModel,role:n.dataset.tnModelRole||'primary',state:n.dataset.tnModelState,coverage:Number(n.dataset.tnModelCoverage||0),
+      const bounds=(n.dataset.tnModelScreenBounds||'').split(',').map(Number);
+      // Bounding-box intersections are advisory. A transparent area or deliberate
+      // text overlay may be harmless; use actual screenshots for artistic judgment.
+      const overlap=[];
+      if(bounds.length===4&&bounds.every(Number.isFinite)){
+        const [x1,y1,x2,y2]=bounds;
+        const box={left:r.left+x1*r.width,right:r.left+x2*r.width,top:r.top+y1*r.height,bottom:r.top+y2*r.height};
+        for(const e of document.querySelectorAll('#home h1,#home a[href="#contacts"],#home a[href="#services"]')){
+          const t=e.getBoundingClientRect();
+          const area=Math.max(0,Math.min(t.right,box.right)-Math.max(t.left,box.left))*Math.max(0,Math.min(t.bottom,box.bottom)-Math.max(t.top,box.top));
+          if(t.width*t.height>0&&area/(t.width*t.height)>.05) overlap.push({element:e.tagName.toLowerCase(),text:e.innerText.trim().slice(0,80),boxOverlap:Number((area/(t.width*t.height)).toFixed(3))});
+        }
+      }
+      return {projectedBoxOverlap:overlap,path:n.dataset.tnModel,role:n.dataset.tnModelRole||'primary',state:n.dataset.tnModelState,coverage:Number(n.dataset.tnModelCoverage||0),
         clipped:n.dataset.tnModelClipped==='true',width:r.width,height:r.height,viewportWidth:innerWidth,viewportHeight:innerHeight};
     }));
     // Target the hero's own scroll track rather than relying only on whole-page quartiles.
@@ -128,28 +144,33 @@ try {
           if(track){const r=track.getBoundingClientRect();window.scrollTo({top:scrollY+r.top+Math.max(innerHeight*.4,r.height-innerHeight*.35)*f,behavior:'instant'});}
         },f);
         await page.waitForTimeout(900);
-        targeted.push(...await page.locator('[data-tn-model]').evaluateAll(nodes=>nodes.map(n=>({path:n.dataset.tnModel,state:n.dataset.tnModelState,frames:Number(n.dataset.tnFrames||0),pose:n.dataset.tnCameraPose||'',motionPose:n.dataset.tnModelMotionPose||n.dataset.tnCameraPose||'',preset:n.dataset.tnMotionPreset||'custom',canvas:!!n.querySelector('canvas')}))));
+        targeted.push(...await page.locator('[data-tn-model]').evaluateAll(nodes=>nodes.map((n,index)=>({index,path:n.dataset.tnModel,state:n.dataset.tnModelState,frames:Number(n.dataset.tnFrames||0),pose:n.dataset.tnCameraPose||'',motionPose:n.dataset.tnModelMotionPose||n.dataset.tnCameraPose||'',nativeMotion:!!n.dataset.tnModelMotionPose,preset:n.dataset.tnMotionPreset||'custom',canvas:!!n.querySelector('canvas')}))));
       }
     }
     const end=steps.at(-1);
     const brokenAfterScroll=await page.evaluate(()=>[...document.images].filter(i=>i.complete&&!i.naturalWidth).length);
     const motionChanged=steps.some((x,i)=>i>0&&JSON.stringify(x.layers)!==JSON.stringify(steps[i-1].layers));
     const progressOk=steps.every(x=>x.scale!==null&&Math.abs(x.scale-x.actual)<.08&&Math.abs(x.top)<2&&x.width>=x.viewport-24)&&end.actual>.95;
-    const checks={rendered:result.bodyText>80,noHorizontalOverflow:result.overflow<=2,footer:result.footer&&result.footerLinks>0,progress:progressOk,noBrokenImages:Math.max(result.brokenImages,brokenAfterScroll)===0,noJsErrors:errors.length===0,noMissingAssets:missing.length===0,noExternalRequests:blocked.length===0};
+    const checks={rendered:result.bodyText>80,noHorizontalOverflow:result.overflow<=2&&steps.every(s=>s.horizontalOverflow<=2),footer:result.footer&&result.footerLinks>0,progress:progressOk,noBrokenImages:Math.max(result.brokenImages,brokenAfterScroll)===0,noJsErrors:errors.length===0,noMissingAssets:missing.length===0,noExternalRequests:blocked.length===0};
     checks.completeSections=sections.every(x=>x.exists&&x.visible&&x.reachable&&x.heading&&x.textLength>=45);
     checks.headerNavigation=navigation.header&&navigation.allLinks&&menuOperable;
     checks.heroCTA=sections.some(x=>x.id==='home'&&x.cta);
     checks.serviceCards=sections.some(x=>x.id==='services'&&x.distinctCards>=3);
     if(expectedModels.length && report.profile==='cinema') checks.heroImportedModel=sections.some(x=>x.id==='home'&&x.heroModel);
     if(expectedModels.length){
-      const observed=[...steps.flatMap(x=>x.models),...targeted];
+      const observed=[...steps.flatMap(x=>x.models),...sectionModelSamples,...targeted];
       if(report.profile==='cinema') checks.heroFraming=heroFraming.length>0&&heroFraming.every(m=>m.state==='ready'&&m.coverage>=.62&&m.coverage<=.98&&!m.clipped&&(m.role==='accent'?(m.width>=m.viewportWidth*(name==='desktop'?.12:.25)&&m.height>=100):(m.width>=m.viewportWidth*(name==='desktop'?.32:.70)&&m.height>=m.viewportHeight*(name==='desktop'?.38:.25))));
       checks.importedModelsReady=expectedModels.every(path=>observed.some(m=>m.path===path&&m.state==='ready'&&m.canvas&&m.frames>0));
       if(name==='desktop') {
-        // Legacy custom sites retain their camera-motion requirement. New presets
-        // may move only the object or light, which must actually change on scroll.
-        if(observed.every(m=>m.preset==='custom')) checks.cameraChanges=expectedModels.every(path=>new Set(observed.filter(m=>m.path===path&&m.state==='ready'&&m.frames>0&&m.pose).map(m=>m.pose)).size>=2);
-        else checks.modelMotionChanges=expectedModels.every(path=>new Set(observed.filter(m=>m.path===path&&m.state==='ready'&&m.frames>0&&m.motionPose).map(m=>m.motionPose)).size>=2);
+        // Require a changed pose within the SAME DOM instance. Distinct static
+        // models of the same path cannot masquerade as movement.
+        const varied=(path,field)=>{
+          const matching=observed.filter(m=>m.path===path&&m.state==='ready'&&m.frames>0&&m[field]);
+          const instances=new Set(matching.map(m=>m.index));
+          return [...instances].some(i=>new Set(matching.filter(m=>m.index===i).map(m=>m[field])).size>=2);
+        };
+        if(observed.some(m=>m.nativeMotion)) checks.modelMotionChanges=expectedModels.every(path=>varied(path,'motionPose'));
+        else checks.cameraChanges=expectedModels.every(path=>varied(path,'pose'));
       }
     }
     if(report.profile==='cinema') {checks.scenes=result.scenes>=3;if(name==='desktop') checks.scrollMotion=motionChanged;}

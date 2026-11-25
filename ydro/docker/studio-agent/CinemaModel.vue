@@ -157,6 +157,8 @@ function renderFrame() {
   const xs=projected.map(v=>v.x),ys=projected.map(v=>v.y)
   const extentX=(Math.max(...xs)-Math.min(...xs))/2
   const extentY=(Math.max(...ys)-Math.min(...ys))/2
+  // Projected AABB is a conservative diagnostic, not a pixel/silhouette mask.
+  host.value.dataset.tnModelScreenBounds=[(Math.min(...xs)+1)/2,(1-Math.max(...ys))/2,(Math.max(...xs)+1)/2,(1-Math.min(...ys))/2].map(v=>v.toFixed(4)).join(',')
   host.value.dataset.tnModelCoverage=Math.max(extentX,extentY).toFixed(4)
   host.value.dataset.tnModelWidth=extentX.toFixed(4)
   host.value.dataset.tnModelHeight=extentY.toFixed(4)

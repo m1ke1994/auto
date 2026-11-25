@@ -31,6 +31,15 @@ A useful photo-led hero is acceptable when consistent with the brief; missing re
 is a critical issue. Do not demand 3D for a standard non-3D brief.
 Assess all supplied frames, not only hero. Consider section hierarchy, diversity of
 layouts, typography, cards, spacing, palette, lighting, header, footer, CTA and usability.
+Compare the composition of the hero, intermediate chapters and closing CTA: a generic
+card-grid landing page with a rotating 3D object only in the hero is not a complete
+cinematic narrative. Check whether projected objects obscure headlines or buttons,
+whether the page uses intentional negative space rather than accidental empty areas,
+whether stock photos repeat without a narrative reason, and whether section layouts
+and lighting meaningfully develop the visual story. Small edge accents are valid
+when requested or clearly appropriate, provided they are recognizable and do not
+interfere with content; don't require every decorative object to dominate the hero.
+Do not excuse missing required primary subjects or downgrade a realistic requirement.
 For mobile assess the actual mobile frames, including scroll and readability. Do not
 claim to test clicks, frame rates or motion from still screenshots. Optional sections
 not seen should be reported as unverified, not invented. Missing real contact details in a fictional brief or an explicitly labeled demo form are not defects by themselves. Do not request fabricated contacts, fake submissions, or hiding mandatory readable license attribution. Score independently using
