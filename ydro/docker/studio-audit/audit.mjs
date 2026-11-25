@@ -195,6 +195,44 @@ try {
       }catch{}
       sceneDiagnostics.stories.push({index:i,ok});
     }
+    const storyVisualLayouts=await page.locator('[data-tn-story]').evaluateAll(nodes=>nodes.map((story,index)=>{
+      const chapters=[...story.querySelectorAll('[data-tn-story-chapter]')];
+      const compact=matchMedia('(max-width:760px), (prefers-reduced-motion: reduce)').matches;
+      if(compact){
+        const visuals=chapters.map(chapter=>chapter.querySelector('.tn-story-mobile-visual'));
+        const visualsOk=visuals.length===chapters.length&&visuals.length>0&&visuals.every(visual=>{
+          if(!visual||getComputedStyle(visual).display==='none')return false;
+          const child=visual.firstElementChild;
+          if(!child)return false;
+          const a=visual.getBoundingClientRect(),b=child.getBoundingClientRect();
+          return a.width>0&&a.height>0&&b.width>0&&b.height>0&&child.scrollHeight<=child.clientHeight+4;
+        });
+        const captionsOk=chapters.length>0&&chapters.every(chapter=>{
+          const caption=chapter.querySelector('.tn-story-caption');
+          const heading=caption?.querySelector('h3');
+          const paragraph=caption?.querySelector('p');
+          return !!heading&&!!paragraph&&heading.getBoundingClientRect().height>0&&paragraph.getBoundingClientRect().height>0;
+        });
+        return {index,mode:'mobile',chapters:chapters.length,visualsOk,captionsOk,ok:visualsOk&&captionsOk};
+      }
+      const stage=story.querySelector('.tn-story-stage');
+      const visual=story.querySelector('.tn-story-visual');
+      const child=visual?.firstElementChild;
+      const a=stage?.getBoundingClientRect(),b=visual?.getBoundingClientRect(),c=child?.getBoundingClientRect();
+      const sticky=!!stage&&getComputedStyle(stage).position==='sticky';
+      const visualOk=!!child&&b.width>0&&b.height>innerHeight*.35&&c.width>0&&c.height>0&&c.height<=b.height+4;
+      return {index,mode:'desktop',chapters:chapters.length,sticky,visualOk,ok:chapters.length>=2&&sticky&&visualOk&&a.height>innerHeight*.4};
+    }));
+    const heroLayout=await page.locator('#home').evaluate(hero=>{
+      const image=hero.querySelector('.hero-photo'),content=hero.querySelector('.hero-content');
+      const heading=hero.querySelector('h1'),cta=hero.querySelector('a[href="#contacts"],a[href="#services"]');
+      if(!image||!content||!heading||!cta)return false;
+      const a=image.getBoundingClientRect(),b=content.getBoundingClientRect(),h=heading.getBoundingClientRect(),c=cta.getBoundingClientRect();
+      const overlap=!(a.right<=b.left+2||a.left>=b.right-2||a.bottom<=b.top+2||a.top>=b.bottom-2);
+      const within=(inner,outer)=>inner.left>=outer.left-2&&inner.right<=outer.right+2&&inner.top>=outer.top-2&&inner.bottom<=outer.bottom+2;
+      const mobile=innerWidth<=760;
+      return !overlap&&within(h,b)&&within(c,b)&&c.height>0&&(mobile?c.bottom<=hero.getBoundingClientRect().bottom+2:true);
+    });
     const end=steps.at(-1);
     const brokenAfterScroll=await page.evaluate(()=>[...document.images].filter(i=>i.complete&&!i.naturalWidth).length);
     const motionChanged=steps.some((x,i)=>i>0&&JSON.stringify(x.layers)!==JSON.stringify(steps[i-1].layers));
@@ -203,7 +241,9 @@ try {
     checks.completeSections=sections.every(x=>x.exists&&x.visible&&x.reachable&&x.heading&&x.textLength>=45);
     checks.headerNavigation=navigation.header&&navigation.allLinks&&menuOperable;
     checks.heroCTA=sections.some(x=>x.id==='home'&&x.cta);
+    checks.heroLayout=heroLayout;
     checks.serviceCards=sections.some(x=>x.id==='services'&&x.distinctCards>=3);
+    checks.storyVisuals=storyVisualLayouts.length>0&&storyVisualLayouts.every(x=>x.ok);
     if(expectedModels.length && report.profile==='cinema') checks.heroImportedModel=sections.some(x=>x.id==='home'&&x.heroModel);
     if(expectedModels.length){
       const observed=[...steps.flatMap(x=>x.models),...sectionModelSamples,...targeted];
@@ -233,7 +273,7 @@ try {
       if(sceneContract?.version===1||sceneDiagnostics.carousels.length) checks.carouselControls=sceneDiagnostics.carousels.length>0&&sceneDiagnostics.carousels.every(x=>x.ok);
       if(sceneContract?.version===1||sceneDiagnostics.stories.length) checks.storyProgress=sceneDiagnostics.stories.length>0&&sceneDiagnostics.stories.every(x=>x.ok);
     }
-    report.checks.push({name,checks,metrics:result,sections,navigation,heroFraming,steps,sceneDiagnostics,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
+    report.checks.push({name,checks,metrics:result,sections,navigation,heroFraming,steps,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
     await context.close();
   }
 } catch(error){report.error=String(error).slice(0,500);}
