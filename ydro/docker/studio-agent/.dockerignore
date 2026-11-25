@@ -17,3 +17,5 @@
 !test_sketchfab_models.py
 !CinemaModel.vue
 !asset_quality.py
+!visual_critic.py
+!test_visual_critic.py

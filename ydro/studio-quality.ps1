@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$Prompt,
     [ValidateSet("standard","premium","cinema")][string]$Profile="cinema",
-    [ValidateSet("realistic","stylized")][string]$AssetStyle="realistic"
+    [ValidateSet("realistic","stylized")][string]$AssetStyle="realistic",
+    [switch]$SkipVisualReview
 )
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -36,4 +37,9 @@ $report = (New-Item -ItemType Directory -Path (Join-Path $out "quality-report"))
 docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 3 --pids-limit 256 --shm-size 256m --tmpfs "/tmp:rw,exec,size=512m,mode=1777" -v "$($dist):/site:ro" -v "$($report):/report" tracknode-studio-audit $Profile
 Assert-Exit "Browser quality audit (source and dist preserved)"
 Write-Host "QUALITY_CHECKS_PASSED: $report"
-Write-Host "Technical browser checks passed; human visual review still pending."
+if ($SkipVisualReview) {
+    Write-Host "Visual review skipped by request; artistic quality unverified."
+} else {
+    & (Join-Path $PSScriptRoot "studio-visual-review.ps1") -RunDirectory $out -Prompt $Prompt -NoBuild
+    Write-Host "Technical and AI visual reviews passed; human acceptance remains separate."
+}

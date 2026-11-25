@@ -62,6 +62,7 @@ try {
       if(await section.count()!==1){sections.push({id,exists:false});continue;}
       await section.evaluate(e=>e.scrollIntoView({block:'start',behavior:'instant'}));
       await page.waitForTimeout(900);
+      await page.screenshot({path:'/report/'+name+'-section-'+id+'.png',timeout:15000});
       sections.push(await section.evaluate((e,id)=>{
         const visible=x=>{
           if(!x||!x.getClientRects().length)return false;
