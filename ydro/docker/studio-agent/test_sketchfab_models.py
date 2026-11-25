@@ -37,7 +37,7 @@ class SketchfabImportTests(unittest.TestCase):
         car={"uid":"b"*32,"name":"Realistic sports car PBR","faceCount":40000}
         api.side_effect=[{"results":[toy,car]},
                          {**car,"isDownloadable":True,"user":{"username":"Artist"},
-                          "license":{"url":"https://creativecommons.org/licenses/by/4.0/"}}}]
+                          "license":{"url":"https://creativecommons.org/licenses/by/4.0/"}}]
         result=SketchfabLibrary("fake",ModelLibrary()).search("car")
         self.assertEqual([x["id"] for x in result],["b"*32])
         self.assertEqual(api.call_count,2)
