@@ -4,7 +4,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Prompt,
     [ValidateSet("standard","premium","cinema")][string]$Profile="cinema",
     [ValidateSet("realistic","stylized")][string]$AssetStyle="realistic",
-    [ValidateRange(1,2)][int]$MaxRepairs=1,
+    [ValidateRange(1,1)][int]$MaxRepairs=1,
     [switch]$NoBuild
 )
 $ErrorActionPreference="Stop"
@@ -28,6 +28,7 @@ for ($i=1; $i -le $MaxRepairs; $i++) {
     $archive=(Resolve-Path -LiteralPath (Join-Path $run "tracknode-agent-site.zip")).Path
     $inputReview=Get-Content -LiteralPath $review -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($inputReview.status -ne "needs_revision" -or $inputReview.passed -ne $false) { throw "Expected a rejected visual review" }
+    if ($inputReview.devices.desktop.scores.asset_quality -lt 18 -or $inputReview.devices.mobile.scores.asset_quality -lt 18) { throw "Asset quality too low; do not spend repair tokens until the asset has passed preflight." }
     $out=(New-Item -ItemType Directory -Path (Join-Path $PWD ("studio-agent-output/repair-" + [guid]::NewGuid().ToString()))).FullName
     Write-Host "REPAIR_ATTEMPT: $i/$MaxRepairs"
     Write-Host "REPAIR_OUTPUT: $out"

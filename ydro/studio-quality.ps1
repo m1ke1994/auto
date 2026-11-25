@@ -3,7 +3,7 @@ param(
     [ValidateSet("standard","premium","cinema")][string]$Profile="cinema",
     [ValidateSet("realistic","stylized")][string]$AssetStyle="realistic",
     [switch]$SkipVisualReview,
-    [ValidateRange(0,2)][int]$MaxRepairs=0
+    [ValidateRange(0,1)][int]$MaxRepairs=0
 )
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
