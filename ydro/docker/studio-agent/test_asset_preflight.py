@@ -12,3 +12,18 @@ class PreflightTests(unittest.TestCase):
     def test_invalid_plan(self):
         with self.assertRaises(ValueError):
             validate_plan({"mode":"immersive","subject":"car","queries":[],"required":True,"use_model":False,"direction":"A sufficiently long direction"})
+    def test_normalize_harmless_format_variations(self):
+        data={"mode":" Immersive ","subject":"car","queries":["realistic sports car (PBR)","car/coupe","extra query"],"required":"true","use_model":True,"direction":"A distinctive editorial composition. "*30,"extra":"ignored"}
+        plan=validate_plan(data)
+        self.assertEqual(plan["mode"],"immersive")
+        self.assertEqual(plan["queries"],["realistic sports car PBR","car coupe"])
+        self.assertEqual(len(plan["direction"]),600)
+        self.assertIs(plan["required"],True)
+    def test_explicit_mode_and_required_override(self):
+        data={"mode":"other","subject":"car","queries":"sports coupe","required":False,"use_model":False,"direction":"A distinct full-screen composition."}
+        plan=validate_plan(data,hero="immersive",force_model=True)
+        self.assertTrue(plan["required"] and plan["use_model"])
+        self.assertEqual(plan["mode"],"immersive")
+    def test_required_without_query_fails(self):
+        with self.assertRaises(ValueError):
+            validate_plan({"mode":"immersive","subject":"car","queries":[],"required":True,"use_model":True,"direction":"A distinct full-screen composition."})

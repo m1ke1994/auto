@@ -4,6 +4,8 @@ param(
     [ValidateSet("realistic","stylized")][string]$AssetStyle="realistic",
     [ValidateSet("auto","immersive","product","split","cinematic","editorial","environment")][string]$HeroMode="auto",
     [switch]$RequireModel,
+    [string[]]$AssetQuery=@(),
+    [string]$AssetSubject="",
     [switch]$NoBuild,
     [switch]$ReturnResult
 )
@@ -24,6 +26,9 @@ $out=(New-Item -ItemType Directory -Path (Join-Path $PWD ("studio-agent-output/p
 Write-Host "PREFLIGHT_OUTPUT: $out"
 $extra=@()
 if ($RequireModel) { $extra+= "--require-model" }
+if ($AssetQuery.Count -gt 2) { throw "Maximum two manual queries" }
+foreach ($query in $AssetQuery) { $extra+= @("--asset-query",$query) }
+if ($AssetSubject) { $extra+= @("--asset-subject",$AssetSubject) }
 & docker @compose run --rm --no-deps --entrypoint python -v "$($out):/preflight" openhands /opt/studio-agent/asset_preflight.py prepare --brief $Prompt --profile $Profile --style $AssetStyle --hero $HeroMode @extra | Out-Host
 Check "Asset preparation"
 $candidates=Get-Content -LiteralPath (Join-Path $out "candidates.json") -Raw -Encoding UTF8 | ConvertFrom-Json
