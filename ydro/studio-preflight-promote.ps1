@@ -16,7 +16,7 @@ if ($Prompt) {
         $plan.brief_sha256=([BitConverter]::ToString($hash)).Replace("-","").ToLowerInvariant()
     } finally { $sha.Dispose() }
     $json=$plan | ConvertTo-Json -Depth 12
-    [System.IO.File]::WriteAllText($planPath,$json,(New-Object System.Text.UTF8Encoding($false)))
+    [System.IO.File]::WriteAllText($planPath,$json,([System.Text.UTF8Encoding]::new($false)))
     Write-Host "PREFLIGHT_BRIEF_BOUND: supplied prompt hash saved; no planning API request"
 }
 $compose=@("compose","--env-file",".env.studio.local","-p","tracknode20-agent","-f","docker-compose.openhands.yml")
