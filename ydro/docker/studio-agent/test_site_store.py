@@ -19,7 +19,7 @@ class StoreTests(unittest.TestCase):
         store=SiteStore()
         with self.assertRaises(ValueError):
             store.validate()
-        store.write("src/App.vue","<template><main>Site</main></template>")
+        store.write("src/App.vue",'<template><main><section><h1>Beauty Atelier</h1><p class="hero-lede">A quiet premium beauty studio.</p></section></main></template>')
         store.write("src/style.css","main { color: red; }")
         store.write("src/components/Hero.vue","<template><h1>Hero</h1></template>")
         with tempfile.TemporaryDirectory() as directory:
@@ -27,6 +27,9 @@ class StoreTests(unittest.TestCase):
             store.export(output,"deepseek-v4-pro")
             with zipfile.ZipFile(output) as z:
                 self.assertIn("src/App.vue",z.namelist())
+                html=z.read("index.html").decode()
+                self.assertIn("<title>Beauty Atelier</title>",html)
+                self.assertIn('name="description"',html)
                 self.assertIn("src/landing-progress.js",z.namelist())
                 self.assertIn("src/components/CinemaModel.vue",z.namelist())
                 self.assertIn("src/cinematic-motion.js",z.namelist())

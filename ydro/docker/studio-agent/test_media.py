@@ -45,6 +45,8 @@ class MediaTests(unittest.TestCase):
             with zipfile.ZipFile(path) as z:
                 self.assertIn(asset["path"],z.namelist())
                 self.assertIn("A &amp; B",z.read("index.html").decode())
+                self.assertIn('class="tn-photo-credits"',z.read("index.html").decode())
+                self.assertIn("flex-wrap:wrap",z.read("index.html").decode())
                 self.assertIn("MEDIA_CREDITS.json",z.namelist())
                 self.assertNotIn(b"secret-test",b"".join(z.read(n) for n in z.namelist()))
     @patch("media.requests.get")

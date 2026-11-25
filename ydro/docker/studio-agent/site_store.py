@@ -4,7 +4,7 @@ import os
 import re
 import zipfile
 from pathlib import Path
-from html import escape
+from html import escape, unescape
 from quality import quality_issues
 from storyboard import validate_storyboard
 
@@ -146,10 +146,22 @@ class SiteStore:
                 raise ValueError("Art direction plan and final self-review are required.")
             if not any(p.startswith("src/components/") and p.endswith(".vue") for p in self.files):
                 raise ValueError("At least one Vue component is required.")
+        # Derive the document title and description from visible page copy.
+        # The H1 remains the source of truth; never ship a generic studio tab title.
+        app_source = self.files.get("src/App.vue", "")
+        h1_match = re.search(r"<h1\b[^>]*>(.*?)</h1>", app_source, re.IGNORECASE | re.DOTALL)
+        def visible_text(value):
+            value = re.sub(r"<[^>]+>", " ", value)
+            value = re.sub(r"\{\{.*?\}\}", " ", value)
+            return " ".join(unescape(value).split())
+        page_title = visible_text(h1_match.group(1))[:90] if h1_match else "Сайт"
+        hero_match = re.search(r'<p\b[^>]*class="[^"]*hero-lede[^"]*"[^>]*>(.*?)</p>', app_source, re.IGNORECASE | re.DOTALL)
+        page_description = visible_text(hero_match.group(1))[:200] if hero_match else ""
+        description_tag = '<meta name="description" content="' + escape(page_description, quote=True) + '">' if page_description else ""
         # Only trusted code controls the package manifest and Vite entrypoint.
         trusted = {
             "package.json": json.dumps({"name":"tracknode-agent-site","private":True,"version":"0.1.0","type":"module","scripts":{"dev":"vite","build":"vite build"},"dependencies":DEPENDENCIES,"devDependencies":{"vite":"6.4.1","@vitejs/plugin-vue":"5.2.4"}},indent=2),
-            "index.html": '<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>TrackNode Studio</title></head><body><div id="app"></div><script type="module" src="/src/main.js"></script></body></html>',
+            "index.html": '<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + escape(page_title) + '</title>' + description_tag + '</head><body><div id="app"></div><script type="module" src="/src/main.js"></script></body></html>',
             "vite.config.js": "import {defineConfig} from 'vite';\nimport vue from '@vitejs/plugin-vue';\nexport default defineConfig({plugins:[vue()],base:'./'});\n",
             "src/main.js": "import {createApp} from 'vue';\nimport App from './App.vue';\nimport './style.css';\nimport {installLandingProgress} from './landing-progress.js';\ncreateApp(App).mount('#app');\ninstallLandingProgress();\n",
             "src/landing-progress.js": Path(__file__).with_name("landing-progress.js").read_text(encoding="utf-8"),
@@ -176,7 +188,7 @@ class SiteStore:
                 '<a href="' + escape(c["url"],quote=True) + '" rel="noopener noreferrer">'
                 + escape(c["photographer"] or "Pexels photographer") + '</a>' for c in credits
             )
-            footer = ('<aside aria-label="Photo credits" style="padding:12px;text-align:center;background:var(--tn-footer-bg,#171717);color:var(--tn-footer-fg,#e5e5e5);font:12px/1.6 system-ui">'
+            footer = ('<aside class="tn-photo-credits" aria-label="Photo credits" style="padding:10px 20px;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 8px;text-align:center;opacity:.72;background:var(--tn-footer-bg,#171717);color:var(--tn-footer-fg,#e5e5e5);font:10px/1.5 system-ui">'
                       '<a href="https://www.pexels.com/" style="color:inherit">Photos provided by Pexels</a> · '
                       + links + '</aside>')
             trusted["index.html"] = trusted["index.html"].replace("</body>",footer+"</body>")
@@ -197,7 +209,7 @@ class SiteStore:
                 links.append(model_link + (" — " + author if author else "") + " — " + license_link +
                              ' · <a href="' + provider_url + '" style="color:inherit">' + escape(provider) + '</a>' +
                              (" · " + escape(c["changes"]) if c.get("changes") else ""))
-            strip = '<aside aria-label="3D model credits" style="padding:12px;text-align:center;background:var(--tn-footer-bg,#171717);color:var(--tn-footer-fg,#e5e5e5);font:12px/1.6 system-ui">3D: ' + " | ".join(links) + '</aside>'
+            strip = '<aside class="tn-model-credits" aria-label="3D model credits" style="padding:10px 20px;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 8px;text-align:center;opacity:.72;background:var(--tn-footer-bg,#171717);color:var(--tn-footer-fg,#e5e5e5);font:10px/1.5 system-ui">3D: ' + " | ".join(links) + '</aside>'
             trusted["index.html"] = trusted["index.html"].replace("</body>",strip+"</body>")
         dest = Path(output)
         # Refuse to overwrite a previous artifact or a symlink.
