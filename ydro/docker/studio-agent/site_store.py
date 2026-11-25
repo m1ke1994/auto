@@ -15,9 +15,10 @@ REQUIRED = {"src/App.vue", "src/style.css"}
 RESERVED = {"src/main.js", "src/main.ts", "src/landing-progress.js"}
 
 class SiteStore:
-    def __init__(self, media=None):
+    def __init__(self, media=None, models=None):
         self.files = {}
         self.media = media
+        self.models = models
         self.profile = None
         self.design_brief = ""
         self.self_review = ""
@@ -98,6 +99,13 @@ class SiteStore:
                       '<a href="https://www.pexels.com/" style="color:inherit">Photos provided by Pexels</a> · '
                       + links + '</aside>')
             trusted["index.html"] = trusted["index.html"].replace("</body>",footer+"</body>")
+        if self.models and self.models.credits:
+            assets = {**assets, **self.models.assets}
+            model_credits = list(self.models.credits.values())
+            trusted["MODEL_CREDITS.json"] = json.dumps(model_credits,ensure_ascii=False,indent=2)
+            links = " · ".join('<a href="' + escape(c["url"],quote=True) + '" style="color:inherit">' + escape(c["name"]) + ' (CC0)</a>' for c in model_credits)
+            strip = '<aside style="padding:12px;text-align:center;background:var(--tn-footer-bg,#171717);color:var(--tn-footer-fg,#e5e5e5);font:12px/1.6 system-ui">3D: <a href="https://polyhaven.com/" style="color:inherit">Poly Haven</a> · ' + links + '</aside>'
+            trusted["index.html"] = trusted["index.html"].replace("</body>",strip+"</body>")
         dest = Path(output)
         # Refuse to overwrite a previous artifact or a symlink.
         with dest.open("xb") as stream, zipfile.ZipFile(stream,"w",zipfile.ZIP_DEFLATED) as archive:

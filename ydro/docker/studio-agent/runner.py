@@ -12,16 +12,18 @@ from openhands.sdk import Action, Agent, Conversation, LLM, Observation, TextCon
 from openhands.sdk.tool import Tool, ToolExecutor, register_tool
 from site_store import SiteStore
 from media import MediaLibrary
+from models3d import ModelLibrary
 from art_direction import PROFILES, build_prompt
 from quality import quality_issues
 
 MEDIA = MediaLibrary(os.environ.get("PEXELS_API_KEY",""))
-STORE = SiteStore(MEDIA)
+MODELS = ModelLibrary()
+STORE = SiteStore(MEDIA, MODELS)
 
 class SiteFileAction(Action):
-    operation: str = Field(description="plan, write, read, list, quality_check, review, photo_search, or photo_save")
+    operation: str = Field(description="plan, write, read, list, quality_check, review, photo_search, photo_save, model_search, or model_save")
     path: str = Field(default="", description="Relative project path, e.g. src/App.vue")
-    content: str = Field(default="", description="Full source, plan/review, or English search query for photo_search")
+    content: str = Field(default="", description="Full source, plan/review, or English search query for photo_search/model_search; model ID for model_save")
     orientation: str = Field(default="landscape", description="Photo orientation: landscape, portrait, square")
     photo_id: int = Field(default=0, description="Photo id from search for photo_save")
 
@@ -44,6 +46,11 @@ class SiteFileExecutor(ToolExecutor[SiteFileAction, SiteFileObservation]):
             elif action.operation == "review":
                 STORE.set_review(action.content)
                 message = "Source self-review saved (not a build or visual check)."
+            elif action.operation == "model_search":
+                message = json.dumps(MODELS.search(action.content),ensure_ascii=False)
+            elif action.operation == "model_save":
+                message = json.dumps(MODELS.save(action.content.strip()),ensure_ascii=False)
+                STORE.self_review = ""
             elif action.operation == "photo_search":
                 message = json.dumps(MEDIA.search(action.content,action.orientation),ensure_ascii=False)
             elif action.operation == "photo_save":
@@ -57,7 +64,7 @@ class SiteFileExecutor(ToolExecutor[SiteFileAction, SiteFileObservation]):
             elif action.operation == "read":
                 message = STORE.read(action.path)
             elif action.operation == "list":
-                message = "\n".join(sorted([*STORE.files,*MEDIA.assets])) or "Empty project."
+                message = "\n".join(sorted([*STORE.files,*MEDIA.assets,*MODELS.assets])) or "Empty project."
             else:
                 message = "Invalid operation."
         except ValueError as exc:
@@ -68,7 +75,7 @@ class SiteFileTool(ToolDefinition[SiteFileAction, SiteFileObservation]):
     @classmethod
     def create(cls, conv_state, **params):
         return [cls(
-            description="Plan art direction, read/list/write project source, and record final source review. Save plan before writing. Write complete files under src/. Required: src/App.vue, src/style.css, and at least one Vue component. Run quality_check and fix the reported issues, then review after last write. photo_search searches Pexels by query and orientation; photo_save downloads a returned photo id as a local WebP, max six downloads. No shell or filesystem access.",
+            description="Plan art direction, read/list/write project source, and record final source review. Save plan before writing. Write complete files under src/. Required: src/App.vue, src/style.css, and at least one Vue component. Run quality_check and fix the reported issues, then review after last write. photo_search searches Pexels by query and orientation; photo_save downloads a returned photo id as a local WebP, max six downloads. model_search searches Poly Haven CC0 models by English keywords; model_save saves a returned ID and all required glTF files locally. No shell or filesystem access.",
             action_type=SiteFileAction,
             observation_type=SiteFileObservation,
             executor=SiteFileExecutor(),
@@ -98,6 +105,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--check",action="store_true")
     parser.add_argument("--check-media",action="store_true")
+    parser.add_argument("--check-models",action="store_true")
     parser.add_argument("--prompt")
     parser.add_argument("--profile", choices=tuple(PROFILES), default="premium")
     args=parser.parse_args()
@@ -107,6 +115,17 @@ def main():
         assert result.message == "Empty project."
         make_agent("offline-check-only","deepseek-v4-pro")
         print("OpenHands SDK and bounded tool import OK; premium profiles initialized")
+        return
+    if args.check_models:
+        try:
+            models=MODELS.search("chair")
+            if not models:
+                raise ValueError("No models found.")
+            asset=MODELS.save(models[0]["id"])
+            print("POLYHAVEN_OK: "+asset["id"]+" ("+str(asset["bytes"])+" bytes)")
+        except ValueError as exc:
+            print(str(exc))
+            raise SystemExit(1) from None
         return
     if args.check_media:
         try:

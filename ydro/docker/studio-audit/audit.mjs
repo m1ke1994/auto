@@ -4,7 +4,7 @@ import { readFile, writeFile, realpath } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 const root = await realpath('/site');
 const origin = 'http://studio.invalid';
-const types = {'.html':'text/html; charset=utf-8','.js':'text/javascript','.css':'text/css','.webp':'image/webp','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml','.woff2':'font/woff2','.json':'application/json'};
+const types = {'.html':'text/html; charset=utf-8','.js':'text/javascript','.css':'text/css','.webp':'image/webp','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml','.woff2':'font/woff2','.json':'application/json','.gltf':'model/gltf+json','.glb':'model/gltf-binary','.bin':'application/octet-stream','.jpeg':'image/jpeg'};
 const report = { profile: process.argv[2] || 'cinema', checks: [], artistic_quality_verified: false };
 const browser=await chromium.launch({headless:true});
 try {
