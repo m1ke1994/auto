@@ -3,7 +3,10 @@ param(
     [ValidateSet("standard","premium","cinema")][string]$Profile="cinema",
     [ValidateSet("realistic","stylized")][string]$AssetStyle="realistic",
     [switch]$SkipVisualReview,
-    [ValidateRange(0,1)][int]$MaxRepairs=0
+    [ValidateRange(0,1)][int]$MaxRepairs=0,
+    [ValidateSet("auto","immersive","product","split","cinematic","editorial","environment")][string]$HeroMode="auto",
+    [switch]$RequireModel,
+    [string]$PreflightDirectory=""
 )
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -20,9 +23,17 @@ docker build -t tracknode-studio-build -f docker/studio-build/Dockerfile docker/
 Assert-Exit "Site builder build"
 docker build -t tracknode-studio-audit docker/studio-audit
 Assert-Exit "Browser audit image build"
+if ($PreflightDirectory) {
+    $preflight=(Resolve-Path -LiteralPath $PreflightDirectory).Path
+} else {
+    $preflight=& (Join-Path $PSScriptRoot "studio-preflight.ps1") -Prompt $Prompt -Profile $Profile -AssetStyle $AssetStyle -HeroMode $HeroMode -RequireModel:$RequireModel -NoBuild -ReturnResult
+}
+$selection=Get-Content -LiteralPath (Join-Path $preflight "selection.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+if ($selection.status -notin @("approved","no_model")) { throw "Preflight did not approve generation" }
+if ($RequireModel -and $selection.status -ne "approved") { throw "Required model not approved" }
 $out = (New-Item -ItemType Directory -Path (Join-Path $PWD ("studio-agent-output/" + [guid]::NewGuid().ToString())) -Force).FullName
 Write-Host "Output: $out"
-& docker @compose run --rm --no-deps -v "$($out):/output" openhands --profile $Profile --asset-style $AssetStyle --prompt $Prompt
+& docker @compose run --rm --no-deps -v "$($preflight):/preflight:ro" -v "$($out):/output" openhands --preflight --profile $Profile --asset-style $AssetStyle --prompt $Prompt
 Assert-Exit "AI generation"
 $archive = Join-Path $out "tracknode-agent-site.zip"
 if (!(Test-Path -LiteralPath $archive)) { throw "Missing source ZIP" }
