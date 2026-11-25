@@ -112,8 +112,14 @@ def critic_notes(path):
     limits={"asset_quality":25,"composition":20,"originality":15,"typography":10,
             "sections":10,"lighting_palette":10,"usability":10}
     notes={}
+    devices=report.get("devices")
+    require(isinstance(devices,dict) and "desktop" in devices,"Missing desktop visual review.")
     for device in ("desktop","mobile"):
-        d=report["devices"][device]
+        d=devices.get(device)
+        if device=="mobile" and isinstance(d,dict) and d.get("status")=="skipped_desktop_failed":
+            notes[device]={"status":"skipped","summary":"Mobile visual review was skipped because desktop did not pass; this avoids spending tokens before the desktop defects are fixed.","issues":[]}
+            continue
+        require(isinstance(d,dict),"Missing device visual review.")
         raw_scores=d.get("scores")
         require(isinstance(raw_scores,dict) and set(raw_scores)==set(limits),"Invalid visual score fields.")
         require(all(type(raw_scores[k]) is int and 0<=raw_scores[k]<=limit for k,limit in limits.items()),"Invalid visual score range.")
@@ -147,7 +153,7 @@ TECHNICAL_CHECKS=frozenset({
     "rendered","noHorizontalOverflow","footer","progress","noBrokenImages",
     "noJsErrors","noMissingAssets","noExternalRequests","completeSections",
     "headerNavigation","heroCTA","serviceCards","heroFraming","heroImportedModel",
-    "cameraChanges","modelMotionChanges","scenes","scrollMotion","sceneComponents","carouselControls","storyProgress"
+    "cameraChanges","modelMotionChanges","scenes","scrollMotion","sceneComponents","carouselControls","storyProgress","storyVisuals","heroLayout"
 })
 
 def technical_notes(path):

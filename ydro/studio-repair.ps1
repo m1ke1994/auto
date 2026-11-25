@@ -56,13 +56,21 @@ for ($i=1; $i -le $MaxRepairs; $i++) {
     $archive=(Resolve-Path -LiteralPath (Join-Path $run "tracknode-agent-site.zip")).Path
     $inputReview=Get-Content -LiteralPath $review -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($inputReview.status -ne "needs_revision" -or $inputReview.passed -ne $false) { throw "Expected a rejected visual review" }
+    $reviewedDevices = @()
     foreach ($device in @("desktop","mobile")) {
-        $assetScore = $inputReview.devices.$device.scores.asset_quality
-        if ($null -eq $assetScore -or $assetScore -isnot [int] -and $assetScore -isnot [long] -or $assetScore -lt 0 -or $assetScore -gt 25) {
+        $deviceReview = $inputReview.devices.$device
+        if ($device -eq "mobile" -and $deviceReview.status -eq "skipped_desktop_failed") { continue }
+        $assetScore = $deviceReview.scores.asset_quality
+        if ($null -eq $assetScore -or ($assetScore -isnot [int] -and $assetScore -isnot [long]) -or $assetScore -lt 0 -or $assetScore -gt 25) {
             throw "Visual review has an invalid asset_quality score for $device."
         }
+        $reviewedDevices += $device
     }
-    $lowAssetQuality = $inputReview.devices.desktop.scores.asset_quality -lt 18 -or $inputReview.devices.mobile.scores.asset_quality -lt 18
+    if ($reviewedDevices -notcontains "desktop") { throw "A desktop visual review is required before repair." }
+    $lowAssetQuality = $false
+    foreach ($device in $reviewedDevices) {
+        if ($inputReview.devices.$device.scores.asset_quality -lt 18) { $lowAssetQuality = $true }
+    }
     if ($lowAssetQuality) {
         if (Test-ArchiveHasImportedModel $archive) {
             throw "Imported 3D model asset quality is below 18/25; do not spend repair tokens. Re-run model preflight first."
