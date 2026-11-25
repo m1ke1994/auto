@@ -17,7 +17,7 @@ if ($reviewFiles.Count -lt 6) { throw "Insufficient audit screenshots; no visual
 $material = [System.Text.StringBuilder]::new()
 foreach ($file in $reviewFiles) {
     $fileHash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-    [void]$material.Append($file.Name).Append("|").Append($fileHash).Append([Environment]::NewLine)
+    [void]$material.Append($file.Name).Append("|").Append($fileHash).Append([char]10)
 }
 $sha = [System.Security.Cryptography.SHA256]::Create()
 try {
