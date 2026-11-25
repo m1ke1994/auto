@@ -1,5 +1,5 @@
 import unittest
-from asset_preflight import choose_review, validate_plan
+from asset_preflight import choose_review, validate_plan, thumbnail_url, rank_previews
 class PreflightTests(unittest.TestCase):
     def test_critical_overrides_score(self):
         self.assertIsNone(choose_review({"reviews":[{"candidate":"candidate-1","score":100,"critical":True,"reason":"Huge podium","yaw":45}]},["candidate-1"]))
@@ -27,3 +27,21 @@ class PreflightTests(unittest.TestCase):
     def test_required_without_query_fails(self):
         with self.assertRaises(ValueError):
             validate_plan({"mode":"immersive","subject":"car","queries":[],"required":True,"use_model":True,"direction":"A distinct full-screen composition."})
+
+    def test_thumbnail_host_and_model_binding(self):
+        uid="a"*32
+        def entry(url):
+            return {"images":[{"width":720,"height":405,"url":url}]}
+        good="https://media.sketchfab.com/models/"+uid+"/thumbnails/abc/def.jpeg"
+        self.assertEqual(thumbnail_url(uid,entry(good)),good)
+        self.assertIsNone(thumbnail_url(uid,entry(good.replace("media.sketchfab.com","evil.test"))))
+        self.assertIsNone(thumbnail_url(uid,entry(good.replace(uid,"b"*32))))
+        self.assertIsNone(thumbnail_url(uid,entry(good+"?token=secret")))
+    def test_thumbnail_critical_blocks_even_high_score(self):
+        result=rank_previews({"reviews":[{"id":"a","score":95,"critical":True},{"id":"b","score":82,"critical":False},{"id":"c","score":70,"critical":False}]},["a","b","c"])
+        self.assertEqual(result,["b"])
+    def test_thumbnail_missing_or_invalid_score(self):
+        with self.assertRaises(ValueError):
+            rank_previews({"reviews":[]},["a"])
+        with self.assertRaises(ValueError):
+            rank_previews({"reviews":[{"id":"a","score":101,"critical":False}]},["a"])

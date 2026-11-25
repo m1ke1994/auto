@@ -95,6 +95,7 @@ class SketchfabLibrary:
         self.searches=0
         self.style='realistic'
         self.detail_limit=8
+        self.thumbnails={}
 
     @property
     def enabled(self):
@@ -115,6 +116,7 @@ class SketchfabLibrary:
                 rank=rank_asset(item,query,faces,self.style)
                 if rank is not None:
                     candidates.append((-rank["metadata_score"],len(candidates),uid))
+        search_items={x.get('uid'):x for x in result.get('results',[]) if isinstance(x,dict) and isinstance(x.get('uid'),str)}
         found=[]
         print("SKETCHFAB_RANK: eligible="+str(len(candidates))+"; style="+self.style,flush=True)
         for _,_,uid in sorted(candidates)[:self.detail_limit]:
@@ -140,6 +142,7 @@ class SketchfabLibrary:
                   "author":author[:150],"license":license[0],"license_url":license[1],
                   "source":"Sketchfab","url":"https://sketchfab.com/3d-models/"+uid,
                   "polycount":faces,**rank}
+            self.thumbnails[uid]=detail.get('thumbnails') or search_items.get(uid,{}).get('thumbnails',{})
             found.append(item)
         selected=sorted(found,key=lambda x:-x["metadata_score"])[:4]
         self.candidates.update({x["id"]:x for x in selected})

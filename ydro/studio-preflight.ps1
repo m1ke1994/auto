@@ -8,6 +8,7 @@ param(
     [switch]$RequireModel,
     [string[]]$AssetQuery=@(),
     [string]$AssetSubject="",
+    [string[]]$ExcludeModelId=@(),
     [switch]$NoBuild,
     [switch]$ReturnResult
 )
@@ -57,6 +58,8 @@ if ($ResumeDirectory) {
     if ($AssetQuery.Count -gt 2) { throw "Maximum two manual queries" }
     foreach ($query in $AssetQuery) { $extra+= @("--asset-query",$query) }
     if ($AssetSubject) { $extra+= @("--asset-subject",$AssetSubject) }
+    if ($ExcludeModelId.Count -gt 16) { throw "Maximum 16 excluded model IDs" }
+    foreach ($id in $ExcludeModelId) { $extra+= @("--exclude-model-id",$id) }
     & docker @compose run --rm --no-deps --entrypoint python -v "$($out):/preflight" openhands /opt/studio-agent/asset_preflight.py prepare --brief $Prompt --profile $Profile --style $AssetStyle --hero $HeroMode @extra | Out-Host
     Check "Asset preparation"
 }
