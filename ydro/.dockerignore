@@ -14,3 +14,8 @@ node_modules
 vue-admin/node_modules
 vue-admin/dist
 .DS_Store
+.env.studio.local
+.env.studio.local.*
+.env.local
+.env.*.local
+**/.env.studio.local

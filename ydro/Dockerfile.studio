@@ -1,0 +1,22 @@
+# Local TrackNode Studio only; production Dockerfile.backend is unchanged.
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_DEFAULT_TIMEOUT=120 \
+    PIP_RETRIES=5
+WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential libpq-dev curl fonts-dejavu-core fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt /app/requirements.txt
+RUN python -m pip install --index-url https://pypi.org/simple --no-cache-dir -r /app/requirements.txt \
+    && python -m pip check
+COPY . /app
+# Normalize even if Windows Git has checked the shell file out with CRLF/BOM.
+RUN python -c "from pathlib import Path; p=Path('/app/docker/backend/entrypoint.sh'); p.write_bytes(p.read_text(encoding='utf-8-sig').replace('\r\n','\n').replace('\r','\n').encode('utf-8'))" \
+    && chmod +x /app/docker/backend/entrypoint.sh \
+    && /bin/sh -n /app/docker/backend/entrypoint.sh \
+    && python -m compileall -q /app/ai_builder /app/config
+EXPOSE 8000
+ENTRYPOINT ["/bin/sh", "/app/docker/backend/entrypoint.sh"]

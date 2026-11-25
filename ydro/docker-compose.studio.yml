@@ -1,13 +1,36 @@
+# Development override only. Do not apply to production.
 services:
   backend:
+    build:
+      dockerfile: Dockerfile.studio
+    restart: "no"
     environment:
+      DJANGO_ENV: development
+      DJANGO_DEBUG: "True"
+      DJANGO_ALLOWED_HOSTS: "127.0.0.1,localhost,backend,testserver"
+      DJANGO_REQUIRE_HTTPS: "False"
+      DJANGO_SECURE_SSL_REDIRECT: "False"
+      DOMAIN: localhost
       STUDIO_DEMO_ENABLED: "1"
       STUDIO_AI_PROVIDER: ${STUDIO_AI_PROVIDER:-demo}
       STUDIO_AI_KEY: ${STUDIO_AI_KEY:-}
       STUDIO_AI_FOLDER: ${STUDIO_AI_FOLDER:-}
       STUDIO_AI_MODEL: ${STUDIO_AI_MODEL:-}
+      RUN_MIGRATIONS: "1"
+      RUN_COLLECTSTATIC: "1"
+      RUN_SEED_DEMO_DATA: "0"
+      RUN_SEED_VOLGA_SITE: "0"
       RUN_SEED_TRACKNODE_SITE: "0"
+      RUN_SEED_MY_PORTFOLIO_SITE: "0"
       GUNICORN_TIMEOUT: "120"
+    healthcheck:
+      test: ["CMD", "curl", "--noproxy", "*", "--fail", "--silent", "--show-error", "--max-time", "5", "http://127.0.0.1:8000/api/health/"]
+      interval: 10s
+      timeout: 7s
+      retries: 12
+      start_period: 120s
   frontend:
     environment:
       VITE_STUDIO_ENABLED: "1"
+    healthcheck:
+      start_period: 60s

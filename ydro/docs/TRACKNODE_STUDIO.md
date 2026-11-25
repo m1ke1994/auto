@@ -26,3 +26,15 @@ Copy .env.studio.example to .env.studio.local. Set STUDIO_AI_PROVIDER=yandex, ST
 Optional offline build check: extract the generated ZIP into a fresh source directory (no node_modules); create a fresh output directory. Build the trusted runner image with docker build -t tracknode-studio-build -f docker/studio-build/Dockerfile docker/studio-build. Run docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 768m --cpus 1 --pids-limit 128 --tmpfs /work:rw,exec,size=192m,uid=1000,gid=1000 --tmpfs /tmp:rw,size=64m --mount type=bind,source=ABS_SOURCE,target=/source,readonly --mount type=bind,source=ABS_OUTPUT,target=/output tracknode-studio-build. Use writable output directory for uid 1000. This manual build check is not yet integrated in the UI or a hostile-code sandbox. Do not mount secrets or the main repository. No Docker socket in backend.
 
 Next: separate OpenHands worker with ephemeral sandbox and scoped credentials, async queue, build artifacts and visual checks, GitHub App and Vercel preview.
+
+## Windows startup / troubleshooting
+
+From the ydro directory run:
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\start-studio.ps1
+```
+Use `-SkipBuild` to reuse the current images, or `-Test` to run Studio tests after startup. The script uses the existing tracknode20 project and database volumes, optionally reads .env.studio.local, validates Compose, builds images, waits for the HTTP healthcheck, checks Django and prints migration status. Failure prints service logs and healthcheck output. No destructive cleanup is performed.
+
+Dockerfile.studio is separate from production Dockerfile.backend. It normalizes the entrypoint inside the image, checks shell and Python syntax, installs dependencies from official PyPI, and checks package consistency. Studio health checks target localhost inside the backend container, allow time for real migrations, and do not conceal failed application startup. The local override disables example site seeding. Docker Desktop with Compose supporting --wait is required.
+
+If a previous local Git patch conflicts during pull, keep a backup and resolve the conflicting files before building. Do not delete database volumes or run git reset --hard. A successful build alone does not guarantee that migrations or runtime checks pass. Inspect logs if any check fails.
