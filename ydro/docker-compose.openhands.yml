@@ -4,6 +4,7 @@ services:
     build:
       context: ./docker/studio-agent
     environment:
+      SKETCHFAB_API_TOKEN: ${SKETCHFAB_API_TOKEN:-}
       PEXELS_API_KEY: ${PEXELS_API_KEY:-}
       STUDIO_AI_KEY: ${STUDIO_AI_KEY:-}
       STUDIO_AI_MODEL: ${STUDIO_AI_MODEL:-deepseek-v4-pro}

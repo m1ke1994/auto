@@ -11,3 +11,5 @@
 !quality.py
 !models3d.py
 !test_models3d.py
+!sketchfab_probe.py
+!test_sketchfab_probe.py

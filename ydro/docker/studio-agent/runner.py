@@ -106,6 +106,7 @@ def main():
     parser.add_argument("--check",action="store_true")
     parser.add_argument("--check-media",action="store_true")
     parser.add_argument("--check-models",action="store_true")
+    parser.add_argument("--check-sketchfab",action="store_true")
     parser.add_argument("--prompt")
     parser.add_argument("--profile", choices=tuple(PROFILES), default="premium")
     args=parser.parse_args()
@@ -115,6 +116,14 @@ def main():
         assert result.message == "Empty project."
         make_agent("offline-check-only","deepseek-v4-pro")
         print("OpenHands SDK and bounded tool import OK; premium profiles initialized")
+        return
+    if args.check_sketchfab:
+        from sketchfab_probe import probe
+        try:
+            probe(os.environ.get("SKETCHFAB_API_TOKEN","").strip())
+        except ValueError as exc:
+            print(str(exc),flush=True)
+            raise SystemExit(1) from None
         return
     if args.check_models:
         try:
