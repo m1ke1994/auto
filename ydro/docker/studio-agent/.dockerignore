@@ -3,6 +3,7 @@
 !runner.py
 !site_store.py
 !test_site_store.py
+!test_scene_components.py
 !Dockerfile
 !art_direction.py
 !media.py
