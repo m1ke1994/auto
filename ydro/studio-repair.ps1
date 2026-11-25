@@ -5,12 +5,31 @@ param(
     [ValidateSet("standard","premium","cinema")][string]$Profile="cinema",
     [ValidateSet("realistic","stylized")][string]$AssetStyle="realistic",
     [ValidateRange(1,1)][int]$MaxRepairs=1,
-    [switch]$NoBuild
+    [switch]$NoBuild,
+    [switch]$ForceRetry
 )
 $ErrorActionPreference="Stop"
 Set-Location $PSScriptRoot
 $run=(Resolve-Path -LiteralPath $RunDirectory).Path
 $review=(Resolve-Path -LiteralPath $ReviewFile).Path
+$reviewHash=(Get-FileHash -LiteralPath $review -Algorithm SHA256).Hash.ToLowerInvariant()
+$blocklistPath=Join-Path $PSScriptRoot "studio-repair-blocklist.json"
+$ledgerPath=Join-Path $PSScriptRoot ".studio-repair-ledger.json"
+if (!$ForceRetry) {
+    if (Test-Path -LiteralPath $blocklistPath) {
+        $blocked=Get-Content -LiteralPath $blocklistPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (@($blocked.sha256) -contains $reviewHash) {
+            throw "This exact visual report has already triggered a paid repair attempt. No AI call made; patch the source and use studio-recheck.ps1 instead."
+        }
+    }
+    if (Test-Path -LiteralPath $ledgerPath) {
+        $ledger=Get-Content -LiteralPath $ledgerPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (@($ledger.sha256) -contains $reviewHash) {
+            throw "This exact visual report has already been used for repair in this workspace. No AI call made. Use -ForceRetry only if you intentionally accept another charge."
+        }
+    }
+}
+if ($ForceRetry) { Write-Warning "ForceRetry enabled: this repair may incur another API charge." }
 function Assert-Exit([string]$Step) {
     if ($LASTEXITCODE -ne 0) { throw "$Step failed ($LASTEXITCODE); all previous outputs preserved" }
 }
@@ -80,6 +99,15 @@ for ($i=1; $i -le $MaxRepairs; $i++) {
     $out=(New-Item -ItemType Directory -Path (Join-Path $PWD ("studio-agent-output/repair-" + [guid]::NewGuid().ToString()))).FullName
     Write-Host "REPAIR_ATTEMPT: $i/$MaxRepairs"
     Write-Host "REPAIR_OUTPUT: $out"
+    $ledger=@{ version=1; sha256=@() }
+    if (Test-Path -LiteralPath $ledgerPath) {
+        $oldLedger=Get-Content -LiteralPath $ledgerPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $ledger.sha256=@($oldLedger.sha256)
+    }
+    $ledger.sha256=@($ledger.sha256)+@($reviewHash)
+    $tempLedger=$ledgerPath+".tmp"
+    [IO.File]::WriteAllText($tempLedger,($ledger | ConvertTo-Json -Depth 4),[Text.UTF8Encoding]::new($false))
+    Move-Item -LiteralPath $tempLedger -Destination $ledgerPath -Force
     & docker @compose run --rm --no-deps -v "$($archive):/repair-source.zip:ro" -v "$($review):/repair-review.json:ro" -v "$($out):/output" openhands --repair --profile $Profile --asset-style $AssetStyle --prompt $Prompt
     Assert-Exit "AI repair"
     $source=Join-Path $out "site"
