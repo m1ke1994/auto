@@ -83,7 +83,7 @@ onBeforeUnmount(() => {
         :data-active="index === active"
       >
         <div class="tn-story-mobile-visual" aria-hidden="true">
-          <slot name="visual" :item="item" :index="index">
+          <slot name="mobile-visual" :item="item" :index="index">
             <img v-if="item.image" :src="item.image" alt="" loading="lazy">
           </slot>
         </div>
