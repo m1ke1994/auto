@@ -293,10 +293,14 @@ def promote_best():
         require(archive.is_file() and not archive.is_symlink() and 0<archive.stat().st_size<=32*1024*1024,"Candidate archive missing or outside size limit.")
         require(report.is_file() and not report.is_symlink(),"Candidate render report missing.")
         render=json.loads(report.read_text(encoding="utf-8"))
-        require(isinstance(render,dict) and render.get("passed") is True,"Candidate render did not pass.")
-        views=render.get("views")
-        require(isinstance(views,list) and len(views)==len(ANGLES),"Candidate render is incomplete.")
-        require(all(isinstance(v,dict) and v.get("state")=="ready" and v.get("canvas") is True and type(v.get("frames")) is int and v["frames"]>=2 for v in views),"Candidate has an incomplete 3D view.")
+        require(isinstance(render,dict) and render.get("passed") is True and render.get("angles")==list(ANGLES),"Candidate render did not pass all three angles.")
+        diagnostics_path=folder/"render-diagnostics.json"
+        require(diagnostics_path.is_file() and not diagnostics_path.is_symlink(),"Candidate render diagnostics missing.")
+        diagnostics=json.loads(diagnostics_path.read_text(encoding="utf-8"))
+        views=diagnostics.get("views") if isinstance(diagnostics,dict) else None
+        require(isinstance(views,list) and len(views)==len(ANGLES),"Candidate render diagnostics are incomplete.")
+        require(all(isinstance(v,dict) and v.get("state")=="ready" and v.get("canvas") is True and type(v.get("frames")) is int and v["frames"]>=1 for v in views),"Candidate has an incomplete 3D view.")
+        require(not any(diagnostics.get(k) for k in ("missing","blocked","pageErrors","requestFailures")),"Candidate render has browser errors.")
         require(all((folder/f"view-{yaw}.png").is_file() for yaw in ANGLES),"Candidate screenshots are incomplete.")
         names.append(item["folder"])
     winner=choose_review({"reviews":selection.get("reviews")},names,min_score=75)
