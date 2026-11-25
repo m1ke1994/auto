@@ -21,7 +21,7 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     done; \
     echo "Dependency installation failed. Integrity checks remain enabled."; \
     exit 1
-COPY runner.py site_store.py test_site_store.py art_direction.py media.py test_media.py ./
+COPY runner.py site_store.py test_site_store.py art_direction.py media.py test_media.py landing-progress.js ./
 RUN python -m unittest -v test_site_store test_media && python runner.py --check
 USER 10001:10001
 ENTRYPOINT ["python", "/opt/studio-agent/runner.py"]

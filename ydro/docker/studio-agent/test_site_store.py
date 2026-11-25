@@ -8,7 +8,7 @@ from site_store import SiteStore
 class StoreTests(unittest.TestCase):
     def test_paths(self):
         store=SiteStore()
-        for path in ("../secret","/proc/self/environ","src/../x.js","src/.env","package.json","src/main.js","src\\x.vue","src/a.sh"):
+        for path in ("../secret","/proc/self/environ","src/../x.js","src/.env","package.json","src/main.js","src/landing-progress.js","src\\x.vue","src/a.sh"):
             with self.subTest(path=path), self.assertRaises(ValueError):
                 store.write(path,"x")
         store.write("src/components/Hero.vue","<template><h1>Hero</h1></template>")
@@ -27,6 +27,12 @@ class StoreTests(unittest.TestCase):
             store.export(output,"deepseek-v4-pro")
             with zipfile.ZipFile(output) as z:
                 self.assertIn("src/App.vue",z.namelist())
+                self.assertIn("src/landing-progress.js",z.namelist())
+                self.assertIn("installLandingProgress();",z.read("src/main.js").decode())
+                progress=z.read("src/landing-progress.js").decode()
+                self.assertIn("transform-origin:left center",progress)
+                self.assertIn("root.scrollHeight - root.clientHeight",progress)
+                self.assertIn("root.scrollTop / max",progress)
                 self.assertFalse(json.loads(z.read("tracknode-agent.json"))["build_verified"])
                 self.assertEqual(json.loads(z.read("package.json"))["scripts"]["build"],"vite build")
             with self.assertRaises(FileExistsError):
@@ -62,6 +68,9 @@ class StoreTests(unittest.TestCase):
         from art_direction import PROFILES, build_prompt
         for profile in PROFILES:
             self.assertIn("USER BRIEF EXAMPLE",build_prompt("USER BRIEF EXAMPLE",profile))
+            self.assertIn("filling strictly left to right",build_prompt("Test",profile))
+        with self.assertRaises(ValueError):
+            SiteStore().write("src/landing-progress.js","override")
         self.assertIn("scroll-driven scenes",build_prompt("Test","cinema"))
 
 if __name__=="__main__":
