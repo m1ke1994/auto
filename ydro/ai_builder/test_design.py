@@ -63,3 +63,23 @@ class DesignTests(SimpleTestCase):
         response.json.return_value={"choices":[{"finish_reason":"length","message":{"content":""}}]}
         with self.assertRaises(GenerationError):
             generate("Поэт","Сайт")
+
+    @override_settings(STUDIO_AI_PROVIDER="deepseek", STUDIO_AI_KEY="test", STUDIO_AI_FOLDER="", STUDIO_AI_MODEL="deepseek-v4-pro")
+    @patch("ai_builder.provider.requests.post")
+    def test_deepseek_brand_repair_preserves_ai_pages(self, post):
+        import json
+        spec=demo_spec("Fixture","Сайт")
+        spec["pages"][0]["heading"]="Уникальный ответ модели"
+        response=Mock(ok=True,content=b"ok")
+        post.return_value=response
+        for brand, expected in [({"name":"Atelier"},"Atelier"), (None,"Architecture Studio"), ("x"*121,"Architecture Studio"), (["wrong"],"Architecture Studio")]:
+            with self.subTest(brand=brand):
+                spec["brand"]=brand
+                response.json.return_value={"choices":[{"finish_reason":"stop","message":{"content":json.dumps(spec)}}]}
+                result=generate("Architecture Studio","Сайт","premium")
+                self.assertEqual(result["brand"],expected)
+                self.assertEqual(result["pages"][0]["heading"],"Уникальный ответ модели")
+        spec["pages"][0]["heading"]={}
+        response.json.return_value={"choices":[{"finish_reason":"stop","message":{"content":json.dumps(spec)}}]}
+        with self.assertRaisesRegex(GenerationError,r"pages\[0\]\.heading"):
+            generate("Architecture Studio","Сайт","premium")

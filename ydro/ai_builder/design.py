@@ -10,10 +10,13 @@ THEMES = {
     "modern": ("#f5f8fa", "#142b38", "#007c79", "#e3efed", "system-ui,sans-serif"),
     "bold": ("#f7f1dd", "#252337", "#a93c25", "#f0e3bd", "system-ui,sans-serif"),
 }
-def clean(value, limit):
-    if not isinstance(value, str) or not value.strip() or len(value)>limit:
-        raise ValidationError("Некорректный текст в дизайн-спецификации.")
-    return value.strip()
+def clean(value, limit, field="text"):
+    if not isinstance(value, str) or not value.strip():
+        raise ValidationError(f"{field}: ожидается непустая строка.")
+    value = value.strip()
+    if len(value) > limit:
+        raise ValidationError(f"{field}: превышен лимит {limit} символов.")
+    return value
 
 def validate(raw):
     if not isinstance(raw, dict) or not isinstance(raw.get("theme"),str) or raw.get("theme") not in THEMES:
@@ -21,19 +24,19 @@ def validate(raw):
     pages = raw.get("pages")
     if not isinstance(pages, list) or not 2 <= len(pages) <= 5:
         raise ValidationError("Нужно от 2 до 5 страниц.")
-    result = {"theme":raw["theme"], "brand":clean(raw.get("brand"),120), "pages":[]}
-    for page in pages:
+    result = {"theme":raw["theme"], "brand":clean(raw.get("brand"),120,"brand"), "pages":[]}
+    for i, page in enumerate(pages):
         if not isinstance(page,dict):
             raise ValidationError("Некорректная страница.")
         items=page.get("items")
         if not isinstance(items,list) or not 2 <= len(items) <= 5:
             raise ValidationError("Нужно от 2 до 5 блоков.")
-        out={"label":clean(page.get("label"),40), "eyebrow":clean(page.get("eyebrow"),80),
-             "heading":clean(page.get("heading"),160),"intro":clean(page.get("intro"),500),"items":[]}
-        for item in items:
+        out={"label":clean(page.get("label"),40,f"pages[{i}].label"), "eyebrow":clean(page.get("eyebrow"),80,f"pages[{i}].eyebrow"),
+             "heading":clean(page.get("heading"),160,f"pages[{i}].heading"),"intro":clean(page.get("intro"),500,f"pages[{i}].intro"),"items":[]}
+        for j, item in enumerate(items):
             if not isinstance(item,dict):
                 raise ValidationError("Некорректный блок.")
-            out["items"].append({"title":clean(item.get("title"),100),"text":clean(item.get("text"),700)})
+            out["items"].append({"title":clean(item.get("title"),100,f"pages[{i}].items[{j}].title"),"text":clean(item.get("text"),700,f"pages[{i}].items[{j}].text")})
         result["pages"].append(out)
     return result
 
