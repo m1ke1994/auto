@@ -15,7 +15,28 @@ const styles=[['auto','Автоматический'],['business','Соврем�
 const heroModes=[['auto','Автовыбор композиции'],['immersive','Крупный объект на фоне'],['product','Предметная сцена'],['split','Разделённый Hero'],['cinematic','Полноэкранная сцена'],['editorial','Editorial-фотография'],['environment','Иммерсивное пространство']]
 const revision=computed(()=>current.value?.revisions?.find(r=>r.id===selected.value))
 const previewHtml=computed(()=>revision.value?.html.replaceAll('href="#page-', 'href="about:srcdoc#page-') || '')
-const previewSrc=computed(()=>current.value?.preview_path ? BACKEND_URL+current.value.preview_path : '')
+const blockOptions=[['home','Hero / Главная'],['header','Header'],['about','О компании'],['services','Услуги'],['benefits','Преимущества'],['contacts','Контакты'],['footer','Footer']]
+const targetBlock=ref('home'), blockInstruction=ref(''), upgradeMotion=ref(true), compareVersion=ref('candidate')
+const blockEdit=computed(()=>current.value?.block_edit)
+const editingBlock=computed(()=>['queued','running'].includes(blockEdit.value?.status))
+const candidateReady=computed(()=>blockEdit.value?.status==='complete'&&blockEdit.value?.decision==='pending')
+const blockPhaseNames={queued:'В очереди',preparing:'Подготовка',generating:'ИИ редактирует выбранный блок',building:'Сборка новой версии',auditing:'Проверка в Chromium',finalizing:'Сохранение результата'}
+const blockStep=computed(()=>({queued:0,preparing:0,generating:1,building:2,auditing:3,finalizing:4})[blockEdit.value?.stage]??0)
+const previewSrc=computed(()=>{
+  const path=candidateReady.value&&compareVersion.value==='candidate'?blockEdit.value.preview_path:current.value?.preview_path
+  if(!path)return ''
+  return BACKEND_URL+path
+})
+const previewKey=computed(()=>previewSrc.value+'|'+(current.value?.preview_version||''))
+function submitBlock(){run(async()=>{
+  const id=current.value.id
+  apply((await http.post(base+id+'/blocks/'+targetBlock.value+'/regenerate/',{instruction:blockInstruction.value,upgrade_motion:targetBlock.value==='home'&&upgradeMotion.value})).data)
+  compareVersion.value='candidate';blockInstruction.value='';await refresh()
+})}
+function decideBlock(editId,action){run(async()=>{
+  apply((await http.post(base+current.value.id+'/block-edits/'+editId+'/'+action+'/')).data)
+  compareVersion.value='candidate';await refresh()
+})}
 const cinematic=computed(()=>current.value?.engine==='cinematic')
 const generating=computed(()=>['queued','running'].includes(current.value?.generation_status))
 const visualReview=computed(()=>current.value?.visual_review || {status:'unverified',score:null,threshold:85})
@@ -34,7 +55,7 @@ const phases=[
   ['finalizing','Сохранение результата','Подготовка предпросмотра и ZIP']
 ]
 const now=ref(Date.now()), lastPoll=ref(null), pollError=ref(false), showPrompt=ref(false)
-const activeJob=computed(()=>projects.value.some(p=>['queued','running'].includes(p.generation_status)))
+const activeJob=computed(()=>projects.value.some(p=>['queued','running'].includes(p.generation_status)||['queued','running'].includes(p.block_edit?.status)))
 const phaseIndex=computed(()=>current.value?.generation_status==='complete'?phases.length:phases.findIndex(p=>p[0]===current.value?.generation_stage))
 const progressKnown=computed(()=>phaseIndex.value>=0||current.value?.generation_status==='queued')
 const completedSteps=computed(()=>Math.max(0,phaseIndex.value))
@@ -62,11 +83,11 @@ async function refresh(){
   finally{polling=false}
 }
 onMounted(()=>run(async()=>{config.value=(await http.get('/api/studio/config/')).data;await refresh()}))
-const poll=setInterval(()=>{if(!busy.value&&(activeJob.value||generating.value||pollError.value))refresh().catch(()=>{})},3000)
+const poll=setInterval(()=>{if(!busy.value&&(activeJob.value||generating.value||editingBlock.value||pollError.value))refresh().catch(()=>{})},3000)
 const clock=setInterval(()=>{now.value=Date.now()},1000)
 onBeforeUnmount(()=>{disposed=true;clearInterval(poll);clearInterval(clock)})
 
-function open(id){showPrompt.value=false;run(async()=>apply((await http.get(base+id+'/')).data))}
+function open(id){showPrompt.value=false;targetBlock.value='home';blockInstruction.value='';upgradeMotion.value=true;compareVersion.value='candidate';run(async()=>apply((await http.get(base+id+'/')).data))}
 function newProject(from=null){
   engine.value='cinematic';style.value='auto';assetStyle.value='realistic';heroMode.value='auto';requireModel.value=false
   name.value=from?from.name+' — Cinema':''
@@ -136,10 +157,27 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
       <div class="brief"><div class="section-heading"><span>Описание проекта</span><button class="text-button" :aria-expanded="showPrompt" @click="showPrompt=!showPrompt">{{showPrompt?'Свернуть':'Читать'}}</button></div><p :class="['brief-text',{expanded:showPrompt}]">{{current.prompt}}</p><small class="muted">{{current.prompt.length}} символов</small></div>
       <div v-if="cinematic&&Object.keys(current.contacts||{}).length" class="brief"><span class="eyebrow">КОНТАКТЫ ПРОЕКТА</span><p v-for="field in contactFields.filter(f=>current.contacts?.[f[0]])" :key="field[0]" class="contact-summary"><strong>{{field[1]}}</strong><br>{{current.contacts[field[0]]}}</p></div>
       <template v-if="!cinematic"><button class="primary" :disabled="busy" @click="newProject(current)">Создать Cinema-сайт</button><h3>История изменений</h3><div class="revision-list"><button v-for="r in current.revisions" :key="r.id" :disabled="busy" :class="{active:r.id===selected}" @click="selected=r.id">{{r.instruction}}</button></div><form @submit.prevent="edit"><label>Изменение<textarea v-model="instruction" required maxlength="8000" rows="3" placeholder="Например: сделай тёмный дизайн"></textarea></label><button :disabled="busy||!config.configured||!revision">Создать версию</button></form></template>
+      <div v-else-if="cinematic&&current.generation_status==='complete'" class="block-editor">
+        <div class="section-heading"><span>Редактирование блоков</span><small>AI</small></div>
+        <p v-if="!current.source_archive_available" class="muted">Для правки нужен сохранённый исходный ZIP.</p>
+        <template v-else>
+          <div class="block-options"><button v-for="b in blockOptions" :key="b[0]" type="button" :class="{active:targetBlock===b[0]}" :disabled="busy||editingBlock||candidateReady" @click="targetBlock=b[0]">{{b[1]}}</button></div>
+          <form v-if="!editingBlock&&!candidateReady" @submit.prevent="submitBlock">
+            <label>Что изменить?<textarea v-model="blockInstruction" required maxlength="4000" rows="5" placeholder="Например: сделай заголовок читаемым, увеличь поворот модели. Остальное сохрани."></textarea></label>
+            <label v-if="targetBlock==='home'" class="check"><input v-model="upgradeMotion" type="checkbox"> Обновить движок поворота Hero</label>
+            <p class="muted">Один платный запрос к DeepSeek, без нового поиска ассетов и автоматических повторов.</p>
+            <button type="submit" class="primary" :disabled="busy||activeJob||!config.cinematic_enabled||!blockInstruction.trim()">Перегенерировать блок</button>
+          </form>
+          <div v-if="editingBlock" role="status" class="notice"><strong>{{blockPhaseNames[blockEdit.stage]||'Выполняется правка'}}</strong><div class="progress-track"><span :style="{width:blockStep/5*100+'%'}"/></div><small>{{blockStep}} из 5 этапов · исходный сайт доступен</small><p class="muted">{{pollingLabel}}<br>Последнее событие: {{blockEdit.updated_at?formatDuration(now-Date.parse(blockEdit.updated_at))+' назад':'—'}}</p></div>
+          <div v-if="blockEdit?.status==='failed'" class="notice error">Правка не завершилась. Исходный сайт сохранён.<p class="diagnostic">{{blockEdit.error}}</p></div>
+          <div v-if="candidateReady" class="notice"><strong>Новый вариант собран</strong><p class="muted">Сравните с исходником. Визуальный критик не запускался.</p><div class="decision-actions"><button :class="{active:compareVersion==='original'}" @click="compareVersion='original'">До</button><button :class="{active:compareVersion==='candidate'}" @click="compareVersion='candidate'">После</button><button class="primary" :disabled="busy" @click="decideBlock(blockEdit.id,'accept')">Принять</button><button :disabled="busy" @click="decideBlock(blockEdit.id,'discard')">Отклонить</button></div></div>
+          <details v-if="current.block_edits?.length" class="block-history"><summary>История правок</summary><article v-for="e in current.block_edits" :key="e.id"><strong>{{blockOptions.find(b=>b[0]===e.block)?.[1]||e.block}}</strong><small>{{({pending:e.status==='failed'?'Ошибка':e.status==='complete'?'Готов к просмотру':'В работе',accepted:'Принято',discarded:'Отклонено',rolled_back:'Отменено'})[e.decision]}}</small><p class="brief-text">{{e.instruction}}</p><button v-if="e.decision==='accepted'&&current.preview_version===e.candidate_run" :disabled="busy||editingBlock||candidateReady" @click="decideBlock(e.id,'rollback')">Откатить версию</button></article></details>
+        </template>
+      </div>
       <div v-else-if="generating" class="muted small-info">Можно закрыть страницу: задача выполняется локально независимо от браузера. Повторно запускать её не нужно.</div>
     </aside>
     <main class="panel preview-panel">
-      <div class="toolbar"><div class="devices"><button :class="{active:device==='100%'}" :aria-pressed="device==='100%'" @click="device='100%'">Компьютер</button><button :class="{active:device==='390px'}" :aria-pressed="device==='390px'" @click="device='390px'">Телефон</button></div><div class="actions"><button v-if="cinematic" :disabled="!previewSrc" @click="openPreview">Открыть отдельно ↗</button><button v-else :disabled="busy||!revision" @click="publish">Утвердить локально</button><button :disabled="busy||(cinematic?(!previewSrc||!current.source_archive_available):!revision)" @click="download">Скачать ZIP</button></div></div>
+      <div class="toolbar"><div class="devices"><button :class="{active:device==='100%'}" :aria-pressed="device==='100%'" @click="device='100%'">Компьютер</button><button :class="{active:device==='390px'}" :aria-pressed="device==='390px'" @click="device='390px'">Телефон</button></div><div class="actions"><button v-if="cinematic" :disabled="!previewSrc" @click="openPreview">Открыть отдельно ↗</button><button v-else :disabled="busy||!revision" @click="publish">Утвердить локально</button><button :disabled="busy||(cinematic?(!previewSrc||!current.source_archive_available):!revision)" @click="download">{{candidateReady?'ZIP действующей версии':'Скачать ZIP'}}</button></div></div>
       <div v-if="cinematic&&generating" class="waiting">
         <div class="progress-head"><div><span class="eyebrow">ГЕНЕРАЦИЯ САЙТА</span><h2>{{current.generation_status==='queued'?'В очереди':phaseIndex>=0?phases[phaseIndex]?.[1]:'Создание сайта'}}</h2></div><span class="elapsed">{{elapsed}}</span></div>
         <div v-if="progressKnown" class="progress-track" role="progressbar" aria-label="Завершённые этапы" :aria-valuenow="completedSteps" aria-valuemin="0" :aria-valuemax="phases.length"><span :style="{width:(completedSteps/phases.length*100)+'%'}"/></div>
@@ -149,7 +187,7 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
         <div class="connection" role="status"><span :class="{error:pollError}">{{pollingLabel}}</span><span v-if="current.generation_event_at">Последняя смена этапа: {{eventAge}} назад</span><span v-else>Время последнего события пока недоступно.</span></div>
         <p v-if="oldEvent&&!pollError" class="notice">Этап давно не менялся. Возможен длительный запрос к AI или обработка модели; связь с API не подтверждает активность агента.</p>
       </div>
-      <div v-else-if="cinematic&&previewSrc" class="preview-frame"><iframe title="Кинематографический предпросмотр сайта" sandbox="allow-scripts allow-same-origin" :src="previewSrc" :style="{width:device,maxWidth:'100%'}"/></div>
+      <div v-else-if="cinematic&&previewSrc" class="preview-frame"><iframe title="Кинематографический предпросмотр сайта" :key="previewKey" sandbox="allow-scripts allow-same-origin" :src="previewSrc" :style="{width:device,maxWidth:'100%'}"/></div>
       <div v-else-if="!cinematic&&revision" class="preview-frame"><iframe title="Предпросмотр сайта" sandbox="" :srcdoc="previewHtml" :style="{width:device,maxWidth:'100%'}"/></div>
       <div v-else class="empty-preview"><h2>{{current.generation_status==='failed'?'Генерация не завершилась':'Предпросмотр недоступен'}}</h2><p class="muted">Проверьте статус проекта. Диагностические данные сохраняются локально.</p></div>
     </main>
@@ -158,6 +196,7 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
 </template>
 
 <style scoped>
+.block-editor{border-top:1px solid var(--line);margin-top:16px;padding-top:16px}.block-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:12px 0}.block-options button{padding:8px;font-size:12px}.block-editor form>button{width:100%}.block-editor .decision-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}.block-history{margin-top:14px;font-size:12px}.block-history summary{cursor:pointer;color:var(--muted)}.block-history article{border-top:1px solid var(--line);padding:10px 0}.block-history small{display:block;color:var(--muted);margin-top:4px}
 .contact-fields{min-width:0;border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:16px 0}.contact-fields legend{font-size:14px;font-weight:650;padding:0 6px}.contact-summary{font-size:12px;line-height:1.55;color:var(--muted);overflow-wrap:anywhere}.contact-summary strong{color:inherit}
 .studio{--line:#344153;--muted:#9baac0;--accent:#698dff;--panel:#111a28;padding:24px clamp(12px,2vw,28px);max-width:1720px;margin:auto;color:inherit;min-width:0}
 .studio-head,.section-heading,.toolbar,.progress-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
