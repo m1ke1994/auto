@@ -87,7 +87,7 @@ function cleanup() {
 let loadStage='initializing'
 function fail(reason=loadStage) {
   if(host.value) host.value.dataset.tnModelFailure=reason
-  if(filmRoot){filmRoot.dataset.tnFilmFallback='true';filmRoot.style.setProperty('--tn-film-reveal','1')}
+  if(filmRoot){filmRoot.dataset.tnFilmFallback='true';filmRoot.dataset.tnFilmPhase='reveal';filmRoot.style.setProperty('--tn-film-reveal','1')}
   state.value='fallback'; cleanup()
 }
 function lost(e) { e.preventDefault(); fail('webgl-context-lost') }
@@ -120,6 +120,7 @@ function renderFrame() {
     const reveal=staticFilm?1:film.reveal
     filmRoot.style.setProperty('--tn-film-reveal',reveal.toFixed(4))
     filmRoot.dataset.tnFilmReveal=reveal.toFixed(4)
+    filmRoot.dataset.tnFilmPhase=reveal<.05?'opening':'reveal'
   } else current=motionQuery.matches?0:progress
   let b=shots.findIndex(s=>s.at>=current)
   if(b<1)b=1

@@ -176,7 +176,8 @@ try {
     }
     const filmSamples=[];
     const isFilm=await page.locator('#home[data-tn-hero-film]').count()===1;
-    if(isFilm&&name==='desktop'){
+    if(isFilm){
+      if(name==='mobile'){await page.emulateMedia({reducedMotion:'no-preference'});await page.waitForTimeout(500);}
       for(const fraction of [0,.25,.5,.75,1,.25]){
         stage=name+' hero film '+fraction;
         await page.evaluate(f=>{
@@ -200,6 +201,7 @@ try {
         if([0,.5,1].includes(fraction))await capture(page,name+'-hero-film-'+Math.round(fraction*100)+'.png');
       }
     }
+    if(isFilm&&name==='mobile'){await page.emulateMedia({reducedMotion:'reduce'});await page.waitForTimeout(500);}
     const sceneDiagnostics={carousels:[],stories:[]};
     const carousels=page.locator('[data-tn-carousel]');
     const stories=page.locator('[data-tn-story]');
@@ -337,9 +339,9 @@ try {
     }),contactContract);
     checks.heroCTA=sections.some(x=>x.id==='home'&&x.cta);
     checks.heroLayout=heroLayout;
-    if(isFilm&&name==='desktop'){
+    if(isFilm){
       const [start,q,mid,late,end,reverse]=filmSamples;
-      checks.heroFilm=filmSamples.length===6&&filmSamples.every(s=>s.framed&&!s.clipped&&s.coverage>=.62&&s.coverage<=.98&&s.width>=s.viewportWidth*.7&&s.height>=s.viewportHeight*.38&&Number.isFinite(s.yaw))&&
+      checks.heroFilm=filmSamples.length===6&&filmSamples.every(s=>s.framed&&!s.clipped&&s.coverage>=.62&&s.coverage<=.98&&s.width>=s.viewportWidth*.7&&s.height>=s.viewportHeight*(name==='desktop'?.38:.25)&&Number.isFinite(s.yaw))&&
         start.reveal<=.05&&start.progress<=.05&&q.reveal<=.05&&mid.progress>q.progress+.1&&late.reveal>=.95&&late.textVisible&&end.textVisible&&
         Math.abs(end.yaw-start.yaw)>=60&&Math.abs(mid.yaw-start.yaw)>=20&&Math.abs(end.yaw-mid.yaw)>=15&&Math.abs(reverse.yaw-q.yaw)<=5;
     }

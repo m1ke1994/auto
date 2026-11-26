@@ -205,6 +205,7 @@ class CinematicExport(StudioView):
 class BlockInput(serializers.Serializer):
     instruction=serializers.CharField(max_length=4000)
     upgrade_motion=serializers.BooleanField(default=False)
+    local_hero_film=serializers.BooleanField(default=False)
 
 class Blocks(StudioView):
     def get(self,request,pk):
@@ -236,9 +237,12 @@ class RegenerateBlock(StudioView):
             return Response({"detail":"Локальный лимит: 30 правок проекта."},status=400)
         s=BlockInput(data=request.data)
         s.is_valid(raise_exception=True)
+        local_film=s.validated_data["local_hero_film"]
+        if local_film and block!="home":
+            return Response({"detail":"Полноэкранная сцена доступна только для Hero."},status=400)
         edit=BlockEdit.objects.create(project=p,block=block,base_run=p.run_directory,base_stage=p.generation_stage,
-            instruction=s.validated_data["instruction"],upgrade_motion=block=="home" and s.validated_data["upgrade_motion"])
-        transaction.on_commit(lambda:queue_edit(edit))
+            instruction="Full-screen two-act Hero film (local, no AI)" if local_film else s.validated_data["instruction"],upgrade_motion=block=="home" and (local_film or s.validated_data["upgrade_motion"]))
+        transaction.on_commit(lambda:queue_edit(edit,local_hero_film=local_film))
         return Response(project_data(p,True),status=202)
 
 class BlockDecision(StudioView):

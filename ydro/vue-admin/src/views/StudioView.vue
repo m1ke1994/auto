@@ -20,7 +20,7 @@ const targetBlock=ref('home'), blockInstruction=ref(''), upgradeMotion=ref(true)
 const blockEdit=computed(()=>current.value?.block_edit)
 const editingBlock=computed(()=>['queued','running'].includes(blockEdit.value?.status))
 const candidateReady=computed(()=>blockEdit.value?.status==='complete'&&blockEdit.value?.decision==='pending')
-const blockPhaseNames={queued:'В очереди',preparing:'Подготовка',generating:'ИИ редактирует выбранный блок',building:'Сборка новой версии',auditing:'Проверка в Chromium',finalizing:'Сохранение результата'}
+const blockPhaseNames={queued:'В очереди',preparing:'Подготовка',generating:'Подготовка новой версии блока',building:'Сборка новой версии',auditing:'Проверка в Chromium',finalizing:'Сохранение результата'}
 const blockStep=computed(()=>({queued:0,preparing:0,generating:1,building:2,auditing:3,finalizing:4})[blockEdit.value?.stage]??0)
 const previewSrc=computed(()=>{
   const path=candidateReady.value&&compareVersion.value==='candidate'?blockEdit.value.preview_path:current.value?.preview_path
@@ -32,6 +32,10 @@ function submitBlock(){run(async()=>{
   const id=current.value.id
   apply((await http.post(base+id+'/blocks/'+targetBlock.value+'/regenerate/',{instruction:blockInstruction.value,upgrade_motion:targetBlock.value==='home'&&upgradeMotion.value})).data)
   compareVersion.value='candidate';blockInstruction.value='';await refresh()
+})}
+function applyHeroFilm(){run(async()=>{
+  apply((await http.post(base+current.value.id+'/blocks/home/regenerate/',{instruction:'Full-screen two-act Hero film',local_hero_film:true,upgrade_motion:true})).data)
+  compareVersion.value='candidate';await refresh()
 })}
 function decideBlock(editId,action){run(async()=>{
   apply((await http.post(base+current.value.id+'/block-edits/'+editId+'/'+action+'/')).data)
@@ -163,6 +167,10 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
         <template v-else>
           <div class="block-options"><button v-for="b in blockOptions" :key="b[0]" type="button" :class="{active:targetBlock===b[0]}" :disabled="busy||editingBlock||candidateReady" @click="targetBlock=b[0]">{{b[1]}}</button></div>
           <form v-if="!editingBlock&&!candidateReady" @submit.prevent="submitBlock">
+            <template v-if="targetBlock==='home'">
+              <button type="button" class="primary" :disabled="busy||activeJob||!config.cinematic_enabled" @click="applyHeroFilm">Полноэкранный 3D Hero · без ИИ</button>
+              <p class="muted">Для совместимых Hero с одной моделью: сначала полноэкранный объект, затем текст сверху и плавный поворот. Без расхода API.</p>
+            </template>
             <label>Что изменить?<textarea v-model="blockInstruction" required maxlength="4000" rows="5" placeholder="Например: сделай заголовок читаемым, увеличь поворот модели. Остальное сохрани."></textarea></label>
             <label v-if="targetBlock==='home'" class="check"><input v-model="upgradeMotion" type="checkbox"> Обновить движок поворота Hero</label>
             <p class="muted">Один платный запрос к DeepSeek, без нового поиска ассетов и автоматических повторов.</p>

@@ -219,3 +219,24 @@ class StudioTests(APITestCase):
             self.client.force_authenticate(self.a)
             self.assertEqual(self.client.post(decision+"accept/").data["preview_version"],"block-edit-test")
             self.assertEqual(self.client.post(decision+"rollback/").data["preview_version"],"original")
+
+    @override_settings(STUDIO_CINEMATIC_ENABLED=True)
+    def test_local_hero_film_queues_without_replacing_current_version(self):
+        from .models import Project
+        with tempfile.TemporaryDirectory() as jobs, tempfile.TemporaryDirectory() as outputs, override_settings(STUDIO_JOB_ROOT=jobs,STUDIO_OUTPUT_ROOT=outputs):
+            root=Path(outputs)/"original"
+            (root/"dist").mkdir(parents=True)
+            (root/"dist"/"index.html").write_text("original")
+            (root/"tracknode-agent-site.zip").write_bytes(b"fixture")
+            p=Project.objects.create(owner=self.a,name="Cars",prompt="Cars",engine="cinematic",run_directory="original")
+            url=f"/api/studio/projects/{p.id}/blocks/"
+            payload={"instruction":"film","local_hero_film":True}
+            self.assertEqual(self.client.post(url+"about/regenerate/",payload,format="json").status_code,400)
+            with self.captureOnCommitCallbacks(execute=True):
+                result=self.client.post(url+"home/regenerate/",payload,format="json")
+            self.assertEqual(result.status_code,202)
+            edit=result.data["block_edit"]
+            envelope=json.loads((Path(jobs)/"pending"/f'{edit["id"]}.json').read_text())
+            self.assertIs(envelope["local_hero_film"],True)
+            self.assertEqual(result.data["preview_version"],"original")
+            self.assertEqual(envelope["base_run"],"original")

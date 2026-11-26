@@ -229,6 +229,8 @@ FILM_CSS="""
   pointer-events:none !important;
 }
 #home[data-tn-hero-film] .hero-content a { pointer-events:auto; }
+#home[data-tn-hero-film][data-tn-film-phase="opening"] .hero-content { visibility:hidden; }
+@media(prefers-reduced-motion:reduce),(max-height:600px) { #home[data-tn-hero-film][data-tn-film-phase="opening"] .hero-content { visibility:visible; } }
 #home[data-tn-hero-film] .hero-copy {
   font-size:clamp(1.7rem,5vw,4.2rem) !important; line-height:1 !important;
   white-space:normal !important; overflow:visible !important; overflow-wrap:anywhere;

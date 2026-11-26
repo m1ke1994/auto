@@ -83,7 +83,17 @@ for ($attempt=0; $attempt -le $MaxTechnicalRepairs; $attempt++) {
         }
     }
     [IO.File]::WriteAllText($failure,($diagnostic | ConvertTo-Json -Depth 40),[Text.UTF8Encoding]::new($false))
-    if ($attempt -ge $MaxTechnicalRepairs) { throw "TECHNICAL_REPAIR_LIMIT_REACHED: $run; previous versions preserved. No site automatically accepted." }
+    if ($attempt -ge $MaxTechnicalRepairs) {
+        $summary=$diagnostic.stage
+        if ($diagnostic.stage -eq "audit") {
+            $summary=(@(foreach ($device in $diagnostic.audit.checks) {
+                foreach ($check in $device.checks.PSObject.Properties) {
+                    if ($check.Value -ne $true) { "$($device.name):$($check.Name)" }
+                }
+            }) -join ", ")
+        }
+        throw "TECHNICAL_REPAIR_LIMIT_REACHED [$summary]: $run; previous versions preserved. No paid retry."
+    }
     $next=(New-Item -ItemType Directory -Path (Join-Path (Split-Path -Parent $run) ("technical-repair-"+[guid]::NewGuid().ToString("N")))).FullName
     Write-Host "TECHNICAL_REPAIR_ATTEMPT: $($attempt+1)/$MaxTechnicalRepairs; stage=$($diagnostic.stage)"
     Write-Host "TECHNICAL_REPAIR_OUTPUT: $next"
