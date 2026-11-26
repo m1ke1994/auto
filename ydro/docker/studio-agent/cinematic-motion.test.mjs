@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots } from './cinematic-motion.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress } from './cinematic-motion.js'
 
 test('all presets are bounded, deterministic and genuinely distinct',()=>{
   const signatures=new Set()
@@ -14,7 +14,7 @@ test('all presets are bounded, deterministic and genuinely distinct',()=>{
     assert.equal(JSON.stringify(shots),JSON.stringify(presetShots(name,225)))
     signatures.add(JSON.stringify(shots))
   }
-  assert.equal(signatures.size,10)
+  assert.equal(signatures.size,11)
   assert.equal(Object.keys(LIGHTING_PRESETS).length,5)
 })
 test('object turn and light sweep need no camera yaw change',()=>{
@@ -31,4 +31,17 @@ test('invalid inputs and intensity bounds',()=>{
   assert.equal(shots[0].yaw,50)
   assert.equal(presetShots('turntable',0,100).at(-1).modelYaw,450)
   assert.equal(presetShots('turntable',0,-100).at(-1).modelYaw,90)
+})
+
+test('primary hero gets a readable relative turn even when camera and object cancel',()=>{
+  const weak=[{at:0,yaw:135,modelYaw:0},{at:1,yaw:145,modelYaw:10}]
+  const shots=heroMotionShots(weak,135)
+  assert.equal(shots[0].yaw,135)
+  assert.ok(Math.abs((shots.at(-1).yaw-shots.at(-1).modelYaw)-(shots[0].yaw-shots[0].modelYaw))>=60)
+  assert.equal(heroMotionShots(presetShots('orbit_dramatic',135),135).at(-1).yaw,-20)
+})
+test('sticky track progresses across its actual visible travel',()=>{
+  assert.equal(cameraTrackProgress(64,1600,900,true,64),0)
+  assert.equal(cameraTrackProgress(-700,1600,900,true,64),1)
+  assert.ok(cameraTrackProgress(-250,900,900,false,0)>.5)
 })

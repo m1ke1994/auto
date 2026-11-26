@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots } from '../cinematic-motion.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress } from '../cinematic-motion.js'
 
 const props = defineProps({
   modelPath: { type: String, required: true },
@@ -50,7 +50,7 @@ function normalizedShots() {
   return list
 }
 let renderer, scene, camera, model, env, pmrem, observer, intersection, raf=0, disposed=false
-let visible=true, motionQuery, current=0, radius=1, frameCount=0, shots
+let visible=true, motionQuery, current=0, radius=1, frameCount=0, shots, primaryHero=false
 let corners=[], bounds, groundPlane, keyLight, modelPivot
 const yAxis=new THREE.Vector3(0,1,0)
 function disposeModel(root) {
@@ -108,7 +108,10 @@ function renderFrame() {
   // Use the surrounding narrative chapter, not a nested scroll container.
   const chapter=host.value.closest('[data-tn-camera-track]') || host.value
   const rect=chapter.getBoundingClientRect()
-  const progress=clamp(-rect.top/Math.max(innerHeight*.4,rect.height-innerHeight*.35),0,1)
+  const header=document.querySelector('[data-tn-header]')
+  const headerPosition=header?getComputedStyle(header).position:''
+  const inset=primaryHero&&['sticky','fixed'].includes(headerPosition)?clamp(header.getBoundingClientRect().bottom,0,innerHeight*.2):0
+  const progress=primaryHero?cameraTrackProgress(rect.top,rect.height,innerHeight,chapter!==host.value,inset):clamp(-rect.top/Math.max(innerHeight*.4,rect.height-innerHeight*.35),0,1)
   current=motionQuery.matches?0:progress
   let b=shots.findIndex(s=>s.at>=current)
   if(b<1)b=1
@@ -148,7 +151,7 @@ function renderFrame() {
     fit=Math.max(fit,depth+Math.abs(rel.dot(right))/(tanH*.84),depth+Math.abs(rel.dot(up))/(tanV*.84),depth+.15)
   }
   const zoom=blend(from.distance,to.distance)
-  const distance=fit*(opening>0?THREE.MathUtils.lerp(zoom,clamp(zoom,.98,1.08),opening):zoom)
+  const distance=fit*(primaryHero?clamp(zoom,1,1.08):(opening>0?THREE.MathUtils.lerp(zoom,clamp(zoom,.98,1.08),opening):zoom))
   camera.position.copy(target).addScaledVector(direction,distance)
   camera.lookAt(target)
   camera.updateMatrixWorld()
@@ -168,13 +171,16 @@ function renderFrame() {
   host.value.dataset.tnCameraPose=[...camera.position.toArray(),...target.toArray()].map(x=>x.toFixed(4)).join(',')
   host.value.dataset.tnModelMotionPose=[...camera.position.toArray(),...target.toArray(),modelYaw,lift,...keyLight.position.toArray()].map(x=>x.toFixed(4)).join(',')
   host.value.dataset.tnObjectYaw=modelYaw.toFixed(4)
+  host.value.dataset.tnRelativeYaw=THREE.MathUtils.radToDeg(yaw-modelYaw).toFixed(2)
   host.value.dataset.tnFrames=String(++frameCount)
 }
 onMounted(async()=>{
   try{
     if(!/^tn-models\/[A-Za-z0-9_-]+\/model\.gltf$/.test(props.modelPath)) throw new Error('Invalid local path')
     motionQuery=matchMedia('(prefers-reduced-motion: reduce)')
+    primaryHero=role==='primary'&&Boolean(host.value.closest('[data-tn-section="home"]'))
     shots=normalizedShots()
+    if(primaryHero) shots=heroMotionShots(shots,props.openingYaw)
     loadStage='webgl-renderer'
     renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'})
     renderer.outputColorSpace=THREE.SRGBColorSpace
