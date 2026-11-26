@@ -11,7 +11,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt /app/requirements.txt
 RUN python -m pip install --index-url https://pypi.org/simple --no-cache-dir -r /app/requirements.txt \
-    && python -m pip check
+    && python -m pip check \
+    && python -c "from packaging.version import Version; import kombu.transport.redis"
 COPY . /app
 # Normalize even if Windows Git has checked the shell file out with CRLF/BOM.
 RUN python -c "from pathlib import Path; p=Path('/app/docker/backend/entrypoint.sh'); p.write_bytes(p.read_text(encoding='utf-8-sig').replace('\r\n','\n').replace('\r','\n').encode('utf-8'))" \
