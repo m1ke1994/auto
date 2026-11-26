@@ -26,7 +26,7 @@ class Roots(HTMLParser):
         self.feed(source)
         self.close()
 
-    def offset(self):
+    def source_offset(self):
         row,col=self.getpos()
         return self.offsets[row-1]+col
 
@@ -35,7 +35,7 @@ class Roots(HTMLParser):
             return
         attrs=dict(attrs)
         target=(tag=="section" and attrs.get("id")==self.block and attrs.get("data-tn-section")==self.block) or (self.block in ("header","footer") and tag==self.block and "data-tn-"+self.block in attrs)
-        self.stack.append((tag,self.offset(),target))
+        self.stack.append((tag,self.source_offset(),target))
 
     def handle_startendtag(self,tag,attrs):
         pass
@@ -46,7 +46,7 @@ class Roots(HTMLParser):
             if t==tag:
                 del self.stack[i:]
                 if target:
-                    end=self.source.index(">",self.offset())+1
+                    end=self.source.index(">",self.source_offset())+1
                     self.matches.append((start,end))
                 break
 

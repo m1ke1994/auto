@@ -24,3 +24,10 @@ class BlockEditTests(unittest.TestCase):
         self.files["src/App.vue"]=("<template>"+old+self.about+"</template>").encode()
         with self.assertRaises(ValueError):
             patch(self.files,"home",{"markup":old.replace("tn-models/car/","tn-models/other/"),"rules":[]})
+
+    def test_multiline_unicode_source_offsets(self):
+        source='<template>\n  <header data-tn-header>Привет</header>\n  '+self.home.replace('Old','Инженерия эмоций')+'\n'+self.about+'\n</template>'
+        name,start,end=find_block({'src/App.vue':source},'home')
+        self.assertEqual(source[start:end],self.home.replace('Old','Инженерия эмоций'))
+        name,start,end=find_block({'src/App.vue':source},'header')
+        self.assertEqual(source[start:end],'<header data-tn-header>Привет</header>')
