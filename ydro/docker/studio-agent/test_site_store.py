@@ -162,8 +162,6 @@ const options = { scrub: true }
             SiteStore().write("src/landing-progress.js","override")
         self.assertIn("scroll-driven scenes",build_prompt("Test","cinema"))
 
-if __name__=="__main__":
-    unittest.main()
 
     def test_public_contacts_are_trusted_and_exported_without_ai(self):
         store=SiteStore()
@@ -186,3 +184,6 @@ if __name__=="__main__":
                 store.set_contacts(data)
         with self.assertRaises(ValueError):
             store.write("src/tn-contacts.js","override")
+
+if __name__=="__main__":
+    unittest.main()
