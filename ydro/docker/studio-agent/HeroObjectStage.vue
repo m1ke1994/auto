@@ -105,6 +105,7 @@ async function init(){
     renderer.outputColorSpace=T.SRGBColorSpace
     renderer.toneMapping=T.ACESFilmicToneMapping
     renderer.toneMappingExposure=1.2
+    renderer.transmissionResolutionScale=.65
     renderer.setClearColor(0x000000,0)
     renderer.shadowMap.enabled=true
     renderer.shadowMap.type=T.PCFSoftShadowMap
@@ -207,8 +208,8 @@ async function init(){
     if(kind.value==='serum'){
       const glass=glassMaterial('#d79a52')
       const liquid=physical('#a95219',{roughness:.14,metalness:.02,clearcoat:1,clearcoatRoughness:.06})
-      lathe([[0,0],[.43,0],[.52,.06],[.54,.16],[.54,1.16],[.49,1.3],[.28,1.47],[.27,1.58],[0,1.58]],-.82,glass)
-      lathe([[0,.06],[.42,.06],[.49,.15],[.49,1.02],[.42,1.08],[0,1.08]],-.76,liquid)
+      lathe([[0,0],[.43,0],[.52,.06],[.54,.16],[.54,1.16],[.49,1.3],[.28,1.47],[.27,1.58],[0,1.58]],glass,-.82)
+      lathe([[0,.06],[.42,.06],[.49,.15],[.49,1.02],[.42,1.08],[0,1.08]],liquid,-.76)
       cylinder(.3,.3,.17,gold,0,.83)
       ring(.3,.025,gold,.76)
       cylinder(.235,.235,.39,darkMetal,0,1.11)
@@ -218,8 +219,8 @@ async function init(){
     }else if(kind.value==='jar'){
       const ceramic=physical(toneColor.value,{roughness:.2,metalness:.025,clearcoat:.92,clearcoatRoughness:.1,sheen:.45,sheenColor:'#fff2dd'})
       const lid=physical(accentColor.value,{metalness:.76,roughness:.2,clearcoat:1})
-      lathe([[0,0],[.68,0],[.79,.05],[.82,.13],[.82,.77],[.78,.84],[0,.84]],-.58,ceramic)
-      lathe([[0,0],[.79,0],[.86,.035],[.86,.22],[.81,.28],[0,.28]],.25,lid)
+      lathe([[0,0],[.68,0],[.79,.05],[.82,.13],[.82,.77],[.78,.84],[0,.84]],ceramic,-.58)
+      lathe([[0,0],[.79,0],[.86,.035],[.86,.22],[.81,.28],[0,.28]],lid,.25)
       ring(.82,.035,gold,.22)
       ring(.77,.018,gold,.52)
       wrapLabel(.827,.43,-.08,labelMaterial)
@@ -241,8 +242,8 @@ async function init(){
     }else if(kind.value==='perfume'){
       const glass=glassMaterial('#d2a16a')
       const liquid=physical('#8b4b23',{roughness:.12,clearcoat:1,clearcoatRoughness:.05})
-      lathe([[0,0],[.56,0],[.68,.08],[.7,.18],[.7,1.1],[.65,1.27],[.45,1.45],[.25,1.52],[0,1.52]],-.82,glass)
-      lathe([[0,.05],[.54,.05],[.62,.16],[.62,.98],[.56,1.05],[0,1.05]],-.77,liquid)
+      lathe([[0,0],[.56,0],[.68,.08],[.7,.18],[.7,1.1],[.65,1.27],[.45,1.45],[.25,1.52],[0,1.52]],glass,-.82)
+      lathe([[0,.05],[.54,.05],[.62,.16],[.62,.98],[.56,1.05],[0,1.05]],liquid,-.77)
       cylinder(.25,.25,.2,gold,0,.83)
       ring(.25,.025,gold,.73)
       cylinder(.32,.32,.47,darkMetal,0,1.15)
@@ -265,12 +266,13 @@ async function init(){
       handle.scale.set(1.05,1.25,.72)
       const crema=physical('#b77c43',{roughness:.24})
       const swirl=addMesh(new T.TorusGeometry(.13,.012,8,48),crema)
+      swirl.rotation.x=-Math.PI/2
       swirl.position.set(-.08,.014,.02)
     }else if(kind.value==='vase'){
       const ceramic=physical(toneColor.value,{roughness:.18,metalness:.025,clearcoat:1,clearcoatRoughness:.08,sheen:.7,sheenColor:'#f7f1df'})
       const stem=physical('#536d4d',{roughness:.55})
       const petal=physical('#eee1cf',{roughness:.34,sheen:.55})
-      lathe([[0,0],[.34,0],[.45,.12],[.46,.3],[.31,.62],[.22,1.02],[.24,1.3],[.34,1.48],[.35,1.56],[0,1.56]],-.78,ceramic)
+      lathe([[0,0],[.34,0],[.45,.12],[.46,.3],[.31,.62],[.22,1.02],[.24,1.3],[.34,1.48],[.35,1.56],[0,1.56]],ceramic,-.78)
       ring(.35,.025,gold,.73)
       for(const [x,lean] of [[-.18,-.22],[0,.02],[.18,.24]]){
         const branch=cylinder(.018,.025,.92,stem,x,.93,0)

@@ -51,6 +51,8 @@ class SceneComponentTests(unittest.TestCase):
         for preset in ("serum","jar","tube","perfume","cup","vase","watch","ring","microphone"):
             self.assertIn("'"+preset+"'",source)
         self.assertIn("prefers-reduced-motion: reduce",source)
+        self.assertIn("lathe([[0,0],[.43,0],[.52,.06],[.54,.16],[.54,1.16],[.49,1.3],[.28,1.47],[.27,1.58],[0,1.58]],glass,-.82)",source)
+        self.assertNotIn("]],-.82,glass)",source)
         self.assertIn("IntersectionObserver",source)
         self.assertNotIn("requestAnimationFrame(animate)",source)
 
