@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress } from '../cinematic-motion.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress } from '../cinematic-motion.js'
 
 const props = defineProps({
   modelPath: { type: String, required: true },
@@ -51,7 +51,7 @@ function normalizedShots() {
 }
 let renderer, scene, camera, model, env, pmrem, observer, intersection, raf=0, disposed=false
 let visible=true, motionQuery, current=0, radius=1, frameCount=0, shots, primaryHero=false
-let corners=[], bounds, groundPlane, keyLight, modelPivot
+let corners=[], bounds, groundPlane, keyLight, modelPivot, filmRoot
 const yAxis=new THREE.Vector3(0,1,0)
 function disposeModel(root) {
   const geometries=new Set(), materials=new Set(), textures=new Set()
@@ -87,6 +87,7 @@ function cleanup() {
 let loadStage='initializing'
 function fail(reason=loadStage) {
   if(host.value) host.value.dataset.tnModelFailure=reason
+  if(filmRoot){filmRoot.dataset.tnFilmFallback='true';filmRoot.style.setProperty('--tn-film-reveal','1')}
   state.value='fallback'; cleanup()
 }
 function lost(e) { e.preventDefault(); fail('webgl-context-lost') }
@@ -106,13 +107,20 @@ function draw() {
 function renderFrame() {
   if(!renderer || !model || !host.value || !visible) return
   // Use the surrounding narrative chapter, not a nested scroll container.
-  const chapter=host.value.closest('[data-tn-camera-track]') || host.value
+  const chapter=filmRoot || host.value.closest('[data-tn-camera-track]') || host.value
   const rect=chapter.getBoundingClientRect()
   const header=document.querySelector('[data-tn-header]')
   const headerPosition=header?getComputedStyle(header).position:''
   const inset=primaryHero&&['sticky','fixed'].includes(headerPosition)?clamp(header.getBoundingClientRect().bottom,0,innerHeight*.2):0
   const progress=primaryHero?cameraTrackProgress(rect.top,rect.height,innerHeight,chapter!==host.value,inset):clamp(-rect.top/Math.max(innerHeight*.4,rect.height-innerHeight*.35),0,1)
-  current=motionQuery.matches?0:progress
+  if(filmRoot){
+    const film=heroFilmProgress(rect.top,rect.height,innerHeight)
+    const staticFilm=motionQuery.matches||matchMedia('(max-height: 600px)').matches
+    current=staticFilm?0:film.motion
+    const reveal=staticFilm?1:film.reveal
+    filmRoot.style.setProperty('--tn-film-reveal',reveal.toFixed(4))
+    filmRoot.dataset.tnFilmReveal=reveal.toFixed(4)
+  } else current=motionQuery.matches?0:progress
   let b=shots.findIndex(s=>s.at>=current)
   if(b<1)b=1
   const from=shots[b-1],to=shots[b]
@@ -152,6 +160,7 @@ function renderFrame() {
   }
   const zoom=blend(from.distance,to.distance)
   const distance=fit*(primaryHero?clamp(zoom,1,1.08):(opening>0?THREE.MathUtils.lerp(zoom,clamp(zoom,.98,1.08),opening):zoom))
+  camera.far=Math.max(100,distance+radius*8); camera.updateProjectionMatrix()
   camera.position.copy(target).addScaledVector(direction,distance)
   camera.lookAt(target)
   camera.updateMatrixWorld()
@@ -180,7 +189,11 @@ onMounted(async()=>{
     motionQuery=matchMedia('(prefers-reduced-motion: reduce)')
     primaryHero=role==='primary'&&Boolean(host.value.closest('[data-tn-section="home"]'))
     shots=normalizedShots()
-    if(primaryHero) shots=heroMotionShots(shots,props.openingYaw)
+    filmRoot=primaryHero?host.value.closest('[data-tn-hero-film]'):null
+    if(filmRoot){
+      const start=shots[0]
+      shots=presetShots('hero_turn',finite(start?.yaw,props.openingYaw),1).map(s=>({...s,modelYaw:s.modelYaw+finite(start?.modelYaw,0)}))
+    } else if(primaryHero) shots=heroMotionShots(shots,props.openingYaw)
     loadStage='webgl-renderer'
     renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'})
     renderer.outputColorSpace=THREE.SRGBColorSpace

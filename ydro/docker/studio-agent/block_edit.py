@@ -194,6 +194,128 @@ def patch(files,block,response,upgrade_motion=False):
     result["tracknode-agent.json"]=json.dumps(meta,ensure_ascii=False).encode()
     return result
 
+
+FILM_CSS="""
+/* TrackNode trusted two-act hero film */
+#home[data-tn-hero-film] {
+  --tn-film-reveal: 1;
+  display:block !important; position:relative !important;
+  min-height:300svh !important; height:auto !important;
+  padding:0 !important; overflow:visible !important;
+  transform:none !important; isolation:isolate;
+}
+#home[data-tn-hero-film] > .tn-film-screen {
+  position:sticky; top:0; width:100%; height:100svh;
+  min-width:0; overflow:clip; isolation:isolate;
+}
+#home[data-tn-hero-film] .hero-stage {
+  position:absolute !important; inset:auto 0 0 !important;
+  top:calc(var(--header-h,72px) + var(--tn-film-reveal)*max(0px,36svh - var(--header-h,72px))) !important;
+  width:100% !important; max-width:none !important; min-width:0 !important;
+  height:auto !important; min-height:0 !important; margin:0 !important;
+  transform:none !important; opacity:1 !important; z-index:1 !important;
+}
+#home[data-tn-hero-film] .hero-stage .tn-cinema-model {
+  width:100% !important; height:100% !important; min-height:0 !important;
+  min-width:0 !important; transform:none !important;
+}
+#home[data-tn-hero-film] .hero-content {
+  position:absolute !important; inset:calc(var(--header-h,72px) + 10px) 20px auto !important;
+  max-width:min(1000px,calc(100% - 40px)) !important; width:auto !important;
+  margin:0 auto !important; padding:0 !important; min-width:0 !important;
+  text-align:center !important; z-index:5 !important;
+  opacity:var(--tn-film-reveal) !important;
+  transform:translateY(calc((1 - var(--tn-film-reveal))*-12px)) !important;
+  pointer-events:none !important;
+}
+#home[data-tn-hero-film] .hero-content a { pointer-events:auto; }
+#home[data-tn-hero-film] .hero-copy {
+  font-size:clamp(1.7rem,5vw,4.2rem) !important; line-height:1 !important;
+  white-space:normal !important; overflow:visible !important; overflow-wrap:anywhere;
+  margin:0 !important; transform:none !important;
+}
+#home[data-tn-hero-film] .hero-copy .line {
+  display:block !important; transform:none !important; opacity:1 !important;
+  white-space:normal !important; clip-path:none !important;
+}
+#home[data-tn-hero-film] .hero-eyebrow { margin:0 0 8px !important; }
+#home[data-tn-hero-film] .hero-sub { margin:8px auto 0 !important; max-width:760px !important; font-size:clamp(.85rem,1.3vw,1.05rem) !important; }
+#home[data-tn-hero-film] .hero-actions { display:flex !important; flex-direction:row !important; flex-wrap:wrap; justify-content:center; gap:8px !important; margin:12px auto 0 !important; }
+#home[data-tn-hero-film] .hero-actions .btn { width:auto !important; padding:10px 18px !important; font-size:12px !important; }
+#home[data-tn-hero-film] .hero-glare { opacity:.28 !important; pointer-events:none; }
+#home[data-tn-hero-film] .hero-scrollcue { z-index:6; bottom:12px !important; }
+@media(max-width:760px) {
+  #home[data-tn-hero-film] .hero-content { inset:calc(var(--header-h,64px) + 8px) 12px auto !important; max-width:calc(100% - 24px) !important; }
+  #home[data-tn-hero-film] .hero-copy { font-size:clamp(1.5rem,7vw,2.6rem) !important; }
+  #home[data-tn-hero-film] .hero-stage { top:calc(var(--header-h,64px) + var(--tn-film-reveal)*max(0px,45svh - var(--header-h,64px))) !important; }
+  #home[data-tn-hero-film] .hero-actions .btn { padding:8px 12px !important; }
+}
+@media(prefers-reduced-motion:reduce),(max-height:600px) {
+  #home[data-tn-hero-film] { min-height:0 !important; }
+  #home[data-tn-hero-film] > .tn-film-screen { position:relative; height:auto; display:flex; flex-direction:column; padding-top:var(--header-h,72px); }
+  #home[data-tn-hero-film] .hero-stage { position:relative !important; inset:auto !important; order:0; height:clamp(260px,65svh,700px) !important; }
+  #home[data-tn-hero-film] .hero-content { position:relative !important; inset:auto !important; order:1; padding:18px 12px 40px !important; opacity:1 !important; transform:none !important; }
+}
+#home[data-tn-hero-film][data-tn-film-fallback] { min-height:0 !important; }
+#home[data-tn-hero-film][data-tn-film-fallback] > .tn-film-screen { position:relative; height:auto; display:flex; flex-direction:column; padding-top:var(--header-h,72px); }
+#home[data-tn-hero-film][data-tn-film-fallback] .hero-stage { position:relative !important; inset:auto !important; height:clamp(260px,65svh,700px) !important; }
+#home[data-tn-hero-film][data-tn-film-fallback] .hero-content { position:relative !important; inset:auto !important; padding:18px 12px 40px !important; opacity:1 !important; transform:none !important; }
+"""
+
+def apply_hero_film(files):
+    """Retrofit the known direct hero-stage/hero-content contract."""
+    sources={k:v.decode("utf-8") for k,v in files.items() if k.startswith("src/") and k.endswith(".vue")}
+    name,start,end=find_block(sources,"home")
+    old=sources[name][start:end]
+    root=re.match(r"""<(?:[^<>"']|"[^"]*"|'[^']*')+>""",old)
+    if not root or len(re.findall(r"<CinemaModel\b",old))!=1 or re.search(r"""model-role\s*=\s*['"]accent['"]""",old):
+        raise BlockEditError("Hero film requires one primary CinemaModel")
+    if "data-tn-hero-film" not in root.group():
+        class Layout(HTMLParser):
+            def __init__(self):
+                super().__init__(convert_charrefs=False)
+                self.stack=[]
+                self.parts=[]
+            def handle_starttag(self,tag,attrs):
+                if tag in VOID:
+                    return
+                classes=(dict(attrs).get("class") or "").split()
+                if len(self.stack)==1:
+                    self.parts.extend(c for c in ("hero-stage","hero-content") if c in classes)
+                self.stack.append(tag)
+            def handle_startendtag(self,tag,attrs):
+                pass
+            def handle_endtag(self,tag):
+                if tag in self.stack:
+                    index=len(self.stack)-1-self.stack[::-1].index(tag)
+                    del self.stack[index:]
+        layout=Layout()
+        layout.feed(old)
+        if sorted(layout.parts)!=["hero-content","hero-stage"]:
+            raise BlockEditError("Unsupported Hero film layout: expected direct stage and content")
+        close=old.rfind("</")
+        opening=root.group()[:-1]+' data-tn-hero-film>'
+        markup=opening+'\n<div class="tn-film-screen">\n'+old[root.end():close]+'\n</div>\n'+old[close:]
+    else:
+        markup=old
+    result=dict(files)
+    result[name]=(sources[name][:start]+markup+sources[name][end:]).encode()
+    css=result["src/style.css"].decode()
+    if "/* TrackNode trusted two-act hero film */" not in css:
+        css+="\n"+FILM_CSS+"\n"
+    result["src/style.css"]=css.encode()
+    for path in ("src/components/CinemaModel.vue","src/cinematic-motion.js"):
+        result[path]=Path(__file__).with_name(Path(path).name).read_bytes()
+    meta=json.loads(result["tracknode-agent.json"])
+    meta.update(build_verified=False,visual_verified=False,block_edit="home",hero_film=True)
+    result["tracknode-agent.json"]=json.dumps(meta,ensure_ascii=False).encode()
+    return result
+
+def write_candidate(result):
+    with zipfile.ZipFile("/output/tracknode-agent-site.zip","x",compression=zipfile.ZIP_DEFLATED) as z:
+        for name,content in result.items():
+            z.writestr(name,content)
+
 def main():
     global STAGE
     STAGE="read_job"
@@ -209,6 +331,15 @@ def main():
     sources={k:v.decode("utf-8") for k,v in files.items() if k.startswith("src/") and k.endswith(".vue")}
     name,start,end=find_block(sources,block)
     old=sources[name][start:end]
+    if job.get("local_hero_film") is True:
+        STAGE="validate_patch"
+        if block!="home":
+            raise BlockEditError("Hero film only supports home")
+        result=apply_hero_film(files)
+        STAGE="write_archive"
+        write_candidate(result)
+        print("BLOCK_EDIT_LOCAL_FILM_READY",flush=True)
+        return
     key=os.environ.get("STUDIO_AI_KEY","").strip()
     if not key:
         raise BlockEditError("AI key missing")
@@ -240,9 +371,7 @@ def main():
     STAGE="validate_patch"
     result=patch(files,block,response,job.get("upgrade_motion") is True)
     STAGE="write_archive"
-    with zipfile.ZipFile("/output/tracknode-agent-site.zip","x",compression=zipfile.ZIP_DEFLATED) as z:
-        for name,content in result.items():
-            z.writestr(name,content)
+    write_candidate(result)
     print("BLOCK_EDIT_SOURCE_READY",flush=True)
 
 if __name__=="__main__":

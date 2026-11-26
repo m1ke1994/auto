@@ -51,3 +51,10 @@ export function cameraTrackProgress(top,height,viewport,sticky=false,inset=0) {
     :Math.max(viewport*.35,height*.48)
   return clamp((inset-top)/travel,0,1)
 }
+
+// One native-scroll track, reversible; reveal begins after the opening act.
+export function heroFilmProgress(top,height,viewport) {
+  const progress=clamp(-top/Math.max(1,height-viewport),0,1)
+  const x=clamp((progress-.38)/.18,0,1)
+  return {progress,motion:clamp(progress/.86,0,1),reveal:x*x*(3-2*x)}
+}

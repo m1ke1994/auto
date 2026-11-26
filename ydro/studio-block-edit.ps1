@@ -15,9 +15,14 @@ $out=(New-Item -ItemType Directory -Path (Join-Path $root ('block-edit-'+[guid]:
 $compose=@('compose','--env-file','.env.studio.local','-p','tracknode20-agent','-f','docker-compose.openhands.yml')
 # Images are prebuilt by the update command; no rebuild on each edit.
 $payload=@{block=$Job.block;instruction=$Job.instruction;upgrade_motion=($Job.upgrade_motion -eq $true)}
+if ($Job.local_hero_film -eq $true) {$payload.local_hero_film=$true}
 $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($payload|ConvertTo-Json -Compress)))
 Write-StudioProgress $ProgressFile 'generating'
-& docker @compose run --rm --no-deps --entrypoint python -e "TN_BLOCK_JOB=$encoded" -v "$($archive):/repair-source.zip:ro" -v "$($out):/output" openhands /opt/studio-agent/block_edit.py
+if ($Job.local_hero_film -eq $true) {
+    & docker run --pull never --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 2 --pids-limit 128 --tmpfs /tmp:rw,size=64m -e "TN_BLOCK_JOB=$encoded" -v "$($archive):/repair-source.zip:ro" -v "$($out):/output" --entrypoint python tracknode20-agent-openhands /opt/studio-agent/block_edit.py
+} else {
+    & docker @compose run --rm --no-deps --entrypoint python -e "TN_BLOCK_JOB=$encoded" -v "$($archive):/repair-source.zip:ro" -v "$($out):/output" openhands /opt/studio-agent/block_edit.py
+}
 if ($LASTEXITCODE -ne 0) {
     $message='Block edit failed; original preview preserved'
     $diagnostic=Join-Path $out 'block-edit-error.json'

@@ -53,7 +53,7 @@ def block_edit_data(edit):
 def active_for_owner(owner):
     return any(state(e)["status"] in ("queued","running") for e in BlockEdit.objects.filter(project__owner=owner,decision="pending"))
 
-def queue_edit(edit):
+def queue_edit(edit, *, local_hero_film=False):
     p=edit.project
     profile="cinema" if p.style in ("auto","cinema","3d") else "premium" if p.style=="premium" else "standard"
     payload={
@@ -63,6 +63,8 @@ def queue_edit(edit):
         "base_run":edit.base_run,"block":edit.block,"instruction":edit.instruction,
         "upgrade_motion":edit.upgrade_motion,"created_at":timezone.now().isoformat()
     }
+    if local_hero_film:
+        payload["local_hero_film"]=True
     try:
         _atomic_json(job_root()/"pending"/f"{edit.id}.json",payload)
     except OSError:

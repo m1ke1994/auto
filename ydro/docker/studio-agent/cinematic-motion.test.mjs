@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress } from './cinematic-motion.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress } from './cinematic-motion.js'
 
 test('all presets are bounded, deterministic and genuinely distinct',()=>{
   const signatures=new Set()
@@ -44,4 +44,13 @@ test('sticky track progresses across its actual visible travel',()=>{
   assert.equal(cameraTrackProgress(64,1600,900,true,64),0)
   assert.equal(cameraTrackProgress(-700,1600,900,true,64),1)
   assert.ok(cameraTrackProgress(-250,900,900,false,0)>.5)
+})
+
+test('film has an opening act and reversible motion',()=>{
+  const at=y=>heroFilmProgress(-y,3000,1000)
+  assert.deepEqual(at(0),{progress:0,motion:0,reveal:0})
+  assert.equal(at(500).reveal,0)
+  assert.ok(at(1000).reveal>0&&at(1000).motion<1)
+  assert.deepEqual(at(2000),{progress:1,motion:1,reveal:1})
+  assert.ok(at(500).motion<at(1000).motion)
 })

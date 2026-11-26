@@ -65,3 +65,19 @@ class BlockEditTests(unittest.TestCase):
         self.assertIn(b"@media(max-width:760px){#home.hero{display:flex}}",css)
         self.assertIn(b"#home .hero{color:red}",css)
         self.assertIn(self.about.encode(),result["src/App.vue"])
+
+    def test_local_film_preserves_other_blocks_and_assets(self):
+        from block_edit import apply_hero_film
+        home='<section id="home" data-tn-section="home" class="hero"><div class="hero-stage"><CinemaModel model-path="tn-models/car/model.gltf" /></div><div class="hero-content"><h1>Engineering</h1></div></section>'
+        self.files["src/App.vue"]=("<template>"+home+self.about+"</template>").encode()
+        out=apply_hero_film(self.files)
+        self.assertIn(b'data-tn-hero-film>',out["src/App.vue"])
+        self.assertIn(b'class="tn-film-screen"',out["src/App.vue"])
+        self.assertIn(self.about.encode(),out["src/App.vue"])
+        self.assertEqual(out["public/photo.webp"],self.files["public/photo.webp"])
+        self.assertEqual(apply_hero_film(out)["src/App.vue"],out["src/App.vue"])
+        self.assertEqual(apply_hero_film(out)["src/style.css"],out["src/style.css"])
+    def test_local_film_refuses_unknown_layout(self):
+        from block_edit import apply_hero_film
+        with self.assertRaises(ValueError):
+            apply_hero_film(self.files)
