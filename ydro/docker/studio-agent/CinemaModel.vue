@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame } from '../cinematic-motion.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset } from '../cinematic-motion.js'
 
 const props = defineProps({
   modelPath: { type: String, required: true },
@@ -51,7 +51,7 @@ function normalizedShots() {
 }
 let renderer, scene, camera, model, env, pmrem, observer, intersection, raf=0, disposed=false
 let visible=true, motionQuery, current=0, radius=1, frameCount=0, shots, primaryHero=false
-let corners=[], bounds, groundPlane, keyLight, modelPivot, filmRoot, pinnedFrame, filmTurn=180
+let corners=[], bounds, groundPlane, keyLight, modelPivot, filmRoot, pinnedFrame, filmTurn=360
 const yAxis=new THREE.Vector3(0,1,0)
 function disposeModel(root) {
   const geometries=new Set(), materials=new Set(), textures=new Set()
@@ -150,7 +150,7 @@ function renderFrame() {
   const fullFilm=filmRoot?.dataset.tnFilmVersion==='2'
   if(fullFilm) yaw=THREE.MathUtils.degToRad(shots[0].yaw)
   const modelYaw=THREE.MathUtils.degToRad(fullFilm?shots[0].modelYaw+(motionQuery.matches?0:pinnedFrame.angle):blend(from.modelYaw,to.modelYaw))
-  const lift=props.ground?0:blend(from.lift,to.lift)
+  const lift=fullFilm||props.ground?0:blend(from.lift,to.lift)
   const lightAngle=THREE.MathUtils.degToRad(blend(from.light,to.light))
   modelPivot.rotation.y=modelYaw
   modelPivot.position.y=lift
@@ -167,9 +167,10 @@ function renderFrame() {
     yaw+=.65*opening
   }
   const direction=new THREE.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch))
-  const target=new THREE.Vector3(...from.target.map((v,i)=>blend(v,to.target[i])*radius*(1-opening)))
+  const centeredFilm=fullFilm&&filmRoot.hasAttribute('data-tn-film-background')
+  const target=centeredFilm?new THREE.Vector3():new THREE.Vector3(...from.target.map((v,i)=>blend(v,to.target[i])*radius*(1-opening)))
   // Shift only the camera composition, never the full viewport canvas.
-  const captionShift=fullFilm&&!motionQuery.matches ? .09*(pinnedFrame?.title||0) : 0
+  const captionShift=fullFilm&&!centeredFilm&&!motionQuery.matches ? .09*(pinnedFrame?.title||0) : 0
   if(fullFilm){
     const w=Math.max(1,host.value.clientWidth),h=Math.max(1,host.value.clientHeight)
     if(captionShift>0)camera.setViewOffset(w,h,0,-h*captionShift,w,h)
@@ -193,6 +194,14 @@ function renderFrame() {
   camera.position.copy(target).addScaledVector(direction,distance)
   camera.lookAt(target)
   camera.updateMatrixWorld()
+  if(centeredFilm){
+    // Center the projected object, not just its canvas or its world-space pivot.
+    // Recompute for each angle to handle asymmetric geometry and perspective.
+    const initial=posedCorners.map(v=>v.clone().project(camera))
+    const w=Math.max(1,host.value.clientWidth),h=Math.max(1,host.value.clientHeight)
+    const [x,y]=centeredViewOffset(initial.map(p=>p.x),initial.map(p=>p.y),w,h)
+    camera.setViewOffset(w,h,x,y,w,h)
+  }
   renderer.render(scene,camera)
   const projected=posedCorners.map(v=>v.clone().project(camera))
   const xs=projected.map(v=>v.x),ys=projected.map(v=>v.y)
@@ -220,7 +229,7 @@ onMounted(async()=>{
     shots=normalizedShots()
     filmRoot=primaryHero?host.value.closest('[data-tn-hero-film]'):null
     if(filmRoot){
-      filmTurn=filmRoot.dataset.tnFilmTurn==='360'?360:180
+      filmTurn=filmRoot.dataset.tnFilmBackground!==undefined?360:(filmRoot.dataset.tnFilmTurn==='180'?180:360)
       const start=shots[0]
       shots=presetShots('hero_turn',finite(start?.yaw,props.openingYaw),1).map(s=>({...s,modelYaw:s.modelYaw+finite(start?.modelYaw,0)}))
     } else if(primaryHero) shots=heroMotionShots(shots,props.openingYaw)
@@ -232,7 +241,7 @@ onMounted(async()=>{
     renderer.setClearColor(0x000000,0)
     renderer.shadowMap.enabled=props.ground
     renderer.shadowMap.type=THREE.PCFSoftShadowMap
-    renderer.domElement.style.cssText='display:block;width:100%;height:100%;pointer-events:none;'
+    renderer.domElement.style.cssText=filmRoot?.hasAttribute('data-tn-film-background')?'position:absolute;inset:0;display:block;width:100%;height:100%;margin:0;padding:0;pointer-events:none;transform:none;':'display:block;width:100%;height:100%;pointer-events:none;'
     renderer.domElement.setAttribute('aria-hidden','true')
     renderer.domElement.addEventListener('webglcontextlost',lost)
     host.value.append(renderer.domElement)

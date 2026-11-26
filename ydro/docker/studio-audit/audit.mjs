@@ -177,6 +177,7 @@ try {
     const filmSamples=[];
     const isFilm=await page.locator('#home[data-tn-hero-film]').count()===1;
     const pinnedFilm=await page.locator('#home[data-tn-film-version="2"]').count()===1;
+    const backgroundFilm=await page.locator('#home[data-tn-film-background]').count()===1;
     if(isFilm){
       if(name==='mobile'){await page.emulateMedia({reducedMotion:'no-preference'});await page.waitForTimeout(500);}
       for(const fraction of (pinnedFilm?[0,.125,.25,.375,.5,.625,.75,.875,1,.25]:[0,.25,.5,.75,1,.25])){
@@ -200,8 +201,15 @@ try {
           const opacity=el=>{if(!el)return null;let alpha=1;for(let n=el;n&&n!==root.parentElement;n=n.parentElement){const s=getComputedStyle(n);if(s.visibility==='hidden'||s.display==='none')return 0;alpha*=Number(s.opacity)}return alpha}
           const descriptionEl=root.querySelector('.hero-sub'),actionsEl=root.querySelector('.hero-actions')
           const canvas=host.querySelector('canvas')?.getBoundingClientRect()
+          const layer=root.querySelector('[data-tn-film-background-layer]')
+          const lr=layer?.getBoundingClientRect()
+          const centerX=bounds.length===4?(r.left+(bounds[0]+bounds[2])*r.width/2)/innerWidth:null
+          const centerY=bounds.length===4?(r.top+(bounds[1]+bounds[3])*r.height/2)/innerHeight:null
+          const overlayAbove=Boolean(layer&&copy.parentElement===layer.parentElement&&Number(getComputedStyle(copy).zIndex)>Number(getComputedStyle(layer).zIndex))
+          const backgroundLayer=Boolean(layer&&host.parentElement===layer&&layer.parentElement===screenElement())
+          function screenElement(){return root.querySelector('.tn-film-screen')}
           return {yaw:Number(host.dataset.tnRelativeYaw),objectYaw:Number(host.dataset.tnObjectYaw)*180/Math.PI,reveal:Number(root.dataset.tnFilmReveal),progress:Number(host.dataset.tnCameraProgress),framed,coverage:Number(host.dataset.tnModelCoverage),clipped:host.dataset.tnModelClipped==='true',width:r.width,height:r.height,textVisible,textBottom:hr.bottom,modelTop:r.top,viewportWidth:innerWidth,viewportHeight:innerHeight,
-            screenTop:screen?.top,screenHeight:screen?.height,screenWidth:screen?.width,turn:Number(root.dataset.tnFilmTurn)||180,title:Number(root.dataset.tnFilmTitle),description:Number(root.dataset.tnFilmDescription),actions:Number(root.dataset.tnFilmActions),actualTitle:opacity(h),actualDescription:opacity(descriptionEl),actualActions:opacity(actionsEl),canvasHeight:canvas?.height,canvasWidth:canvas?.width};
+            screenTop:screen?.top,screenHeight:screen?.height,screenWidth:screen?.width,turn:Number(root.dataset.tnFilmTurn)||180,title:Number(root.dataset.tnFilmTitle),description:Number(root.dataset.tnFilmDescription),actions:Number(root.dataset.tnFilmActions),actualTitle:opacity(h),actualDescription:opacity(descriptionEl),actualActions:opacity(actionsEl),canvasHeight:canvas?.height,canvasWidth:canvas?.width,canvasLeft:canvas?.left,canvasTop:canvas?.top,centerX,centerY,overlayAbove,backgroundLayer,layerLeft:lr?.left,layerTop:lr?.top,layerWidth:lr?.width,layerHeight:lr?.height};
         });
         filmSamples.push({...sample,fraction});
         if([0,.5,1].includes(fraction))await capture(page,name+'-hero-film-'+Math.round(fraction*100)+'.png');
@@ -369,6 +377,11 @@ try {
         first.title<=.01&&first.description<=.01&&first.actions<=.01&&first.actualTitle<=.01&&first.actualDescription<=.01&&first.actualActions<=.01&&quarter.title>.5&&quarter.actualTitle>.5&&quarter.description<=.01&&middle.description>.5&&(middle.actualDescription===null||middle.actualDescription>.5)&&middle.actions<=.01&&late.actions>=.99&&(late.actualActions===null||late.actualActions>=.95)&&last.textVisible&&
         Math.abs(last.objectYaw-first.objectYaw-last.turn)<=1&&forward.every((s,i)=>i===0||s.objectYaw>forward[i-1].objectYaw+5)&&Math.abs(reverse.objectYaw-quarter.objectYaw)<=1&&
         filmRelease?.top < -filmRelease?.viewport*.25&&(name!=='desktop'||(shortFilm&&Math.abs(shortFilm.top)<=3&&Math.abs(shortFilm.height-shortFilm.viewport)<=3&&Math.abs(shortFilm.hostTop)<=3&&shortFilm.hostHeight>=shortFilm.viewport*.97&&shortFilm.progress>.4&&shortFilm.progress<.7&&!shortFilm.clipped));
+      if(backgroundFilm){
+        const origin=first.objectYaw
+        checks.heroBackgroundCenter=filmSamples.every(s=>s.backgroundLayer&&s.overlayAbove&&Math.abs(s.layerLeft)<=3&&Math.abs(s.layerTop)<=3&&Math.abs(s.layerWidth-s.viewportWidth)<=3&&Math.abs(s.layerHeight-s.viewportHeight)<=3&&Math.abs(s.canvasLeft)<=3&&Math.abs(s.canvasTop)<=3&&Number.isFinite(s.centerX)&&Number.isFinite(s.centerY)&&Math.abs(s.centerX-.5)<=.035&&Math.abs(s.centerY-.5)<=.035)
+        checks.heroFullTurn=last.turn===360&&[0,2,4,6,8].every((index,i)=>Math.abs(filmSamples[index].objectYaw-origin-i*90)<=1.5)
+      }
     } else if(isFilm){
       const [start,q,mid,late,end,reverse]=filmSamples;
       checks.heroFilm=filmSamples.length===6&&filmSamples.every(s=>s.framed&&!s.clipped&&s.coverage>=.62&&s.coverage<=.98&&s.width>=s.viewportWidth*.7&&s.height>=s.viewportHeight*(name==='desktop'?.38:.25)&&Number.isFinite(s.yaw))&&

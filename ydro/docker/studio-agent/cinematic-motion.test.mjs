@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame } from './cinematic-motion.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset } from './cinematic-motion.js'
 
 test('all presets are bounded, deterministic and genuinely distinct',()=>{
   const signatures=new Set()
@@ -67,4 +67,14 @@ test('full viewport pin, captions, half/full turn and release',()=>{
   assert.equal(at(3000).offset,2700)
   assert.equal(-3000+at(3000).offset,-300)
   assert.ok(at(900).angle<at(1800).angle)
+})
+
+test('background turns 360 degrees in exact quarter steps without shifting captions',()=>{
+  const at=f=>pinnedFilmFrame(-4500*f,5400,900)
+  assert.deepEqual([0,.25,.5,.75,1].map(f=>at(f).angle),[0,90,180,270,360])
+  assert.equal(at(.25).title,1);assert.equal(at(.25).description,0)
+  assert.equal(at(.5).description,1);assert.equal(at(.5).actions,0)
+  assert.equal(at(.75).actions,1)
+  assert.deepEqual(centeredViewOffset([-.2,.8],[-.7,.3],1000,800).map(Math.round),[150,80])
+  assert.deepEqual(centeredViewOffset([-.8,.8],[-.4,.4],1000,800),[0,-0])
 })

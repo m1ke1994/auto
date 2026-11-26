@@ -59,11 +59,17 @@ export function heroFilmProgress(top,height,viewport) {
   return {progress,motion:clamp(progress/.86,0,1),reveal:x*x*(3-2*x)}
 }
 
-export function pinnedFilmFrame(top,height,viewport,turn=180) {
+export function pinnedFilmFrame(top,height,viewport,turn=360) {
   const travel=Math.max(0,height-viewport)
   const offset=clamp(-top,0,travel)
   const progress=travel>0?offset/travel:0
-  const motion=clamp(progress/.92,0,1)
+  const motion=progress
   const fade=(a,b)=>{const x=clamp((progress-a)/(b-a),0,1);return x*x*(3-2*x)}
-  return {offset,progress,motion,angle:(turn===360?360:180)*motion,title:fade(.16,.27),description:fade(.40,.51),actions:fade(.66,.77)}
+  return {offset,progress,motion,angle:(turn===180?180:360)*motion,title:fade(.16,.25),description:fade(.40,.50),actions:fade(.65,.75)}
+}
+
+/** Center the projected bounding box in both axes; units are viewport pixels. */
+export function centeredViewOffset(xs,ys,width,height) {
+  if(xs.length===0||ys.length===0||!xs.every(Number.isFinite)||!ys.every(Number.isFinite))return [0,0]
+  return [(Math.min(...xs)+Math.max(...xs))*width/4,-(Math.min(...ys)+Math.max(...ys))*height/4]
 }

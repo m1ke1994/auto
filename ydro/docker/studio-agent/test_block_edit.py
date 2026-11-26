@@ -73,7 +73,9 @@ class BlockEditTests(unittest.TestCase):
         out=apply_hero_film(self.files)
         self.assertIn(b'data-tn-hero-film',out["src/App.vue"])
         self.assertIn(b'data-tn-film-version="2"',out["src/App.vue"])
-        self.assertIn(b'data-tn-film-turn="180"',out["src/App.vue"])
+        self.assertIn(b'data-tn-film-turn="360"',out["src/App.vue"])
+        self.assertIn(b'data-tn-film-background>',out["src/App.vue"])
+        self.assertIn(b'data-tn-film-background-layer><CinemaModel',out["src/App.vue"])
         self.assertIn(b'class="tn-film-screen"',out["src/App.vue"])
         self.assertIn(self.about.encode(),out["src/App.vue"])
         self.assertEqual(out["public/photo.webp"],self.files["public/photo.webp"])
@@ -126,3 +128,17 @@ class BlockEditTests(unittest.TestCase):
                 z.writestr(entry,b"")
             with self.assertRaises(ValueError):
                 read_archive(path)
+
+    def test_background_removes_old_split_wrapper_and_preserves_model_slot(self):
+        from block_edit import apply_hero_film
+        model='<CinemaModel model-path="tn-models/car/model.gltf"><template #fallback><img src="/car.webp"/></template></CinemaModel>'
+        home='<section id="home" data-tn-section="home" class="hero"><div class="hero-stage"><div class="right-column" style="width:30%">'+model+'</div></div><div class="hero-content"><h1>Engineering</h1><p class="hero-sub">Description</p></div></section>'
+        self.files["src/App.vue"]=("<template>"+home+self.about+"</template>").encode()
+        out=apply_hero_film(self.files)
+        self.assertIn(model.encode(),out["src/App.vue"])
+        self.assertNotIn(b"right-column",out["src/App.vue"])
+        self.assertIn(b'<div class="hero-content"><h1>Engineering</h1>',out["src/App.vue"])
+        old=dict(out)
+        old["src/App.vue"]=old["src/App.vue"].replace(b'data-tn-film-turn="360"',b'data-tn-film-turn="180"')
+        self.assertEqual(apply_hero_film(old)["src/App.vue"],out["src/App.vue"])
+        self.assertEqual(apply_hero_film(out)["src/style.css"],out["src/style.css"])

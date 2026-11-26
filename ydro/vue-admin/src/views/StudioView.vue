@@ -168,8 +168,8 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
           <div class="block-options"><button v-for="b in blockOptions" :key="b[0]" type="button" :class="{active:targetBlock===b[0]}" :disabled="busy||editingBlock||candidateReady" @click="targetBlock=b[0]">{{b[1]}}</button></div>
           <form v-if="!editingBlock&&!candidateReady" @submit.prevent="submitBlock">
             <template v-if="targetBlock==='home'">
-              <button type="button" class="primary" :disabled="busy||activeJob||!config.cinematic_enabled" @click="applyHeroFilm">Киносцена 100vh · поворот 180° · без ИИ</button>
-              <p class="muted">Для совместимых Hero с одной моделью: экран остаётся неподвижным, объект делает пол-оборота, надписи появляются по очереди. Без расхода API.</p>
+              <button type="button" class="primary" :disabled="busy||activeJob||!config.cinematic_enabled" @click="applyHeroFilm">Киносцена 100vh · фон 360° · без ИИ</button>
+              <p class="muted">Одна модель по центру полноэкранного фона, поворот 360°, текст поверх на 25%, 50% и 75%. Без расхода API.</p>
             </template>
             <label>Что изменить?<textarea v-model="blockInstruction" required maxlength="4000" rows="5" placeholder="Например: сделай заголовок читаемым, увеличь поворот модели. Остальное сохрани."></textarea></label>
             <label v-if="targetBlock==='home'" class="check"><input v-model="upgradeMotion" type="checkbox"> Обновить движок поворота Hero</label>

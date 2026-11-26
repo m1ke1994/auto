@@ -240,7 +240,7 @@ FILM_CSS="""
 #home[data-tn-hero-film][data-tn-film-version="2"] {
   --tn-film-vh:100svh; --tn-film-offset:0px; --tn-film-title:1; --tn-film-description:1; --tn-film-actions:1;
   display:block !important; position:relative !important; box-sizing:border-box !important;
-  height:calc(var(--tn-film-vh)*4) !important; min-height:0 !important; max-height:none !important;
+  height:calc(var(--tn-film-vh)*6) !important; min-height:0 !important; max-height:none !important;
   padding:0 !important; margin-block:0 !important; overflow:visible !important; transform:none !important; isolation:isolate !important;
 }
 #home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-turn="360"] {height:calc(var(--tn-film-vh)*6) !important;}
@@ -300,8 +300,98 @@ FILM_CSS="""
 #home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-fallback] > .tn-film-screen {position:relative !important;top:0 !important;height:auto !important;display:flex !important;flex-direction:column !important;padding-top:var(--header-h,64px) !important;}
 #home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-fallback] .hero-stage {position:relative !important;inset:auto !important;height:65svh !important;}
 #home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-fallback] .hero-content {position:relative !important;inset:auto !important;padding:18px 12px 30px !important;}
+
+/* Full-screen background contract: no columns and no model repositioning. */
+#home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-background] {
+  width:100% !important; max-width:none !important; background:var(--tn-bg,#08080a);
+}
+#home[data-tn-film-background] > .tn-film-screen {
+  display:block !important; background:radial-gradient(ellipse at 50% 48%,#25272b 0%,var(--tn-bg,#08080a) 72%);
+}
+#home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-background] > .tn-film-screen > .tn-film-background {
+  position:absolute !important; inset:0 !important; display:block !important; box-sizing:border-box !important;
+  width:100% !important; height:100% !important; min-width:0 !important; min-height:0 !important;
+  max-width:none !important; max-height:none !important; margin:0 !important; padding:0 !important;
+  grid-area:auto !important; flex:none !important; float:none !important; align-self:stretch !important;
+  transform:none !important; translate:none !important; rotate:none !important; scale:none !important;
+  opacity:1 !important; clip-path:none !important; z-index:0 !important; pointer-events:none !important;
+}
+#home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-background] .tn-film-background > .tn-cinema-model,
+#home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-background] .tn-film-background > .tn-cinema-model > canvas {
+  position:absolute !important; inset:0 !important; display:block !important; box-sizing:border-box !important;
+  width:100% !important; height:100% !important; min-width:0 !important; min-height:0 !important;
+  max-width:none !important; max-height:none !important; margin:0 !important; padding:0 !important;
+  transform:none !important; translate:none !important; rotate:none !important; scale:none !important;
+  clip-path:none !important; opacity:1 !important;
+}
+#home[data-tn-film-background] .hero-glare {z-index:2 !important;opacity:.3 !important;background:linear-gradient(180deg,rgba(0,0,0,.8),transparent 40%,transparent 80%,rgba(0,0,0,.4)) !important;}
+#home[data-tn-film-background] .hero-content {text-shadow:0 2px 20px rgba(0,0,0,.9);z-index:5 !important;}
+#home[data-tn-film-background] .hero-content h1 {text-wrap:balance;}
+@media(prefers-reduced-motion:reduce) {
+  #home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-background] > .tn-film-screen {display:flex !important; flex-direction:column !important;}
+  #home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-background] > .tn-film-screen > .tn-film-background {position:relative !important;inset:auto !important;height:65svh !important;}
+}
+#home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-background][data-tn-film-fallback] > .tn-film-screen {display:flex !important;flex-direction:column !important;}
+#home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-background][data-tn-film-fallback] > .tn-film-screen > .tn-film-background {position:relative !important;inset:auto !important;height:65svh !important;}
 /* TN_FILM_V2_END */
 """
+
+
+class FilmMarkup(HTMLParser):
+    """Locate complete literal Vue elements without serializing their attributes."""
+    def __init__(self,source):
+        super().__init__(convert_charrefs=False)
+        self.source=source
+        self.offsets=[0]+[m.end() for m in re.finditer("\n",source)]
+        self.stack=[]
+        self.nodes=[]
+        self.feed(source)
+        self.close()
+
+    def position(self):
+        row,col=self.getpos()
+        return self.offsets[row-1]+col
+
+    def add(self,tag,attrs,closed):
+        start=self.position()
+        end=start+len(self.get_starttag_text())
+        node={"tag":tag,"attrs":dict(attrs),"start":start,"end":end if closed else None,"parent":self.stack[-1] if self.stack else None}
+        self.nodes.append(node)
+        if not closed:
+            self.stack.append(node)
+
+    def handle_starttag(self,tag,attrs):
+        self.add(tag,attrs,tag in VOID)
+
+    def handle_startendtag(self,tag,attrs):
+        self.add(tag,attrs,True)
+
+    def handle_endtag(self,tag):
+        for i in range(len(self.stack)-1,-1,-1):
+            if self.stack[i]["tag"]==tag:
+                self.stack[i]["end"]=self.source.index(">",self.position())+1
+                del self.stack[i:]
+                break
+
+    def by_class(self,name):
+        return [n for n in self.nodes if name in (n["attrs"].get("class") or "").split() and n["end"] is not None]
+
+def normalize_film_markup(markup):
+    parsed=FilmMarkup(markup)
+    stages=parsed.by_class("hero-stage")
+    copies=parsed.by_class("hero-content")
+    models=[n for n in parsed.nodes if n["tag"]=="cinemamodel" and n["end"] is not None]
+    screens=parsed.by_class("tn-film-screen")
+    if len(stages)!=1 or len(copies)!=1 or len(models)!=1 or len(screens)!=1:
+        raise BlockEditError("Hero film requires one stage, one content layer and one model")
+    stage,copy,model,screen=stages[0],copies[0],models[0],screens[0]
+    if stage["parent"] is not screen or copy["parent"] is not screen or not(stage["start"]<model["start"]<model["end"]<=stage["end"]):
+        raise BlockEditError("Unsupported Hero background structure")
+    # Keep the actual Vue component, its props, model path and fallback slot.
+    # Drop obsolete layout wrappers around it, which may have inherited grid,
+    # split columns, transforms or local widths. Other Hero layers stay intact.
+    model_markup=markup[model["start"]:model["end"]]
+    return markup[:stage["start"]]+'<div class="hero-stage tn-film-background" data-tn-film-background-layer>'+model_markup+'</div>'+markup[stage["end"]:]
 
 def apply_hero_film(files):
     """Retrofit the known direct hero-stage/hero-content contract."""
@@ -346,9 +436,12 @@ def apply_hero_film(files):
     opening_text=opening.group()
     if "data-tn-film-version" not in opening_text:
         opening_text=opening_text[:-1]+' data-tn-film-version="2">'
-    if "data-tn-film-turn" not in opening_text:
-        opening_text=opening_text[:-1]+' data-tn-film-turn="180">'
-    markup=opening_text+markup[opening.end():]
+    # Explicitly migrate older 180-degree candidates as well as fresh projects.
+    opening_text=re.sub(r"""\s+data-tn-film-turn\s*=\s*(?:"[^"]*"|'[^']*')""","",opening_text)
+    opening_text=opening_text[:-1]+' data-tn-film-turn="360">'
+    if "data-tn-film-background" not in opening_text:
+        opening_text=opening_text[:-1]+' data-tn-film-background>'
+    markup=normalize_film_markup(opening_text+markup[opening.end():])
     result=dict(files)
     result[name]=(sources[name][:start]+markup+sources[name][end:]).encode()
     css=result["src/style.css"].decode()
@@ -357,7 +450,7 @@ def apply_hero_film(files):
     for path in ("src/components/CinemaModel.vue","src/cinematic-motion.js"):
         result[path]=Path(__file__).with_name(Path(path).name).read_bytes()
     meta=json.loads(result["tracknode-agent.json"])
-    meta.update(build_verified=False,visual_verified=False,block_edit="home",hero_film=True,hero_film_version=2)
+    meta.update(build_verified=False,visual_verified=False,block_edit="home",hero_film=True,hero_film_version=2,hero_film_background=True,hero_film_turn=360)
     result["tracknode-agent.json"]=json.dumps(meta,ensure_ascii=False).encode()
     return result
 
