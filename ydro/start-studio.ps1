@@ -11,6 +11,29 @@ try {
     if (Test-Path '.env.studio.local' -PathType Leaf) {
         $composeArgs += @('--env-file', '.env.studio.local')
     }
+    $watcherPath=Join-Path $PSScriptRoot 'studio-watch.ps1'
+    function Get-LiveStudioWatcher([int]$ProcessId) {
+        if ($ProcessId -le 0) { return }
+        $candidate=Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+        if (!$candidate) { return }
+        try {
+            # Pin a process handle: an exited process can remain visible in enumeration.
+            $null=$candidate.Handle
+            if ($candidate.HasExited) { $candidate.Dispose(); return }
+            $identity=Get-CimInstance Win32_Process -Filter ("ProcessId="+$ProcessId)
+            if ($candidate.HasExited) { $candidate.Dispose(); return }
+            if (!$identity -or !$identity.CommandLine -or
+                $identity.CommandLine.IndexOf($watcherPath,[StringComparison]::OrdinalIgnoreCase) -lt 0) {
+                throw 'Saved watcher PID does not identify this workspace worker; refusing to use it.'
+            }
+            return $candidate
+        } catch {
+            try { $exited=$candidate.HasExited } catch { $exited=$false }
+            $candidate.Dispose()
+            if ($exited) { return }
+            throw
+        }
+    }
     if ($RestartWatcher) {
         $active=@(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'studio-jobs/pending'),(Join-Path $PSScriptRoot 'studio-jobs/running') -Filter '*.json' -File)
         if ($active.Count -gt 0) { throw 'Do not restart the worker while a generation is queued or running.' }
@@ -18,15 +41,22 @@ try {
         if (Test-Path -LiteralPath $pidFile -PathType Leaf) {
             $savedPid=0
             if ([int]::TryParse((Get-Content -LiteralPath $pidFile -Raw).Trim(),[ref]$savedPid)) {
-                $process=Get-CimInstance Win32_Process -Filter ("ProcessId="+$savedPid)
+                $process=Get-LiveStudioWatcher $savedPid
                 if ($process) {
-                    $expected=Join-Path $PSScriptRoot 'studio-watch.ps1'
-                    if (!$process.CommandLine -or $process.CommandLine.IndexOf($expected,[StringComparison]::OrdinalIgnoreCase) -lt 0) {
-                        throw 'Saved watcher PID does not identify this workspace worker; refusing to stop it.'
+                    try {
+                        # Recheck queued/running jobs immediately before stopping.
+                        $active=@(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'studio-jobs/pending'),(Join-Path $PSScriptRoot 'studio-jobs/running') -Filter '*.json' -File)
+                        if ($active.Count -gt 0) { throw 'Generation started; restart deferred.' }
+                        if (!$process.HasExited) {
+                            try { $process.Kill() } catch { if (!$process.HasExited) { throw } }
+                        }
+                        if (!$process.WaitForExit(15000)) { throw 'Worker process did not exit within 15 seconds.' }
+                        Write-Host "Previous cinematic worker exited: PID $savedPid"
+                    } finally {
+                        $process.Dispose()
                     }
-                    Stop-Process -Id $savedPid -ErrorAction Stop
-                    Wait-Process -Id $savedPid -Timeout 10 -ErrorAction SilentlyContinue
-                    if (Get-Process -Id $savedPid -ErrorAction SilentlyContinue) { throw 'Worker did not stop.' }
+                } else {
+                    Write-Host "Previous cinematic worker already exited: PID $savedPid"
                 }
             }
             Remove-Item -LiteralPath $pidFile -Force
@@ -60,7 +90,10 @@ try {
     if (Test-Path -LiteralPath $watcherPid -PathType Leaf) {
         $savedPid=0
         if ([int]::TryParse((Get-Content -LiteralPath $watcherPid -Raw).Trim(),[ref]$savedPid)) {
-            $watcherRunning=$null -ne (Get-Process -Id $savedPid -ErrorAction SilentlyContinue)
+            $existing=Get-LiveStudioWatcher $savedPid
+            if ($existing) {
+                try { $watcherRunning=!$existing.HasExited } finally { $existing.Dispose() }
+            }
         }
     }
     if (!$watcherRunning) {
@@ -68,9 +101,16 @@ try {
         $watcher=Join-Path $PSScriptRoot 'studio-watch.ps1'
         $stdout=Join-Path $PSScriptRoot 'studio-jobs/watcher.log'
         $stderr=Join-Path $PSScriptRoot 'studio-jobs/watcher-error.log'
-        $process=Start-Process -FilePath $runner -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$watcher) -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
-        [IO.File]::WriteAllText($watcherPid,[string]$process.Id,[Text.UTF8Encoding]::new($false))
-        Write-Host "Cinematic worker started: PID $($process.Id)"
+        $process=Start-Process -FilePath $runner -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$watcher+'"')) -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+        try {
+            $null=$process.Handle
+            Start-Sleep -Milliseconds 800
+            if ($process.HasExited) { throw "Cinematic worker exited during startup ($($process.ExitCode)); inspect watcher-error.log." }
+            [IO.File]::WriteAllText($watcherPid,[string]$process.Id,[Text.UTF8Encoding]::new($false))
+            Write-Host "Cinematic worker started: PID $($process.Id)"
+        } finally {
+            $process.Dispose()
+        }
     } else {
         Write-Host "Cinematic worker already running"
     }
