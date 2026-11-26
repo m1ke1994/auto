@@ -18,3 +18,9 @@ class BlockEditTests(unittest.TestCase):
         for markup,rules in [(self.home+self.about,[]),(self.home,[{"selector":"h1","declarations":"color:red}body{display:none","mobile":False}])]:
             with self.assertRaises(ValueError):
                 patch(self.files,"home",{"markup":markup,"rules":rules})
+
+    def test_existing_model_path_is_locked(self):
+        old=self.home.replace("<h1>Old</h1>",'<CinemaModel model-path="tn-models/car/model.gltf" />')
+        self.files["src/App.vue"]=("<template>"+old+self.about+"</template>").encode()
+        with self.assertRaises(ValueError):
+            patch(self.files,"home",{"markup":old.replace("tn-models/car/","tn-models/other/"),"rules":[]})

@@ -19,6 +19,8 @@ def run_dist(name):
 
 def state(edit):
     default={"status":"queued","stage":"queued","error":"","run_directory":"","updated_at":None}
+    if edit.decision=="queue_failed":
+        return {**default,"status":"failed","stage":"failed","error":"Unable to write local job queue"}
     try:
         path=job_root()/"status"/f"{edit.id}.json"
         data=json.loads(path.read_text(encoding="utf-8"))
@@ -29,8 +31,11 @@ def state(edit):
             dist=run_dist(name)
             if not dist or name==edit.base_run or not name.startswith("block-edit-"):
                 return {**default,"status":"failed","error":"Candidate build missing"}
-            meta=json.loads((dist.parent/"studio-result.json").read_text(encoding="utf-8"))
-            if meta.get("technical_passed") is not True:
+            try:
+                meta=json.loads((dist.parent/"studio-result.json").read_text(encoding="utf-8"))
+            except (OSError,ValueError,TypeError):
+                return {**default,"status":"failed","error":"Candidate audit metadata missing or invalid"}
+            if not isinstance(meta,dict) or meta.get("technical_passed") is not True:
                 return {**default,"status":"failed","error":"Candidate audit not passed"}
         return {key:data.get(key,value) for key,value in default.items()}
     except (OSError,ValueError,TypeError,AttributeError):
@@ -51,10 +56,17 @@ def active_for_owner(owner):
 def queue_edit(edit):
     p=edit.project
     profile="cinema" if p.style in ("auto","cinema","3d") else "premium" if p.style=="premium" else "standard"
-    _atomic_json(job_root()/"pending"/f"{edit.id}.json",{
+    payload={
         "version":1,"kind":"block_edit","project_id":str(edit.id),
         "name":p.name,"prompt":p.prompt,"profile":profile,
         "asset_style":"realistic","hero_mode":"auto","require_model":False,
         "base_run":edit.base_run,"block":edit.block,"instruction":edit.instruction,
         "upgrade_motion":edit.upgrade_motion,"created_at":timezone.now().isoformat()
-    })
+    }
+    try:
+        _atomic_json(job_root()/"pending"/f"{edit.id}.json",payload)
+    except OSError:
+        # Never leave an unqueued revision blocking the owner's future work.
+        edit.decision="queue_failed"
+        edit.save(update_fields=["decision"])
+        raise

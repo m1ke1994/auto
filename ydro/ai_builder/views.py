@@ -2,6 +2,7 @@ import io
 import zipfile
 from pathlib import Path
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404
@@ -117,7 +118,7 @@ class Projects(StudioView):
             if not getattr(settings,"STUDIO_CINEMATIC_ENABLED",False):
                 return Response({"detail":"Кинематографический движок не запущен локально."},status=503)
             with transaction.atomic():
-                type(request.user).objects.select_for_update().get(pk=request.user.pk)
+                get_user_model().objects.select_for_update().get(pk=request.user.pk)
                 for active in Project.objects.filter(owner=request.user,engine="cinematic",generation_status__in=("queued","running")):
                     refresh_project(active)
                 if active_for_owner(request.user) or Project.objects.filter(owner=request.user,engine="cinematic",generation_status__in=("queued","running")).exists():
@@ -216,7 +217,7 @@ class RegenerateBlock(StudioView):
     @transaction.atomic
     def post(self,request,pk,block):
         # Serialize requests for this owner/project. One outstanding edit at a time.
-        type(request.user).objects.select_for_update().get(pk=request.user.pk)
+        get_user_model().objects.select_for_update().get(pk=request.user.pk)
         p=refresh_project(get_object_or_404(Project.objects.select_for_update(),pk=pk,owner=request.user))
         if not getattr(settings,"STUDIO_CINEMATIC_ENABLED",False):
             return Response({"detail":"Cinematic Engine недоступен."},status=503)
@@ -255,8 +256,8 @@ class BlockDecision(StudioView):
         elif action=="discard" and e.decision=="pending":
             e.decision="discarded"
         elif action=="rollback" and e.decision=="accepted" and p.run_directory==s["run_directory"] and run_dist(e.base_run):
-            if active_for_owner(request.user):
-                return Response({"detail":"Дождитесь завершения активной правки."},status=409)
+            if active_for_owner(request.user) or any(edit_state(x)["status"]=="complete" for x in p.block_edits.filter(decision="pending")):
+                return Response({"detail":"Сначала завершите, примите или отклоните текущую правку."},status=409)
             p.run_directory=e.base_run
             p.generation_stage=e.base_stage
             e.decision="rolled_back"

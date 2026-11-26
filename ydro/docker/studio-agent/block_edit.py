@@ -92,7 +92,7 @@ def patch(files,block,response,upgrade_motion=False):
     if not isinstance(markup,str) or not 1<=len(markup)<=64000 or not isinstance(rules,list) or len(rules)>32:
         raise ValueError("Invalid patch size")
     # Keep the original root and anchor; no new script/style/import or template roots.
-    root=re.match(r"<[^>]+>",old)
+    root=re.match(r"""<(?:[^<>"']|"[^"]*"|'[^']*')+>""",old)
     if not root or not markup.startswith(root.group()) or not markup.endswith(old[old.rfind("</"):]):
         raise ValueError("Preserve the exact outer tag")
     if re.search(r"<\s*/?\s*(script|style|iframe|object|embed|link|base)\b",markup,re.I) or re.search(r"\b(?:v-html|srcdoc|on[a-z]+)\s*=",markup,re.I):
@@ -102,6 +102,10 @@ def patch(files,block,response,upgrade_motion=False):
     for other in BLOCKS-{block}:
         if Roots(markup,other).matches:
             raise ValueError("Patch contains another block")
+    # A model path in this block must not be changed or removed: asset replacement is a separate workflow.
+    model_paths=lambda text: sorted(re.findall(r"tn-models/[A-Za-z0-9_-]+/model\.gltf",text))
+    if model_paths(markup)!=model_paths(old):
+        raise ValueError("Existing model references must remain unchanged")
     # Keep exact existing component imports / scripts and all other template bytes.
     new=sources[name][:start]+markup+sources[name][end:]
     if len(new.encode())>64000:
@@ -168,6 +172,8 @@ def main():
     with zipfile.ZipFile("/output/tracknode-agent-site.zip","x",compression=zipfile.ZIP_DEFLATED) as z:
         for name,content in result.items():
             z.writestr(name,content)
+    usage=data.get("usage",{})
+    print("BLOCK_EDIT_USAGE: "+json.dumps({k:usage.get(k) for k in ("prompt_tokens","completion_tokens","total_tokens")}),flush=True)
     print("BLOCK_EDIT_SOURCE_READY",flush=True)
 
 if __name__=="__main__":
