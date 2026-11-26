@@ -9,7 +9,8 @@ from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Project, Revision
+from .models import Project, Revision, BlockEdit
+from .block_jobs import BLOCKS, state as edit_state, block_edit_data, active_for_owner, queue_edit, run_dist
 from .design import STYLES, preview, source_files
 from .jobs import project_dist, queue_project, refresh_project, visual_result, progress_event
 from .provider import generate, mode, GenerationError
@@ -72,9 +73,12 @@ def project_data(p,detail=False):
         "preview_path":f"/studio-preview/{p.preview_token}/" if dist else "",
         "visual_review":visual_result(p,dist),
         "source_archive_available":bool(dist and (dist.parent/"tracknode-agent-site.zip").is_file()),
+        "preview_version":p.run_directory,
+        "block_edit":block_edit_data(latest) if (latest:=p.block_edits.first()) else None,
     }
     if detail:
         data["revisions"]=[revision_data(r) for r in p.revisions.all()[:30]]
+        data["block_edits"]=[block_edit_data(e) for e in p.block_edits.all()[:30]]
     return data
 
 class StudioView(APIView):
@@ -112,15 +116,17 @@ class Projects(StudioView):
         if engine=="cinematic":
             if not getattr(settings,"STUDIO_CINEMATIC_ENABLED",False):
                 return Response({"detail":"Кинематографический движок не запущен локально."},status=503)
-            for active in Project.objects.filter(owner=request.user,engine="cinematic",generation_status__in=("queued","running")):
-                refresh_project(active)
-            if Project.objects.filter(owner=request.user,engine="cinematic",generation_status__in=("queued","running")).exists():
-                return Response({"detail":"Дождитесь завершения текущей кинематографической генерации. Платные параллельные повторы отключены."},status=409)
-            profile="cinema" if values["style"] in ("auto","cinema","3d") else ("premium" if values["style"]=="premium" else "standard")
             with transaction.atomic():
-                p=Project.objects.create(owner=request.user,generation_status="queued",generation_stage="queued",**values)
-                transaction.on_commit(lambda: queue_project(p,profile=profile,asset_style=asset_style,hero_mode=hero_mode,require_model=require_model))
-            return Response(project_data(p,True),status=202)
+                type(request.user).objects.select_for_update().get(pk=request.user.pk)
+                for active in Project.objects.filter(owner=request.user,engine="cinematic",generation_status__in=("queued","running")):
+                    refresh_project(active)
+                if active_for_owner(request.user) or Project.objects.filter(owner=request.user,engine="cinematic",generation_status__in=("queued","running")).exists():
+                    return Response({"detail":"Дождитесь завершения текущей кинематографической генерации. Платные параллельные повторы отключены."},status=409)
+                profile="cinema" if values["style"] in ("auto","cinema","3d") else ("premium" if values["style"]=="premium" else "standard")
+                with transaction.atomic():
+                    p=Project.objects.create(owner=request.user,generation_status="queued",generation_stage="queued",**values)
+                    transaction.on_commit(lambda: queue_project(p,profile=profile,asset_style=asset_style,hero_mode=hero_mode,require_model=require_model))
+                return Response(project_data(p,True),status=202)
         values.pop("engine",None)
         contacts=values.pop("contacts",{})
         if contacts:
@@ -194,3 +200,68 @@ class CinematicExport(StudioView):
         response=FileResponse(archive.open("rb"),content_type="application/zip")
         response["Content-Disposition"]='attachment; filename="tracknode-cinematic-site.zip"'
         return response
+
+class BlockInput(serializers.Serializer):
+    instruction=serializers.CharField(max_length=4000)
+    upgrade_motion=serializers.BooleanField(default=False)
+
+class Blocks(StudioView):
+    def get(self,request,pk):
+        p=refresh_project(self.project(request,pk))
+        dist=project_dist(p)
+        available=bool(dist and (dist.parent/"tracknode-agent-site.zip").is_file())
+        return Response({"available":available,"blocks":[{"id":k,"label":v} for k,v in BLOCKS.items()] if available else []})
+
+class RegenerateBlock(StudioView):
+    @transaction.atomic
+    def post(self,request,pk,block):
+        # Serialize requests for this owner/project. One outstanding edit at a time.
+        type(request.user).objects.select_for_update().get(pk=request.user.pk)
+        p=refresh_project(get_object_or_404(Project.objects.select_for_update(),pk=pk,owner=request.user))
+        if not getattr(settings,"STUDIO_CINEMATIC_ENABLED",False):
+            return Response({"detail":"Cinematic Engine недоступен."},status=503)
+        if block not in BLOCKS:
+            raise Http404
+        dist=project_dist(p)
+        if not dist or not (dist.parent/"tracknode-agent-site.zip").is_file():
+            return Response({"detail":"Для правки необходим исходный ZIP готового Cinema-сайта."},status=400)
+        for active in Project.objects.filter(owner=request.user,engine="cinematic",generation_status__in=("queued","running")):
+            refresh_project(active)
+        if active_for_owner(request.user) or Project.objects.filter(owner=request.user,engine="cinematic",generation_status__in=("queued","running")).exists():
+            return Response({"detail":"Дождитесь завершения активного задания."},status=409)
+        if any(edit_state(e)["status"]=="complete" for e in p.block_edits.filter(decision="pending")):
+            return Response({"detail":"Сначала примите или отклоните готовый вариант блока."},status=409)
+        if p.block_edits.count()>=30:
+            return Response({"detail":"Локальный лимит: 30 правок проекта."},status=400)
+        s=BlockInput(data=request.data)
+        s.is_valid(raise_exception=True)
+        edit=BlockEdit.objects.create(project=p,block=block,base_run=p.run_directory,base_stage=p.generation_stage,
+            instruction=s.validated_data["instruction"],upgrade_motion=block=="home" and s.validated_data["upgrade_motion"])
+        transaction.on_commit(lambda:queue_edit(edit))
+        return Response(project_data(p,True),status=202)
+
+class BlockDecision(StudioView):
+    @transaction.atomic
+    def post(self,request,pk,edit_id,action):
+        p=get_object_or_404(Project.objects.select_for_update(),pk=pk,owner=request.user)
+        e=get_object_or_404(p.block_edits.select_for_update(),pk=edit_id)
+        s=edit_state(e)
+        if s["status"]!="complete":
+            return Response({"detail":"Вариант ещё не прошёл техническую проверку."},status=409)
+        if action=="accept" and e.decision=="pending" and p.run_directory==e.base_run:
+            p.run_directory=s["run_directory"]
+            p.generation_stage="technical-preview"
+            e.decision="accepted"
+        elif action=="discard" and e.decision=="pending":
+            e.decision="discarded"
+        elif action=="rollback" and e.decision=="accepted" and p.run_directory==s["run_directory"] and run_dist(e.base_run):
+            if active_for_owner(request.user):
+                return Response({"detail":"Дождитесь завершения активной правки."},status=409)
+            p.run_directory=e.base_run
+            p.generation_stage=e.base_stage
+            e.decision="rolled_back"
+        else:
+            return Response({"detail":"Версия уже изменена или действие недоступно."},status=409)
+        p.save(update_fields=["run_directory","generation_stage","updated_at"])
+        e.save(update_fields=["decision"])
+        return Response(project_data(p,True))

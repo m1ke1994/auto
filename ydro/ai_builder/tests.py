@@ -186,3 +186,36 @@ class StudioTests(APITestCase):
         for url in ("javascript:alert(1)","ftp://example.com/path","https://user:password@example.com/"):
             response=self.client.post("/api/studio/projects/",{"name":"Test","prompt":"test","contacts":{"website":url}},format="json")
             self.assertEqual(response.status_code,400)
+
+    @override_settings(STUDIO_CINEMATIC_ENABLED=True)
+    def test_block_edit_candidate_accept_and_rollback(self):
+        from .models import Project
+        with tempfile.TemporaryDirectory() as jobs, tempfile.TemporaryDirectory() as outputs, override_settings(STUDIO_JOB_ROOT=jobs,STUDIO_OUTPUT_ROOT=outputs):
+            root=Path(outputs)
+            for run in ("original","block-edit-test"):
+                dist=root/run/"dist"
+                dist.mkdir(parents=True)
+                (dist/"index.html").write_text(run)
+                (root/run/"tracknode-agent-site.zip").write_bytes(b"fixture")
+                (root/run/"studio-result.json").write_text(json.dumps({"technical_passed":True,"status":"skipped"}))
+            p=Project.objects.create(owner=self.a,name="Cars",prompt="Cars",engine="cinematic",run_directory="original",generation_stage="technical-preview")
+            url=f"/api/studio/projects/{p.id}/"
+            with self.captureOnCommitCallbacks(execute=True):
+                result=self.client.post(url+"blocks/home/regenerate/",{"instruction":"Fix title","upgrade_motion":True},format="json")
+            self.assertEqual(result.status_code,202)
+            edit=result.data["block_edit"]
+            self.assertEqual(result.data["preview_version"],"original")
+            envelope=json.loads((Path(jobs)/"pending"/f'{edit["id"]}.json').read_text())
+            self.assertEqual(envelope["base_run"],"original")
+            self.assertEqual(envelope["kind"],"block_edit")
+            self.assertEqual(self.client.post(url+"blocks/about/regenerate/",{"instruction":"test"},format="json").status_code,409)
+            status=Path(jobs)/"status"/f'{edit["id"]}.json'
+            status.parent.mkdir()
+            status.write_text(json.dumps({"project_id":edit["id"],"status":"complete","stage":"technical-preview","run_directory":"block-edit-test"}))
+            self.assertEqual(self.client.get(url).data["block_edit"]["status"],"complete")
+            decision=url+"block-edits/"+edit["id"]+"/"
+            self.client.force_authenticate(self.b)
+            self.assertEqual(self.client.post(decision+"accept/").status_code,404)
+            self.client.force_authenticate(self.a)
+            self.assertEqual(self.client.post(decision+"accept/").data["preview_version"],"block-edit-test")
+            self.assertEqual(self.client.post(decision+"rollback/").data["preview_version"],"original")

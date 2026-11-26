@@ -37,3 +37,16 @@ class Revision(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         ordering = ["-id"]
+
+class BlockEdit(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="block_edits")
+    block = models.CharField(max_length=16)
+    instruction = models.TextField()
+    base_run = models.CharField(max_length=128)
+    base_stage = models.CharField(max_length=80)
+    upgrade_motion = models.BooleanField(default=False)
+    decision = models.CharField(max_length=16, default="pending")
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        ordering = ["-created_at", "-id"]

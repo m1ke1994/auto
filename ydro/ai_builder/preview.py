@@ -6,13 +6,19 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.clickjacking import xframe_options_exempt
 
 from .jobs import project_dist, refresh_project
-from .models import Project
+from .models import Project, BlockEdit
+from .block_jobs import state as edit_state, run_dist
 
 
 @xframe_options_exempt
 def cinematic_preview(request, token, path="index.html"):
-    project=refresh_project(get_object_or_404(Project,preview_token=token,engine="cinematic"))
-    dist=project_dist(project)
+    project=Project.objects.filter(preview_token=token,engine="cinematic").first()
+    if project:
+        dist=project_dist(refresh_project(project))
+    else:
+        edit=get_object_or_404(BlockEdit,pk=token)
+        status=edit_state(edit)
+        dist=run_dist(status["run_directory"]) if status["status"]=="complete" else None
     if not dist:
         raise Http404
     requested=(dist/(path or "index.html")).resolve()

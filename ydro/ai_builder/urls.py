@@ -1,6 +1,9 @@
 from django.urls import path
 from . import views
 urlpatterns = [
+    path('projects/<uuid:pk>/blocks/', views.Blocks.as_view()),
+    path('projects/<uuid:pk>/blocks/<str:block>/regenerate/', views.RegenerateBlock.as_view()),
+    path('projects/<uuid:pk>/block-edits/<uuid:edit_id>/<str:action>/', views.BlockDecision.as_view()),
     path("config/", views.Config.as_view()),
     path("projects/", views.Projects.as_view()),
     path("projects/<uuid:pk>/", views.Detail.as_view()),
