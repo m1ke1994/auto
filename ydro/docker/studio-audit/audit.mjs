@@ -233,6 +233,37 @@ try {
       const visualOk=!!child&&!!b&&!!c&&b.width>0&&b.height>innerHeight*.35&&c.width>0&&c.height>0&&c.height<=b.height+4;
       return {index,mode:'desktop',chapters:chapters.length,sticky,visualOk,ok:chapters.length>=2&&sticky&&visualOk&&a.height>innerHeight*.4};
     }));
+    let heroObject=null;
+    if(sceneContract?.heroPreset){
+      stage=name+' procedural hero checks';
+      await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
+      const object=page.locator('#home [data-tn-hero-object]');
+      if(name==='desktop') await page.waitForFunction(()=>document.querySelector('#home [data-tn-hero-object]')?.dataset.tnObjectState==='ready',{},{timeout:12000}).catch(()=>{});
+      if(await object.count()===1){
+        const inspect=()=>object.evaluate(el=>{
+          const r=el.getBoundingClientRect(),home=el.closest('#home'),h=home.getBoundingClientRect();
+          const shown=node=>{if(!node)return false;const b=node.getBoundingClientRect();const s=getComputedStyle(node);return b.width>0&&b.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)>.05;};
+          const primary=el.dataset.tnObjectState==='ready'?el.querySelector('canvas'):el.querySelector('.tn-product-fallback');
+          const overlap=[...home.querySelectorAll('h1,a[href="#contacts"],a[href="#services"]')].some(n=>{
+            const b=n.getBoundingClientRect(),area=Math.max(0,Math.min(r.right,b.right)-Math.max(r.left,b.left))*Math.max(0,Math.min(r.bottom,b.bottom)-Math.max(r.top,b.top));
+            return b.width*b.height>0&&area/(b.width*b.height)>.05;
+          });
+          const desktop=innerWidth>760;
+          return {preset:el.dataset.tnObjectPreset,state:el.dataset.tnObjectState,pose:el.dataset.tnObjectPose||null,width:r.width,height:r.height,viewportWidth:innerWidth,viewportHeight:innerHeight,overlap,layoutOk:shown(el)&&shown(primary)&&!overlap&&r.width>=Math.min(h.width,innerWidth)*(desktop?.28:.65)&&r.height>=innerHeight*(desktop?.38:.24)&&r.left>=-2&&r.right<=innerWidth+2};
+        });
+        await page.waitForTimeout(500);
+        const first=await inspect();
+        let second=null;
+        if(name==='desktop'){
+          await page.evaluate(()=>{const h=document.querySelector('#home').getBoundingClientRect();window.scrollTo({top:Math.min(h.height*.22,innerHeight*.25),behavior:'instant'});});
+          await page.waitForTimeout(900);
+          second=await inspect();
+          await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
+          await page.waitForTimeout(300);
+        }
+        heroObject={first,second,layoutOk:first.preset===sceneContract.heroPreset&&first.layoutOk,motionOk:name!=='desktop'||(first.state==='ready'&&second?.state==='ready'&&first.pose!==null&&second.pose!==null&&Math.abs(Number(first.pose)-Number(second.pose))>=.05)};
+      }else heroObject={layoutOk:false,motionOk:false,count:await object.count()};
+    }
     const heroLayout=await page.locator('#home').evaluate(hero=>{
       const image=hero.querySelector('.hero-photo');
       const heading=hero.querySelector('h1');
@@ -258,6 +289,7 @@ try {
     checks.headerNavigation=navigation.header&&navigation.allLinks&&menuOperable;
     checks.heroCTA=sections.some(x=>x.id==='home'&&x.cta);
     checks.heroLayout=heroLayout;
+    if(sceneContract?.heroPreset){checks.heroObjectLayout=heroObject?.layoutOk===true;if(name==="desktop")checks.heroObjectMotion=heroObject?.motionOk===true;}
     checks.serviceCards=sections.some(x=>x.id==='services'&&x.distinctCards>=3);
     if(report.profile==='cinema'||storyVisualLayouts.length) checks.storyVisuals=storyVisualLayouts.length>0&&storyVisualLayouts.every(x=>x.ok);
     if(expectedModels.length && report.profile==='cinema') checks.heroImportedModel=sections.some(x=>x.id==='home'&&x.heroModel);
@@ -289,7 +321,7 @@ try {
       if(sceneContract?.version===1||sceneDiagnostics.carousels.length) checks.carouselControls=sceneDiagnostics.carousels.length>0&&sceneDiagnostics.carousels.every(x=>x.ok);
       if(sceneContract?.version===1||sceneDiagnostics.stories.length) checks.storyProgress=sceneDiagnostics.stories.length>0&&sceneDiagnostics.stories.every(x=>x.ok);
     }
-    report.checks.push({name,checks,metrics:result,sections,navigation,heroFraming,steps,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
+    report.checks.push({name,checks,metrics:result,sections,navigation,heroFraming,heroObject,steps,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
     await context.close();
   }
 } catch(error){report.error=String(error).slice(0,700);report.errorStage=stage;}

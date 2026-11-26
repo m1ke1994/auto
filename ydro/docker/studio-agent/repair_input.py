@@ -156,7 +156,7 @@ TECHNICAL_CHECKS=frozenset({
     "rendered","noHorizontalOverflow","footer","progress","noBrokenImages",
     "noJsErrors","noMissingAssets","noExternalRequests","completeSections",
     "headerNavigation","heroCTA","serviceCards","heroFraming","heroImportedModel",
-    "cameraChanges","modelMotionChanges","scenes","scrollMotion","sceneComponents","carouselControls","storyProgress","storyVisuals","heroLayout"
+    "cameraChanges","modelMotionChanges","scenes","scrollMotion","sceneComponents","carouselControls","storyProgress","storyVisuals","heroLayout","heroObjectLayout"
 })
 
 def technical_notes(path):

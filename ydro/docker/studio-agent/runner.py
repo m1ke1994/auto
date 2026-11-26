@@ -337,6 +337,14 @@ def main():
             conversation.send_message(prompt)
             conversation.run()
             stage="source_gate"
+            # Structural validation is deterministic; do not spend another API call
+            # solely to obtain an agent-authored note after an otherwise complete run.
+            if not args.repair and STORE.design_brief and not STORE.self_review:
+                try:
+                    STORE.set_review("Automated structural checks passed. Agent final self-review was not completed. Compilation, browser behavior, performance and artistic quality remain unverified.",origin="automated_structural")
+                    print("STUDIO_SOURCE_REVIEW: deterministic structural fallback; AI self-review absent",flush=True)
+                except ValueError:
+                    pass
             try:
                 STORE.export("/output/source-final.tmp",model,args.profile)
             except ValueError:

@@ -24,6 +24,7 @@ class SiteStore:
         self.profile = None
         self.design_brief = ""
         self.self_review = ""
+        self.review_origin = None
         self.scene_required = False
         self.storyboard = None
         self.hero_preset = None
@@ -85,7 +86,9 @@ class SiteStore:
         self.models.rejected.add(key)
         self.self_review=""
 
-    def set_review(self, content):
+    def set_review(self, content, *, origin="agent"):
+        if origin not in ("agent","automated_structural"):
+            raise ValueError("Invalid source review origin.")
         self.validate()
         if self.profile:
             issues = quality_issues(self.files,self.profile)+self.model_issues()+self.scene_issues()
@@ -94,6 +97,7 @@ class SiteStore:
         if not 40 <= len(content.strip()) <= 6000:
             raise ValueError("Self review must contain 40-6000 characters.")
         self.self_review = content.strip()
+        self.review_origin = origin
 
     def write(self, path, content):
         if not ALLOWED.fullmatch(path) or path in RESERVED:
@@ -179,7 +183,7 @@ class SiteStore:
             "src/components/SceneStory.vue": Path(__file__).with_name("SceneStory.vue").read_text(encoding="utf-8"),
             "src/components/HeroObjectStage.vue": Path(__file__).with_name("HeroObjectStage.vue").read_text(encoding="utf-8"),
             "README.md": "# TrackNode OpenHands source\nUntrusted AI-generated source. Inspect it and build only in an isolated, credential-free environment. No build or visual verification has been performed.\n",
-            "tracknode-agent.json": json.dumps({"engine":"openhands-sdk","model":model,"build_verified":False,"visual_verified":False,"checkpoint":checkpoint,"scene_engine":1 if self.scene_required else 0,"hero_preset":self.hero_preset,"profile":profile,"files":sorted(self.files),"rejected_models":sorted(self.models.rejected) if self.models else []},indent=2),
+            "tracknode-agent.json": json.dumps({"engine":"openhands-sdk","model":model,"build_verified":False,"visual_verified":False,"checkpoint":checkpoint,"scene_engine":1 if self.scene_required else 0,"hero_preset":self.hero_preset,"review_origin":self.review_origin if self.self_review else None,"profile":profile,"files":sorted(self.files),"rejected_models":sorted(self.models.rejected) if self.models else []},indent=2),
         }
         if self.storyboard:
             trusted["STORYBOARD.json"]=json.dumps(self.storyboard,ensure_ascii=False,indent=2)
@@ -188,7 +192,8 @@ class SiteStore:
         if self.design_brief:
             trusted["ART_DIRECTION.md"] = "# AI art direction (unverified)\n\n" + self.design_brief
         if self.self_review:
-            trusted["SELF_REVIEW.md"] = "# AI source review (not build or browser testing)\n\n" + self.self_review
+            heading = "# Automated structural source check (not AI, build or browser review)" if self.review_origin == "automated_structural" else "# AI source review (not build or browser testing)"
+            trusted["SELF_REVIEW.md"] = heading + "\n\n" + self.self_review
         assets = self.media.assets if self.media else {}
         credits = list(self.media.credits.values()) if self.media else []
         if credits:

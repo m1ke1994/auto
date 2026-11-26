@@ -105,6 +105,7 @@ async function init(){
       key.position.x=-3+5*p;rim.intensity=3.7+p*.8
       cloth.position.z=-.5-p*.65;cloth.position.y=-1.35-p*.12
       renderer.render(scene,camera)
+      root.value.dataset.tnObjectPose=p.toFixed(3)
     }
     const lost=e=>{e.preventDefault();failed=true;dispose()}
     renderer.domElement.addEventListener('webglcontextlost',lost)
@@ -146,7 +147,7 @@ onBeforeUnmount(()=>{
 <style scoped>
 .tn-hero-object{position:relative;isolation:isolate;display:grid;place-items:center;width:100%;min-width:0;min-height:clamp(340px,65svh,760px);margin:0;overflow:clip}
 .tn-hero-object-glow{position:absolute;inset:0;background:radial-gradient(ellipse,color-mix(in srgb,var(--object-accent) 25%,transparent),transparent 66%);pointer-events:none}
-.tn-product-fallback{position:relative;width:clamp(100px,27%,200px);aspect-ratio:1/2.15;filter:drop-shadow(16px 22px 20px #0005)}
+.tn-product-fallback{position:relative;width:clamp(128px,40%,240px);aspect-ratio:1/2.15;filter:drop-shadow(16px 22px 20px #0005)}
 .tn-product-body{position:absolute;inset:24% 0 0;border-radius:14% 14% 12% 12%;background:linear-gradient(100deg,#252019,var(--object-tone) 23%,#c5a677 38%,var(--object-tone) 58%,#30251d 95%);display:grid;align-content:center;text-align:center;padding:12%;color:#34291e}
 .tn-product-body span,.tn-product-body small{display:block;background:#eadfc9;padding:8% 2%;overflow-wrap:anywhere;font-family:Georgia,serif}
 .tn-product-body small{font-size:clamp(8px,1vw,13px);padding-top:0}

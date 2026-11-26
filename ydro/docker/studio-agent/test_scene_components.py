@@ -44,5 +44,23 @@ class SceneComponentTests(unittest.TestCase):
             s.write("src/components/HeroObjectStage.vue","override")
         self.assertIn("import('three')",(ROOT/"HeroObjectStage.vue").read_text(encoding="utf-8"))
 
+    def test_automated_review_is_honestly_labeled(self):
+        import tempfile, zipfile, json
+        from site_store import SiteStore
+        s=SiteStore()
+        s.write("src/App.vue","<template><main><h1>Example</h1></main></template>")
+        s.write("src/style.css","main{color:red}")
+        s.set_review("Automated structural review only; build and visual quality unverified.",origin="automated_structural")
+        with tempfile.TemporaryDirectory() as d:
+            output=Path(d)/"site.zip"
+            s.export(output,"test")
+            with zipfile.ZipFile(output) as z:
+                self.assertEqual(json.loads(z.read("tracknode-agent.json"))["review_origin"],"automated_structural")
+                self.assertIn("Automated structural source check",z.read("SELF_REVIEW.md").decode())
+        s.hero_preset="serum"
+        s.profile="cinema"
+        with self.assertRaises(ValueError):
+            s.set_review("Automated review must not approve missing required structure.",origin="automated_structural")
+
 if __name__=="__main__":
     unittest.main()
