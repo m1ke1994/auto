@@ -149,7 +149,7 @@ onBeforeUnmount(() => {
 .tn-story-counter { padding: 12px 0; }
 .tn-story-chapters { min-width: 0; }
 .tn-story-chapter {
-  min-height: min(62vh, 620px);
+  min-height: min(54vh, 540px);
   display: flex;
   align-items: center;
   min-width: 0;

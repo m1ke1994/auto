@@ -202,9 +202,11 @@ class SiteStore:
                 '<a href="' + escape(c["url"],quote=True) + '" rel="noopener noreferrer">'
                 + escape(c["photographer"] or "Pexels photographer") + '</a>' for c in credits
             )
-            footer = ('<aside class="tn-photo-credits" aria-label="Photo credits" style="padding:10px 20px;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 8px;text-align:center;opacity:.72;background:var(--tn-footer-bg,#171717);color:var(--tn-footer-fg,#e5e5e5);font:10px/1.5 system-ui">'
+            footer = ('<details class="tn-photo-credits" style="padding:12px clamp(20px,4vw,64px);border-top:1px solid color-mix(in srgb,var(--tn-footer-fg,#e5e5e5) 16%,transparent);background:var(--tn-footer-bg,#171717);color:var(--tn-footer-fg,#e5e5e5);font:11px/1.6 system-ui">'
+                      '<summary style="width:max-content;margin:0 auto;cursor:pointer;letter-spacing:.12em;text-transform:uppercase;opacity:.72">Photography credits</summary>'
+                      '<aside aria-label="Photo credits" style="padding-top:10px;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 8px;text-align:center;opacity:.72">'
                       '<a href="https://www.pexels.com/" style="color:inherit">Photos provided by Pexels</a> · '
-                      + links + '</aside>')
+                      + links + '</aside></details>')
             trusted["index.html"] = trusted["index.html"].replace("</body>",footer+"</body>")
         if self.models and self.models.credits:
             assets = {**assets, **self.models.assets}

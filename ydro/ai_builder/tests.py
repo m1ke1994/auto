@@ -2,6 +2,9 @@ from django.contrib.auth import get_user_model
 from django.test import override_settings
 from rest_framework.test import APITestCase
 from .generator import generate_demo
+import json
+import tempfile
+from pathlib import Path
 
 @override_settings(STUDIO_DEMO_ENABLED=True, STUDIO_AI_PROVIDER='demo')
 class StudioTests(APITestCase):
@@ -53,3 +56,40 @@ class StudioTests(APITestCase):
         self.assertEqual(second.status_code,200)
         from .models import Revision
         self.assertEqual(Revision.objects.get(pk=second.data["revisions"][0]["id"]).design["theme"],"editorial")
+
+    def test_cinematic_job_queue_status_and_preview(self):
+        with tempfile.TemporaryDirectory() as jobs, tempfile.TemporaryDirectory() as outputs, override_settings(
+            STUDIO_CINEMATIC_ENABLED=True,STUDIO_JOB_ROOT=jobs,STUDIO_OUTPUT_ROOT=outputs
+        ):
+            payload={"name":"Architecture Film","prompt":"Cinematic architecture bureau","style":"cinema","engine":"cinematic","hero_mode":"environment"}
+            with self.captureOnCommitCallbacks(execute=True):
+                response=self.client.post("/api/studio/projects/",payload,format="json")
+            self.assertEqual(response.status_code,202)
+            project_id=response.data["id"]
+            queued=Path(jobs)/"pending"/f"{project_id}.json"
+            self.assertTrue(queued.is_file())
+            envelope=json.loads(queued.read_text(encoding="utf-8"))
+            self.assertEqual(envelope["profile"],"cinema")
+            self.assertEqual(envelope["hero_mode"],"environment")
+
+            duplicate=self.client.post("/api/studio/projects/",payload,format="json")
+            self.assertEqual(duplicate.status_code,409)
+
+            run="verified-architecture"
+            dist=Path(outputs)/run/"dist"
+            dist.mkdir(parents=True)
+            (dist/"index.html").write_text("<h1>Verified architecture</h1>",encoding="utf-8")
+            state=Path(jobs)/"status"/f"{project_id}.json"
+            state.parent.mkdir(parents=True)
+            state.write_text(json.dumps({"status":"complete","stage":"verified","error":"","run_directory":run}),encoding="utf-8")
+            detail=self.client.get(f"/api/studio/projects/{project_id}/")
+            self.assertEqual(detail.data["generation_status"],"complete")
+            self.assertTrue(detail.data["preview_path"])
+            preview=self.client.get(detail.data["preview_path"])
+            self.assertEqual(preview.status_code,200)
+            self.assertIn(b"Verified architecture",b"".join(preview.streaming_content))
+
+    @override_settings(STUDIO_CINEMATIC_ENABLED=False)
+    def test_cinematic_queue_requires_local_worker(self):
+        response=self.client.post("/api/studio/projects/",{"name":"No worker","prompt":"test","engine":"cinematic"},format="json")
+        self.assertEqual(response.status_code,503)

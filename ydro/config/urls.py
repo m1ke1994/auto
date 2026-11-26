@@ -22,6 +22,7 @@ from telegram_logs.views import TelegramRelayBindView, TelegramWebhookView
 
 from apps.mediafiles.views import UploadFileView
 from apps.sites.views import PublicLeadCreateView, PublicSiteBundleBySlugView
+from ai_builder.preview import cinematic_preview
 
 admin.site.site_header = "Панель управления"
 admin.site.site_title = "Админка"
@@ -60,6 +61,8 @@ def healthcheck(_request):
 
 
 urlpatterns = [
+    path("studio-preview/<uuid:token>/", cinematic_preview, name="studio-cinematic-preview"),
+    path("studio-preview/<uuid:token>/<path:path>", cinematic_preview, name="studio-cinematic-preview-asset"),
     path("tracker.js", tracker_js_view, name="tracker-js"),
     path("admin/", admin.site.urls),
     path("api/", api_root),

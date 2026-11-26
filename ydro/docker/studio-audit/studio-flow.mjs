@@ -22,13 +22,15 @@ page.on('requestfailed', request => report.requestFailures.push({
 
 async function createProject({ name, prompt, style }) {
   await page.getByRole('button', { name: /Новый проект/ }).click().catch(() => {})
-  await page.locator('input[required]').fill(name)
-  await page.locator('textarea[required]').first().fill(prompt)
-  await page.locator('select').selectOption(style)
+  const form = page.locator('form.create-form')
+  await form.locator('input[required]').fill(name)
+  await form.locator('textarea[required]').first().fill(prompt)
+  await form.locator('select').nth(0).selectOption('quick')
+  await form.locator('select').nth(1).selectOption(style)
   const started = Date.now()
   await Promise.all([
     page.waitForResponse(response => response.url().includes('/api/studio/projects/') && response.request().method() === 'POST', { timeout: 120000 }),
-    page.locator('form.panel button[type="submit"], form.panel button').last().click(),
+    form.getByRole('button', { name: /быструю концепцию/i }).click(),
   ]).then(async ([response]) => {
     const body = await response.json().catch(() => ({}))
     if (response.status() !== 201) throw new Error(`Generation failed: HTTP ${response.status()} ${JSON.stringify(body)}`)

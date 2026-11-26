@@ -4,6 +4,9 @@ param([switch]$SkipBuild, [switch]$Test)
 $ErrorActionPreference = 'Stop'
 Push-Location $PSScriptRoot
 try {
+    foreach ($name in @('pending','running','status','logs')) {
+        $null=New-Item -ItemType Directory -Force -Path (Join-Path $PSScriptRoot ('studio-jobs/'+$name))
+    }
     $composeArgs = @('compose', '-p', 'tracknode20', '-f', 'docker-compose.yml', '-f', 'docker-compose.studio.yml')
     if (Test-Path '.env.studio.local' -PathType Leaf) {
         $composeArgs += @('--env-file', '.env.studio.local')
@@ -31,6 +34,25 @@ try {
         Invoke-StudioCompose exec -T backend python manage.py test ai_builder --noinput
     }
     Invoke-StudioCompose ps
+    $watcherPid=Join-Path $PSScriptRoot 'studio-jobs/watcher.pid'
+    $watcherRunning=$false
+    if (Test-Path -LiteralPath $watcherPid -PathType Leaf) {
+        $savedPid=0
+        if ([int]::TryParse((Get-Content -LiteralPath $watcherPid -Raw).Trim(),[ref]$savedPid)) {
+            $watcherRunning=$null -ne (Get-Process -Id $savedPid -ErrorAction SilentlyContinue)
+        }
+    }
+    if (!$watcherRunning) {
+        $runner=(Get-Process -Id $PID).Path
+        $watcher=Join-Path $PSScriptRoot 'studio-watch.ps1'
+        $stdout=Join-Path $PSScriptRoot 'studio-jobs/watcher.log'
+        $stderr=Join-Path $PSScriptRoot 'studio-jobs/watcher-error.log'
+        $process=Start-Process -FilePath $runner -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$watcher) -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+        [IO.File]::WriteAllText($watcherPid,[string]$process.Id,[Text.UTF8Encoding]::new($false))
+        Write-Host "Cinematic worker started: PID $($process.Id)"
+    } else {
+        Write-Host "Cinematic worker already running"
+    }
     Write-Host 'Studio: http://localhost:8001/studio' -ForegroundColor Green
 } catch {
     $failure = $_

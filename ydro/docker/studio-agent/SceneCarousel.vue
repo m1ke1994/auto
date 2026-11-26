@@ -87,7 +87,7 @@ onBeforeUnmount(()=>{observer?.disconnect();cancelAnimationFrame(raf)})
 .tn-carousel-copy h3{font-size:clamp(1.35rem,3.4vw,3rem);line-height:1.08;margin:.6em 0 .35em;letter-spacing:-.035em}
 .tn-carousel-copy p{max-width:58ch;line-height:1.6;margin:.4em 0}
 .tn-carousel-kicker,.tn-carousel-count{font-size:.78rem;letter-spacing:.12em;font-variant-numeric:tabular-nums}
-.tn-carousel-controls{display:grid;grid-template-columns:auto minmax(0,1fr) 44px 44px;align-items:center;gap:10px;padding:0 0 14px}
+.tn-carousel-controls{display:grid;grid-template-columns:auto minmax(0,1fr) 44px 44px;align-items:center;gap:10px;padding:0 clamp(16px,3vw,48px) 14px}
 .tn-carousel-dots{display:flex;gap:8px;flex:1;flex-wrap:wrap;justify-content:center;min-width:0}
 .tn-carousel-controls button{font:inherit;color:inherit;border:1px solid currentColor;background:transparent;border-radius:999px;min-width:44px;min-height:44px;cursor:pointer}
 .tn-carousel-controls button:disabled{opacity:.35;cursor:default}
@@ -109,6 +109,6 @@ onBeforeUnmount(()=>{observer?.disconnect();cancelAnimationFrame(raf)})
 .tn-carousel--chapter .tn-carousel-copy img{grid-row:span 3;height:clamp(220px,40vw,520px)}
 .tn-carousel--editorial{--tn-slide-width:62%;--tn-slide-radius:2px}
 .tn-carousel--editorial .tn-carousel-copy{padding:clamp(12px,2vw,24px)}
-@media(max-width:640px){.tn-carousel{--tn-slide-width:90%;--tn-slide-gap:12px}.tn-carousel--narrative,.tn-carousel--chapter{--tn-slide-width:100%}.tn-carousel--chapter .tn-carousel-copy{display:block}.tn-carousel-controls{grid-template-columns:auto minmax(0,1fr) 44px 44px;gap:6px}.tn-carousel-dots{justify-content:flex-start;gap:4px}.tn-carousel-dots button{min-width:20px;min-height:20px}.tn-carousel-dots button::after{inset:7px}}
+@media(max-width:640px){.tn-carousel{--tn-slide-width:90%;--tn-slide-gap:12px}.tn-carousel--narrative,.tn-carousel--chapter{--tn-slide-width:100%}.tn-carousel--chapter .tn-carousel-copy{display:block}.tn-carousel-controls{grid-template-columns:auto minmax(0,1fr) 44px 44px;gap:6px;padding-inline:0}.tn-carousel-dots{justify-content:flex-start;gap:4px}.tn-carousel-dots button{min-width:20px;min-height:20px}.tn-carousel-dots button::after{inset:7px}}
 @media(prefers-reduced-motion:reduce){.tn-carousel-slide{transform:none!important;transition:none!important}}
 </style>

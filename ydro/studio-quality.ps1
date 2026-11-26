@@ -7,7 +7,8 @@ param(
     [ValidateRange(0,1)][int]$MaxTechnicalRepairs=1,
     [ValidateSet("auto","immersive","product","split","cinematic","editorial","environment")][string]$HeroMode="auto",
     [switch]$RequireModel,
-    [string]$PreflightDirectory=""
+    [string]$PreflightDirectory="",
+    [string]$ResultFile=""
 )
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -54,4 +55,10 @@ if ($SkipVisualReview) {
     } else {
         Write-Host "Technical and AI visual reviews passed; human acceptance remains separate."
     }
+}
+if ($ResultFile) {
+    $target=[IO.Path]::GetFullPath($ResultFile)
+    $parent=Split-Path -Parent $target
+    if (!(Test-Path -LiteralPath $parent -PathType Container)) { throw "ResultFile parent does not exist" }
+    [IO.File]::WriteAllText($target,$out,[Text.UTF8Encoding]::new($false))
 }

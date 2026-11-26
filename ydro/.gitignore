@@ -15,6 +15,7 @@ backups/
 
 .env.studio.local
 /studio-agent-output/
+/studio-jobs/
 
 .studio-repair-ledger.json
 .studio-repair-ledger.json.tmp

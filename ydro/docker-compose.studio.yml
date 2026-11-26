@@ -16,6 +16,10 @@ services:
       STUDIO_AI_KEY: ${STUDIO_AI_KEY:-}
       STUDIO_AI_FOLDER: ${STUDIO_AI_FOLDER:-}
       STUDIO_AI_MODEL: ${STUDIO_AI_MODEL:-}
+      STUDIO_CINEMATIC_ENABLED: "1"
+      STUDIO_CINEMATIC_MAX_COST_USD: "0.75"
+      STUDIO_JOB_ROOT: /studio-jobs
+      STUDIO_OUTPUT_ROOT: /studio-output
       RUN_MIGRATIONS: "1"
       RUN_COLLECTSTATIC: "1"
       RUN_SEED_DEMO_DATA: "0"
@@ -23,6 +27,9 @@ services:
       RUN_SEED_TRACKNODE_SITE: "0"
       RUN_SEED_MY_PORTFOLIO_SITE: "0"
       GUNICORN_TIMEOUT: "120"
+    volumes:
+      - ./studio-jobs:/studio-jobs
+      - ./studio-agent-output:/studio-output:ro
     healthcheck:
       test: ["CMD", "curl", "--noproxy", "*", "--fail", "--silent", "--show-error", "--max-time", "5", "http://127.0.0.1:8000/api/health/"]
       interval: 10s
