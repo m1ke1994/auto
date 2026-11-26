@@ -36,6 +36,7 @@ class SceneComponentTests(unittest.TestCase):
     def test_subject_specific_hero_object_library(self):
         from art_direction import cinematic_direction, procedural_preset
         self.assertEqual(procedural_preset({"subject":"premium coffee shop"},""),"cup")
+        self.assertIsNone(procedural_preset({"subject":"interior design with a coffee table"},""))
         self.assertEqual(procedural_preset({"subject":"ювелирный салон"},""),"ring")
         self.assertEqual(procedural_preset({"subject":"watchmaker"},""),"watch")
         self.assertEqual(procedural_preset({"subject":"студия флористики"},""),"vase")

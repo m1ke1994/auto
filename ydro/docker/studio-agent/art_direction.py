@@ -35,7 +35,7 @@ def procedural_preset(plan, brief):
         return "tube"
     if any(x in text for x in ("сыворотк","косметик","салон красоты","студии красоты","студия красоты","beauty atelier","beauty studio","beauty salon","skincare","cosmetic","serum")):
         return "serum"
-    if any(x in text for x in ("кофейня","кофе","coffee shop","coffee","cafe","café","barista","эспрессо")):
+    if any(x in text for x in ("кофейн","кофеен","coffee shop","coffeehouse","coffee roastery","coffee brand","coffee bean","cafe","café","barista","espresso","эспрессо")):
         return "cup"
     import re
     if any(x in text for x in ("ювелир","ювелирн","jewelry","jewellery","кольцо","кольца","gemstone")) or re.search(r"\b(?:ring|rings)\b",text):
