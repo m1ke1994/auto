@@ -147,3 +147,24 @@ class StudioTests(APITestCase):
         self.assertEqual(response.status_code,503)
         quick.assert_not_called()
         self.assertFalse(Project.objects.filter(owner=self.a).exists())
+
+    def test_progress_event_tracks_worker_not_polling(self):
+        from .models import Project
+        from django.utils import timezone
+        with tempfile.TemporaryDirectory() as jobs, override_settings(STUDIO_JOB_ROOT=jobs):
+            project=Project.objects.create(owner=self.a,name="Progress",prompt="test",engine="cinematic",
+                generation_status="queued",generation_stage="queued")
+            path=Path(jobs)/"status"/f"{project.id}.json"
+            path.parent.mkdir()
+            stamp=timezone.now().isoformat()
+            url=f"/api/studio/projects/{project.id}/"
+            for stage in ("preparing","assets","generating","building","auditing","visual-review","finalizing"):
+                path.write_text(json.dumps({"status":"running","stage":stage,"updated_at":stamp,"run_directory":""}),encoding="utf-8")
+                first=self.client.get(url).data
+                second=self.client.get(url).data
+                self.assertEqual(first["generation_stage"],stage)
+                self.assertEqual(first["generation_event_at"],stamp)
+                self.assertEqual(first["generation_event_at"],second["generation_event_at"])
+                self.assertEqual(first["updated_at"],second["updated_at"])
+            path.write_text("[]",encoding="utf-8")
+            self.assertIsNone(self.client.get(url).data["generation_event_at"])

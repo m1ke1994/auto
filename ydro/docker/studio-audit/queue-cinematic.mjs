@@ -3,7 +3,8 @@ import { chromium } from 'playwright'
 const base=process.env.STUDIO_URL||'http://127.0.0.1:8001'
 const email=process.env.STUDIO_TEST_EMAIL,password=process.env.STUDIO_TEST_PASSWORD
 const name=process.env.STUDIO_PROJECT_NAME,prompt=process.env.STUDIO_PROJECT_PROMPT
-const profile=process.env.STUDIO_PROJECT_PROFILE||'cinema'
+const requestedProfile=process.env.STUDIO_PROJECT_PROFILE||'cinema'
+const profile=({premium:'cinema','3d':'cinema'})[requestedProfile]||requestedProfile
 const hero=process.env.STUDIO_PROJECT_HERO||'auto'
 const assetStyle=process.env.STUDIO_PROJECT_ASSET_STYLE||'realistic'
 const requireModel=/^(1|true|yes)$/i.test(process.env.STUDIO_PROJECT_REQUIRE_MODEL||'false')
@@ -25,6 +26,7 @@ try{
   await form.locator('select').nth(1).selectOption(profile)
   await form.locator('input[required]').fill(name)
   await form.locator('textarea[required]').fill(prompt)
+  await form.locator('details.advanced summary').click()
   await form.locator('select').nth(2).selectOption(hero)
   await form.locator('select').nth(3).selectOption(assetStyle)
   if(requireModel)await form.locator('input[type="checkbox"]').check()

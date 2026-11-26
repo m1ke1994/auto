@@ -34,12 +34,13 @@ function Process-Job([IO.FileInfo]$File){
         if($job.profile -notin @('standard','premium','cinema')){throw 'Invalid profile'}
         if($job.asset_style -notin @('realistic','stylized')){throw 'Invalid asset style'}
         if($job.hero_mode -notin @('auto','immersive','product','split','cinematic','editorial','environment')){throw 'Invalid hero mode'}
-        Write-State $id @{status='running';stage='preflight-and-generation';error='';run_directory=''}
+        Write-State $id @{status='running';stage='preparing';error='';run_directory=''}
         $brief=$job.name+"`n`n"+$job.prompt
         if ($brief.Length -gt 8000) { $brief=$job.prompt }
         $qualityArgs=@{
             Prompt=$brief;Profile=$job.profile;AssetStyle=$job.asset_style;HeroMode=$job.hero_mode
             MaxRepairs=0;MaxTechnicalRepairs=0;ResultFile=$resultFile;AllowVisualWarnings=$true
+            ProgressFile=(Join-Path $status ($id+'.json'))
         }
         if($job.require_model -eq $true){$qualityArgs.RequireModel=$true}
         # Do not merge native stderr here: BuildKit writes successful progress

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 
 RUN_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -51,15 +52,19 @@ def refresh_project(project):
         state = json.loads(state_path.read_text(encoding="utf-8"))
     except (OSError, ValueError, TypeError):
         return project
+    if not isinstance(state, dict):
+        return project
     status = state.get("status")
     if status not in {"queued", "running", "complete", "failed"}:
         return project
     run_directory = state.get("run_directory", "")
-    if run_directory and not RUN_NAME.fullmatch(run_directory):
+    if not isinstance(run_directory, str) or (run_directory and not RUN_NAME.fullmatch(run_directory)):
         return project
     error = state.get("error", "")
     stage = state.get("stage", "")
     if not isinstance(error, str) or not isinstance(stage, str):
+        return project
+    if (project.generation_status, project.generation_stage, project.generation_error, project.run_directory) == (status, stage[:80], error[:2000], run_directory):
         return project
     project.generation_status = status
     project.generation_stage = stage[:80]
@@ -106,3 +111,22 @@ def visual_result(project, dist):
         return {"status": status, "score": score, "threshold": 85}
     except (OSError, ValueError, TypeError):
         return result
+
+def progress_event(project):
+    """Report the last real worker phase timestamp, not the last HTTP poll."""
+    if project.engine != "cinematic":
+        return None
+    path = job_root() / "status" / f"{project.id}.json"
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(state, dict) or state.get("status") != project.generation_status or state.get("stage") != project.generation_stage:
+            return None
+        raw = state.get("updated_at")
+        if not isinstance(raw, str):
+            return None
+        stamp = parse_datetime(raw)
+        if stamp is None or timezone.is_naive(stamp):
+            return None
+        return stamp.isoformat()
+    except (OSError, ValueError, TypeError, OverflowError):
+        return None

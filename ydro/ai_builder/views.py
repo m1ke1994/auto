@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import Project, Revision
 from .design import STYLES, preview, source_files
-from .jobs import project_dist, queue_project, refresh_project, visual_result
+from .jobs import project_dist, queue_project, refresh_project, visual_result, progress_event
 from .provider import generate, mode, GenerationError
 
 class ProjectInput(serializers.Serializer):
@@ -39,6 +39,7 @@ def project_data(p,detail=False):
         "published_revision":p.published_revision_id,"mode":mode(),"engine":p.engine,
         "generation_status":p.generation_status,"generation_stage":p.generation_stage,
         "generation_error":p.generation_error,
+        "generation_event_at":progress_event(p),
         "preview_path":f"/studio-preview/{p.preview_token}/" if dist else "",
         "visual_review":visual_result(p,dist),
         "source_archive_available":bool(dist and (dist.parent/"tracknode-agent-site.zip").is_file()),

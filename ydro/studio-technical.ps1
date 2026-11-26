@@ -3,12 +3,14 @@ param(
     [Parameter(Mandatory=$true)][string]$Prompt,
     [ValidateSet("standard","premium","cinema")][string]$Profile="cinema",
     [ValidateSet("realistic","stylized")][string]$AssetStyle="realistic",
-    [ValidateRange(0,1)][int]$MaxTechnicalRepairs=0
+    [ValidateRange(0,1)][int]$MaxTechnicalRepairs=0,
+    [string]$ProgressFile=""
 )
 # This helper expects prebuilt trusted agent/builder/audit images.
 # Only stdout return value is the technically passed run directory.
 $ErrorActionPreference="Stop"
 Set-Location $PSScriptRoot
+. (Join-Path $PSScriptRoot "studio-progress.ps1")
 $run=(Resolve-Path -LiteralPath $RunDirectory).Path
 $compose=@("compose","--env-file",".env.studio.local","-p","tracknode20-agent","-f","docker-compose.openhands.yml")
 $prompt64=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Prompt))
@@ -33,6 +35,7 @@ for ($attempt=0; $attempt -le $MaxTechnicalRepairs; $attempt++) {
         if ((Test-Path -LiteralPath $source) -or (Test-Path -LiteralPath $dist) -or (Test-Path -LiteralPath $report)) {
             throw "Technical pipeline requires a fresh attempt directory; existing results preserved: $run"
         }
+        Write-StudioProgress $ProgressFile "building"
         Expand-Archive -LiteralPath $archive -DestinationPath $source
         $null=New-Item -ItemType Directory -Path $dist
         $buildLog=Join-Path $run "build.log"
@@ -55,6 +58,7 @@ for ($attempt=0; $attempt -le $MaxTechnicalRepairs; $attempt++) {
             if (!(Test-Path -LiteralPath (Join-Path $dist "index.html") -PathType Leaf)) { throw "No built index.html; no paid repair: $run" }
             Write-Host "SOURCE_AND_BUILD_READY: $run"
             Write-Host "Preview folder: $dist"
+            Write-StudioProgress $ProgressFile "auditing"
             $null=New-Item -ItemType Directory -Path $report
             docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 3 --pids-limit 256 --shm-size 256m --tmpfs "/tmp:rw,exec,size=512m,mode=1777" -v "$($dist):/site:ro" -v "$($report):/report" tracknode-studio-audit $Profile | Out-Host
             $auditExit=$LASTEXITCODE

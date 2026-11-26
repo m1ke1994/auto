@@ -9,10 +9,12 @@ param(
     [ValidateSet("auto","immersive","product","split","cinematic","editorial","environment")][string]$HeroMode="auto",
     [switch]$RequireModel,
     [string]$PreflightDirectory="",
-    [string]$ResultFile=""
+    [string]$ResultFile="",
+    [string]$ProgressFile=""
 )
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
+. (Join-Path $PSScriptRoot "studio-progress.ps1")
 if ($AllowVisualWarnings -and $MaxRepairs -gt 0) { throw "Preview mode does not allow automatic paid visual repairs." }
 . (Join-Path $PSScriptRoot "studio-visual-policy.ps1")
 if (!(Test-Path .env.studio.local)) { throw "Missing .env.studio.local" }
@@ -20,6 +22,7 @@ $compose = @("compose","--env-file",".env.studio.local","-p","tracknode20-agent"
 function Assert-Exit([string]$Step) {
     if ($LASTEXITCODE -ne 0) { throw "$Step failed ($LASTEXITCODE)" }
 }
+Write-StudioProgress $ProgressFile "preparing"
 & docker @compose build openhands
 Assert-Exit "Agent build"
 & docker @compose run --rm --no-deps openhands --check
@@ -28,6 +31,7 @@ docker build -t tracknode-studio-build -f docker/studio-build/Dockerfile docker/
 Assert-Exit "Site builder build"
 docker build -t tracknode-studio-audit docker/studio-audit
 Assert-Exit "Browser audit image build"
+Write-StudioProgress $ProgressFile "assets"
 if ($PreflightDirectory) {
     $preflight=(Resolve-Path -LiteralPath $PreflightDirectory).Path
 } else {
@@ -38,15 +42,17 @@ if ($selection.status -notin @("approved","no_model")) { throw "Preflight did no
 if ($RequireModel -and $selection.status -ne "approved") { throw "Required model not approved" }
 $out = (New-Item -ItemType Directory -Path (Join-Path $PWD ("studio-agent-output/" + [guid]::NewGuid().ToString())) -Force).FullName
 Write-Host "Output: $out"
+Write-StudioProgress $ProgressFile "generating"
 $prompt64=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Prompt))
 & docker @compose run --rm --no-deps -v "$($preflight):/preflight:ro" -v "$($out):/output" openhands --preflight --profile $Profile --asset-style $AssetStyle --prompt-b64 $prompt64
 $generationExit=$LASTEXITCODE
 if ($generationExit -ne 0 -and ($generationExit -ne 42 -or !(Test-Path -LiteralPath (Join-Path $out "source-failure.json")))) {
     throw "AI generation failed ($generationExit); checkpoint, if any, preserved: $out. No automatic paid retry for API or infrastructure errors."
 }
-$out = & (Join-Path $PSScriptRoot "studio-technical.ps1") -RunDirectory $out -Prompt $Prompt -Profile $Profile -AssetStyle $AssetStyle -MaxTechnicalRepairs $MaxTechnicalRepairs
+$out = & (Join-Path $PSScriptRoot "studio-technical.ps1") -RunDirectory $out -Prompt $Prompt -Profile $Profile -AssetStyle $AssetStyle -MaxTechnicalRepairs $MaxTechnicalRepairs -ProgressFile $ProgressFile
 $dist=Join-Path $out "dist"
 $report=Join-Path $out "quality-report"
+Write-StudioProgress $ProgressFile "visual-review"
 if ($AllowVisualWarnings) {
     # This branch is reachable only after studio-technical returned a passed run.
     # Keep the strict CLI behavior below; Studio can inspect a technically valid draft.
@@ -82,6 +88,7 @@ if ($AllowVisualWarnings) {
         Write-Host "Technical and AI visual reviews passed; human acceptance remains separate."
     }
 }
+Write-StudioProgress $ProgressFile "finalizing"
 if ($ResultFile) {
     $target=[IO.Path]::GetFullPath($ResultFile)
     $parent=Split-Path -Parent $target
