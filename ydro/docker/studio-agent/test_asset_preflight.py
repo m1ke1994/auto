@@ -64,3 +64,28 @@ class PreflightTests(unittest.TestCase):
     def test_default_threshold_accepts_75_without_critical_defect(self):
         result=choose_review({"reviews":[{"candidate":"candidate-1","score":84,"critical":False,"reason":"Not premium threshold","yaw":45}]},["candidate-1"])
         self.assertEqual(result["candidate"],"candidate-1")
+
+    def test_optional_render_review_failure_falls_back_without_approving_model(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        import asset_preflight as preflight
+        with tempfile.TemporaryDirectory() as tmp, patch.object(preflight,"ROOT",Path(tmp)):
+            plan={"subject":"car","style":"realistic","mode":"product","required":False,"use_model":True}
+            preflight.dump("plan.json",plan)
+            preflight.dump("candidates.json",[{"folder":"candidate-1","id":"a"}])
+            folder=Path(tmp)/"candidate-1"
+            folder.mkdir()
+            (folder/"render-ok.json").write_text("{}")
+            for yaw in preflight.ANGLES:
+                (folder/f"view-{yaw}.png").touch()
+            with patch.object(preflight,"image_url",return_value="data:image/jpeg;base64,example"), patch.object(preflight,"flash",side_effect=ValueError("invalid response")):
+                self.assertEqual(preflight.select(),0)
+                selection=preflight.load("selection.json")
+                self.assertEqual(selection["status"],"no_model")
+                self.assertEqual(selection["reason"],"visual_review_unavailable")
+                self.assertIsNone(selection["selected"])
+                plan["required"]=True
+                preflight.dump("plan.json",plan)
+                with self.assertRaises(ValueError):
+                    preflight.select()

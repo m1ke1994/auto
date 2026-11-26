@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import Project, Revision
 from .design import STYLES, preview, source_files
-from .jobs import project_dist, queue_project, refresh_project
+from .jobs import project_dist, queue_project, refresh_project, visual_result
 from .provider import generate, mode, GenerationError
 
 class ProjectInput(serializers.Serializer):
@@ -32,13 +32,16 @@ def revision_data(r):
 
 def project_data(p,detail=False):
     p=refresh_project(p)
+    dist=project_dist(p)
     data={
         "id":str(p.id),"name":p.name,"prompt":p.prompt,"style":p.style,
         "created_at":p.created_at,"updated_at":p.updated_at,
         "published_revision":p.published_revision_id,"mode":mode(),"engine":p.engine,
         "generation_status":p.generation_status,"generation_stage":p.generation_stage,
         "generation_error":p.generation_error,
-        "preview_path":f"/studio-preview/{p.preview_token}/" if project_dist(p) else "",
+        "preview_path":f"/studio-preview/{p.preview_token}/" if dist else "",
+        "visual_review":visual_result(p,dist),
+        "source_archive_available":bool(dist and (dist.parent/"tracknode-agent-site.zip").is_file()),
     }
     if detail:
         data["revisions"]=[revision_data(r) for r in p.revisions.all()[:30]]
@@ -79,6 +82,8 @@ class Projects(StudioView):
         if engine=="cinematic":
             if not getattr(settings,"STUDIO_CINEMATIC_ENABLED",False):
                 return Response({"detail":"Кинематографический движок не запущен локально."},status=503)
+            for active in Project.objects.filter(owner=request.user,engine="cinematic",generation_status__in=("queued","running")):
+                refresh_project(active)
             if Project.objects.filter(owner=request.user,engine="cinematic",generation_status__in=("queued","running")).exists():
                 return Response({"detail":"Дождитесь завершения текущей кинематографической генерации. Платные параллельные повторы отключены."},status=409)
             profile="cinema" if values["style"] in ("cinema","3d") else ("premium" if values["style"]=="premium" else "standard")

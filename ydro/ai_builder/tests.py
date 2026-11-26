@@ -93,3 +93,32 @@ class StudioTests(APITestCase):
     def test_cinematic_queue_requires_local_worker(self):
         response=self.client.post("/api/studio/projects/",{"name":"No worker","prompt":"test","engine":"cinematic"},format="json")
         self.assertEqual(response.status_code,503)
+
+    def test_cinematic_draft_preview_keeps_visual_score(self):
+        from .models import Project
+        with tempfile.TemporaryDirectory() as outputs, override_settings(STUDIO_OUTPUT_ROOT=outputs):
+            run=Path(outputs)/"draft"
+            dist=run/"dist"
+            dist.mkdir(parents=True)
+            (dist/"index.html").write_text("<h1>Local draft</h1>",encoding="utf-8")
+            marker=run/"studio-result.json"
+            project=Project.objects.create(owner=self.a,name="Draft",prompt="test",engine="cinematic",
+                generation_status="complete",generation_stage="technical-preview",run_directory="draft")
+            url=f"/api/studio/projects/{project.id}/"
+            for status,score in (("needs_revision",62),("unavailable",None),("skipped",None),("passed",91)):
+                marker.write_text(json.dumps({"technical_passed":True,"status":status,"score":score}),encoding="utf-8")
+                data=self.client.get(url).data
+                self.assertEqual(data["generation_status"],"complete")
+                self.assertEqual(data["visual_review"],{"status":status,"score":score,"threshold":85})
+                self.assertTrue(data["preview_path"])
+                self.assertFalse(data["source_archive_available"])
+                self.assertEqual(self.client.get(data["preview_path"]).status_code,200)
+            marker.write_text(json.dumps({"technical_passed":True,"status":"passed","score":62}),encoding="utf-8")
+            self.assertEqual(self.client.get(url).data["visual_review"]["status"],"unverified")
+            project.generation_stage="verified-import"
+            project.save(update_fields=["generation_stage"])
+            marker.write_text(json.dumps({"technical_passed":True,"status":"passed","score":91}),encoding="utf-8")
+            self.assertEqual(self.client.get(url).data["visual_review"]["status"],"unverified")
+            project.generation_status="failed"
+            project.save(update_fields=["generation_status"])
+            self.assertEqual(self.client.get(url).data["preview_path"],"")

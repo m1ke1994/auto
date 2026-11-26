@@ -14,6 +14,8 @@ const previewHtml=computed(()=>revision.value?.html.replaceAll('href="#page-', '
 const previewSrc=computed(()=>current.value?.preview_path ? BACKEND_URL+current.value.preview_path : '')
 const cinematic=computed(()=>current.value?.engine==='cinematic')
 const generating=computed(()=>['queued','running'].includes(current.value?.generation_status))
+const visualReview=computed(()=>current.value?.visual_review || {status:'unverified',score:null,threshold:85})
+const visualLabel=computed(()=>({passed:'Технически проверен · премиальная оценка пройдена',needs_revision:'Сайт готов к просмотру · дизайн требует улучшения',unavailable:'Сайт готов к просмотру · критик недоступен',skipped:'Сайт готов к просмотру · визуальная оценка пропущена',unverified:'Сайт готов к просмотру · премиальность не подтверждена'})[visualReview.value.status])
 
 async function run(fn){if(busy.value)return;busy.value=true;error.value='';try{await fn()}catch(e){error.value=e.response?.data?.detail||'Не удалось выполнить операцию. Проверьте локальную Studio.'}finally{busy.value=false}}
 function apply(project){current.value=project;selected.value=project.revisions?.[0]?.id||null}
@@ -56,7 +58,7 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
     <template v-if="engine==='cinematic'">
       <div class="choice-grid"><label>Hero<select v-model="heroMode"><option v-for="h in heroModes" :key="h[0]" :value="h[0]">{{h[1]}}</option></select></label><label>Стиль ассета<select v-model="assetStyle"><option value="realistic">Реалистичный</option><option value="stylized">Стилизованный</option></select></label></div>
       <label class="check"><input v-model="requireModel" type="checkbox"> Обязательно подобрать настоящую скачиваемую модель Sketchfab; если качество не пройдёт preflight, остановить генерацию.</label>
-      <p class="cost-note">Один контролируемый запуск, без автоматических платных повторов. Максимальный бюджет OpenHands для одного задания — ${{Number(config.cinematic_max_cost_usd).toFixed(2)}}. Preflight и Visual Critic выполняются отдельно и не запускают повторную генерацию.</p>
+      <p class="cost-note">Один контролируемый запуск, без автоматических платных повторов. Оценочный лимит OpenHands для одного задания — ${{Number(config.cinematic_max_cost_usd).toFixed(2)}}. Preflight и Visual Critic выполняются отдельно и не запускают повторную генерацию.</p>
     </template>
     <button :disabled="busy||(engine==='cinematic'?!config.cinematic_enabled:!config.configured)">{{engine==='cinematic'?'Запустить Cinematic Engine':'Создать быструю концепцию'}}</button>
   </form>
@@ -64,14 +66,16 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
   <div v-else class="workspace">
     <aside class="panel"><h2>{{current.name}}</h2><p>{{current.prompt}}</p>
       <template v-if="cinematic">
-        <p class="status-card"><strong>{{current.generation_status==='complete'?'Визуально и технически проверено':current.generation_status==='failed'?'Генерация остановлена':current.generation_status==='running'?'Генерация выполняется':'Задание в очереди'}}</strong><br><small>{{current.generation_stage}}</small></p>
+        <p class="status-card"><strong>{{current.generation_status==='complete'?visualLabel:current.generation_status==='failed'?'Генерация остановлена':current.generation_status==='running'?'Генерация выполняется':'Задание в очереди'}}</strong><br><small>{{current.generation_stage}}</small></p>
+        <p v-if="current.generation_status==='complete' && visualReview.score!==null">Visual Critic: <strong>{{visualReview.score}}/100</strong> · цель {{visualReview.threshold}}/100.</p>
+        <p v-if="current.generation_status==='complete' && visualReview.status!=='passed'">Локальный предпросмотр доступен. Оценка дизайна не является ошибкой сборки. Автоматическая публикация и платные повторы не выполняются.</p>
         <p v-if="current.generation_error" class="error">{{current.generation_error}}</p>
         <p v-if="generating">Можно оставить страницу открытой: статус обновляется автоматически. Повторный платный запуск заблокирован до завершения текущего.</p>
       </template>
       <template v-else><h3>История изменений</h3><button v-for="r in current.revisions" :key="r.id" :disabled="busy" :class="{active:r.id===selected}" @click="selected=r.id">{{r.instruction}}</button><form @submit.prevent="edit"><label>Изменение<textarea v-model="instruction" required maxlength="8000" placeholder="Например: сделай тёмный дизайн"></textarea></label><button :disabled="busy||!config.configured||!revision">Создать версию</button></form></template>
     </aside>
     <main class="panel preview-panel">
-      <div class="toolbar"><button @click="device='100%'">Компьютер</button><button @click="device='390px'">Телефон</button><button v-if="cinematic" :disabled="!previewSrc" @click="openPreview">Открыть отдельно</button><button v-else :disabled="busy||!revision" @click="publish">Утвердить локально</button><button :disabled="busy||(cinematic?!previewSrc:!revision)" @click="download">Скачать ZIP</button></div>
+      <div class="toolbar"><button @click="device='100%'">Компьютер</button><button @click="device='390px'">Телефон</button><button v-if="cinematic" :disabled="!previewSrc" @click="openPreview">Открыть отдельно</button><button v-else :disabled="busy||!revision" @click="publish">Утвердить локально</button><button :disabled="busy||(cinematic?(!previewSrc||!current.source_archive_available):!revision)" @click="download">Скачать ZIP</button></div>
       <div v-if="cinematic&&generating" class="waiting"><span class="spinner"/>OpenHands создаёт исходники, затем сайт будет собран и проверен настоящим Chromium.</div>
       <iframe v-else-if="cinematic&&previewSrc" title="Кинематографический предпросмотр сайта" sandbox="allow-scripts allow-same-origin" :src="previewSrc" :style="{width:device,maxWidth:'100%'}"></iframe>
       <iframe v-else-if="!cinematic&&revision" title="Предпросмотр сайта" sandbox="" :srcdoc="previewHtml" :style="{width:device,maxWidth:'100%'}"></iframe>

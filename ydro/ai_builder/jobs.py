@@ -79,3 +79,30 @@ def project_dist(project):
     except ValueError:
         return None
     return dist if (dist / "index.html").is_file() else None
+
+
+def visual_result(project, dist):
+    """Only the trusted pipeline marker certifies visual acceptance, never import status."""
+    result = {"status": "unverified", "score": None, "threshold": 85}
+    if dist is None or project.generation_stage not in {"verified", "technical-preview"}:
+        return result
+    try:
+        path = dist.parent / "studio-result.json"
+        if path.is_symlink() or path.stat().st_size > 4096:
+            return result
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict) or data.get("technical_passed") is not True:
+            return result
+        status, score = data.get("status"), data.get("score")
+        if status not in ("passed", "needs_revision", "unavailable", "skipped"):
+            return result
+        if status in ("passed", "needs_revision"):
+            if type(score) is not int or not 0 <= score <= 100:
+                return result
+            if status == "passed" and score < 85:
+                return result
+        else:
+            score = None
+        return {"status": status, "score": score, "threshold": 85}
+    except (OSError, ValueError, TypeError):
+        return result

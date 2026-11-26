@@ -3,6 +3,7 @@ param(
     [ValidateSet("standard","premium","cinema")][string]$Profile="cinema",
     [ValidateSet("realistic","stylized")][string]$AssetStyle="realistic",
     [switch]$SkipVisualReview,
+    [switch]$AllowVisualWarnings,
     [ValidateRange(0,1)][int]$MaxRepairs=0,
     [ValidateRange(0,1)][int]$MaxTechnicalRepairs=0,
     [ValidateSet("auto","immersive","product","split","cinematic","editorial","environment")][string]$HeroMode="auto",
@@ -12,6 +13,8 @@ param(
 )
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
+if ($AllowVisualWarnings -and $MaxRepairs -gt 0) { throw "Preview mode does not allow automatic paid visual repairs." }
+. (Join-Path $PSScriptRoot "studio-visual-policy.ps1")
 if (!(Test-Path .env.studio.local)) { throw "Missing .env.studio.local" }
 $compose = @("compose","--env-file",".env.studio.local","-p","tracknode20-agent","-f","docker-compose.openhands.yml")
 function Assert-Exit([string]$Step) {
@@ -44,7 +47,30 @@ if ($generationExit -ne 0 -and ($generationExit -ne 42 -or !(Test-Path -LiteralP
 $out = & (Join-Path $PSScriptRoot "studio-technical.ps1") -RunDirectory $out -Prompt $Prompt -Profile $Profile -AssetStyle $AssetStyle -MaxTechnicalRepairs $MaxTechnicalRepairs
 $dist=Join-Path $out "dist"
 $report=Join-Path $out "quality-report"
-if ($SkipVisualReview) {
+if ($AllowVisualWarnings) {
+    # This branch is reachable only after studio-technical returned a passed run.
+    # Keep the strict CLI behavior below; Studio can inspect a technically valid draft.
+    $visual=@{status='skipped';score=$null;threshold=85}
+    if (!$SkipVisualReview) {
+        $visual=@{status='unavailable';score=$null;threshold=85}
+        try {
+            $result=& (Join-Path $PSScriptRoot "studio-visual-review.ps1") -RunDirectory $out -Prompt $Prompt -NoBuild -ReturnResult
+            $review=$null
+            if ($result.Report -and (Test-Path -LiteralPath $result.Report -PathType Leaf)) {
+                $review=Get-Content -LiteralPath $result.Report -Raw -Encoding UTF8 | ConvertFrom-Json
+            }
+            $visual=Get-StudioVisualOutcome $result.Code $review
+        } catch {
+            # Do not expose provider bodies/credentials. The review script retains diagnostics.
+            Write-Warning "Visual review unavailable; keeping technically passed local preview."
+        }
+    }
+    $visual.technical_passed=$true
+    $meta=Join-Path $out "studio-result.json"
+    [IO.File]::WriteAllText($meta,($visual | ConvertTo-Json -Depth 4),[Text.UTF8Encoding]::new($false))
+    Write-Host "STUDIO_PREVIEW_READY: $out; visual_status=$($visual.status); score=$($visual.score)"
+    if ($visual.status -ne 'passed') { Write-Warning "Preview only: premium visual acceptance has not been achieved." }
+} elseif ($SkipVisualReview) {
     Write-Host "Visual review skipped by request; artistic quality unverified."
 } else {
     $result=& (Join-Path $PSScriptRoot "studio-visual-review.ps1") -RunDirectory $out -Prompt $Prompt -NoBuild -ReturnResult

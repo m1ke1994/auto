@@ -1,6 +1,6 @@
 # Run from any working directory. Never deletes database volumes.
 [CmdletBinding()]
-param([switch]$SkipBuild, [switch]$Test)
+param([switch]$SkipBuild, [switch]$Test, [switch]$RestartWatcher)
 $ErrorActionPreference = 'Stop'
 Push-Location $PSScriptRoot
 try {
@@ -10,6 +10,27 @@ try {
     $composeArgs = @('compose', '-p', 'tracknode20', '-f', 'docker-compose.yml', '-f', 'docker-compose.studio.yml')
     if (Test-Path '.env.studio.local' -PathType Leaf) {
         $composeArgs += @('--env-file', '.env.studio.local')
+    }
+    if ($RestartWatcher) {
+        $active=@(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'studio-jobs/pending'),(Join-Path $PSScriptRoot 'studio-jobs/running') -Filter '*.json' -File)
+        if ($active.Count -gt 0) { throw 'Do not restart the worker while a generation is queued or running.' }
+        $pidFile=Join-Path $PSScriptRoot 'studio-jobs/watcher.pid'
+        if (Test-Path -LiteralPath $pidFile -PathType Leaf) {
+            $savedPid=0
+            if ([int]::TryParse((Get-Content -LiteralPath $pidFile -Raw).Trim(),[ref]$savedPid)) {
+                $process=Get-CimInstance Win32_Process -Filter ("ProcessId="+$savedPid)
+                if ($process) {
+                    $expected=Join-Path $PSScriptRoot 'studio-watch.ps1'
+                    if (!$process.CommandLine -or $process.CommandLine.IndexOf($expected,[StringComparison]::OrdinalIgnoreCase) -lt 0) {
+                        throw 'Saved watcher PID does not identify this workspace worker; refusing to stop it.'
+                    }
+                    Stop-Process -Id $savedPid -ErrorAction Stop
+                    Wait-Process -Id $savedPid -Timeout 10 -ErrorAction SilentlyContinue
+                    if (Get-Process -Id $savedPid -ErrorAction SilentlyContinue) { throw 'Worker did not stop.' }
+                }
+            }
+            Remove-Item -LiteralPath $pidFile -Force
+        }
     }
     function Invoke-StudioCompose {
         & docker @composeArgs @args
