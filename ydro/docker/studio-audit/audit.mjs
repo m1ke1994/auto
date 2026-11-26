@@ -203,13 +203,14 @@ try {
           const canvas=host.querySelector('canvas')?.getBoundingClientRect()
           const layer=root.querySelector('[data-tn-film-background-layer]')
           const lr=layer?.getBoundingClientRect()
-          const centerX=bounds.length===4?(r.left+(bounds[0]+bounds[2])*r.width/2)/innerWidth:null
+          const contentWidth=document.documentElement.clientWidth;
+          const centerX=bounds.length===4?(r.left+(bounds[0]+bounds[2])*r.width/2)/contentWidth:null
           const centerY=bounds.length===4?(r.top+(bounds[1]+bounds[3])*r.height/2)/innerHeight:null
           const overlayAbove=Boolean(layer&&copy.parentElement===layer.parentElement&&Number(getComputedStyle(copy).zIndex)>Number(getComputedStyle(layer).zIndex))
           const backgroundLayer=Boolean(layer&&host.parentElement===layer&&layer.parentElement===screenElement()&&getComputedStyle(layer).position==='absolute'&&getComputedStyle(host).visibility==='visible'&&Number(getComputedStyle(host).opacity)>.95)
           function screenElement(){return root.querySelector('.tn-film-screen')}
           return {yaw:Number(host.dataset.tnRelativeYaw),objectYaw:Number(host.dataset.tnObjectYaw)*180/Math.PI,reveal:Number(root.dataset.tnFilmReveal),progress:Number(host.dataset.tnCameraProgress),framed,coverage:Number(host.dataset.tnModelCoverage),clipped:host.dataset.tnModelClipped==='true',width:r.width,height:r.height,textVisible,textBottom:hr.bottom,modelTop:r.top,viewportWidth:innerWidth,viewportHeight:innerHeight,
-            screenTop:screen?.top,screenHeight:screen?.height,screenWidth:screen?.width,turn:Number(root.dataset.tnFilmTurn)||180,title:Number(root.dataset.tnFilmTitle),description:Number(root.dataset.tnFilmDescription),actions:Number(root.dataset.tnFilmActions),actualTitle:opacity(h),actualDescription:opacity(descriptionEl),actualActions:opacity(actionsEl),canvasHeight:canvas?.height,canvasWidth:canvas?.width,canvasLeft:canvas?.left,canvasTop:canvas?.top,centerX,centerY,overlayAbove,backgroundLayer,layerLeft:lr?.left,layerTop:lr?.top,layerWidth:lr?.width,layerHeight:lr?.height};
+            screenTop:screen?.top,screenHeight:screen?.height,screenWidth:screen?.width,turn:Number(root.dataset.tnFilmTurn)||180,title:Number(root.dataset.tnFilmTitle),description:Number(root.dataset.tnFilmDescription),actions:Number(root.dataset.tnFilmActions),actualTitle:opacity(h),actualDescription:opacity(descriptionEl),actualActions:opacity(actionsEl),canvasHeight:canvas?.height,canvasWidth:canvas?.width,canvasLeft:canvas?.left,canvasTop:canvas?.top,contentWidth,centerX,centerY,overlayAbove,backgroundLayer,layerLeft:lr?.left,layerTop:lr?.top,layerWidth:lr?.width,layerHeight:lr?.height};
         });
         filmSamples.push({...sample,fraction});
         if([0,.5,1].includes(fraction))await capture(page,name+'-hero-film-'+Math.round(fraction*100)+'.png');
@@ -379,7 +380,7 @@ try {
         filmRelease?.top < -filmRelease?.viewport*.25&&(name!=='desktop'||(shortFilm&&Math.abs(shortFilm.top)<=3&&Math.abs(shortFilm.height-shortFilm.viewport)<=3&&Math.abs(shortFilm.hostTop)<=3&&shortFilm.hostHeight>=shortFilm.viewport*.97&&shortFilm.progress>.4&&shortFilm.progress<.7&&!shortFilm.clipped));
       if(backgroundFilm){
         const origin=first.objectYaw
-        checks.heroBackgroundCenter=filmSamples.every(s=>s.backgroundLayer&&s.overlayAbove&&Math.abs(s.layerLeft)<=3&&Math.abs(s.layerTop)<=3&&Math.abs(s.layerWidth-s.viewportWidth)<=3&&Math.abs(s.layerHeight-s.viewportHeight)<=3&&Math.abs(s.canvasLeft)<=3&&Math.abs(s.canvasTop)<=3&&Number.isFinite(s.centerX)&&Number.isFinite(s.centerY)&&Math.abs(s.centerX-.5)<=.035&&Math.abs(s.centerY-.5)<=.035)
+        checks.heroBackgroundCenter=filmSamples.every(s=>s.backgroundLayer&&s.overlayAbove&&Math.abs(s.layerLeft)<=3&&Math.abs(s.layerTop)<=3&&Math.abs(s.layerWidth-s.contentWidth)<=3&&Math.abs(s.layerHeight-s.viewportHeight)<=3&&Math.abs(s.canvasLeft)<=3&&Math.abs(s.canvasTop)<=3&&Math.abs(s.canvasWidth-s.contentWidth)<=3&&Number.isFinite(s.centerX)&&Number.isFinite(s.centerY)&&Math.abs(s.centerX-.5)<=.035&&Math.abs(s.centerY-.5)<=.035)
         checks.heroFullTurn=last.turn===360&&[0,2,4,6,8].every((index,i)=>Math.abs(filmSamples[index].objectYaw-origin-i*90)<=1.5)
       }
     } else if(isFilm){
