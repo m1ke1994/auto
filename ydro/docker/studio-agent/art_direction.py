@@ -63,7 +63,9 @@ def cinematic_direction(plan, selected, brief=""):
     layout="floating_edges" if selected and accent_requested else options[seed%len(options)]
     preset=procedural_preset(plan,brief) if not selected else None
     if not selected:
-        layout="hero_object_right" if preset else options[seed%len(options)]
+        # Keep the established photo-led fallback when no subject-matched object exists.
+        # The deterministic composition variants apply when a verified model is selected.
+        layout="hero_object_right" if preset else "editorial_photo"
     if conditional and layout=="detail_editorial":
         layout="museum_focus"
     role="accent" if layout=="floating_edges" else "primary"
