@@ -304,6 +304,7 @@ FILM_CSS="""
 /* Full-screen background contract: no columns and no model repositioning. */
 #home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-background] {
   width:100% !important; max-width:none !important; background:var(--tn-bg,#08080a);
+  translate:none !important; scale:none !important; rotate:none !important; animation:none !important; transition:none !important;
 }
 #home[data-tn-film-background] > .tn-film-screen {
   display:block !important; background:radial-gradient(ellipse at 50% 48%,#25272b 0%,var(--tn-bg,#08080a) 72%);
@@ -327,7 +328,7 @@ FILM_CSS="""
   clip-path:none !important; opacity:1 !important; visibility:visible !important; animation:none !important; transition:none !important;
 }
 #home[data-tn-film-background] .hero-glare {z-index:2 !important;opacity:.3 !important;background:linear-gradient(180deg,rgba(0,0,0,.8),transparent 40%,transparent 80%,rgba(0,0,0,.4)) !important;}
-#home[data-tn-film-background] .hero-content {text-shadow:0 2px 20px rgba(0,0,0,.9);z-index:5 !important;}
+#home[data-tn-film-background] .hero-content {text-shadow:0 2px 20px rgba(0,0,0,.9);z-index:5 !important;translate:none !important;scale:none !important;rotate:none !important;animation:none !important;transition:none !important;}
 #home[data-tn-film-background] .hero-content h1 {text-wrap:balance;}
 @media(prefers-reduced-motion:reduce) {
   #home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-background] > .tn-film-screen {display:flex !important; flex-direction:column !important;}
@@ -357,7 +358,7 @@ class FilmMarkup(HTMLParser):
     def add(self,tag,attrs,closed):
         start=self.position()
         end=start+len(self.get_starttag_text())
-        node={"tag":tag,"attrs":dict(attrs),"start":start,"end":end if closed else None,"parent":self.stack[-1] if self.stack else None}
+        node={"tag":tag,"attrs":dict(attrs),"start":start,"open_end":end,"close_start":end if closed else None,"end":end if closed else None,"parent":self.stack[-1] if self.stack else None}
         self.nodes.append(node)
         if not closed:
             self.stack.append(node)
@@ -371,12 +372,23 @@ class FilmMarkup(HTMLParser):
     def handle_endtag(self,tag):
         for i in range(len(self.stack)-1,-1,-1):
             if self.stack[i]["tag"]==tag:
+                self.stack[i]["close_start"]=self.position()
                 self.stack[i]["end"]=self.source.index(">",self.position())+1
                 del self.stack[i:]
                 break
 
     def by_class(self,name):
         return [n for n in self.nodes if name in (n["attrs"].get("class") or "").split() and n["end"] is not None]
+
+def primary_hero_film(sources):
+    """Only primary imported models in the semantic home opt into the film."""
+    try:
+        name,start,end=find_block(sources,"home")
+    except BlockEditError:
+        return False
+    parsed=FilmMarkup(sources[name][start:end])
+    return any(n["tag"]=="cinemamodel" and n["attrs"].get("model-role")!="accent" for n in parsed.nodes)
+
 
 def normalize_film_markup(markup):
     parsed=FilmMarkup(markup)
@@ -387,16 +399,55 @@ def normalize_film_markup(markup):
     if len(stages)!=1 or len(copies)!=1 or len(models)!=1 or len(screens)!=1:
         raise BlockEditError("Hero film requires one stage, one content layer and one model")
     stage,copy,model,screen=stages[0],copies[0],models[0],screens[0]
-    if stage["parent"] is not screen or copy["parent"] is not screen or not(stage["start"]<model["start"]<model["end"]<=stage["end"]):
-        raise BlockEditError("Unsupported Hero background structure")
-    # Keep the actual Vue component, its props, model path and fallback slot.
-    # Drop obsolete layout wrappers around it, which may have inherited grid,
-    # split columns, transforms or local widths. Other Hero layers stay intact.
+
+    def ancestors(node,root):
+        chain=[]
+        while node["parent"] is not root:
+            node=node["parent"]
+            if node is None:
+                raise BlockEditError("Unsupported Hero background structure")
+            chain.append(node)
+        return chain
+
+    stage_parents=ancestors(stage,screen)
+    copy_parents=ancestors(copy,screen)
+    model_parents=ancestors(model,stage)
+    if any(n is stage for n in copy_parents) or any(n is copy for n in stage_parents):
+        raise BlockEditError("Hero stage and content must be separate layers")
+    # Moving a model or copy out of a Vue scope can break bindings. Require
+    # ordinary layout wrappers, not loops, slots or conditional branches.
+    scoped={"v-for","v-if","v-else-if","v-else","v-slot"}
+    for node in stage_parents+copy_parents+model_parents+[stage,copy]:
+        if node["tag"]=="template" or any(k in scoped or k.startswith(("v-slot:","#")) for k in node["attrs"]):
+            raise BlockEditError("Hero film requires static layout wrappers")
     model_markup=markup[model["start"]:model["end"]]
-    return markup[:stage["start"]]+'<div class="hero-stage tn-film-background" data-tn-film-background-layer>'+model_markup+'</div>'+markup[stage["end"]:]
+    stage_markup='<div class="hero-stage tn-film-background" data-tn-film-background-layer>'+model_markup+'</div>'
+    if not stage_parents and not copy_parents:
+        return markup[:stage["start"]]+stage_markup+markup[stage["end"]:]
+
+    # Hoist the actual stage and caption into the persistent screen. Remove
+    # obsolete empty divs, but preserve other content such as scroll cues.
+    removed=[(stage["start"],stage["end"]),(copy["start"],copy["end"])]
+    def without(start,end):
+        cursor=start
+        pieces=[]
+        for left,right in sorted(removed):
+            if start<=left and right<=end:
+                pieces.append(markup[cursor:left])
+                cursor=right
+        pieces.append(markup[cursor:end])
+        return "".join(pieces)
+    parents={n["start"]:n for n in stage_parents+copy_parents}
+    for node in sorted(parents.values(),key=lambda n:n["start"],reverse=True):
+        if node["tag"]=="div" and node["close_start"] is not None and not without(node["open_end"],node["close_start"]).strip():
+            removed=[(l,r) for l,r in removed if not(node["start"]<=l and r<=node["end"])]
+            removed.append((node["start"],node["end"]))
+    copy_markup=markup[copy["start"]:copy["end"]]
+    start,end=screen["open_end"],screen["close_start"]
+    return markup[:start]+stage_markup+copy_markup+without(start,end)+markup[end:]
 
 def apply_hero_film(files):
-    """Retrofit the known direct hero-stage/hero-content contract."""
+    """Retrofit a hero into a centered background, including nested layout wrappers."""
     sources={k:v.decode("utf-8") for k,v in files.items() if k.startswith("src/") and k.endswith(".vue")}
     name,start,end=find_block(sources,"home")
     old=sources[name][start:end]
@@ -404,28 +455,6 @@ def apply_hero_film(files):
     if not root or len(re.findall(r"<CinemaModel\b",old))!=1 or re.search(r"""model-role\s*=\s*['"]accent['"]""",old):
         raise BlockEditError("Hero film requires one primary CinemaModel")
     if "data-tn-hero-film" not in root.group():
-        class Layout(HTMLParser):
-            def __init__(self):
-                super().__init__(convert_charrefs=False)
-                self.stack=[]
-                self.parts=[]
-            def handle_starttag(self,tag,attrs):
-                if tag in VOID:
-                    return
-                classes=(dict(attrs).get("class") or "").split()
-                if len(self.stack)==1:
-                    self.parts.extend(c for c in ("hero-stage","hero-content") if c in classes)
-                self.stack.append(tag)
-            def handle_startendtag(self,tag,attrs):
-                pass
-            def handle_endtag(self,tag):
-                if tag in self.stack:
-                    index=len(self.stack)-1-self.stack[::-1].index(tag)
-                    del self.stack[index:]
-        layout=Layout()
-        layout.feed(old)
-        if sorted(layout.parts)!=["hero-content","hero-stage"]:
-            raise BlockEditError("Unsupported Hero film layout: expected direct stage and content")
         close=old.rfind("</")
         opening=root.group()[:-1]+' data-tn-hero-film>'
         markup=opening+'\n<div class="tn-film-screen">\n'+old[root.end():close]+'\n</div>\n'+old[close:]

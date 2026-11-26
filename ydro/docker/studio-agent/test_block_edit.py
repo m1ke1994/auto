@@ -142,3 +142,34 @@ class BlockEditTests(unittest.TestCase):
         old["src/App.vue"]=old["src/App.vue"].replace(b'data-tn-film-turn="360"',b'data-tn-film-turn="180"')
         self.assertEqual(apply_hero_film(old)["src/App.vue"],out["src/App.vue"])
         self.assertEqual(apply_hero_film(out)["src/style.css"],out["src/style.css"])
+
+    def test_nested_split_layout_is_hoisted_to_fullscreen_background(self):
+        from block_edit import apply_hero_film, FilmMarkup
+        model='<CinemaModel model-path="tn-models/car/model.gltf" />'
+        copy='<div class="hero-content"><h1>Engineering</h1><p class="hero-sub">Description</p><div class="hero-actions"><a href="#contacts">Contact</a></div></div>'
+        cue='<div class="hero-scrollcue">Scroll</div>'
+        home='<section id="home" data-tn-section="home"><div class="split-layout"><div class="left-column">'+copy+'</div><div class="right-column"><div class="hero-stage">'+model+'</div></div></div>'+cue+'</section>'
+        self.files["src/App.vue"]=("<template>"+home+self.about+"</template>").encode()
+        out=apply_hero_film(self.files)
+        source=out["src/App.vue"].decode()
+        parsed=FilmMarkup(source)
+        screen=parsed.by_class("tn-film-screen")[0]
+        stage=parsed.by_class("hero-stage")[0]
+        self.assertIs(stage["parent"],screen)
+        self.assertIs(parsed.by_class("hero-content")[0]["parent"],screen)
+        self.assertNotIn("split-layout",source)
+        self.assertNotIn("right-column",source)
+        self.assertIn(model,source)
+        self.assertIn(copy,source)
+        self.assertIn(cue,source)
+        self.assertIn(self.about,source)
+        self.assertEqual(apply_hero_film(out)["src/App.vue"],out["src/App.vue"])
+
+    def test_conditional_layout_scope_is_not_silently_removed(self):
+        from block_edit import apply_hero_film, primary_hero_film, BlockEditError
+        home='<section id="home" data-tn-section="home"><div v-for="car in cars"><div class="hero-stage"><CinemaModel :model-path="car.path" /></div><div class="hero-content"><h1>{{ car.name }}</h1></div></div></section>'
+        source="<template>"+home+"</template>"
+        self.files["src/App.vue"]=source.encode()
+        self.assertTrue(primary_hero_film({"src/App.vue":source}))
+        with self.assertRaises(BlockEditError):
+            apply_hero_film(self.files)

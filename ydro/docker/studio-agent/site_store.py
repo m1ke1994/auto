@@ -288,12 +288,10 @@ export function installContacts(){
             trusted["index.html"] = trusted["index.html"].replace("</body>",strip+"</body>")
         bundle={**self.files, **assets, **trusted}
         if profile=="cinema" and not checkpoint and self.models and self.models.credits:
-            from block_edit import apply_hero_film, BlockEditError
-            try:
+            from block_edit import apply_hero_film, primary_hero_film
+            if primary_hero_film(self.files):
+                # Never silently publish a split-column primary hero.
                 bundle=apply_hero_film({k:v.encode("utf-8") if isinstance(v,str) else v for k,v in bundle.items()})
-            except BlockEditError:
-                # Non-film compositions keep their own renderer and quality gate.
-                pass
         dest = Path(output)
         # Refuse to overwrite a previous artifact or a symlink.
         with dest.open("xb") as stream, zipfile.ZipFile(stream,"w",zipfile.ZIP_DEFLATED) as archive:
