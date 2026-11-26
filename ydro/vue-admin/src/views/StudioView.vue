@@ -29,6 +29,13 @@ const poll=setInterval(()=>{if(projects.value.some(p=>['queued','running'].inclu
 onBeforeUnmount(()=>clearInterval(poll))
 
 function open(id){run(async()=>apply((await http.get(base+id+'/')).data))}
+function newProject(from=null){
+  engine.value='cinematic';style.value='cinema';assetStyle.value='realistic';heroMode.value='auto';requireModel.value=false
+  name.value=from?from.name+' — Cinema':''
+  name.value=name.value.slice(0,120)
+  prompt.value=from?.prompt||''
+  current.value=null;selected.value=null;error.value=''
+}
 function create(){run(async()=>{
   const payload={name:name.value,prompt:prompt.value,style:style.value,engine:engine.value,asset_style:assetStyle.value,hero_mode:heroMode.value,require_model:requireModel.value}
   apply((await http.post(base,payload,{timeout:engine.value==='cinematic'?15000:105000})).data)
@@ -46,13 +53,13 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
 <template>
 <section class="studio">
   <header><div><small>TRACKNODE 2.0</small><h1>Studio</h1></div><span class="badge">{{config.cinematic_enabled?'Cinematic Engine готов':!config.provider?'Проверка AI-провайдера':config.provider==='demo'?'Локальный демо-режим':'AI: '+config.provider+(config.configured?' (настроен)':' (не настроен)')}}</span></header>
-  <p>Создавайте быстрые дизайн-концепции или полноценные кинематографические сайты с индивидуальной арт-дирекцией, сценами, анимацией и проверенным локальным превью.</p>
+  <p>Создавайте полноценные кинематографические сайты через OpenHands, с подбором готовых моделей Sketchfab, индивидуальной арт-дирекцией и браузерным аудитом. Quick — только устаревший текстовый макет.</p>
   <p v-if="busy" role="status">Выполняем операцию…</p><p v-if="error" role="alert" class="error">{{error}}</p>
-  <div class="projects"><button v-for="p in projects" :key="p.id" :disabled="busy" @click="open(p.id)">{{p.name}} <small v-if="p.engine==='cinematic'">· {{p.generation_status==='complete'?'готов':p.generation_status==='failed'?'ошибка':'в работе'}}</small></button><button :disabled="busy" @click="current=null">+ Новый проект</button></div>
+  <div class="projects"><button v-for="p in projects" :key="p.id" :disabled="busy" @click="open(p.id)">{{p.name}} <small v-if="p.engine==='cinematic'">· Cinema · {{p.generation_status==='complete'?'готов':p.generation_status==='failed'?'ошибка':'в работе'}}</small><small v-else>· Quick / макет</small></button><button :disabled="busy" @click="newProject()">+ Новый проект</button></div>
 
   <form v-if="!current" class="panel create-form" @submit.prevent="create">
     <h2>Что будем создавать?</h2>
-    <div class="choice-grid"><label>Движок<select v-model="engine"><option value="cinematic">Cinematic — полный сайт</option><option value="quick">Quick — быстрая концепция</option></select></label><label>Стиль<select v-model="style"><option v-for="s in styles" :key="s[0]" :value="s[0]">{{s[1]}}</option></select></label></div>
+    <div class="choice-grid"><label>Движок<select v-model="engine"><option value="cinematic">Cinematic — полный сайт</option><option value="quick">Quick — старый макет без фото и 3D</option></select></label><label>Стиль<select v-model="style"><option v-for="s in styles" :key="s[0]" :value="s[0]">{{s[1]}}</option></select></label></div>
     <label>Название<input v-model="name" required maxlength="120"></label>
     <label>Описание<textarea v-model="prompt" required maxlength="8000" rows="7" placeholder="Опишите бизнес, аудиторию, характер бренда, обязательные разделы и известные ограничения. Движок сам выберет арт-дирекцию и композицию."></textarea></label>
     <template v-if="engine==='cinematic'">
@@ -60,6 +67,8 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
       <label class="check"><input v-model="requireModel" type="checkbox"> Обязательно подобрать настоящую скачиваемую модель Sketchfab; если качество не пройдёт preflight, остановить генерацию.</label>
       <p class="cost-note">Один контролируемый запуск, без автоматических платных повторов. Оценочный лимит OpenHands для одного задания — ${{Number(config.cinematic_max_cost_usd).toFixed(2)}}. Preflight и Visual Critic выполняются отдельно и не запускают повторную генерацию.</p>
     </template>
+    <p v-if="engine==='quick'" class="cost-note">Внимание: Quick создаёт только текстовый макет с геометрическими заглушками. Sketchfab, Three.js и кинематографические сцены в нём не используются.</p>
+    <p v-if="engine==='cinematic' && !config.cinematic_enabled" class="error">Cinematic Engine недоступен. Полноценный сайт не будет автоматически заменён макетом Quick.</p>
     <button :disabled="busy||(engine==='cinematic'?!config.cinematic_enabled:!config.configured)">{{engine==='cinematic'?'Запустить Cinematic Engine':'Создать быструю концепцию'}}</button>
   </form>
 
@@ -72,7 +81,7 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
         <p v-if="current.generation_error" class="error">{{current.generation_error}}</p>
         <p v-if="generating">Можно оставить страницу открытой: статус обновляется автоматически. Повторный платный запуск заблокирован до завершения текущего.</p>
       </template>
-      <template v-else><h3>История изменений</h3><button v-for="r in current.revisions" :key="r.id" :disabled="busy" :class="{active:r.id===selected}" @click="selected=r.id">{{r.instruction}}</button><form @submit.prevent="edit"><label>Изменение<textarea v-model="instruction" required maxlength="8000" placeholder="Например: сделай тёмный дизайн"></textarea></label><button :disabled="busy||!config.configured||!revision">Создать версию</button></form></template>
+      <template v-else><p class="cost-note"><strong>Quick — старый макет</strong><br>Этот проект не использует OpenHands, фотографии или Sketchfab. Геометрические фигуры — заглушки, а не 3D-модели.</p><button :disabled="busy" @click="newProject(current)">Создать полноценный Cinema-сайт по этому описанию</button><h3>История изменений</h3><button v-for="r in current.revisions" :key="r.id" :disabled="busy" :class="{active:r.id===selected}" @click="selected=r.id">{{r.instruction}}</button><form @submit.prevent="edit"><label>Изменение<textarea v-model="instruction" required maxlength="8000" placeholder="Например: сделай тёмный дизайн"></textarea></label><button :disabled="busy||!config.configured||!revision">Создать версию</button></form></template>
     </aside>
     <main class="panel preview-panel">
       <div class="toolbar"><button @click="device='100%'">Компьютер</button><button @click="device='390px'">Телефон</button><button v-if="cinematic" :disabled="!previewSrc" @click="openPreview">Открыть отдельно</button><button v-else :disabled="busy||!revision" @click="publish">Утвердить локально</button><button :disabled="busy||(cinematic?(!previewSrc||!current.source_archive_available):!revision)" @click="download">Скачать ZIP</button></div>

@@ -18,7 +18,7 @@ class ProjectInput(serializers.Serializer):
     name=serializers.CharField(max_length=120)
     prompt=serializers.CharField(max_length=8000)
     style=serializers.ChoiceField(choices=STYLES,default="auto")
-    engine=serializers.ChoiceField(choices=("quick","cinematic"),default="quick")
+    engine=serializers.ChoiceField(choices=("quick","cinematic"),default="cinematic")
     asset_style=serializers.ChoiceField(choices=("realistic","stylized"),default="realistic",write_only=True)
     hero_mode=serializers.ChoiceField(choices=("auto","immersive","product","split","cinematic","editorial","environment"),default="auto",write_only=True)
     require_model=serializers.BooleanField(default=False,write_only=True)
@@ -78,7 +78,7 @@ class Projects(StudioView):
         asset_style=values.pop("asset_style")
         hero_mode=values.pop("hero_mode")
         require_model=values.pop("require_model")
-        engine=values.get("engine","quick")
+        engine=values["engine"]
         if engine=="cinematic":
             if not getattr(settings,"STUDIO_CINEMATIC_ENABLED",False):
                 return Response({"detail":"Кинематографический движок не запущен локально."},status=503)
@@ -86,7 +86,7 @@ class Projects(StudioView):
                 refresh_project(active)
             if Project.objects.filter(owner=request.user,engine="cinematic",generation_status__in=("queued","running")).exists():
                 return Response({"detail":"Дождитесь завершения текущей кинематографической генерации. Платные параллельные повторы отключены."},status=409)
-            profile="cinema" if values["style"] in ("cinema","3d") else ("premium" if values["style"]=="premium" else "standard")
+            profile="cinema" if values["style"] in ("auto","cinema","3d") else ("premium" if values["style"]=="premium" else "standard")
             with transaction.atomic():
                 p=Project.objects.create(owner=request.user,generation_status="queued",generation_stage="queued",**values)
                 transaction.on_commit(lambda: queue_project(p,profile=profile,asset_style=asset_style,hero_mode=hero_mode,require_model=require_model))

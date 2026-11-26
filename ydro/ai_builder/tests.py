@@ -15,7 +15,7 @@ class StudioTests(APITestCase):
         self.client.force_authenticate(self.a)
     def test_lifecycle_and_isolation(self):
         url = "/api/studio/projects/"
-        result = self.client.post(url, {"name": "Demo", "prompt": "Test site"}, format="json")
+        result = self.client.post(url, {"name": "Demo", "prompt": "Test site", "engine": "quick"}, format="json")
         self.assertEqual(result.status_code, 201)
         data = result.data
         root = url + data["id"] + "/"
@@ -41,7 +41,7 @@ class StudioTests(APITestCase):
         import json
         import zipfile
         url="/api/studio/projects/"
-        p=self.client.post(url,{"name":"Поэт","prompt":"Стихи","style":"premium"},format="json").data
+        p=self.client.post(url,{"name":"Поэт","prompt":"Стихи","style":"premium","engine":"quick"},format="json").data
         root=url+p["id"]+"/"
         original=p["revisions"][0]["id"]
         edit=self.client.post(root+"edit/",{"instruction":"тёмный фон","revision":original},format="json")
@@ -122,3 +122,28 @@ class StudioTests(APITestCase):
             project.generation_status="failed"
             project.save(update_fields=["generation_status"])
             self.assertEqual(self.client.get(url).data["preview_path"],"")
+
+    def test_default_generation_uses_cinematic_not_demo(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as jobs, tempfile.TemporaryDirectory() as outputs, override_settings(
+            STUDIO_CINEMATIC_ENABLED=True, STUDIO_JOB_ROOT=jobs, STUDIO_OUTPUT_ROOT=outputs
+        ), patch("ai_builder.views.generate") as quick:
+            with self.captureOnCommitCallbacks(execute=True):
+                response=self.client.post("/api/studio/projects/", {"name":"Cars","prompt":"Автосайт"},format="json")
+            self.assertEqual(response.status_code,202)
+            self.assertEqual(response.data["engine"],"cinematic")
+            self.assertEqual(response.data["revisions"],[])
+            envelope=json.loads((Path(jobs)/"pending"/f'{response.data["id"]}.json').read_text(encoding="utf-8"))
+            self.assertEqual(envelope["profile"],"cinema")
+            self.assertEqual(envelope["asset_style"],"realistic")
+            quick.assert_not_called()
+
+    @override_settings(STUDIO_CINEMATIC_ENABLED=False)
+    def test_default_generation_never_silently_falls_back_to_quick(self):
+        from unittest.mock import patch
+        from .models import Project
+        with patch("ai_builder.views.generate") as quick:
+            response=self.client.post("/api/studio/projects/",{"name":"Cars","prompt":"Автосайт"},format="json")
+        self.assertEqual(response.status_code,503)
+        quick.assert_not_called()
+        self.assertFalse(Project.objects.filter(owner=self.a).exists())

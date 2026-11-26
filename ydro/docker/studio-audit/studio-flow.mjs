@@ -56,7 +56,7 @@ try {
   report.providerBadge = await page.locator('.badge').innerText()
 
   if (reuseProjects) {
-    await page.getByRole('button', { name: 'Northline Objects', exact: true }).first().click()
+    await page.getByRole('button', { name: /^Northline Objects · Quick \/ макет$/ }).first().click()
     await page.locator('iframe[title="Предпросмотр сайта"]').waitFor({ state: 'visible', timeout: 15000 })
   } else {
     await createProject({
