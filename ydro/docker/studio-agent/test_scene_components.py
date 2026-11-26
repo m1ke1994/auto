@@ -41,6 +41,8 @@ class SceneComponentTests(unittest.TestCase):
         self.assertEqual(procedural_preset({"subject":"студия флористики"},""),"vase")
         self.assertEqual(procedural_preset({"subject":"podcast studio"},""),"microphone")
         self.assertIsNone(procedural_preset({"subject":"architecture studio"},""))
+        self.assertIsNone(procedural_preset({"subject":"engineering studio"},""))
+        self.assertIsNone(procedural_preset({"subject":"watching videos"},""))
         self.assertIsNone(procedural_preset({"subject":"coffee shop"},"Без 3D"))
         self.assertEqual(cinematic_direction({"mode":"cinematic","subject":"coffee shop"},None,"")["hero_preset"],"cup")
 

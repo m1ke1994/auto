@@ -37,9 +37,10 @@ def procedural_preset(plan, brief):
         return "serum"
     if any(x in text for x in ("кофейня","кофе","coffee shop","coffee","cafe","café","barista","эспрессо")):
         return "cup"
-    if any(x in text for x in ("ювелир","ювелирн","jewelry","jewellery","кольцо","кольца","ring","gemstone")):
+    import re
+    if any(x in text for x in ("ювелир","ювелирн","jewelry","jewellery","кольцо","кольца","gemstone")) or re.search(r"\b(?:ring|rings)\b",text):
         return "ring"
-    if any(x in text for x in ("часов","часовой мастер","watchmaker","watches","watch store","watch")):
+    if any(x in text for x in ("часов","часовой мастер","watchmaker","watches","watch store")) or re.search(r"\bwatch\b",text):
         return "watch"
     if any(x in text for x in ("флорист","цветочн","цветы","букет","vase","ваза","home decor","декор интерьера","декор")):
         return "vase"

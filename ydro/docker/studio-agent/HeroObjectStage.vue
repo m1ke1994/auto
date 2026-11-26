@@ -254,8 +254,7 @@ async function init(){
       const coffee=physical('#3a2115',{roughness:.16,clearcoat:.65})
       cylinder(.83,.83,.09,porcelain,0,-.84)
       ring(.72,.025,gold,-.78)
-      const body=cylinder(.52,.42,.78,porcelain,0,-.38)
-      body.position.y=-.37
+      cylinder(.52,.42,.78,porcelain,0,-.37)
       ring(.515,.035,porcelain,-.01)
       cylinder(.42,.42,.06,porcelain,0,-.77)
       const surface=addMesh(new T.CircleGeometry(.485,72),coffee)
@@ -403,12 +402,13 @@ async function init(){
         lastW=w;lastH=h
       }
       const orbit=p*p*(3-2*p)
+      const framingScale={serum:1,jar:1.12,tube:1,perfume:1,cup:1.28,vase:1,watch:1,ring:1.72,microphone:1.04}[kind.value]||1
       camera.position.set(.12+.48*orbit,.34+.18*Math.sin(p*Math.PI),Math.max(5.35,6.55-1.05*orbit,5.25/camera.aspect))
       camera.lookAt(0,-.04+.08*p,0)
       object.rotation.y=-.38+1.42*orbit
       object.rotation.x=.025+.09*Math.sin(p*Math.PI)
       object.rotation.z=-.035-.075*p
-      object.scale.setScalar(.94+.12*orbit)
+      object.scale.setScalar(framingScale*(.94+.12*orbit))
       key.position.set(-3.8+7.4*p,4.8,4.5)
       key.intensity=3.35+1.15*Math.sin(p*Math.PI)
       rimLight.position.x=4-6*p
