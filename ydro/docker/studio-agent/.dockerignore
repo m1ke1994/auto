@@ -31,3 +31,5 @@
 !storyboard.py
 !HeroObjectStage.vue
 !AboutMetrics.vue
+!block_edit.py
+!test_block_edit.py
