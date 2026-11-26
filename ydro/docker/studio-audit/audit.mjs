@@ -197,8 +197,11 @@ try {
           const framed=bounds.length===4&&bounds.every(Number.isFinite)&&r.left+bounds[0]*r.width>=-2&&r.left+bounds[2]*r.width<=innerWidth+2&&r.top+bounds[1]*r.height>=-2&&r.top+bounds[3]*r.height<=innerHeight+2;
           const textVisible=Number(getComputedStyle(copy).opacity)>=.95&&rects.length>0&&rects.every(x=>x.left>=-2&&x.right<=innerWidth+2&&x.top>=0&&x.bottom<=innerHeight);
           const screen=root.querySelector('.tn-film-screen')?.getBoundingClientRect()
+          const opacity=el=>{if(!el)return null;let alpha=1;for(let n=el;n&&n!==root.parentElement;n=n.parentElement){const s=getComputedStyle(n);if(s.visibility==='hidden'||s.display==='none')return 0;alpha*=Number(s.opacity)}return alpha}
+          const descriptionEl=root.querySelector('.hero-sub'),actionsEl=root.querySelector('.hero-actions')
+          const canvas=host.querySelector('canvas')?.getBoundingClientRect()
           return {yaw:Number(host.dataset.tnRelativeYaw),objectYaw:Number(host.dataset.tnObjectYaw)*180/Math.PI,reveal:Number(root.dataset.tnFilmReveal),progress:Number(host.dataset.tnCameraProgress),framed,coverage:Number(host.dataset.tnModelCoverage),clipped:host.dataset.tnModelClipped==='true',width:r.width,height:r.height,textVisible,textBottom:hr.bottom,modelTop:r.top,viewportWidth:innerWidth,viewportHeight:innerHeight,
-            screenTop:screen?.top,screenHeight:screen?.height,screenWidth:screen?.width,turn:Number(root.dataset.tnFilmTurn)||180,title:Number(root.dataset.tnFilmTitle),description:Number(root.dataset.tnFilmDescription),actions:Number(root.dataset.tnFilmActions)};
+            screenTop:screen?.top,screenHeight:screen?.height,screenWidth:screen?.width,turn:Number(root.dataset.tnFilmTurn)||180,title:Number(root.dataset.tnFilmTitle),description:Number(root.dataset.tnFilmDescription),actions:Number(root.dataset.tnFilmActions),actualTitle:opacity(h),actualDescription:opacity(descriptionEl),actualActions:opacity(actionsEl),canvasHeight:canvas?.height,canvasWidth:canvas?.width};
         });
         filmSamples.push({...sample,fraction});
         if([0,.5,1].includes(fraction))await capture(page,name+'-hero-film-'+Math.round(fraction*100)+'.png');
@@ -209,6 +212,17 @@ try {
       await page.evaluate(()=>{const root=document.querySelector('#home[data-tn-film-version="2"]'),r=root.getBoundingClientRect();window.scrollTo({top:scrollY+r.top+r.height-innerHeight+innerHeight*.35,behavior:'instant'});});
       await page.waitForTimeout(700);
       filmRelease=await page.evaluate(()=>{const screen=document.querySelector('#home .tn-film-screen').getBoundingClientRect();return {top:screen.top,bottom:screen.bottom,viewport:innerHeight}});
+    }
+    let shortFilm=null;
+    if(pinnedFilm&&name==='desktop'){
+      await page.setViewportSize({width:1100,height:540});
+      await page.waitForTimeout(500);
+      await page.evaluate(()=>{const root=document.querySelector('#home[data-tn-film-version="2"]'),r=root.getBoundingClientRect();window.scrollTo({top:scrollY+r.top+(r.height-innerHeight)*.5,behavior:'instant'});});
+      await page.waitForTimeout(1000);
+      shortFilm=await page.evaluate(()=>{const root=document.querySelector('#home[data-tn-film-version="2"]'),screen=root.querySelector('.tn-film-screen').getBoundingClientRect(),host=root.querySelector('[data-tn-model][data-tn-model-role="primary"]'),r=host.getBoundingClientRect();return {top:screen.top,height:screen.height,hostTop:r.top,hostHeight:r.height,viewport:innerHeight,progress:Number(host.dataset.tnCameraProgress),clipped:host.dataset.tnModelClipped==='true'}});
+      await capture(page,'desktop-hero-film-short.png');
+      await page.setViewportSize({width,height});
+      await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));await page.waitForTimeout(500);
     }
     if(isFilm&&name==='mobile'){await page.emulateMedia({reducedMotion:'reduce'});await page.waitForTimeout(500);}
     const sceneDiagnostics={carousels:[],stories:[]};
@@ -351,10 +365,10 @@ try {
     if(pinnedFilm){
       const first=filmSamples[0],last=filmSamples[8],reverse=filmSamples[9],quarter=filmSamples[2],middle=filmSamples[4],late=filmSamples[7];
       const forward=filmSamples.slice(0,9);
-      checks.heroFilm=filmSamples.length===10&&filmSamples.every(s=>s.framed&&!s.clipped&&s.coverage>=.55&&s.coverage<=.98&&Math.abs(s.screenTop)<=3&&Math.abs(s.screenHeight-s.viewportHeight)<=3&&s.screenWidth>=s.viewportWidth*.97&&Math.abs(s.modelTop)<=3&&s.height>=s.viewportHeight*.97&&s.width>=s.viewportWidth*.97&&Number.isFinite(s.objectYaw))&&
-        first.title<=.01&&first.description<=.01&&first.actions<=.01&&quarter.title>.5&&quarter.description<=.01&&middle.description>.5&&middle.actions<=.01&&late.actions>=.99&&last.textVisible&&
+      checks.heroFilm=filmSamples.length===10&&filmSamples.every(s=>s.framed&&!s.clipped&&s.coverage>=.55&&s.coverage<=.98&&Math.abs(s.screenTop)<=3&&Math.abs(s.screenHeight-s.viewportHeight)<=3&&s.screenWidth>=s.viewportWidth*.97&&Math.abs(s.modelTop)<=3&&s.height>=s.viewportHeight*.97&&s.width>=s.viewportWidth*.97&&s.canvasHeight>=s.viewportHeight*.97&&s.canvasWidth>=s.viewportWidth*.97&&Number.isFinite(s.objectYaw))&&
+        first.title<=.01&&first.description<=.01&&first.actions<=.01&&first.actualTitle<=.01&&first.actualDescription<=.01&&first.actualActions<=.01&&quarter.title>.5&&quarter.actualTitle>.5&&quarter.description<=.01&&middle.description>.5&&(middle.actualDescription===null||middle.actualDescription>.5)&&middle.actions<=.01&&late.actions>=.99&&(late.actualActions===null||late.actualActions>=.95)&&last.textVisible&&
         Math.abs(last.objectYaw-first.objectYaw-last.turn)<=1&&forward.every((s,i)=>i===0||s.objectYaw>forward[i-1].objectYaw+5)&&Math.abs(reverse.objectYaw-quarter.objectYaw)<=1&&
-        filmRelease?.top < -filmRelease?.viewport*.25;
+        filmRelease?.top < -filmRelease?.viewport*.25&&(name!=='desktop'||(shortFilm&&Math.abs(shortFilm.top)<=3&&Math.abs(shortFilm.height-shortFilm.viewport)<=3&&Math.abs(shortFilm.hostTop)<=3&&shortFilm.hostHeight>=shortFilm.viewport*.97&&shortFilm.progress>.4&&shortFilm.progress<.7&&!shortFilm.clipped));
     } else if(isFilm){
       const [start,q,mid,late,end,reverse]=filmSamples;
       checks.heroFilm=filmSamples.length===6&&filmSamples.every(s=>s.framed&&!s.clipped&&s.coverage>=.62&&s.coverage<=.98&&s.width>=s.viewportWidth*.7&&s.height>=s.viewportHeight*(name==='desktop'?.38:.25)&&Number.isFinite(s.yaw))&&
@@ -394,7 +408,7 @@ try {
       if(sceneContract?.version===1||sceneDiagnostics.carousels.length) checks.carouselControls=sceneDiagnostics.carousels.length>0&&sceneDiagnostics.carousels.every(x=>x.ok);
       if(sceneContract?.version===1||sceneDiagnostics.stories.length) checks.storyProgress=sceneDiagnostics.stories.length>0&&sceneDiagnostics.stories.every(x=>x.ok);
     }
-    report.checks.push({name,checks,metrics:result,sections,navigation,heroFraming,heroObject,aboutMetrics,steps,filmSamples,filmRelease,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
+    report.checks.push({name,checks,metrics:result,sections,navigation,heroFraming,heroObject,aboutMetrics,steps,filmSamples,filmRelease,shortFilm,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
     await context.close();
   }
 } catch(error){report.error=String(error).slice(0,700);report.errorStage=stage;}

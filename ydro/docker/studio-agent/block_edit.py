@@ -301,6 +301,8 @@ def apply_hero_film(files):
         opening=root.group()[:-1]+' data-tn-hero-film>'
         markup=opening+'\n<div class="tn-film-screen">\n'+old[root.end():close]+'\n</div>\n'+old[close:]
     else:
+        if len(re.findall(r"""class\s*=\s*['"][^'"]*\btn-film-screen\b[^'"]*['"]""",old))!=1:
+            raise BlockEditError("Hero film requires one persistent screen")
         markup=old
     # Upgrade legacy film without nesting a second screen.
     opening=re.match(r"""<(?:[^<>"']|"[^"]*"|'[^']*')+>""",markup)
