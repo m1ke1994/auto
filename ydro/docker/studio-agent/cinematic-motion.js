@@ -58,3 +58,12 @@ export function heroFilmProgress(top,height,viewport) {
   const x=clamp((progress-.38)/.18,0,1)
   return {progress,motion:clamp(progress/.86,0,1),reveal:x*x*(3-2*x)}
 }
+
+export function pinnedFilmFrame(top,height,viewport,turn=180) {
+  const travel=Math.max(0,height-viewport)
+  const offset=clamp(-top,0,travel)
+  const progress=travel>0?offset/travel:0
+  const motion=clamp(progress/.92,0,1)
+  const fade=(a,b)=>{const x=clamp((progress-a)/(b-a),0,1);return x*x*(3-2*x)}
+  return {offset,progress,motion,angle:(turn===360?360:180)*motion,title:fade(.16,.27),description:fade(.40,.51),actions:fade(.66,.77)}
+}

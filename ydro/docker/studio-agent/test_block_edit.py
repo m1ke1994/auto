@@ -71,7 +71,9 @@ class BlockEditTests(unittest.TestCase):
         home='<section id="home" data-tn-section="home" class="hero"><div class="hero-stage"><CinemaModel model-path="tn-models/car/model.gltf" /></div><div class="hero-content"><h1>Engineering</h1></div></section>'
         self.files["src/App.vue"]=("<template>"+home+self.about+"</template>").encode()
         out=apply_hero_film(self.files)
-        self.assertIn(b'data-tn-hero-film>',out["src/App.vue"])
+        self.assertIn(b'data-tn-hero-film',out["src/App.vue"])
+        self.assertIn(b'data-tn-film-version="2"',out["src/App.vue"])
+        self.assertIn(b'data-tn-film-turn="180"',out["src/App.vue"])
         self.assertIn(b'class="tn-film-screen"',out["src/App.vue"])
         self.assertIn(self.about.encode(),out["src/App.vue"])
         self.assertEqual(out["public/photo.webp"],self.files["public/photo.webp"])

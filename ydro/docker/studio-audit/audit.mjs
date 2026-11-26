@@ -176,9 +176,10 @@ try {
     }
     const filmSamples=[];
     const isFilm=await page.locator('#home[data-tn-hero-film]').count()===1;
+    const pinnedFilm=await page.locator('#home[data-tn-film-version="2"]').count()===1;
     if(isFilm){
       if(name==='mobile'){await page.emulateMedia({reducedMotion:'no-preference'});await page.waitForTimeout(500);}
-      for(const fraction of [0,.25,.5,.75,1,.25]){
+      for(const fraction of (pinnedFilm?[0,.125,.25,.375,.5,.625,.75,.875,1,.25]:[0,.25,.5,.75,1,.25])){
         stage=name+' hero film '+fraction;
         await page.evaluate(f=>{
           const root=document.querySelector('#home[data-tn-hero-film]'),r=root.getBoundingClientRect();
@@ -195,11 +196,19 @@ try {
           const rects=[...range.getClientRects()];
           const framed=bounds.length===4&&bounds.every(Number.isFinite)&&r.left+bounds[0]*r.width>=-2&&r.left+bounds[2]*r.width<=innerWidth+2&&r.top+bounds[1]*r.height>=-2&&r.top+bounds[3]*r.height<=innerHeight+2;
           const textVisible=Number(getComputedStyle(copy).opacity)>=.95&&rects.length>0&&rects.every(x=>x.left>=-2&&x.right<=innerWidth+2&&x.top>=0&&x.bottom<=innerHeight);
-          return {yaw:Number(host.dataset.tnRelativeYaw),reveal:Number(root.dataset.tnFilmReveal),progress:Number(host.dataset.tnCameraProgress),framed,coverage:Number(host.dataset.tnModelCoverage),clipped:host.dataset.tnModelClipped==='true',width:r.width,height:r.height,textVisible,textBottom:hr.bottom,modelTop:r.top,viewportWidth:innerWidth,viewportHeight:innerHeight};
+          const screen=root.querySelector('.tn-film-screen')?.getBoundingClientRect()
+          return {yaw:Number(host.dataset.tnRelativeYaw),objectYaw:Number(host.dataset.tnObjectYaw)*180/Math.PI,reveal:Number(root.dataset.tnFilmReveal),progress:Number(host.dataset.tnCameraProgress),framed,coverage:Number(host.dataset.tnModelCoverage),clipped:host.dataset.tnModelClipped==='true',width:r.width,height:r.height,textVisible,textBottom:hr.bottom,modelTop:r.top,viewportWidth:innerWidth,viewportHeight:innerHeight,
+            screenTop:screen?.top,screenHeight:screen?.height,screenWidth:screen?.width,turn:Number(root.dataset.tnFilmTurn)||180,title:Number(root.dataset.tnFilmTitle),description:Number(root.dataset.tnFilmDescription),actions:Number(root.dataset.tnFilmActions)};
         });
         filmSamples.push({...sample,fraction});
         if([0,.5,1].includes(fraction))await capture(page,name+'-hero-film-'+Math.round(fraction*100)+'.png');
       }
+    }
+    let filmRelease=null;
+    if(pinnedFilm){
+      await page.evaluate(()=>{const root=document.querySelector('#home[data-tn-film-version="2"]'),r=root.getBoundingClientRect();window.scrollTo({top:scrollY+r.top+r.height-innerHeight+innerHeight*.35,behavior:'instant'});});
+      await page.waitForTimeout(700);
+      filmRelease=await page.evaluate(()=>{const screen=document.querySelector('#home .tn-film-screen').getBoundingClientRect();return {top:screen.top,bottom:screen.bottom,viewport:innerHeight}});
     }
     if(isFilm&&name==='mobile'){await page.emulateMedia({reducedMotion:'reduce'});await page.waitForTimeout(500);}
     const sceneDiagnostics={carousels:[],stories:[]};
@@ -339,7 +348,14 @@ try {
     }),contactContract);
     checks.heroCTA=sections.some(x=>x.id==='home'&&x.cta);
     checks.heroLayout=heroLayout;
-    if(isFilm){
+    if(pinnedFilm){
+      const first=filmSamples[0],last=filmSamples[8],reverse=filmSamples[9],quarter=filmSamples[2],middle=filmSamples[4],late=filmSamples[7];
+      const forward=filmSamples.slice(0,9);
+      checks.heroFilm=filmSamples.length===10&&filmSamples.every(s=>s.framed&&!s.clipped&&s.coverage>=.55&&s.coverage<=.98&&Math.abs(s.screenTop)<=3&&Math.abs(s.screenHeight-s.viewportHeight)<=3&&s.screenWidth>=s.viewportWidth*.97&&Math.abs(s.modelTop)<=3&&s.height>=s.viewportHeight*.97&&s.width>=s.viewportWidth*.97&&Number.isFinite(s.objectYaw))&&
+        first.title<=.01&&first.description<=.01&&first.actions<=.01&&quarter.title>.5&&quarter.description<=.01&&middle.description>.5&&middle.actions<=.01&&late.actions>=.99&&last.textVisible&&
+        Math.abs(last.objectYaw-first.objectYaw-last.turn)<=1&&forward.every((s,i)=>i===0||s.objectYaw>forward[i-1].objectYaw+5)&&Math.abs(reverse.objectYaw-quarter.objectYaw)<=1&&
+        filmRelease?.top < -filmRelease?.viewport*.25;
+    } else if(isFilm){
       const [start,q,mid,late,end,reverse]=filmSamples;
       checks.heroFilm=filmSamples.length===6&&filmSamples.every(s=>s.framed&&!s.clipped&&s.coverage>=.62&&s.coverage<=.98&&s.width>=s.viewportWidth*.7&&s.height>=s.viewportHeight*(name==='desktop'?.38:.25)&&Number.isFinite(s.yaw))&&
         start.reveal<=.05&&start.progress<=.05&&q.reveal<=.05&&mid.progress>q.progress+.1&&late.reveal>=.95&&late.textVisible&&end.textVisible&&
@@ -378,7 +394,7 @@ try {
       if(sceneContract?.version===1||sceneDiagnostics.carousels.length) checks.carouselControls=sceneDiagnostics.carousels.length>0&&sceneDiagnostics.carousels.every(x=>x.ok);
       if(sceneContract?.version===1||sceneDiagnostics.stories.length) checks.storyProgress=sceneDiagnostics.stories.length>0&&sceneDiagnostics.stories.every(x=>x.ok);
     }
-    report.checks.push({name,checks,metrics:result,sections,navigation,heroFraming,heroObject,aboutMetrics,steps,filmSamples,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
+    report.checks.push({name,checks,metrics:result,sections,navigation,heroFraming,heroObject,aboutMetrics,steps,filmSamples,filmRelease,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
     await context.close();
   }
 } catch(error){report.error=String(error).slice(0,700);report.errorStage=stage;}

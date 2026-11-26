@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress } from './cinematic-motion.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame } from './cinematic-motion.js'
 
 test('all presets are bounded, deterministic and genuinely distinct',()=>{
   const signatures=new Set()
@@ -53,4 +53,18 @@ test('film has an opening act and reversible motion',()=>{
   assert.ok(at(1000).reveal>0&&at(1000).motion<1)
   assert.deepEqual(at(2000),{progress:1,motion:1,reveal:1})
   assert.ok(at(500).motion<at(1000).motion)
+})
+
+test('full viewport pin, captions, half/full turn and release',()=>{
+  const at=(y,turn=180)=>pinnedFilmFrame(-y,3600,900,turn)
+  for(const y of [0,450,900,1350,1800,2250,2700])assert.equal(-y+at(y).offset,0)
+  assert.equal(at(0).angle,0)
+  assert.equal(at(0).title,0)
+  assert.ok(at(900).title>0&&at(900).description===0)
+  assert.ok(at(1800).description===1&&at(1800).actions<1)
+  assert.equal(at(2700).angle,180)
+  assert.equal(at(2700,360).angle,360)
+  assert.equal(at(3000).offset,2700)
+  assert.equal(-3000+at(3000).offset,-300)
+  assert.ok(at(900).angle<at(1800).angle)
 })

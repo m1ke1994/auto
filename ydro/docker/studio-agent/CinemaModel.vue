@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress } from '../cinematic-motion.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame } from '../cinematic-motion.js'
 
 const props = defineProps({
   modelPath: { type: String, required: true },
@@ -51,7 +51,7 @@ function normalizedShots() {
 }
 let renderer, scene, camera, model, env, pmrem, observer, intersection, raf=0, disposed=false
 let visible=true, motionQuery, current=0, radius=1, frameCount=0, shots, primaryHero=false
-let corners=[], bounds, groundPlane, keyLight, modelPivot, filmRoot
+let corners=[], bounds, groundPlane, keyLight, modelPivot, filmRoot, pinnedFrame, filmTurn=180
 const yAxis=new THREE.Vector3(0,1,0)
 function disposeModel(root) {
   const geometries=new Set(), materials=new Set(), textures=new Set()
@@ -87,7 +87,7 @@ function cleanup() {
 let loadStage='initializing'
 function fail(reason=loadStage) {
   if(host.value) host.value.dataset.tnModelFailure=reason
-  if(filmRoot){filmRoot.dataset.tnFilmFallback='true';filmRoot.dataset.tnFilmPhase='reveal';filmRoot.style.setProperty('--tn-film-reveal','1')}
+  if(filmRoot){filmRoot.dataset.tnFilmFallback='true';filmRoot.dataset.tnFilmPhase='reveal';filmRoot.style.setProperty('--tn-film-reveal','1');for(const key of ['title','description','actions'])filmRoot.style.setProperty('--tn-film-'+key,'1');const actions=filmRoot.querySelector('.hero-actions');if(actions)actions.inert=false}
   state.value='fallback'; cleanup()
 }
 function lost(e) { e.preventDefault(); fail('webgl-context-lost') }
@@ -105,7 +105,9 @@ function draw() {
   try { renderFrame() } catch { fail('render-frame') }
 }
 function renderFrame() {
-  if(!renderer || !model || !host.value || !visible) return
+  if(!renderer || !model || !host.value) return
+  // Update the pin even if the previous intersection sample was offscreen.
+  if(!visible&&!filmRoot) return
   // Use the surrounding narrative chapter, not a nested scroll container.
   const chapter=filmRoot || host.value.closest('[data-tn-camera-track]') || host.value
   const rect=chapter.getBoundingClientRect()
@@ -113,7 +115,24 @@ function renderFrame() {
   const headerPosition=header?getComputedStyle(header).position:''
   const inset=primaryHero&&['sticky','fixed'].includes(headerPosition)?clamp(header.getBoundingClientRect().bottom,0,innerHeight*.2):0
   const progress=primaryHero?cameraTrackProgress(rect.top,rect.height,innerHeight,chapter!==host.value,inset):clamp(-rect.top/Math.max(innerHeight*.4,rect.height-innerHeight*.35),0,1)
-  if(filmRoot){
+  if(filmRoot?.dataset.tnFilmVersion==='2'){
+    const staticFilm=motionQuery.matches
+    filmRoot.style.setProperty('--tn-film-vh',innerHeight+'px')
+    const updated=filmRoot.getBoundingClientRect()
+    pinnedFrame=pinnedFilmFrame(updated.top,updated.height,innerHeight,filmTurn)
+    current=staticFilm?0:pinnedFrame.motion
+    filmRoot.style.setProperty('--tn-film-offset',(staticFilm?0:pinnedFrame.offset)+'px')
+    for(const key of ['title','description','actions']){
+      const value=staticFilm?1:pinnedFrame[key]
+      filmRoot.style.setProperty('--tn-film-'+key,value.toFixed(4))
+      filmRoot.dataset['tnFilm'+key[0].toUpperCase()+key.slice(1)]=value.toFixed(4)
+    }
+    const actions=filmRoot.querySelector('.hero-actions')
+    if(actions)actions.inert=!staticFilm&&pinnedFrame.actions<.05
+    filmRoot.dataset.tnFilmReveal=String(staticFilm?1:pinnedFrame.title)
+    filmRoot.dataset.tnFilmPhase=staticFilm||pinnedFrame.title>.01?'reveal':'opening'
+    if(updated.bottom<0||updated.top>innerHeight)return
+  } else if(filmRoot){
     const film=heroFilmProgress(rect.top,rect.height,innerHeight)
     const staticFilm=motionQuery.matches||matchMedia('(max-height: 600px)').matches
     current=staticFilm?0:film.motion
@@ -128,7 +147,9 @@ function renderFrame() {
   const t=clamp((current-from.at)/Math.max(.00001,to.at-from.at),0,1)
   const blend=(a,b)=>THREE.MathUtils.lerp(a,b,t*t*(3-2*t))
   let yaw=THREE.MathUtils.degToRad(blend(from.yaw,to.yaw))
-  const modelYaw=THREE.MathUtils.degToRad(blend(from.modelYaw,to.modelYaw))
+  const fullFilm=filmRoot?.dataset.tnFilmVersion==='2'
+  if(fullFilm) yaw=THREE.MathUtils.degToRad(shots[0].yaw)
+  const modelYaw=THREE.MathUtils.degToRad(fullFilm?shots[0].modelYaw+(motionQuery.matches?0:pinnedFrame.angle):blend(from.modelYaw,to.modelYaw))
   const lift=props.ground?0:blend(from.lift,to.lift)
   const lightAngle=THREE.MathUtils.degToRad(blend(from.light,to.light))
   modelPivot.rotation.y=modelYaw
@@ -140,13 +161,20 @@ function renderFrame() {
   // Avoid an end-on opening shot of elongated horizontal objects.
   const size=bounds.getSize(new THREE.Vector3())
   const opening=1-THREE.MathUtils.smoothstep(current,0,.25)
-  if(motionName==='custom' && size.z>size.x*1.5 && size.z>size.y*1.4 && Math.abs(Math.sin(yaw))<.5){
+  if(!fullFilm && motionName==='custom' && size.z>size.x*1.5 && size.z>size.y*1.4 && Math.abs(Math.sin(yaw))<.5){
     yaw+=(Math.sin(yaw)<0?-1:1)*.65*opening
-  } else if(motionName==='custom' && size.x>size.z*1.5 && size.x>size.y*1.4 && Math.abs(Math.cos(yaw))<.5){
+  } else if(!fullFilm && motionName==='custom' && size.x>size.z*1.5 && size.x>size.y*1.4 && Math.abs(Math.cos(yaw))<.5){
     yaw+=.65*opening
   }
   const direction=new THREE.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch))
   const target=new THREE.Vector3(...from.target.map((v,i)=>blend(v,to.target[i])*radius*(1-opening)))
+  // Shift only the camera composition, never the full viewport canvas.
+  const captionShift=fullFilm&&!motionQuery.matches ? .09*(pinnedFrame?.title||0) : 0
+  if(fullFilm){
+    const w=Math.max(1,host.value.clientWidth),h=Math.max(1,host.value.clientHeight)
+    if(captionShift>0)camera.setViewOffset(w,h,0,-h*captionShift,w,h)
+    else camera.clearViewOffset()
+  }
   const halfV=THREE.MathUtils.degToRad(camera.fov/2)
   const tanV=Math.tan(halfV),tanH=tanV*camera.aspect
   const right=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),direction).normalize()
@@ -157,7 +185,7 @@ function renderFrame() {
   for(const corner of posedCorners){
     const rel=corner.clone().sub(target)
     const depth=rel.dot(direction)
-    fit=Math.max(fit,depth+Math.abs(rel.dot(right))/(tanH*.84),depth+Math.abs(rel.dot(up))/(tanV*.84),depth+.15)
+    fit=Math.max(fit,depth+Math.abs(rel.dot(right))/(tanH*.84),depth+Math.abs(rel.dot(up))/(tanV*(.84-2*captionShift)),depth+.15)
   }
   const zoom=blend(from.distance,to.distance)
   const distance=fit*(primaryHero?clamp(zoom,1,1.08):(opening>0?THREE.MathUtils.lerp(zoom,clamp(zoom,.98,1.08),opening):zoom))
@@ -192,6 +220,7 @@ onMounted(async()=>{
     shots=normalizedShots()
     filmRoot=primaryHero?host.value.closest('[data-tn-hero-film]'):null
     if(filmRoot){
+      filmTurn=filmRoot.dataset.tnFilmTurn==='360'?360:180
       const start=shots[0]
       shots=presetShots('hero_turn',finite(start?.yaw,props.openingYaw),1).map(s=>({...s,modelYaw:s.modelYaw+finite(start?.modelYaw,0)}))
     } else if(primaryHero) shots=heroMotionShots(shots,props.openingYaw)

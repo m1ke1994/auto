@@ -286,8 +286,16 @@ export function installContacts(){
                              (" · " + escape(c["changes"]) if c.get("changes") else ""))
             strip = '<aside class="tn-model-credits" aria-label="3D model credits" style="padding:10px 20px;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 8px;text-align:center;opacity:.72;background:var(--tn-footer-bg,#171717);color:var(--tn-footer-fg,#e5e5e5);font:10px/1.5 system-ui">3D: ' + " | ".join(links) + '</aside>'
             trusted["index.html"] = trusted["index.html"].replace("</body>",strip+"</body>")
+        bundle={**self.files, **assets, **trusted}
+        if profile=="cinema" and not checkpoint and self.models and self.models.credits:
+            from block_edit import apply_hero_film, BlockEditError
+            try:
+                bundle=apply_hero_film({k:v.encode("utf-8") if isinstance(v,str) else v for k,v in bundle.items()})
+            except BlockEditError:
+                # Non-film compositions keep their own renderer and quality gate.
+                pass
         dest = Path(output)
         # Refuse to overwrite a previous artifact or a symlink.
         with dest.open("xb") as stream, zipfile.ZipFile(stream,"w",zipfile.ZIP_DEFLATED) as archive:
-            for name, content in sorted({**self.files, **assets, **trusted}.items()):
+            for name, content in sorted(bundle.items()):
                 archive.writestr(name, content)
