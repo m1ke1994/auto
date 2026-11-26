@@ -44,10 +44,14 @@ function Process-Job([IO.FileInfo]$File){
         }
         if($job.require_model -eq $true){$qualityArgs.RequireModel=$true}
         if($job.contacts){$qualityArgs.ContactsJson=($job.contacts|ConvertTo-Json -Compress -Depth 3)}
+        if ($job.kind -eq 'block_edit') {
+            & (Join-Path $PSScriptRoot 'studio-block-edit.ps1') -Job $job -ResultFile $resultFile -ProgressFile $qualityArgs.ProgressFile
+        } else {
         # Do not merge native stderr here: BuildKit writes successful progress
         # there and PowerShell would turn it into a terminating ErrorRecord.
         # The watcher process itself already redirects stdout/stderr to files.
         & (Join-Path $PSScriptRoot 'studio-quality.ps1') @qualityArgs
+        }
         $pipelineSucceeded=$?
         if(!$pipelineSucceeded){throw 'Cinematic pipeline returned an error; inspect the preserved job log'}
         if(!(Test-Path -LiteralPath $resultFile -PathType Leaf)){throw 'Pipeline finished without a result directory'}
