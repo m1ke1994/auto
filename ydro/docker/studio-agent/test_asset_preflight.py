@@ -1,5 +1,5 @@
 import unittest
-from asset_preflight import choose_review, validate_plan, thumbnail_url, rank_previews, canonical_candidates
+from asset_preflight import choose_review, validate_plan, thumbnail_url, rank_previews, canonical_candidates, expanded_queries, normalize_queries
 class PreflightTests(unittest.TestCase):
     def test_critical_overrides_score(self):
         self.assertIsNone(choose_review({"reviews":[{"candidate":"candidate-1","score":100,"critical":True,"reason":"Huge podium","yaw":45}]},["candidate-1"]))
@@ -16,7 +16,7 @@ class PreflightTests(unittest.TestCase):
         data={"mode":" Immersive ","subject":"car","queries":["realistic sports car (PBR)","car/coupe","extra query"],"required":"true","use_model":True,"direction":"A distinctive editorial composition. "*30,"extra":"ignored"}
         plan=validate_plan(data)
         self.assertEqual(plan["mode"],"immersive")
-        self.assertEqual(plan["queries"],["realistic sports car PBR","car coupe"])
+        self.assertEqual(plan["queries"],["realistic sports car PBR","car coupe","extra query"])
         self.assertEqual(len(plan["direction"]),600)
         self.assertIs(plan["required"],True)
     def test_explicit_mode_and_required_override(self):
@@ -39,7 +39,7 @@ class PreflightTests(unittest.TestCase):
         self.assertIsNone(thumbnail_url(uid,entry(good+"?token=secret")))
     def test_thumbnail_critical_blocks_even_high_score(self):
         result=rank_previews({"reviews":[{"id":"a","score":95,"critical":True},{"id":"b","score":82,"critical":False},{"id":"c","score":70,"critical":False}]},["a","b","c"])
-        self.assertEqual(result,["b"])
+        self.assertEqual(result,["b","c"])
     def test_thumbnail_missing_or_invalid_score(self):
         with self.assertRaises(ValueError):
             rank_previews({"reviews":[]},["a"])
@@ -51,7 +51,7 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual([x["folder"] for x in canonical_candidates(items)],["candidate-1","candidate-2"])
     def test_candidate_manifest_limit_and_shape(self):
         with self.assertRaises(ValueError):
-            canonical_candidates([{}, {}, {}])
+            canonical_candidates([{}, {}, {}, {}, {}])
         with self.assertRaises(ValueError):
             canonical_candidates(["not-an-object"])
 
@@ -89,3 +89,23 @@ class PreflightTests(unittest.TestCase):
                 preflight.dump("plan.json",plan)
                 with self.assertRaises(ValueError):
                     preflight.select()
+
+    def test_expanded_watch_search_is_bounded_and_semantic(self):
+        queries=expanded_queries("luxury mechanical wristwatch with visible movement",["luxury mechanical wristwatch","Luxury mechanical wristwatch"])
+        self.assertEqual(len(queries),6)
+        self.assertIn("wristwatch",queries)
+        self.assertIn("mechanical watch",queries)
+        self.assertEqual(len({q.lower() for q in queries}),6)
+        self.assertEqual(len(normalize_queries(["query "+str(i) for i in range(12)])),6)
+        self.assertNotIn("sports car",expanded_queries("watch",["watch"]))
+
+    def test_four_candidates_and_conditional_floor(self):
+        names=[x["folder"] for x in canonical_candidates([{}, {}, {}, {}])]
+        self.assertEqual(names,["candidate-1","candidate-2","candidate-3","candidate-4"])
+        reviews=[{"candidate":n,"score":s,"critical":c,"reason":"Reviewed","yaw":45}
+                 for n,s,c in zip(names,[64,65,100,70],[False,False,True,False])]
+        self.assertEqual(choose_review({"reviews":reviews},names)["candidate"],"candidate-4")
+        reviews[-1]["score"]=64
+        self.assertEqual(choose_review({"reviews":reviews},names)["candidate"],"candidate-2")
+        reviews[1]["score"]=64
+        self.assertIsNone(choose_review({"reviews":reviews},names))

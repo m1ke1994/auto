@@ -95,6 +95,10 @@ class SketchfabLibrary:
         self.searches=0
         self.style='realistic'
         self.detail_limit=8
+        self.max_searches=4
+        self.max_download_attempts=2
+        self.total_detail_limit=32
+        self.detail_cache={}
         self.thumbnails={}
 
     @property
@@ -104,8 +108,8 @@ class SketchfabLibrary:
     def search(self,query):
         if not self.enabled:
             raise ValueError("Sketchfab local account is not configured.")
-        if not 2<=len(query.strip())<=100 or self.searches>=4:
-            raise ValueError("Use short English keywords; max four Sketchfab searches.")
+        if not 2<=len(query.strip())<=100 or self.searches>=self.max_searches:
+            raise ValueError("Use short English keywords; max "+str(self.max_searches)+" Sketchfab searches.")
         self.searches+=1
         result=api("/search",self._token,{"type":"models","q":query.strip(),"downloadable":"true","count":24})
         candidates=[]
@@ -121,7 +125,11 @@ class SketchfabLibrary:
         print("SKETCHFAB_RANK: eligible="+str(len(candidates))+"; style="+self.style,flush=True)
         for _,_,uid in sorted(candidates)[:self.detail_limit]:
             try:
-                detail=api("/models/"+uid,self._token)
+                if uid not in self.detail_cache:
+                    if len(self.detail_cache)>=self.total_detail_limit:
+                        continue
+                    self.detail_cache[uid]=api("/models/"+uid,self._token)
+                detail=self.detail_cache[uid]
             except NetworkFailure:
                 # A slow detail endpoint must not discard already verified candidates.
                 if found:
@@ -157,8 +165,8 @@ class SketchfabLibrary:
             raise ValueError("Previously rejected model cannot be reused.")
         if key in self.shared.credits:
             return self.shared.credits[key]
-        if self.shared.downloads>=2:
-            raise ValueError("Maximum two model download attempts across providers.")
+        if self.shared.downloads>=self.max_download_attempts:
+            raise ValueError("Maximum "+str(self.max_download_attempts)+" model download attempts across providers.")
         self.shared.downloads+=1
         detail=api("/models/"+uid,self._token)
         license=license_info(detail)

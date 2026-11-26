@@ -279,11 +279,13 @@ def main():
                 item=selection["selected"]
                 score=item.get("visual_score")
                 tier=item.get("quality_tier","premium")
-                if item["folder"] not in ("candidate-1","candidate-2") or type(score) is not int or not 75<=score<=100 or item["yaw"] not in (45,135,225):
+                if item["folder"] not in ("candidate-1","candidate-2","candidate-3","candidate-4") or type(score) is not int or not 65<=score<=100 or item["yaw"] not in (45,135,225):
                     raise ValueError("Invalid approved candidate.")
+                if item.get("critical") is not False:
+                    raise ValueError("Critical asset defect or missing approval flag.")
                 if tier=="premium" and score<85:
                     raise ValueError("Premium asset approval requires at least 85 points.")
-                if tier=="conditional" and (score<75 or score>=85 or item.get("critical") is not False or not isinstance(item.get("quality_warning"),str)):
+                if tier=="conditional" and (score<65 or score>=85 or item.get("critical") is not False or not isinstance(item.get("quality_warning"),str)):
                     raise ValueError("Invalid conditional asset approval.")
                 if tier not in ("premium","conditional"):
                     raise ValueError("Unknown asset quality tier.")

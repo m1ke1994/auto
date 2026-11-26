@@ -81,3 +81,21 @@ class SketchfabImportTests(unittest.TestCase):
                 self.assertIn("Sketchfab",html)
                 self.assertIn("CC BY 4.0",html)
                 self.assertNotIn("fake-test-token",z.read("MODEL_CREDITS.json").decode())
+
+    @patch("sketchfab_models.api")
+    def test_preflight_can_expand_search_and_cache_details(self,api):
+        uid="a"*32
+        item={"uid":uid,"name":"Mechanical wristwatch","faceCount":20000}
+        detail={**item,"isDownloadable":True,"user":{"username":"Artist"},
+                "license":{"url":"https://creativecommons.org/licenses/by/4.0/"}}
+        def response(path,token,params=None):
+            return {"results":[item]} if path=="/search" else detail
+        api.side_effect=response
+        library=SketchfabLibrary("test",ModelLibrary())
+        library.max_searches=6
+        for _ in range(6):
+            self.assertEqual(library.search("wristwatch")[0]["id"],uid)
+        self.assertEqual(api.call_count,7)
+        with self.assertRaises(ValueError):
+            library.search("watch")
+        self.assertEqual(library.max_download_attempts,2)

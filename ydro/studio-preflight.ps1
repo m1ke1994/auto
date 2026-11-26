@@ -21,8 +21,8 @@ function Get-CandidateNames([string]$Json) {
     # object. Parse an object containing the array instead; emit scalar names.
     $manifest=ConvertFrom-Json -InputObject ('{"items":' + $Json + '}') -ErrorAction Stop
     $items=$manifest.items
-    if ($items -isnot [System.Array] -or $items.Count -gt 2) {
-        throw "Invalid candidate manifest: expected an array of zero to two records"
+    if ($items -isnot [System.Array] -or $items.Count -gt 4) {
+        throw "Invalid candidate manifest: expected an array of zero to four records"
     }
     for ($index=0; $index -lt $items.Count; $index++) {
         $expected="candidate-$($index+1)"
@@ -41,7 +41,9 @@ function Test-CandidateManifest {
     $samples=@(
         @{ Json='[]'; Expected='' },
         @{ Json='[{"folder":"candidate-1"}]'; Expected='candidate-1' },
-        @{ Json='[{"folder":"candidate-1"},{"folder":"candidate-2"}]'; Expected='candidate-1,candidate-2' }
+        @{ Json='[{"folder":"candidate-1"},{"folder":"candidate-2"}]'; Expected='candidate-1,candidate-2' },
+        @{ Json='[{"folder":"candidate-1"},{"folder":"candidate-2"},{"folder":"candidate-3"}]'; Expected='candidate-1,candidate-2,candidate-3' },
+        @{ Json='[{"folder":"candidate-1"},{"folder":"candidate-2"},{"folder":"candidate-3"},{"folder":"candidate-4"}]'; Expected='candidate-1,candidate-2,candidate-3,candidate-4' }
     )
     foreach ($sample in $samples) {
         $actual=@(Get-CandidateNames $sample.Json)
@@ -49,12 +51,12 @@ function Test-CandidateManifest {
             throw "Candidate manifest regression test failed"
         }
     }
-    foreach ($invalid in @('{}','null','[{"folder":"../outside"}]','[{"folder":"candidate-1"},{"folder":"candidate-1"}]','[{},{},{}]')) {
+    foreach ($invalid in @('{}','null','[{"folder":"../outside"}]','[{"folder":"candidate-1"},{"folder":"candidate-1"}]','[{},{},{}]','[{},{},{},{},{}]')) {
         $rejected=$false
         try { $null=Get-CandidateNames $invalid } catch { $rejected=$true }
         if (!$rejected) { throw "Candidate manifest accepted invalid input" }
     }
-    Write-Host "CANDIDATE_MANIFEST_TESTS_PASSED: 0/1/2 candidates and invalid inputs"
+    Write-Host "CANDIDATE_MANIFEST_TESTS_PASSED: 0/1/2/3/4 candidates and invalid inputs"
 }
 Test-CandidateManifest
 if ($SelfTest) { return }
@@ -105,7 +107,7 @@ if ($ResumeDirectory) {
 } else {
     $extra=@()
     if ($RequireModel) { $extra+= "--require-model" }
-    if ($AssetQuery.Count -gt 2) { throw "Maximum two manual queries" }
+    if ($AssetQuery.Count -gt 6) { throw "Maximum six manual queries" }
     foreach ($query in $AssetQuery) { $extra+= @("--asset-query",$query) }
     if ($AssetSubject) { $extra+= @("--asset-subject",$AssetSubject) }
     if ($ExcludeModelId.Count -gt 16) { throw "Maximum 16 excluded model IDs" }
