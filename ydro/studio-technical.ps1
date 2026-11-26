@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Prompt,
     [ValidateSet("standard","premium","cinema")][string]$Profile="cinema",
     [ValidateSet("realistic","stylized")][string]$AssetStyle="realistic",
-    [ValidateRange(0,1)][int]$MaxTechnicalRepairs=1
+    [ValidateRange(0,1)][int]$MaxTechnicalRepairs=0
 )
 # This helper expects prebuilt trusted agent/builder/audit images.
 # Only stdout return value is the technically passed run directory.

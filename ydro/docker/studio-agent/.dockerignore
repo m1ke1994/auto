@@ -4,6 +4,7 @@
 !site_store.py
 !test_site_store.py
 !test_scene_components.py
+!test_budget.py
 !Dockerfile
 !art_direction.py
 !media.py
@@ -29,3 +30,4 @@
 !SceneStory.vue
 !storyboard.py
 !HeroObjectStage.vue
+!AboutMetrics.vue

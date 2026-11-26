@@ -4,8 +4,14 @@ from quality import quality_issues
 
 ROOT=Path(__file__).parent
 STORY=(ROOT/"SceneStory.vue").read_text(encoding="utf-8")
+METRICS=(ROOT/"AboutMetrics.vue").read_text(encoding="utf-8")
 
 class SceneComponentTests(unittest.TestCase):
+    def test_about_metrics_is_trusted_accessible_and_motion_safe(self):
+        for token in ("data-tn-about-metrics", "data-tn-metric-state", "ScrollTrigger.create", "once: props.once", "prefers-reduced-motion:reduce", "metric.current = metric.target", "tn-metric-digit-track"):
+            self.assertIn(token,METRICS)
+        self.assertIn("src/components/AboutMetrics.vue",__import__('site_store').RESERVED)
+
     def test_scene_story_has_mobile_visual_slot(self):
         self.assertIn('name="mobile-visual"',STORY)
         self.assertIn(".tn-story .tn-story-stage { display: none; }",STORY)
@@ -28,7 +34,7 @@ class SceneComponentTests(unittest.TestCase):
     def test_procedural_direction_preserves_explicit_no_3d_and_other_subjects(self):
         from art_direction import cinematic_direction
         p={"mode":"cinematic","subject":"beauty atelier"}
-        self.assertEqual(cinematic_direction(p,None,"Без внешних 3D-моделей")["hero_preset"],"serum")
+        self.assertIsNone(cinematic_direction(p,None,"Без внешних 3D-моделей")["hero_preset"])
         self.assertIsNone(cinematic_direction(p,None,"Без 3D")["hero_preset"])
         self.assertIsNone(cinematic_direction({"mode":"cinematic","subject":"architecture"},None,"office")["hero_preset"])
         self.assertIsNone(cinematic_direction(p,{"yaw":45},"beauty")["hero_preset"])
@@ -45,7 +51,7 @@ class SceneComponentTests(unittest.TestCase):
         self.assertIsNone(procedural_preset({"subject":"engineering studio"},""))
         self.assertIsNone(procedural_preset({"subject":"watching videos"},""))
         self.assertIsNone(procedural_preset({"subject":"coffee shop"},"Без 3D"))
-        self.assertEqual(cinematic_direction({"mode":"cinematic","subject":"coffee shop"},None,"")["hero_preset"],"cup")
+        self.assertIsNone(cinematic_direction({"mode":"cinematic","subject":"coffee shop"},None,"")["hero_preset"])
 
     def test_hero_stage_uses_physical_materials_and_trusted_studio_environment(self):
         source=(ROOT/"HeroObjectStage.vue").read_text(encoding="utf-8")

@@ -21,7 +21,7 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     done; \
     echo "Dependency installation failed. Integrity checks remain enabled."; \
     exit 1
-COPY runner.py site_store.py test_site_store.py test_scene_components.py art_direction.py media.py test_media.py landing-progress.js quality.py models3d.py test_models3d.py sketchfab_probe.py test_sketchfab_probe.py sketchfab_models.py test_sketchfab_models.py CinemaModel.vue cinematic-motion.js SceneCarousel.vue SceneStory.vue HeroObjectStage.vue storyboard.py asset_quality.py visual_critic.py test_visual_critic.py repair_input.py test_repair_input.py asset_preflight.py test_asset_preflight.py ./
-RUN python -m unittest -v test_site_store test_scene_components test_media test_models3d test_sketchfab_probe test_sketchfab_models test_visual_critic test_repair_input test_asset_preflight && python runner.py --check
+COPY runner.py site_store.py test_site_store.py test_scene_components.py test_budget.py art_direction.py media.py test_media.py landing-progress.js quality.py models3d.py test_models3d.py sketchfab_probe.py test_sketchfab_probe.py sketchfab_models.py test_sketchfab_models.py CinemaModel.vue cinematic-motion.js SceneCarousel.vue SceneStory.vue HeroObjectStage.vue AboutMetrics.vue storyboard.py asset_quality.py visual_critic.py test_visual_critic.py repair_input.py test_repair_input.py asset_preflight.py test_asset_preflight.py ./
+RUN python -m unittest -v test_site_store test_scene_components test_budget test_media test_models3d test_sketchfab_probe test_sketchfab_models test_visual_critic test_repair_input test_asset_preflight && python runner.py --check
 USER 10001:10001
 ENTRYPOINT ["python", "/opt/studio-agent/runner.py"]

@@ -6,7 +6,7 @@ import { BACKEND_URL } from '../config/env'
 const projects=ref([]), current=ref(null), name=ref(''), prompt=ref(''), instruction=ref(''), selected=ref(null), busy=ref(false), error=ref(''), device=ref('100%')
 const engine=ref('cinematic'), style=ref('cinema'), assetStyle=ref('realistic'), heroMode=ref('auto'), requireModel=ref(false)
 const base='/api/studio/projects/'
-const config=ref({provider:null,configured:false,cinematic_enabled:false,cinematic_max_cost_usd:.75})
+const config=ref({provider:null,configured:false,cinematic_enabled:false,cinematic_max_cost_usd:2.5})
 const styles=[['auto','Автоматический'],['business','Современный'],['premium','Премиальный'],['cinema','Кинематографический'],['3d','3D / объектная сцена']]
 const heroModes=[['auto','Автовыбор композиции'],['immersive','Крупный объект на фоне'],['product','Предметная сцена'],['split','Разделённый Hero'],['cinematic','Полноэкранная сцена'],['editorial','Editorial-фотография'],['environment','Иммерсивное пространство']]
 const revision=computed(()=>current.value?.revisions?.find(r=>r.id===selected.value))
@@ -56,7 +56,7 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
     <template v-if="engine==='cinematic'">
       <div class="choice-grid"><label>Hero<select v-model="heroMode"><option v-for="h in heroModes" :key="h[0]" :value="h[0]">{{h[1]}}</option></select></label><label>Стиль ассета<select v-model="assetStyle"><option value="realistic">Реалистичный</option><option value="stylized">Стилизованный</option></select></label></div>
       <label class="check"><input v-model="requireModel" type="checkbox"> Обязательно подобрать настоящую скачиваемую модель Sketchfab; если качество не пройдёт preflight, остановить генерацию.</label>
-      <p class="cost-note">Один контролируемый запуск, без автоматических платных повторов. Максимальный бюджет основного OpenHands-запуска — $0.60; ориентировочный общий предел с preflight и Visual Critic — ${{Number(config.cinematic_max_cost_usd).toFixed(2)}}.</p>
+      <p class="cost-note">Один контролируемый запуск, без автоматических платных повторов. Максимальный бюджет OpenHands для одного задания — ${{Number(config.cinematic_max_cost_usd).toFixed(2)}}. Preflight и Visual Critic выполняются отдельно и не запускают повторную генерацию.</p>
     </template>
     <button :disabled="busy||(engine==='cinematic'?!config.cinematic_enabled:!config.configured)">{{engine==='cinematic'?'Запустить Cinematic Engine':'Создать быструю концепцию'}}</button>
   </form>

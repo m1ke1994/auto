@@ -4,7 +4,7 @@ param(
     [ValidateSet("realistic","stylized")][string]$AssetStyle="realistic",
     [switch]$SkipVisualReview,
     [ValidateRange(0,1)][int]$MaxRepairs=0,
-    [ValidateRange(0,1)][int]$MaxTechnicalRepairs=1,
+    [ValidateRange(0,1)][int]$MaxTechnicalRepairs=0,
     [ValidateSet("auto","immersive","product","split","cinematic","editorial","environment")][string]$HeroMode="auto",
     [switch]$RequireModel,
     [string]$PreflightDirectory="",

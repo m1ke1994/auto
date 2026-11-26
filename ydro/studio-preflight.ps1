@@ -137,7 +137,9 @@ foreach ($folderName in $candidates) {
         Write-Warning "Candidate build rejected"
         continue
     }
-    docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 3 --pids-limit 256 --shm-size 256m --tmpfs "/tmp:rw,exec,size=512m,mode=1777" -v "$($dist):/site:ro" -v "$($folder):/report" --entrypoint node tracknode-studio-audit /opt/audit/asset-preview.mjs | Out-Host
+    # Candidate folders are created by the isolated agent (uid 10001). Match
+    # that uid so Playwright can write screenshots/diagnostics to the bind mount.
+    docker run --rm --user 10001:10001 --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 3 --pids-limit 256 --shm-size 256m --tmpfs "/tmp:rw,exec,size=512m,mode=1777" -v "$($dist):/site:ro" -v "$($folder):/report" --entrypoint node tracknode-studio-audit /opt/audit/asset-preview.mjs | Out-Host
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "Candidate render rejected"
         continue

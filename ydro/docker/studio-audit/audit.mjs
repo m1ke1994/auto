@@ -75,6 +75,9 @@ try {
       if(await section.count()!==1){sections.push({id,exists:false});continue;}
       await section.evaluate(e=>e.scrollIntoView({block:'start',behavior:'instant'}));
       await page.waitForTimeout(900);
+      if(id==='about'&&await section.locator('[data-tn-about-metrics]').count()){
+        await page.waitForFunction(()=>document.querySelector('#about [data-tn-about-metrics]')?.dataset.tnMetricState==='complete',{}, {timeout:4000}).catch(()=>{});
+      }
       await capture(page,name+'-section-'+id+'.png');
       sectionModelSamples.push(...await page.locator('[data-tn-model]').evaluateAll(nodes=>nodes.map((n,index)=>({index,path:n.dataset.tnModel,state:n.dataset.tnModelState,frames:Number(n.dataset.tnFrames||0),pose:n.dataset.tnCameraPose||'',motionPose:n.dataset.tnModelMotionPose||n.dataset.tnCameraPose||'',nativeMotion:!!n.dataset.tnModelMotionPose,preset:n.dataset.tnMotionPreset||'custom',canvas:!!n.querySelector('canvas')}))));
       sections.push(await section.evaluate((e,id)=>{
@@ -98,6 +101,12 @@ try {
           distinctCards,cta,heroModel:!!e.querySelector('[data-tn-model]')};
       },id));
     }
+    const aboutMetrics=await page.evaluate(()=>{
+      const root=document.querySelector('#about [data-tn-about-metrics]');
+      if(!root)return {present:false,count:0,complete:false,values:[]};
+      const items=[...root.querySelectorAll('[data-tn-metric]')];
+      return {present:true,count:items.length,complete:root.dataset.tnMetricState==='complete',values:items.map(item=>item.dataset.tnMetricValue||'')};
+    });
     await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
     await page.waitForTimeout(900);
     stage=name+' interaction checks';
@@ -291,6 +300,7 @@ try {
     checks.heroLayout=heroLayout;
     if(sceneContract?.heroPreset){checks.heroObjectLayout=heroObject?.layoutOk===true;if(name==="desktop")checks.heroObjectMotion=heroObject?.motionOk===true;}
     checks.serviceCards=sections.some(x=>x.id==='services'&&x.distinctCards>=3);
+    if(aboutMetrics.present) checks.aboutMetrics=aboutMetrics.count>0&&aboutMetrics.complete&&aboutMetrics.values.every(Boolean);
     if(report.profile==='cinema'||storyVisualLayouts.length) checks.storyVisuals=storyVisualLayouts.length>0&&storyVisualLayouts.every(x=>x.ok);
     if(expectedModels.length && report.profile==='cinema') checks.heroImportedModel=sections.some(x=>x.id==='home'&&x.heroModel);
     if(expectedModels.length){
@@ -321,7 +331,7 @@ try {
       if(sceneContract?.version===1||sceneDiagnostics.carousels.length) checks.carouselControls=sceneDiagnostics.carousels.length>0&&sceneDiagnostics.carousels.every(x=>x.ok);
       if(sceneContract?.version===1||sceneDiagnostics.stories.length) checks.storyProgress=sceneDiagnostics.stories.length>0&&sceneDiagnostics.stories.every(x=>x.ok);
     }
-    report.checks.push({name,checks,metrics:result,sections,navigation,heroFraming,heroObject,steps,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
+    report.checks.push({name,checks,metrics:result,sections,navigation,heroFraming,heroObject,aboutMetrics,steps,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
     await context.close();
   }
 } catch(error){report.error=String(error).slice(0,700);report.errorStage=stage;}

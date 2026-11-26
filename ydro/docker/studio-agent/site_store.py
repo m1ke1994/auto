@@ -14,7 +14,7 @@ MAX_TOTAL = 300_000
 MAX_FILES = 30
 DEPENDENCIES = {"vue":"3.5.34", "three":"0.180.0", "gsap":"3.13.0", "lenis":"1.3.20"}
 REQUIRED = {"src/App.vue", "src/style.css"}
-RESERVED = {"src/main.js", "src/main.ts", "src/landing-progress.js", "src/components/CinemaModel.vue", "src/cinematic-motion.js", "src/components/SceneCarousel.vue", "src/components/SceneStory.vue", "src/components/HeroObjectStage.vue"}
+RESERVED = {"src/main.js", "src/main.ts", "src/landing-progress.js", "src/components/CinemaModel.vue", "src/cinematic-motion.js", "src/components/SceneCarousel.vue", "src/components/SceneStory.vue", "src/components/HeroObjectStage.vue", "src/components/AboutMetrics.vue"}
 
 class SiteStore:
     def __init__(self, media=None, models=None):
@@ -182,6 +182,7 @@ class SiteStore:
             "src/components/SceneCarousel.vue": Path(__file__).with_name("SceneCarousel.vue").read_text(encoding="utf-8"),
             "src/components/SceneStory.vue": Path(__file__).with_name("SceneStory.vue").read_text(encoding="utf-8"),
             "src/components/HeroObjectStage.vue": Path(__file__).with_name("HeroObjectStage.vue").read_text(encoding="utf-8"),
+            "src/components/AboutMetrics.vue": Path(__file__).with_name("AboutMetrics.vue").read_text(encoding="utf-8"),
             "README.md": "# TrackNode OpenHands source\nUntrusted AI-generated source. Inspect it and build only in an isolated, credential-free environment. No build or visual verification has been performed.\n",
             "tracknode-agent.json": json.dumps({"engine":"openhands-sdk","model":model,"build_verified":False,"visual_verified":False,"checkpoint":checkpoint,"scene_engine":1 if self.scene_required else 0,"hero_preset":self.hero_preset,"review_origin":self.review_origin if self.self_review else None,"profile":profile,"files":sorted(self.files),"rejected_models":sorted(self.models.rejected) if self.models else []},indent=2),
         }

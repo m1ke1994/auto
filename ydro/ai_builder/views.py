@@ -60,7 +60,7 @@ class Config(StudioView):
         return Response({
             "provider":provider,"configured":configured,"styles":STYLES,
             "cinematic_enabled":bool(getattr(settings,"STUDIO_CINEMATIC_ENABLED",False)),
-            "cinematic_max_cost_usd":float(getattr(settings,"STUDIO_CINEMATIC_MAX_COST_USD",0.75)),
+            "cinematic_max_cost_usd":float(getattr(settings,"STUDIO_CINEMATIC_MAX_COST_USD",2.50)),
         })
 
 class Projects(StudioView):

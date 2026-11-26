@@ -127,6 +127,10 @@ class SiteFileTool(ToolDefinition[SiteFileAction, SiteFileObservation]):
 
 register_tool(SiteFileTool.name, SiteFileTool)
 
+# One bounded OpenHands conversation per generation/repair. The Studio watcher
+# disables automatic paid repairs; a user must explicitly start another run.
+MAX_JOB_BUDGET_USD = 2.50
+
 def make_agent(key, model):
     # Conservative peak/cache-miss USD rates per token (official pricing 2026-11-25).
     # SDK accounting is an estimate; a single completion may overshoot.
@@ -301,7 +305,7 @@ def main():
             print("STUDIO_CINEMATIC_DIRECTION: "+json.dumps(direction,ensure_ascii=True),flush=True)
             ASSETS_LOCKED=True
             prompt += "\n\nCINEMATIC DIRECTION RECOMMENDATION (adapt to user brief; not a fixed template): "+json.dumps(direction,ensure_ascii=True)
-            prompt += "\n\nFINAL PRE-GENERATION ART DIRECTION (overrides earlier asset-search instructions): "+json.dumps({"mode":plan["mode"],"direction":plan["direction"],"subject":plan["subject"],"selected":selection["selected"]},ensure_ascii=False)+"\nNo additional 3D searches, downloads or removals. Use model_inventory for the approved local path. If selected, use exactly this model in the hero, with opening yaw from selection. For a conditional asset, preserve honest expectations: do not describe it as photorealistic; use a deliberate premium studio composition, strong but controlled reflections, shaped key/rim lighting, a convincing contact shadow and a close three-quarter camera. Keep primary models large and recognizable without clipping; explicitly requested accent models may use a smaller clear stage; let the page art direction elevate its presentation, not pretend its geometry was changed. Otherwise use the selected non-imported design approach; do not invent model paths. Follow the chosen hero composition, not a generic split layout. Respect readable overlay text and mobile. No imported model does not mean no procedural 3D. Respect explicit photo-only or no-3D requests. Save the plan and source review."
+            prompt += "\n\nFINAL PRE-GENERATION ART DIRECTION (overrides earlier asset-search instructions): "+json.dumps({"mode":plan["mode"],"direction":plan["direction"],"subject":plan["subject"],"selected":selection["selected"]},ensure_ascii=False)+"\nNo additional 3D searches, downloads or removals. Use model_inventory for the approved local path. If selected, use exactly this model in the hero, with opening yaw from selection. For a conditional asset, preserve honest expectations: do not describe it as photorealistic; use a deliberate premium studio composition, strong but controlled reflections, shaped key/rim lighting, a convincing contact shadow and a close three-quarter camera. Keep primary models large and recognizable without clipping; explicitly requested accent models may use a smaller clear stage; let the page art direction elevate its presentation, not pretend its geometry was changed. If no model was approved, use a high-quality photographic/editorial composition and explicitly record the fallback; never generate procedural 3D or Three.js primitives. Follow the chosen hero composition, not a generic split layout. Respect readable overlay text and mobile. Save the plan and source review."
         if args.repair:
             ASSETS_LOCKED=True
             info=restore(STORE,"/repair-source.zip",allow_checkpoint=TECHNICAL_REPAIR)
@@ -332,7 +336,7 @@ def main():
         agent=make_agent(key,model)
         with tempfile.TemporaryDirectory(prefix="studio-") as workspace:
             conversation=Conversation(agent=agent,workspace=workspace,
-                max_iteration_per_run=30,max_budget_per_run=0.60,visualizer=None)
+                max_iteration_per_run=30,max_budget_per_run=MAX_JOB_BUDGET_USD,visualizer=None)
             print("OPENHANDS_PROFILE: "+args.profile+" (art direction, source, self-review)",flush=True)
             conversation.send_message(prompt)
             conversation.run()

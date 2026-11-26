@@ -61,6 +61,6 @@ class PreflightTests(unittest.TestCase):
     def test_conditional_threshold_still_rejects_critical_and_low_scores(self):
         result=choose_review({"reviews":[{"candidate":"candidate-1","score":100,"critical":True,"reason":"Wrong geometry","yaw":45},{"candidate":"candidate-2","score":74,"critical":False,"reason":"Too weak","yaw":225}]},["candidate-1","candidate-2"],min_score=75)
         self.assertIsNone(result)
-    def test_default_premium_threshold_remains_85(self):
+    def test_default_threshold_accepts_75_without_critical_defect(self):
         result=choose_review({"reviews":[{"candidate":"candidate-1","score":84,"critical":False,"reason":"Not premium threshold","yaw":45}]},["candidate-1"])
-        self.assertIsNone(result)
+        self.assertEqual(result["candidate"],"candidate-1")
