@@ -31,3 +31,20 @@ class BlockEditTests(unittest.TestCase):
         self.assertEqual(source[start:end],self.home.replace('Old','Инженерия эмоций'))
         name,start,end=find_block({'src/App.vue':source},'header')
         self.assertEqual(source[start:end],'<header data-tn-header>Привет</header>')
+
+    def test_equivalent_root_format_and_scoped_selectors(self):
+        changed=self.home.replace('<section id="home" data-tn-section="home">',"<section data-tn-section='home' id='home'>").replace("Old","New")
+        result=patch(self.files,"home",{"markup":"  "+changed+"\n","rules":[{"selector":":scope, :scope h1, .hero-copy p","declarations":"color:red","mobile":False}]})
+        self.assertIn(b'<section id="home" data-tn-section="home">',result["src/App.vue"])
+        self.assertIn(b"#home,#home h1,#home .hero-copy p{color:red}",result["src/style.css"])
+        self.assertIn(self.about.encode(),result["src/App.vue"])
+
+    def test_reject_changed_root_and_escaping_selector(self):
+        for markup,selector in [(self.home.replace('id="home"','id="home" class="changed"'),"h1"),(self.home,"h1, :scope + body")]:
+            with self.assertRaises(ValueError):
+                patch(self.files,"home",{"markup":markup,"rules":[{"selector":selector,"declarations":"color:red","mobile":False}]})
+
+    def test_safe_failure_reason(self):
+        from block_edit import BlockEditError, failure_detail
+        self.assertEqual(failure_detail(BlockEditError("Outer tag attributes changed")),"Outer tag attributes changed")
+        self.assertEqual(failure_detail(ValueError("secret response content")),"ValueError")
