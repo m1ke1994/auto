@@ -11,6 +11,7 @@ try {
     if (Test-Path '.env.studio.local' -PathType Leaf) {
         $composeArgs += @('--env-file', '.env.studio.local')
     }
+    & (Join-Path $PSScriptRoot 'studio-validate-scripts.ps1')
     $watcherPath=Join-Path $PSScriptRoot 'studio-watch.ps1'
     function Get-LiveStudioWatcher([int]$ProcessId) {
         if ($ProcessId -le 0) { return }

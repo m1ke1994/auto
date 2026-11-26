@@ -2,6 +2,7 @@
 param([ValidateRange(1,30)][int]$PollSeconds=2,[switch]$Once)
 $ErrorActionPreference='Stop'
 Set-Location $PSScriptRoot
+& (Join-Path $PSScriptRoot 'studio-validate-scripts.ps1')
 
 $root=Join-Path $PSScriptRoot 'studio-jobs'
 $pending=Join-Path $root 'pending'
@@ -27,6 +28,8 @@ function Process-Job([IO.FileInfo]$File){
     $resultFile=Join-Path $running ($id+'.result.txt')
     $jobLog=Join-Path $logs ($id+'.log')
     try{
+        # Validate before dispatch: scripts may have changed since worker startup.
+        & (Join-Path $PSScriptRoot 'studio-validate-scripts.ps1') -Quiet
         $job=Get-Content -LiteralPath $claimed -Raw -Encoding UTF8 | ConvertFrom-Json
         if($job.version -ne 1 -or $job.project_id -ne $id){throw 'Invalid job envelope'}
         if($job.name -isnot [string] -or $job.name.Length -lt 1 -or $job.name.Length -gt 120){throw 'Invalid project name'}

@@ -24,17 +24,7 @@ if ($LASTEXITCODE -ne 0) {
     if (Test-Path -LiteralPath $diagnostic -PathType Leaf) {
         try {
             $data=Get-Content -LiteralPath $diagnostic -Raw -Encoding UTF8 | ConvertFrom-Json
-            if ($data.stage -match '^[a-z_]{1,40}
-$passed=& (Join-Path $PSScriptRoot 'studio-technical.ps1') -RunDirectory $out -Prompt $Job.prompt -Profile $Job.profile -MaxTechnicalRepairs 0 -ProgressFile $ProgressFile
-Write-StudioProgress $ProgressFile 'finalizing'
-[IO.File]::WriteAllText((Join-Path $passed 'studio-result.json'),'{"status":"skipped","score":null,"threshold":85,"technical_passed":true}',[Text.UTF8Encoding]::new($false))
-[IO.File]::WriteAllText($ResultFile,$passed,[Text.UTF8Encoding]::new($false))
- -and $data.reason -match '^[A-Za-z0-9 :_-]{1,160}
-$passed=& (Join-Path $PSScriptRoot 'studio-technical.ps1') -RunDirectory $out -Prompt $Job.prompt -Profile $Job.profile -MaxTechnicalRepairs 0 -ProgressFile $ProgressFile
-Write-StudioProgress $ProgressFile 'finalizing'
-[IO.File]::WriteAllText((Join-Path $passed 'studio-result.json'),'{"status":"skipped","score":null,"threshold":85,"technical_passed":true}',[Text.UTF8Encoding]::new($false))
-[IO.File]::WriteAllText($ResultFile,$passed,[Text.UTF8Encoding]::new($false))
-) {
+            if ($data.stage -match '^[a-z_]{1,40}$' -and $data.reason -match '^[A-Za-z0-9 :_-]{1,160}$') {
                 $message="Block edit failed [$($data.stage)]: $($data.reason); original preview preserved"
             }
         } catch { }
