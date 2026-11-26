@@ -48,3 +48,20 @@ class BlockEditTests(unittest.TestCase):
         from block_edit import BlockEditError, failure_detail
         self.assertEqual(failure_detail(BlockEditError("Outer tag attributes changed")),"Outer tag attributes changed")
         self.assertEqual(failure_detail(ValueError("secret response content")),"ValueError")
+
+    def test_root_class_selector_targets_root_not_descendant(self):
+        home=self.home.replace('data-tn-section="home">','data-tn-section="home" class="hero opening">')
+        self.files["src/App.vue"]=("<template>"+home+self.about+"</template>").encode()
+        rules=[
+            {"selector":".hero","declarations":"display:grid","mobile":False},
+            {"selector":".hero .hero-stage","declarations":"min-width:0","mobile":False},
+            {"selector":".hero","declarations":"display:flex","mobile":True},
+            {"selector":":scope .hero","declarations":"color:red","mobile":False},
+        ]
+        result=patch(self.files,"home",{"markup":home,"rules":rules})
+        css=result["src/style.css"]
+        self.assertIn(b"#home.hero{display:grid}",css)
+        self.assertIn(b"#home.hero .hero-stage{min-width:0}",css)
+        self.assertIn(b"@media(max-width:760px){#home.hero{display:flex}}",css)
+        self.assertIn(b"#home .hero{color:red}",css)
+        self.assertIn(self.about.encode(),result["src/App.vue"])
