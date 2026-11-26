@@ -12,7 +12,7 @@ const assert=(v,msg)=>{if(!v)throw Error(msg)};
 const hash=b=>createHash('sha256').update(b).digest('hex');
 try{
   browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
-  for(const preset of ['serum','jar','tube','perfume']){
+  for(const preset of ['serum','jar','tube','perfume','cup','vase','watch','ring','microphone']){
     for(const mode of ['desktop','mobile']){
       const row={preset,mode,passed:false};
       report.tests.push(row);
@@ -70,7 +70,7 @@ try{
       console.log(JSON.stringify(row));
     }
   }
-  report.passed=report.tests.length===8&&report.tests.every(t=>t.passed);
+  report.passed=report.tests.length===18&&report.tests.every(t=>t.passed);
 }catch(e){report.errors.push(String(e).slice(0,1000))}
 finally{
   if(browser)await browser.close().catch(()=>{});

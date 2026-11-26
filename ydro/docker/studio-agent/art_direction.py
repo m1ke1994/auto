@@ -17,9 +17,15 @@ COMPOSITIONS = {
 }
 
 def procedural_preset(plan, brief):
-    """Select a small product family when relevant, not a universal site template."""
+    """Choose an original focal object only when it accurately represents the brief."""
     text=(str(plan.get("subject",""))+" "+brief).lower()
-    if any(x in text for x in ("без 3d", "без 3д", "без трехмер", "без трёхмер", "no 3d", "no three.js", "только фотограф", "photo only", "photography only", "без процедурн", "no procedural")):
+    opt_out=(
+        "без 3d", "без 3д", "без трехмер", "без трёхмер",
+        "не использовать 3d", "не использовать 3д",
+        "no 3d", "no three.js", "только фотограф", "photo only",
+        "photography only", "без процедурн", "no procedural"
+    )
+    if any(x in text for x in opt_out):
         return None
     if any(x in text for x in ("духи","парфюм","perfume","fragrance")):
         return "perfume"
@@ -29,6 +35,16 @@ def procedural_preset(plan, brief):
         return "tube"
     if any(x in text for x in ("сыворотк","косметик","салон красоты","студии красоты","студия красоты","beauty atelier","beauty studio","beauty salon","skincare","cosmetic","serum")):
         return "serum"
+    if any(x in text for x in ("кофейня","кофе","coffee shop","coffee","cafe","café","barista","эспрессо")):
+        return "cup"
+    if any(x in text for x in ("ювелир","ювелирн","jewelry","jewellery","кольцо","кольца","ring","gemstone")):
+        return "ring"
+    if any(x in text for x in ("часов","часовой мастер","watchmaker","watches","watch store","watch")):
+        return "watch"
+    if any(x in text for x in ("флорист","цветочн","цветы","букет","vase","ваза","home decor","декор интерьера","декор")):
+        return "vase"
+    if any(x in text for x in ("микрофон","подкаст","podcast","music studio","музыкальная студия","музыкальной студии","audio studio","sound studio","music producer")):
+        return "microphone"
     return None
 
 def cinematic_direction(plan, selected, brief=""):
@@ -46,7 +62,7 @@ def cinematic_direction(plan, selected, brief=""):
     layout="floating_edges" if selected and accent_requested else options[seed%len(options)]
     preset=procedural_preset(plan,brief) if not selected else None
     if not selected:
-        layout="hero_object_right" if preset else "editorial_photo"
+        layout="hero_object_right" if preset else options[seed%len(options)]
     if conditional and layout=="detail_editorial":
         layout="museum_focus"
     role="accent" if layout=="floating_edges" else "primary"
@@ -78,7 +94,7 @@ For new Cinema, render both trusted components in real middle chapters, not hidd
 
 HERO FIRST — establish one recognizable subject and balanced visual weight before building:
 Choose subject from the actual business: product, vehicle, architecture, person in licensed illustrative photography, landscape, or original conceptual artwork. Never rely on a blank gradient, particles or low abstract waves alone. For a split product hero use a meaningful focal object taking about 40–55% of desktop hero width, with generous but intentional negative space and separate readable copy. Full-bleed and centered heroes remain valid when better suited to the brief. Match image subject to captions, use different assets in adjacent chapters unless deliberate continuity is needed. Compose at desktop and mobile scale, not a narrow central column on wide screens. Keep native carousel scroll usable; style scrollbars or provide accessible controls. Avoid oversized translated children, use min-width:0 in flex/grid, and keep essential headings/content visible even when the scroll trigger never fires. Mobile menu must not inherit fixed-header height or clipping.
-Trusted HeroObjectStage.vue: procedural serum, jar, tube and perfume presets, no asset download. Import from './components/HeroObjectStage.vue'. Props: preset, brand, label, tone and accent (hex colors). Use one large instance inside home when required by the preflight contract. It owns the scroll-linked rotation, camera approach, light sweep and cloth depth; do not add a second renderer or animate the stage out of view. Reserve 40–55% of the desktop hero width and place it alongside (not behind) the copy, with min-width:0 and visible area at least 50vh; stack on mobile. This is original illustrative geometry, not a real product photo. Mobile/reduced motion and WebGL failures use a static product composition. No continuous animation loop; the component imports Three.js lazily, renders only visible scroll events, limits resolution/FPS and cleans up. For other subjects use an approved imported model or a meaningful local photo/SVG; custom WebGL must use the same event-driven, visibility-gated discipline. Never use raw requestAnimationFrame recursion as an ambient effect.
+Trusted HeroObjectStage.vue: original procedural serum, jar, tube, perfume, coffee cup, vase, watch, ring and microphone presets, no external asset download. Select a preset only when it genuinely matches the subject; for cars, architecture and unmatched industries, use a relevant local photo, an approved imported model or a subject-specific original SVG composition rather than a mismatched prop. Import from './components/HeroObjectStage.vue'. Props: preset, brand, label, tone and accent (hex colors). Use one large instance inside home when required by the preflight contract. It owns the scroll-linked rotation, camera approach, light sweep and cloth depth; do not add a second renderer or animate the stage out of view. Reserve 40–55% of the desktop hero width and place it alongside (not behind) the copy, with min-width:0 and visible area at least 50vh; stack on mobile. This is original illustrative geometry, not a real product photo. Mobile/reduced motion and WebGL failures use a static product composition. No continuous animation loop; the component imports Three.js lazily, renders only visible scroll events, limits resolution/FPS and cleans up. For cars, architecture and subjects without a matching trusted preset, use an approved imported model or a meaningful local photo/SVG; never force a cosmetic object onto an unrelated business. Custom WebGL must use the same event-driven, visibility-gated discipline. Never use raw requestAnimationFrame recursion as an ambient effect.
  
 CINEMATIC ENGINE 2 — original composition, not a template:
 Choose a visual narrative and role for the actual model. Large primary objects: immersive_xl (full-width stage), museum_focus (centered), editorial_split/asymmetric_split, detail_editorial (safe detail emphasis without clipping), environment_stage, chapter_transformation or layered_depth. Small accent objects: floating_edges, kept outside text and CTA safe zones; use compact wrappers and alternate sides or chapter placement. Use at most two live model instances at once, reuse a single persistent stage with wrapper transforms for cross-chapter movement; do not duplicate canvases for decoration. CSS/GSAP may translate/scale the wrapper within its chapter for edge travel and depth parallax, with responsive bounds, never a horizontal page scrollbar. Do not use floating vehicles as decoration; keep grounded objects physically plausible.

@@ -32,5 +32,5 @@ $p=Join-Path $report "hero-smoke.json"
 if(!(Test-Path -LiteralPath $p)){throw "Missing smoke report: $out"}
 Get-Content -LiteralPath $p -Raw -Encoding UTF8 | Out-Host
 $result=Get-Content -LiteralPath $p -Raw -Encoding UTF8 | ConvertFrom-Json
-if($code -ne 0 -or $result.passed -ne $true -or @($result.tests).Count -ne 8){throw "Hero smoke failed; artifacts preserved: $out"}
+if($code -ne 0 -or $result.passed -ne $true -or @($result.tests).Count -ne 18){throw "Hero smoke failed; artifacts preserved: $out"}
 Write-Host "HERO_SMOKE_ALL_PASSED: $out" -ForegroundColor Green

@@ -324,7 +324,7 @@ def main():
         elif args.repair:
             prompt += "\nLEGACY REPAIR: do not restructure an existing site merely to introduce new scene components; preserve original design unless repair requires a change."
         if STORE.hero_preset:
-            prompt += "\nMANDATORY HERO OBJECT CONTRACT: Import HeroObjectStage from './components/HeroObjectStage.vue' in App.vue and render exactly one <HeroObjectStage preset=\""+STORE.hero_preset+"\" ... /> inside section id=home. Use a large separate visual column, actual brand/label and palette. Do not create another WebGL renderer. Keep other chapters distinct. The component owns procedural geometry and scroll choreography; no external model is needed."
+            prompt += "\nMANDATORY HERO OBJECT CONTRACT: Import HeroObjectStage from './components/HeroObjectStage.vue' in App.vue and render exactly one <HeroObjectStage preset=\""+STORE.hero_preset+"\" ... /> inside section id=home. Use a large separate visual column, actual brand/label and palette. Do not create another WebGL renderer. Keep other chapters distinct. The component owns physically based procedural geometry, studio reflections, a satin environment and scroll choreography; no external model is needed. Available subject-matched presets: serum, jar, tube, perfume, cup, vase, watch, ring and microphone. Do not force a preset onto an unrelated industry; use a relevant photo, approved model or original SVG instead."
         CHECKPOINT_MODEL=model
         if args.repair:
             STORE.checkpoint("/output/source-checkpoint.zip",model,args.profile)

@@ -33,6 +33,27 @@ class SceneComponentTests(unittest.TestCase):
         self.assertIsNone(cinematic_direction({"mode":"cinematic","subject":"architecture"},None,"office")["hero_preset"])
         self.assertIsNone(cinematic_direction(p,{"yaw":45},"beauty")["hero_preset"])
 
+    def test_subject_specific_hero_object_library(self):
+        from art_direction import cinematic_direction, procedural_preset
+        self.assertEqual(procedural_preset({"subject":"premium coffee shop"},""),"cup")
+        self.assertEqual(procedural_preset({"subject":"ювелирный салон"},""),"ring")
+        self.assertEqual(procedural_preset({"subject":"watchmaker"},""),"watch")
+        self.assertEqual(procedural_preset({"subject":"студия флористики"},""),"vase")
+        self.assertEqual(procedural_preset({"subject":"podcast studio"},""),"microphone")
+        self.assertIsNone(procedural_preset({"subject":"architecture studio"},""))
+        self.assertIsNone(procedural_preset({"subject":"coffee shop"},"Без 3D"))
+        self.assertEqual(cinematic_direction({"mode":"cinematic","subject":"coffee shop"},None,"")["hero_preset"],"cup")
+
+    def test_hero_stage_uses_physical_materials_and_trusted_studio_environment(self):
+        source=(ROOT/"HeroObjectStage.vue").read_text(encoding="utf-8")
+        for token in ("RoomEnvironment","PMREMGenerator","MeshPhysicalMaterial","transmission:.96","sheen:1","T.ExtrudeGeometry","T.TorusGeometry","data-tn-object-preset"):
+            self.assertIn(token,source)
+        for preset in ("serum","jar","tube","perfume","cup","vase","watch","ring","microphone"):
+            self.assertIn("'"+preset+"'",source)
+        self.assertIn("prefers-reduced-motion: reduce",source)
+        self.assertIn("IntersectionObserver",source)
+        self.assertNotIn("requestAnimationFrame(animate)",source)
+
     def test_trusted_object_contract(self):
         from site_store import SiteStore
         s=SiteStore()
