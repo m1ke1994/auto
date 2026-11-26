@@ -10,7 +10,8 @@ param(
     [switch]$RequireModel,
     [string]$PreflightDirectory="",
     [string]$ResultFile="",
-    [string]$ProgressFile=""
+    [string]$ProgressFile="",
+    [string]$ContactsJson=""
 )
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -44,7 +45,12 @@ $out = (New-Item -ItemType Directory -Path (Join-Path $PWD ("studio-agent-output
 Write-Host "Output: $out"
 Write-StudioProgress $ProgressFile "generating"
 $prompt64=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Prompt))
-& docker @compose run --rm --no-deps -v "$($preflight):/preflight:ro" -v "$($out):/output" openhands --preflight --profile $Profile --asset-style $AssetStyle --prompt-b64 $prompt64
+$contactArgs=@()
+if ($ContactsJson -and $ContactsJson -ne '{}') {
+    if ($ContactsJson.Length -gt 3000) { throw 'Contact data exceeds limit' }
+    $contactArgs=@('--contacts-b64',[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($ContactsJson)))
+}
+& docker @compose run --rm --no-deps -v "$($preflight):/preflight:ro" -v "$($out):/output" openhands --preflight --profile $Profile --asset-style $AssetStyle --prompt-b64 $prompt64 @contactArgs
 $generationExit=$LASTEXITCODE
 if ($generationExit -ne 0 -and ($generationExit -ne 42 -or !(Test-Path -LiteralPath (Join-Path $out "source-failure.json")))) {
     throw "AI generation failed ($generationExit); checkpoint, if any, preserved: $out. No automatic paid retry for API or infrastructure errors."

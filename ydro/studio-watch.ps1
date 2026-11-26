@@ -43,6 +43,7 @@ function Process-Job([IO.FileInfo]$File){
             ProgressFile=(Join-Path $status ($id+'.json'))
         }
         if($job.require_model -eq $true){$qualityArgs.RequireModel=$true}
+        if($job.contacts){$qualityArgs.ContactsJson=($job.contacts|ConvertTo-Json -Compress -Depth 3)}
         # Do not merge native stderr here: BuildKit writes successful progress
         # there and PowerShell would turn it into a terminating ErrorRecord.
         # The watcher process itself already redirects stdout/stderr to files.

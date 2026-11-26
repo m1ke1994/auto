@@ -33,6 +33,7 @@ def queue_project(project, *, profile, asset_style, hero_mode, require_model):
         "project_id": str(project.id),
         "name": project.name,
         "prompt": project.prompt,
+        "contacts": project.contacts,
         "profile": profile,
         "asset_style": asset_style,
         "hero_mode": hero_mode,

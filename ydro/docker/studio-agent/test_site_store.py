@@ -164,3 +164,25 @@ const options = { scrub: true }
 
 if __name__=="__main__":
     unittest.main()
+
+    def test_public_contacts_are_trusted_and_exported_without_ai(self):
+        store=SiteStore()
+        contacts={"phone":"+7 (900) 123-45-67","email":"sales@example.com","address":"Москва <Example>","telegram":"https://t.me/example"}
+        store.set_contacts(contacts)
+        store.write("src/App.vue","<template><main>Test</main></template>")
+        store.write("src/style.css","main{color:red}")
+        with tempfile.TemporaryDirectory() as d:
+            output=Path(d)/"contacts.zip"
+            store.export(output,"test")
+            with zipfile.ZipFile(output) as z:
+                self.assertEqual(json.loads(z.read("CONTACTS.json")),contacts)
+                entries=json.loads(z.read("public/tn-contact-contract.json"))
+                self.assertEqual(entries[0]["href"],"tel:+79001234567")
+                self.assertEqual(entries[1]["href"],"mailto:sales@example.com")
+                self.assertIn("node.textContent",z.read("src/tn-contacts.js").decode())
+                self.assertIn("installContacts();",z.read("src/main.js").decode())
+        for data in ({"website":"javascript:alert(1)"},{"website":"https://user:pass@example.com/"},{"phone":"abc"},{"email":"x@example.com?subject=bad"}):
+            with self.assertRaises(ValueError):
+                store.set_contacts(data)
+        with self.assertRaises(ValueError):
+            store.write("src/tn-contacts.js","override")

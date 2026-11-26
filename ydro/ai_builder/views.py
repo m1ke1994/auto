@@ -14,9 +14,38 @@ from .design import STYLES, preview, source_files
 from .jobs import project_dist, queue_project, refresh_project, visual_result, progress_event
 from .provider import generate, mode, GenerationError
 
+class ContactInput(serializers.Serializer):
+    phone=serializers.RegexField(r"^\+?[0-9 ()-]{5,32}$",required=False,allow_blank=True,max_length=32)
+    email=serializers.EmailField(required=False,allow_blank=True,max_length=180)
+    address=serializers.CharField(required=False,allow_blank=True,max_length=250)
+    telegram=serializers.URLField(required=False,allow_blank=True,max_length=250)
+    vk=serializers.URLField(required=False,allow_blank=True,max_length=250)
+    whatsapp=serializers.URLField(required=False,allow_blank=True,max_length=250)
+    website=serializers.URLField(required=False,allow_blank=True,max_length=250)
+
+    def validate(self, attrs):
+        from urllib.parse import urlsplit
+        import re
+        attrs={k:v for k,v in attrs.items() if v}
+        for key,value in attrs.items():
+            if any(ord(c)<32 or ord(c)==127 for c in value):
+                raise serializers.ValidationError({key:"Недопустимый символ."})
+        if attrs.get("email") and not re.fullmatch(r"[^\s@<>\x22\x27:;,?&#%]+@[^\s@<>\x22\x27:;,?&#%]+\.[^\s@<>\x22\x27:;,?&#%]+",attrs["email"]):
+            raise serializers.ValidationError({"email":"Укажите обычный публичный email."})
+        phone=attrs.get("phone","")
+        if phone and not 5<=sum(c.isdigit() for c in phone)<=15:
+            raise serializers.ValidationError({"phone":"Укажите действительный формат номера."})
+        for key in ("telegram","vk","whatsapp","website"):
+            if key in attrs:
+                url=urlsplit(attrs[key])
+                if url.scheme not in ("http","https") or not url.hostname or url.username or url.password or "\\" in attrs[key] or any(c.isspace() for c in attrs[key]):
+                    raise serializers.ValidationError({key:"Укажите публичную ссылку http:// или https://."})
+        return attrs
+
 class ProjectInput(serializers.Serializer):
     name=serializers.CharField(max_length=120)
     prompt=serializers.CharField(max_length=8000)
+    contacts=ContactInput(required=False,default=dict)
     style=serializers.ChoiceField(choices=STYLES,default="auto")
     engine=serializers.ChoiceField(choices=("quick","cinematic"),default="cinematic")
     asset_style=serializers.ChoiceField(choices=("realistic","stylized"),default="realistic",write_only=True)
@@ -34,7 +63,7 @@ def project_data(p,detail=False):
     p=refresh_project(p)
     dist=project_dist(p)
     data={
-        "id":str(p.id),"name":p.name,"prompt":p.prompt,"style":p.style,
+        "id":str(p.id),"name":p.name,"prompt":p.prompt,"style":p.style, "contacts":p.contacts,
         "created_at":p.created_at,"updated_at":p.updated_at,
         "published_revision":p.published_revision_id,"mode":mode(),"engine":p.engine,
         "generation_status":p.generation_status,"generation_stage":p.generation_stage,
@@ -93,6 +122,9 @@ class Projects(StudioView):
                 transaction.on_commit(lambda: queue_project(p,profile=profile,asset_style=asset_style,hero_mode=hero_mode,require_model=require_model))
             return Response(project_data(p,True),status=202)
         values.pop("engine",None)
+        contacts=values.pop("contacts",{})
+        if contacts:
+            return Response({"detail":"Контактная группа доступна в Cinematic Engine."},status=400)
         try:
             spec=generate(**values)
         except GenerationError as exc:

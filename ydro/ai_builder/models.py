@@ -14,6 +14,7 @@ class Project(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     name = models.CharField(max_length=120)
     prompt = models.TextField()
+    contacts = models.JSONField(default=dict, blank=True)
     style = models.CharField(max_length=20, default="auto")
     engine = models.CharField(max_length=16, choices=ENGINE_CHOICES, default="quick")
     generation_status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="complete")

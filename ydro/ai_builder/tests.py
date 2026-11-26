@@ -168,3 +168,21 @@ class StudioTests(APITestCase):
                 self.assertEqual(first["updated_at"],second["updated_at"])
             path.write_text("[]",encoding="utf-8")
             self.assertIsNone(self.client.get(url).data["generation_event_at"])
+
+    def test_cinematic_contacts_are_saved_and_queued(self):
+        contacts={"phone":"+7 (900) 123-45-67","email":"sales@example.com","telegram":"https://t.me/example","address":"Москва"}
+        with tempfile.TemporaryDirectory() as jobs, override_settings(STUDIO_CINEMATIC_ENABLED=True,STUDIO_JOB_ROOT=jobs):
+            with self.captureOnCommitCallbacks(execute=True):
+                response=self.client.post("/api/studio/projects/",{"name":"Contact site","prompt":"Test","contacts":contacts},format="json")
+            self.assertEqual(response.status_code,202)
+            self.assertEqual(response.data["contacts"],contacts)
+            payload=json.loads((Path(jobs)/"pending"/f'{response.data["id"]}.json').read_text(encoding="utf-8"))
+            self.assertEqual(payload["contacts"],contacts)
+            self.assertEqual(payload["prompt"],"Test")
+            self.client.force_authenticate(self.b)
+            self.assertEqual(self.client.get("/api/studio/projects/"+response.data["id"]+"/").status_code,404)
+
+    def test_reject_unsafe_contact_links(self):
+        for url in ("javascript:alert(1)","ftp://example.com/path","https://user:password@example.com/"):
+            response=self.client.post("/api/studio/projects/",{"name":"Test","prompt":"test","contacts":{"website":url}},format="json")
+            self.assertEqual(response.status_code,400)

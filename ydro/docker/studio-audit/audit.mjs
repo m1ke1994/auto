@@ -12,6 +12,7 @@ const expectedModels=modelDirs.map(dir=>'tn-models/'+dir+'/model.gltf');
 report.expectedModels=expectedModels;
 const sceneContract=await readFile(resolve(root,'tn-scene-contract.json'),'utf8').then(JSON.parse).catch(()=>null);
 report.sceneEngine=sceneContract?.version||0;
+const contactContract=await readFile(resolve(root,'tn-contact-contract.json'),'utf8').then(JSON.parse).catch(()=>null);
 const capture=createCapture(report);
 let browser;
 let stage='browser launch';
@@ -296,6 +297,13 @@ try {
     const checks={rendered:result.bodyText>80,noHorizontalOverflow:result.overflow<=2&&steps.every(s=>s.horizontalOverflow<=2),footer:result.footer&&result.footerLinks>0,progress:progressOk,noBrokenImages:Math.max(result.brokenImages,brokenAfterScroll)===0,noJsErrors:errors.length===0,noMissingAssets:missing.length===0,noExternalRequests:blocked.length===0};
     checks.completeSections=sections.every(x=>x.exists&&x.visible&&x.reachable&&x.heading&&x.textLength>=45);
     checks.headerNavigation=navigation.header&&navigation.allLinks&&menuOperable;
+    if(contactContract?.length) checks.publicContacts=await page.evaluate(entries=>['#contacts','footer[data-tn-footer]'].every(selector=>{
+      const target=document.querySelector(selector);
+      return entries.every(entry=>[...(target?.querySelectorAll('[data-tn-contact]')||[])].some(n=>{
+        const r=n.getBoundingClientRect(),s=getComputedStyle(n);
+        return n.dataset.tnContact===entry.key&&n.textContent.includes(entry.value)&&(!entry.href||n.getAttribute('href')===entry.href)&&r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden';
+      }));
+    }),contactContract);
     checks.heroCTA=sections.some(x=>x.id==='home'&&x.cta);
     checks.heroLayout=heroLayout;
     if(sceneContract?.heroPreset){checks.heroObjectLayout=heroObject?.layoutOk===true;if(name==="desktop")checks.heroObjectMotion=heroObject?.motionOk===true;}

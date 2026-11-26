@@ -5,6 +5,7 @@ import re
 import zipfile
 from pathlib import Path
 from html import escape, unescape
+from urllib.parse import urlsplit
 from quality import quality_issues
 from storyboard import validate_storyboard
 
@@ -14,7 +15,7 @@ MAX_TOTAL = 300_000
 MAX_FILES = 30
 DEPENDENCIES = {"vue":"3.5.34", "three":"0.180.0", "gsap":"3.13.0", "lenis":"1.3.20"}
 REQUIRED = {"src/App.vue", "src/style.css"}
-RESERVED = {"src/main.js", "src/main.ts", "src/landing-progress.js", "src/components/CinemaModel.vue", "src/cinematic-motion.js", "src/components/SceneCarousel.vue", "src/components/SceneStory.vue", "src/components/HeroObjectStage.vue", "src/components/AboutMetrics.vue"}
+RESERVED = {"src/tn-contacts.js", "src/main.js", "src/main.ts", "src/landing-progress.js", "src/components/CinemaModel.vue", "src/cinematic-motion.js", "src/components/SceneCarousel.vue", "src/components/SceneStory.vue", "src/components/HeroObjectStage.vue", "src/components/AboutMetrics.vue"}
 
 class SiteStore:
     def __init__(self, media=None, models=None):
@@ -28,6 +29,29 @@ class SiteStore:
         self.scene_required = False
         self.storyboard = None
         self.hero_preset = None
+        self.contacts = {}
+
+    def set_contacts(self, raw):
+        limits={"phone":32,"email":180,"address":250,"telegram":250,"vk":250,"whatsapp":250,"website":250}
+        if not isinstance(raw,dict) or set(raw)-set(limits):
+            raise ValueError("Invalid contact data")
+        out={}
+        for key,value in raw.items():
+            if not isinstance(value,str) or len(value)>limits[key] or any(ord(c)<32 or ord(c)==127 for c in value):
+                raise ValueError("Invalid contact value")
+            value=value.strip()
+            if not value:
+                continue
+            if key=="phone" and (not re.fullmatch(r"\+?[0-9 ()-]{5,32}",value) or not 5<=sum(c.isdigit() for c in value)<=15):
+                raise ValueError("Invalid contact phone")
+            if key=="email" and not re.fullmatch(r"[^\s@<>\x22\x27:;,?&#%]+@[^\s@<>\x22\x27:;,?&#%]+\.[^\s@<>\x22\x27:;,?&#%]+",value):
+                raise ValueError("Invalid contact email")
+            if key in ("telegram","vk","whatsapp","website"):
+                u=urlsplit(value)
+                if u.scheme not in ("http","https") or not u.hostname or u.username or u.password or "\\" in value or any(c.isspace() for c in value):
+                    raise ValueError("Invalid public contact URL")
+            out[key]=value
+        self.contacts=out
 
     def set_plan(self, content):
         if not 80 <= len(content.strip()) <= 8000:
@@ -186,6 +210,40 @@ class SiteStore:
             "README.md": "# TrackNode OpenHands source\nUntrusted AI-generated source. Inspect it and build only in an isolated, credential-free environment. No build or visual verification has been performed.\n",
             "tracknode-agent.json": json.dumps({"engine":"openhands-sdk","model":model,"build_verified":False,"visual_verified":False,"checkpoint":checkpoint,"scene_engine":1 if self.scene_required else 0,"hero_preset":self.hero_preset,"review_origin":self.review_origin if self.self_review else None,"profile":profile,"files":sorted(self.files),"rejected_models":sorted(self.models.rejected) if self.models else []},indent=2),
         }
+        if self.contacts:
+            entries=[]
+            labels={"phone":"Телефон","email":"Email","address":"Адрес","telegram":"Telegram","vk":"ВКонтакте","whatsapp":"WhatsApp","website":"Сайт"}
+            for key,label in labels.items():
+                if key not in self.contacts:
+                    continue
+                value=self.contacts[key]
+                href=("tel:"+re.sub(r"[^0-9+]","",value) if key=="phone" else "mailto:"+value if key=="email" else "" if key=="address" else value)
+                entries.append({"key":key,"label":label,"value":value,"href":href})
+            trusted["CONTACTS.json"]=json.dumps(self.contacts,ensure_ascii=False)
+            trusted["public/tn-contact-contract.json"]=json.dumps(entries,ensure_ascii=False)
+            trusted["src/tn-contacts.js"]="const entries="+json.dumps(entries,ensure_ascii=True)+";\n"+r"""
+export function installContacts(){
+  for(const target of document.querySelectorAll('#contacts, footer[data-tn-footer]')){
+    const group=document.createElement('div')
+    group.dataset.tnContactGroup=''
+    group.setAttribute('aria-label','Контактные данные')
+    group.style.cssText='display:flex;flex-wrap:wrap;gap:.65rem 1.3rem;align-items:flex-start;margin-block:1.2rem;max-width:100%;min-width:0;overflow-wrap:anywhere;font-size:clamp(.875rem,1.2vw,1rem);line-height:1.5'
+    for(const entry of entries){
+      const node=document.createElement(entry.href?'a':'span')
+      node.dataset.tnContact=entry.key
+      node.textContent=entry.label+': '+entry.value
+      node.style.cssText='min-width:0;max-width:100%;overflow-wrap:anywhere;color:inherit'
+      if(entry.href){
+        node.setAttribute('href',entry.href)
+        if(/^https?:/.test(entry.href)){node.target='_blank';node.rel='noopener noreferrer'}
+      }
+      group.append(node)
+    }
+    target.append(group)
+  }
+}
+"""
+            trusted["src/main.js"] += "import {installContacts} from './tn-contacts.js';\ninstallContacts();\n"
         if self.storyboard:
             trusted["STORYBOARD.json"]=json.dumps(self.storyboard,ensure_ascii=False,indent=2)
         if self.scene_required:

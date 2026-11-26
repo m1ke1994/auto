@@ -6,6 +6,10 @@ import { BACKEND_URL } from '../config/env'
 const projects=ref([]), current=ref(null), name=ref(''), prompt=ref(''), instruction=ref(''), selected=ref(null), busy=ref(false), error=ref(''), device=ref('100%')
 const engine=ref('cinematic'), style=ref('auto'), assetStyle=ref('realistic'), heroMode=ref('auto'), requireModel=ref(false)
 const base='/api/studio/projects/'
+const emptyContacts=()=>({phone:'',email:'',address:'',telegram:'',vk:'',whatsapp:'',website:''})
+const contacts=ref(emptyContacts()), noContacts=ref(false)
+const contactFields=[['phone','Телефон','tel','+7 (___) ___-__-__'],['email','Email','email','info@example.com'],['address','Адрес','text','Город, улица, дом'],['telegram','Telegram','url','https://t.me/...'],['vk','ВКонтакте','url','https://vk.com/...'],['whatsapp','WhatsApp','url','https://wa.me/...'],['website','Сайт','url','https://example.com']]
+const hasContacts=computed(()=>Object.values(contacts.value).some(v=>v.trim()))
 const config=ref({provider:null,configured:false,cinematic_enabled:false,cinematic_max_cost_usd:2.5})
 const styles=[['auto','Автоматический'],['business','Современный'],['cinema','Кинематографический']]
 const heroModes=[['auto','Автовыбор композиции'],['immersive','Крупный объект на фоне'],['product','Предметная сцена'],['split','Разделённый Hero'],['cinematic','Полноэкранная сцена'],['editorial','Editorial-фотография'],['environment','Иммерсивное пространство']]
@@ -68,12 +72,13 @@ function newProject(from=null){
   name.value=from?from.name+' — Cinema':''
   name.value=name.value.slice(0,120)
   prompt.value=from?.prompt||''
+  contacts.value={...emptyContacts(),...from?.contacts};noContacts.value=false
   current.value=null;selected.value=null;error.value='';showPrompt.value=false
 }
-function create(){if(engine.value==='cinematic'&&activeJob.value)return;run(async()=>{
-  const payload={name:name.value,prompt:prompt.value,style:style.value,engine:engine.value,asset_style:assetStyle.value,hero_mode:heroMode.value,require_model:requireModel.value}
+function create(){if(engine.value==='cinematic'&&activeJob.value)return;if(engine.value==='cinematic'&&!hasContacts.value&&!noContacts.value){error.value='Укажите хотя бы один публичный контакт или выберите «Без контактов». ';return}run(async()=>{
+  const payload={name:name.value,prompt:prompt.value,style:style.value,engine:engine.value,asset_style:assetStyle.value,hero_mode:heroMode.value,require_model:requireModel.value,contacts:engine.value==='cinematic'&&!noContacts.value?Object.fromEntries(Object.entries(contacts.value).filter(([,v])=>v.trim())):{}}
   apply((await http.post(base,payload,{timeout:engine.value==='cinematic'?15000:105000})).data)
-  showPrompt.value=false;await refresh();name.value='';prompt.value=''
+  showPrompt.value=false;await refresh();name.value='';prompt.value='';contacts.value=emptyContacts();noContacts.value=false
 })}
 function edit(){run(async()=>{apply((await http.post(base+current.value.id+'/edit/',{instruction:instruction.value,revision:selected.value},{timeout:105000})).data);instruction.value=''})}
 function publish(){run(async()=>{current.value=(await http.post(base+current.value.id+'/publish/'+selected.value+'/')).data})}
@@ -102,6 +107,11 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
     <label>Название<input v-model="name" required maxlength="120" placeholder="Например, NOIR CHRONOS"></label>
     <label>Описание<textarea v-model="prompt" required maxlength="8000" rows="6" placeholder="Опишите бизнес, аудиторию, настроение и нужные разделы."></textarea><small class="field-count">{{prompt.length}} / 8000</small></label>
     <template v-if="engine==='cinematic'">
+      <fieldset class="contact-fields"><legend>Контактная группа</legend><p class="muted">Укажите публичные контакты бизнеса. Они будут добавлены в раздел «Контакты» и футер готового сайта. Не вводите личные или закрытые данные.</p>
+        <label class="check"><input v-model="noContacts" type="checkbox" data-testid="no-contacts"> Без контактов (демонстрационный сайт)</label>
+        <div v-if="!noContacts" class="choice-grid"><label v-for="field in contactFields" :key="field[0]">{{field[1]}}<input v-model="contacts[field[0]]" :type="field[2]" :placeholder="field[3]" :maxlength="field[0]==='phone'?32:field[0]==='email'?180:250" :data-testid="'contact-'+field[0]"></label></div>
+        <p v-if="!noContacts&&!hasContacts" class="muted">Заполните хотя бы одно поле.</p>
+      </fieldset>
       <details class="advanced"><summary>Дополнительные настройки <span>Hero и 3D</span></summary>
         <div class="choice-grid"><label>Hero<select v-model="heroMode"><option v-for="h in heroModes" :key="h[0]" :value="h[0]">{{h[1]}}</option></select></label><label>Стиль ассета<select v-model="assetStyle"><option value="realistic">Реалистичный</option><option value="stylized">Стилизованный</option></select></label></div>
         <label class="check"><input v-model="requireModel" type="checkbox"> Остановить генерацию, если подходящая модель Sketchfab не найдена.</label>
@@ -124,6 +134,7 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
       <p v-if="current.generation_error" class="error diagnostic">{{current.generation_error}}</p>
       <p v-if="cinematic&&current.generation_status==='complete'&&visualReview.status!=='passed'" class="muted">Сайт доступен для просмотра; премиальная оценка не подтверждена.</p>
       <div class="brief"><div class="section-heading"><span>Описание проекта</span><button class="text-button" :aria-expanded="showPrompt" @click="showPrompt=!showPrompt">{{showPrompt?'Свернуть':'Читать'}}</button></div><p :class="['brief-text',{expanded:showPrompt}]">{{current.prompt}}</p><small class="muted">{{current.prompt.length}} символов</small></div>
+      <div v-if="cinematic&&Object.keys(current.contacts||{}).length" class="brief"><span class="eyebrow">КОНТАКТЫ ПРОЕКТА</span><p v-for="field in contactFields.filter(f=>current.contacts?.[f[0]])" :key="field[0]" class="contact-summary"><strong>{{field[1]}}</strong><br>{{current.contacts[field[0]]}}</p></div>
       <template v-if="!cinematic"><button class="primary" :disabled="busy" @click="newProject(current)">Создать Cinema-сайт</button><h3>История изменений</h3><div class="revision-list"><button v-for="r in current.revisions" :key="r.id" :disabled="busy" :class="{active:r.id===selected}" @click="selected=r.id">{{r.instruction}}</button></div><form @submit.prevent="edit"><label>Изменение<textarea v-model="instruction" required maxlength="8000" rows="3" placeholder="Например: сделай тёмный дизайн"></textarea></label><button :disabled="busy||!config.configured||!revision">Создать версию</button></form></template>
       <div v-else-if="generating" class="muted small-info">Можно закрыть страницу: задача выполняется локально независимо от браузера. Повторно запускать её не нужно.</div>
     </aside>
@@ -147,6 +158,7 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
 </template>
 
 <style scoped>
+.contact-fields{min-width:0;border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:16px 0}.contact-fields legend{font-size:14px;font-weight:650;padding:0 6px}.contact-summary{font-size:12px;line-height:1.55;color:var(--muted);overflow-wrap:anywhere}.contact-summary strong{color:inherit}
 .studio{--line:#344153;--muted:#9baac0;--accent:#698dff;--panel:#111a28;padding:24px clamp(12px,2vw,28px);max-width:1720px;margin:auto;color:inherit;min-width:0}
 .studio-head,.section-heading,.toolbar,.progress-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .studio-head{margin-bottom:20px}.studio h1{font-size:36px;line-height:1.15;font-weight:750;letter-spacing:-.045em;margin:5px 0}.studio h2{font-size:22px;line-height:1.3;font-weight:650;overflow-wrap:anywhere}.studio h3{font-size:14px;font-weight:650;margin-top:20px}.studio p{margin:8px 0;overflow-wrap:anywhere}.eyebrow{font-size:10px;font-weight:750;letter-spacing:.15em;color:var(--muted)}.muted{color:var(--muted);font-size:13px;line-height:1.65}.badge{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:99px;padding:8px 12px;font-size:12px}.badge i{width:7px;height:7px;background:#64748b;border-radius:50%}.badge i.online{background:#4ade80}
