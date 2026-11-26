@@ -307,6 +307,7 @@ FILM_CSS="""
 }
 #home[data-tn-film-background] > .tn-film-screen {
   display:block !important; background:radial-gradient(ellipse at 50% 48%,#25272b 0%,var(--tn-bg,#08080a) 72%);
+  translate:none !important; scale:none !important; rotate:none !important; animation:none !important; transition:none !important;
 }
 #home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-background] > .tn-film-screen > .tn-film-background {
   position:absolute !important; inset:0 !important; display:block !important; box-sizing:border-box !important;
@@ -314,7 +315,8 @@ FILM_CSS="""
   max-width:none !important; max-height:none !important; margin:0 !important; padding:0 !important;
   grid-area:auto !important; flex:none !important; float:none !important; align-self:stretch !important;
   transform:none !important; translate:none !important; rotate:none !important; scale:none !important;
-  opacity:1 !important; clip-path:none !important; z-index:0 !important; pointer-events:none !important;
+  opacity:1 !important; visibility:visible !important; clip-path:none !important; z-index:0 !important; pointer-events:none !important;
+  animation:none !important; transition:none !important;
 }
 #home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-background] .tn-film-background > .tn-cinema-model,
 #home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-background] .tn-film-background > .tn-cinema-model > canvas {
@@ -322,7 +324,7 @@ FILM_CSS="""
   width:100% !important; height:100% !important; min-width:0 !important; min-height:0 !important;
   max-width:none !important; max-height:none !important; margin:0 !important; padding:0 !important;
   transform:none !important; translate:none !important; rotate:none !important; scale:none !important;
-  clip-path:none !important; opacity:1 !important;
+  clip-path:none !important; opacity:1 !important; visibility:visible !important; animation:none !important; transition:none !important;
 }
 #home[data-tn-film-background] .hero-glare {z-index:2 !important;opacity:.3 !important;background:linear-gradient(180deg,rgba(0,0,0,.8),transparent 40%,transparent 80%,rgba(0,0,0,.4)) !important;}
 #home[data-tn-film-background] .hero-content {text-shadow:0 2px 20px rgba(0,0,0,.9);z-index:5 !important;}
@@ -438,9 +440,9 @@ def apply_hero_film(files):
         opening_text=opening_text[:-1]+' data-tn-film-version="2">'
     # Explicitly migrate older 180-degree candidates as well as fresh projects.
     opening_text=re.sub(r"""\s+data-tn-film-turn\s*=\s*(?:"[^"]*"|'[^']*')""","",opening_text)
-    opening_text=opening_text[:-1]+' data-tn-film-turn="360">'
     if "data-tn-film-background" not in opening_text:
         opening_text=opening_text[:-1]+' data-tn-film-background>'
+    opening_text=opening_text[:-1]+' data-tn-film-turn="360">'
     markup=normalize_film_markup(opening_text+markup[opening.end():])
     result=dict(files)
     result[name]=(sources[name][:start]+markup+sources[name][end:]).encode()

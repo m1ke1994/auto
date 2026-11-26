@@ -188,7 +188,7 @@ function renderFrame() {
     const depth=rel.dot(direction)
     fit=Math.max(fit,depth+Math.abs(rel.dot(right))/(tanH*.84),depth+Math.abs(rel.dot(up))/(tanV*(.84-2*captionShift)),depth+.15)
   }
-  const zoom=blend(from.distance,to.distance)
+  const zoom=centeredFilm?1:blend(from.distance,to.distance)
   const distance=fit*(primaryHero?clamp(zoom,1,1.08):(opening>0?THREE.MathUtils.lerp(zoom,clamp(zoom,.98,1.08),opening):zoom))
   camera.far=Math.max(100,distance+radius*8); camera.updateProjectionMatrix()
   camera.position.copy(target).addScaledVector(direction,distance)
