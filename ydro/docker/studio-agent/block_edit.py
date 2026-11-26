@@ -86,16 +86,53 @@ def read_archive(path):
     import stat
     with zipfile.ZipFile(path) as z:
         items=z.infolist()
-        if len(items)>180 or sum(x.file_size for x in items)>MAX_ARCHIVE:
+        # Directory records in Windows ZIPs are not source files.
+        if len(items)>512 or sum(x.file_size for x in items)>MAX_ARCHIVE:
             raise BlockEditError("Archive exceeds bounds")
         files={}
+        entries=set()
+        tree={}
         for e in items:
-            if not all(re.fullmatch(r"[A-Za-z0-9_.-]+",p) and not p.startswith(".") for p in e.filename.split("/")) or stat.S_ISLNK(e.external_attr>>16) or e.filename.lower() in {k.lower() for k in files}:
-                raise BlockEditError("Unsafe archive")
-            files[e.filename]=z.read(e)
-    if json.loads(files["tracknode-agent.json"]).get("engine")!="openhands-sdk":
+            raw=e.orig_filename
+            name=raw.replace("\\","/")
+            directory=name.endswith("/")
+            if directory:
+                name=name[:-1]
+            parts=name.split("/")
+            if not all(re.fullmatch(r"[A-Za-z0-9_.-]+",p) and not p.startswith(".") for p in parts):
+                raise BlockEditError("Unsafe archive path")
+            mode=stat.S_IFMT(e.external_attr>>16) if e.create_system==3 else 0
+            if mode not in (0,stat.S_IFDIR,stat.S_IFREG) or (mode==stat.S_IFDIR and not directory) or (mode==stat.S_IFREG and directory):
+                raise BlockEditError("Unsafe archive entry type")
+            if e.flag_bits&1:
+                raise BlockEditError("Encrypted archive entry")
+            folded=name.lower()
+            if folded in entries:
+                raise BlockEditError("Duplicate archive entry")
+            entries.add(folded)
+            # Reject collisions between files and directory prefixes, including
+            # ambiguous mixed-case paths, regardless of record order.
+            for i in range(1,len(parts)+1):
+                prefix="/".join(parts[:i])
+                key=prefix.lower()
+                kind="directory" if i<len(parts) or directory else "file"
+                previous=tree.get(key)
+                if previous is not None and previous!=(prefix,kind):
+                    raise BlockEditError("Archive path collision")
+                tree[key]=(prefix,kind)
+            if directory:
+                if e.file_size!=0:
+                    raise BlockEditError("Invalid archive directory")
+                continue
+            if len(files)>=180:
+                raise BlockEditError("Archive exceeds file limit")
+            files[name]=z.read(e)
+    if "tracknode-agent.json" not in files:
+        raise BlockEditError("Archive metadata missing")
+    meta=json.loads(files["tracknode-agent.json"])
+    if not isinstance(meta,dict) or meta.get("engine")!="openhands-sdk":
         raise BlockEditError("Unsupported archive")
-    if json.loads(files["tracknode-agent.json"]).get("checkpoint"):
+    if meta.get("checkpoint"):
         raise BlockEditError("Cannot edit checkpoint")
     return files
 

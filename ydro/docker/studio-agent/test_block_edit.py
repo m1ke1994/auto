@@ -83,3 +83,46 @@ class BlockEditTests(unittest.TestCase):
         from block_edit import apply_hero_film
         with self.assertRaises(ValueError):
             apply_hero_film(self.files)
+
+    def test_windows_archive_with_directory_records(self):
+        import tempfile, zipfile
+        from pathlib import Path
+        from block_edit import read_archive
+        with tempfile.TemporaryDirectory() as d:
+            path=Path(d)/"windows.zip"
+            with zipfile.ZipFile(path,"w") as z:
+                z.writestr("src/","")
+                z.writestr("src\\components\\","")
+                z.writestr("src\\components\\Hero.vue","<template/>")
+                z.writestr("tracknode-agent.json",'{"engine":"openhands-sdk"}')
+            self.assertEqual(read_archive(path)["src/components/Hero.vue"],b"<template/>")
+            self.assertNotIn("src/",read_archive(path))
+
+    def test_archive_rejects_traversal_and_aliases_after_normalizing(self):
+        import tempfile, zipfile
+        from pathlib import Path
+        from block_edit import read_archive
+        for names in (["..\\escape.py"],["C:\\evil"],["\\absolute"],["src//file"],["src/App.vue","src\\App.vue"],["src/App.vue","SRC/other.vue"],["src","src/App.vue"],["src/child","src"],[".env"],["src/.git/config"]):
+            with self.subTest(names=names), tempfile.TemporaryDirectory() as d:
+                path=Path(d)/"bad.zip"
+                with zipfile.ZipFile(path,"w") as z:
+                    z.writestr("tracknode-agent.json",'{"engine":"openhands-sdk"}')
+                    for name in names:
+                        z.writestr(name,b"content")
+                with self.assertRaises(ValueError):
+                    read_archive(path)
+
+    def test_archive_rejects_symlink_even_with_directory_suffix(self):
+        import tempfile, zipfile, stat
+        from pathlib import Path
+        from block_edit import read_archive
+        with tempfile.TemporaryDirectory() as d:
+            path=Path(d)/"bad.zip"
+            with zipfile.ZipFile(path,"w") as z:
+                z.writestr("tracknode-agent.json",'{"engine":"openhands-sdk"}')
+                entry=zipfile.ZipInfo("src/link/")
+                entry.create_system=3
+                entry.external_attr=(stat.S_IFLNK|0o777)<<16
+                z.writestr(entry,b"")
+            with self.assertRaises(ValueError):
+                read_archive(path)
