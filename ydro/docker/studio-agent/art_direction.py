@@ -16,6 +16,21 @@ COMPOSITIONS = {
     "environment": ("environment_stage", "layered_depth"),
 }
 
+def procedural_preset(plan, brief):
+    """Select a small product family when relevant, not a universal site template."""
+    text=(str(plan.get("subject",""))+" "+brief).lower()
+    if any(x in text for x in ("без 3d", "без 3д", "без трехмер", "без трёхмер", "no 3d", "no three.js", "только фотограф", "photo only", "photography only", "без процедурн", "no procedural")):
+        return None
+    if any(x in text for x in ("духи","парфюм","perfume","fragrance")):
+        return "perfume"
+    if any(x in text for x in ("баночк","cream jar","крем для","cosmetic jar")):
+        return "jar"
+    if any(x in text for x in ("тюбик","cosmetic tube","cream tube")):
+        return "tube"
+    if any(x in text for x in ("сыворотк","косметик","салон красоты","студии красоты","студия красоты","beauty atelier","beauty studio","beauty salon","skincare","cosmetic","serum")):
+        return "serum"
+    return None
+
 def cinematic_direction(plan, selected, brief=""):
     import hashlib
     seed=int(hashlib.sha256(brief.encode("utf-8")).hexdigest()[:12],16)
@@ -29,8 +44,9 @@ def cinematic_direction(plan, selected, brief=""):
         "маленькие модели", "маленькая модель", "небольшие модели", "небольшая модель",
         "по краям", "small model", "edge accents", "small decorative", "floating edges"))
     layout="floating_edges" if selected and accent_requested else options[seed%len(options)]
+    preset=procedural_preset(plan,brief) if not selected else None
     if not selected:
-        layout="editorial_photo"
+        layout="hero_object_right" if preset else "editorial_photo"
     if conditional and layout=="detail_editorial":
         layout="museum_focus"
     role="accent" if layout=="floating_edges" else "primary"
@@ -42,7 +58,7 @@ def cinematic_direction(plan, selected, brief=""):
     else:
         motions=("orbit_soft","orbit_dramatic","turntable","front_reveal","fly_by","detail_focus","parallax_massive","light_sweep")
     lights=("studio","softbox","dramatic","editorial") if conditional else ("studio","softbox","dramatic","editorial","silhouette")
-    return {"layout":layout,"model_role":role if selected else None,
+    return {"layout":layout,"hero_preset":preset,"model_role":role if selected else None,
             "motion":motions[(seed//7)%len(motions)] if selected else None,
             "lighting":lights[(seed//31)%len(lights)] if selected else None,
             "opening_yaw":selected.get("yaw",50) if selected else None,
@@ -60,6 +76,10 @@ Trusted components in src/components (do not write or overwrite them):
 - SceneStory: import SceneStory from './components/SceneStory.vue'. Props :chapters array 2–5 {title,text,kicker?,image?,alt?}, mode split, reverse or overlay, label. Slot #visual="{ item,index }" may contain one persistent CinemaModel (do not bind a changing :key) or your own visual. Slot #chapter="{ item,index,active }" allows custom heading, text and detail annotations. The stage stays sticky on desktop, active chapter follows natural page scroll, mobile/reduced motion presents readable vertical chapters. The visual slot is rendered only in the persistent desktop stage and may contain one persistent CinemaModel. For mobile, provide a separate #mobile-visual slot inside each chapter; it must be a lightweight image or original CSS/SVG composition, never another CinemaModel/canvas. Keep both slots declarative and free of IDs, event listeners or side effects. Give every chapter a distinct image, crop or original motif; never repeat an empty number card with only its text changed. Do not put data-tn-motion on every nested story chapter or sticky visual: the story active-state controller already drives chapter changes. The component checks that each mobile chapter has a real visual and readable caption. Use CSS variables --tn-story-top, --tn-story-bg, --tn-caption-bg, --tn-caption-color for the site's own style; avoid sticky-breaking overflow on ancestors. Mark outer section with literal data-tn-scene; ensure heading and substantive text at section start. Add actual GSAP scrub motion for at least two appropriate data-tn-motion layers as the existing quality contract requires; do not animate essential text to invisible for entire scroll intervals. For a moving 3D stage use independent keyframes, not a continuous second renderer or remount; ground physical objects appropriately. Use short real labels and captions tied to the brief; do not invent specifications. Scroll stays native, with no page-wide horizontal drag or trapping.
 For new Cinema, render both trusted components in real middle chapters, not hidden/offscreen dummy components. In existing repair preserve prior layout. Scene components are optional for standard/premium. Visual freedom remains in typography, slot contents, animation, palette and framing.
 
+HERO FIRST — establish one recognizable subject and balanced visual weight before building:
+Choose subject from the actual business: product, vehicle, architecture, person in licensed illustrative photography, landscape, or original conceptual artwork. Never rely on a blank gradient, particles or low abstract waves alone. For a split product hero use a meaningful focal object taking about 40–55% of desktop hero width, with generous but intentional negative space and separate readable copy. Full-bleed and centered heroes remain valid when better suited to the brief. Match image subject to captions, use different assets in adjacent chapters unless deliberate continuity is needed. Compose at desktop and mobile scale, not a narrow central column on wide screens. Keep native carousel scroll usable; style scrollbars or provide accessible controls. Avoid oversized translated children, use min-width:0 in flex/grid, and keep essential headings/content visible even when the scroll trigger never fires. Mobile menu must not inherit fixed-header height or clipping.
+Trusted HeroObjectStage.vue: procedural serum, jar, tube and perfume presets, no asset download. Import from './components/HeroObjectStage.vue'. Props: preset, brand, label, tone and accent (hex colors). Use one large instance inside home when required by the preflight contract. It owns the scroll-linked rotation, camera approach, light sweep and cloth depth; do not add a second renderer or animate the stage out of view. Reserve 40–55% of the desktop hero width and place it alongside (not behind) the copy, with min-width:0 and visible area at least 50vh; stack on mobile. This is original illustrative geometry, not a real product photo. Mobile/reduced motion and WebGL failures use a static product composition. No continuous animation loop; the component imports Three.js lazily, renders only visible scroll events, limits resolution/FPS and cleans up. For other subjects use an approved imported model or a meaningful local photo/SVG; custom WebGL must use the same event-driven, visibility-gated discipline. Never use raw requestAnimationFrame recursion as an ambient effect.
+ 
 CINEMATIC ENGINE 2 — original composition, not a template:
 Choose a visual narrative and role for the actual model. Large primary objects: immersive_xl (full-width stage), museum_focus (centered), editorial_split/asymmetric_split, detail_editorial (safe detail emphasis without clipping), environment_stage, chapter_transformation or layered_depth. Small accent objects: floating_edges, kept outside text and CTA safe zones; use compact wrappers and alternate sides or chapter placement. Use at most two live model instances at once, reuse a single persistent stage with wrapper transforms for cross-chapter movement; do not duplicate canvases for decoration. CSS/GSAP may translate/scale the wrapper within its chapter for edge travel and depth parallax, with responsive bounds, never a horizontal page scrollbar. Do not use floating vehicles as decoration; keep grounded objects physically plausible.
 Trusted CinemaModel props: motion-preset (custom/default, orbit_soft, orbit_dramatic, turntable, front_reveal, fly_by, detail_focus, parallax_massive, idle_float, edge_spin_soft, light_sweep), :opening-yaw (from approved model), :motion-strength (.25–1.25), lighting (studio, softbox, dramatic, editorial, silhouette), model-role (primary or accent). Presets are scroll-driven, not continuous autoplay; idle_float is a scroll-linked lift and gentle rotation, only with :ground="false" for appropriate objects. For a composed motion sequence provide 2–8 explicit shots, which override preset keyframes, each with at,yaw,pitch,distance,target and optional modelYaw (degrees, independent object rotation), lift (normalized vertical offset, ignored with ground), light (key-light azimuth offset in degrees). Runtime clamps values and fits transformed bounds. Do not combine camera motion with a second Three.js loop. Use the inspected opening yaw and choose subsequent angles appropriate to the subject. Small accents may use a compact stage (desktop >=12vw wide and >=100px high, mobile >=25vw and >=100px); large primary hero retains full framing requirements. A required model still must be recognizable in home. On mobile simplify motion and reposition objects away from text; reduced motion must remain static and readable.

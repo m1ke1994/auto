@@ -52,6 +52,9 @@ def restore(store,path,*,allow_checkpoint=False):
         scene_engine=info.get("scene_engine",0)
         require(type(scene_engine) is int and scene_engine in (0,1),"Unsupported scene engine version.")
         store.scene_required=scene_engine==1
+        preset=info.get("hero_preset")
+        require(preset is None or isinstance(preset,str) and preset in ("serum","jar","tube","perfume"),"Invalid hero preset.")
+        store.hero_preset=preset
         if "STORYBOARD.json" in members:
             store.set_storyboard(metadata("STORYBOARD.json",{}))
         require(not store.scene_required or store.storyboard is not None or checkpoint,"Missing required storyboard.")

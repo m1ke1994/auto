@@ -14,7 +14,7 @@ MAX_TOTAL = 300_000
 MAX_FILES = 30
 DEPENDENCIES = {"vue":"3.5.34", "three":"0.180.0", "gsap":"3.13.0", "lenis":"1.3.20"}
 REQUIRED = {"src/App.vue", "src/style.css"}
-RESERVED = {"src/main.js", "src/main.ts", "src/landing-progress.js", "src/components/CinemaModel.vue", "src/cinematic-motion.js", "src/components/SceneCarousel.vue", "src/components/SceneStory.vue"}
+RESERVED = {"src/main.js", "src/main.ts", "src/landing-progress.js", "src/components/CinemaModel.vue", "src/cinematic-motion.js", "src/components/SceneCarousel.vue", "src/components/SceneStory.vue", "src/components/HeroObjectStage.vue"}
 
 class SiteStore:
     def __init__(self, media=None, models=None):
@@ -26,6 +26,7 @@ class SiteStore:
         self.self_review = ""
         self.scene_required = False
         self.storyboard = None
+        self.hero_preset = None
 
     def set_plan(self, content):
         if not 80 <= len(content.strip()) <= 8000:
@@ -38,9 +39,16 @@ class SiteStore:
         self.self_review=""
 
     def scene_issues(self):
-        if not self.scene_required:
-            return []
         issues=[]
+        if self.hero_preset:
+            app=self.files.get("src/App.vue","")
+            home=re.search(r'<section\b[^>]*\bid\s*=\s*["\']home["\'][^>]*>(.*?)</section>',app,re.S)
+            tag=re.search(r'<HeroObjectStage\b[^>]*>',home.group(1)) if home else None
+            imported=re.search(r'import\s+HeroObjectStage\s+from\s*["\']\./components/HeroObjectStage\.vue["\']',app)
+            if not imported or not tag or not re.search(r'\bpreset\s*=\s*["\']'+re.escape(self.hero_preset)+r'["\']',tag.group(0)) or len(re.findall(r'<HeroObjectStage\b',app))!=1:
+                issues.append("Render one trusted HeroObjectStage with literal preset="+self.hero_preset+" inside home in App.vue.")
+        if not self.scene_required:
+            return issues
         if not self.storyboard:
             issues.append("Save a valid storyboard before source generation.")
         source="\n".join(v for p,v in self.files.items() if p.endswith(".vue"))
@@ -169,13 +177,14 @@ class SiteStore:
             "src/cinematic-motion.js": Path(__file__).with_name("cinematic-motion.js").read_text(encoding="utf-8"),
             "src/components/SceneCarousel.vue": Path(__file__).with_name("SceneCarousel.vue").read_text(encoding="utf-8"),
             "src/components/SceneStory.vue": Path(__file__).with_name("SceneStory.vue").read_text(encoding="utf-8"),
+            "src/components/HeroObjectStage.vue": Path(__file__).with_name("HeroObjectStage.vue").read_text(encoding="utf-8"),
             "README.md": "# TrackNode OpenHands source\nUntrusted AI-generated source. Inspect it and build only in an isolated, credential-free environment. No build or visual verification has been performed.\n",
-            "tracknode-agent.json": json.dumps({"engine":"openhands-sdk","model":model,"build_verified":False,"visual_verified":False,"checkpoint":checkpoint,"scene_engine":1 if self.scene_required else 0,"profile":profile,"files":sorted(self.files),"rejected_models":sorted(self.models.rejected) if self.models else []},indent=2),
+            "tracknode-agent.json": json.dumps({"engine":"openhands-sdk","model":model,"build_verified":False,"visual_verified":False,"checkpoint":checkpoint,"scene_engine":1 if self.scene_required else 0,"hero_preset":self.hero_preset,"profile":profile,"files":sorted(self.files),"rejected_models":sorted(self.models.rejected) if self.models else []},indent=2),
         }
         if self.storyboard:
             trusted["STORYBOARD.json"]=json.dumps(self.storyboard,ensure_ascii=False,indent=2)
         if self.scene_required:
-            trusted["public/tn-scene-contract.json"]=json.dumps({"version":1,"carousel":True,"story":True})
+            trusted["public/tn-scene-contract.json"]=json.dumps({"version":1,"carousel":True,"story":True,"heroPreset":self.hero_preset})
         if self.design_brief:
             trusted["ART_DIRECTION.md"] = "# AI art direction (unverified)\n\n" + self.design_brief
         if self.self_review:

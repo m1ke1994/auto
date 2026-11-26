@@ -25,5 +25,24 @@ class SceneComponentTests(unittest.TestCase):
         issues=quality_issues({"src/App.vue":app},"cinema")
         self.assertFalse(any("#mobile-visual" in issue for issue in issues))
 
+    def test_procedural_direction_preserves_explicit_no_3d_and_other_subjects(self):
+        from art_direction import cinematic_direction
+        p={"mode":"cinematic","subject":"beauty atelier"}
+        self.assertEqual(cinematic_direction(p,None,"Без внешних 3D-моделей")["hero_preset"],"serum")
+        self.assertIsNone(cinematic_direction(p,None,"Без 3D")["hero_preset"])
+        self.assertIsNone(cinematic_direction({"mode":"cinematic","subject":"architecture"},None,"office")["hero_preset"])
+        self.assertIsNone(cinematic_direction(p,{"yaw":45},"beauty")["hero_preset"])
+
+    def test_trusted_object_contract(self):
+        from site_store import SiteStore
+        s=SiteStore()
+        s.hero_preset="serum"
+        self.assertTrue(s.scene_issues())
+        s.write("src/App.vue", """<script setup>import HeroObjectStage from './components/HeroObjectStage.vue'</script><template><section id="home"><HeroObjectStage preset="serum" /></section></template>""")
+        self.assertFalse(s.scene_issues())
+        with self.assertRaises(ValueError):
+            s.write("src/components/HeroObjectStage.vue","override")
+        self.assertIn("import('three')",(ROOT/"HeroObjectStage.vue").read_text(encoding="utf-8"))
+
 if __name__=="__main__":
     unittest.main()
