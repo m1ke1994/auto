@@ -54,7 +54,7 @@ def classify_hero_subject(plan, brief=""):
     if any(x in text for x in ("здан", "архитект", "фасад", "интерьер", "резиденц", "отел", "hotel", "architecture", "building", "interior", "facade")):
         return "architecture"
     import re
-    if any(x in text for x in ("автомоб", "машин", "мотоцикл", "яхт", "корабл", "самолет", "самолёт", "мебел", "станок", "vehicle", "motorcycle", "yacht", "aircraft", "furniture")) or re.search(r"\\b(?:car|cars|automobile|automobiles)\\b", text):
+    if any(x in text for x in ("автомоб", "машин", "мотоцикл", "яхт", "корабл", "самолет", "самолёт", "мебел", "станок", "vehicle", "motorcycle", "yacht", "aircraft", "furniture")) or re.search(r"\b(?:car|cars|automobile|automobiles)\b", text):
         return "large_object"
     if any(x in text for x in ("тюбик", "флакон", "баночк", "бутыл", "часы", "кольц", "упаков", "космет", "гаджет", "tube", "bottle", "watch", "ring", "packaging", "cosmetic", "product")):
         return "small_object"
