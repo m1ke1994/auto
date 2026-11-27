@@ -44,6 +44,36 @@ def quality_issues(files, profile):
         if re.search(r"""(?:\bfrom\s*|\bimport\s*(?:\(\s*)?)['"]lenis(?:/[^'"]*)?['"]""",scripts,re.I):
             issues.append("Remove Lenis from pages with CinemaModel; use native scroll and the trusted model renderer.")
     if profile=="cinema":
+        # A primary 3D Hero is a film contract, not a decorative model embed.
+        home_match=re.search(r"<section\b(?=[^>]*\bid\s*=\s*['\"]home['\"])[^>]*>(.*?)</section>",app,re.S)
+        home=home_match.group(1) if home_match else ""
+        if re.search(r"<CinemaModel\b",home):
+            if len(re.findall(r"<CinemaModel\b",home))!=1:
+                issues.append("The film Hero must contain exactly one persistent primary CinemaModel.")
+            if not re.search(r'class\s*=\s*["\'][^"\']*\bhero-stage\b',home):
+                issues.append("The film Hero needs one full-screen .hero-stage containing the primary CinemaModel.")
+            if not re.search(r'class\s*=\s*["\'][^"\']*\bhero-content\b',home):
+                issues.append("The film Hero needs a semantic .hero-content overlay.")
+            if not re.search(r'class\s*=\s*["\'][^"\']*\btn-film-captions\b',home):
+                issues.append("Add the five-beat .tn-film-captions overlay to the Hero.")
+            caption_tags=re.findall(r'<[^>]*\bdata-tn-film-caption\b[^>]*>',home)
+            if len(caption_tags)!=5:
+                issues.append("The film Hero must contain exactly five independent scroll captions.")
+            else:
+                intervals=[]
+                for tag in caption_tags:
+                    start=re.search(r"data-tn-film-start\s*=\s*['\"](0(?:\.\d+)?|1(?:\.0+)?)['\"]",tag)
+                    end=re.search(r"data-tn-film-end\s*=\s*['\"](0(?:\.\d+)?|1(?:\.0+)?)['\"]",tag)
+                    if not start or not end:
+                        intervals=[]
+                        break
+                    a,b=float(start.group(1)),float(end.group(1))
+                    if not 0<=a<b<=1:
+                        intervals=[]
+                        break
+                    intervals.append((a,b))
+                if len(intervals)!=5 or intervals[0][0]!=0 or intervals[-1][1]!=1 or any(intervals[i][1]>intervals[i+1][0] for i in range(4)):
+                    issues.append("Hero captions need five ordered, non-overlapping scroll intervals spanning 0–100%.")
         # A custom desktop SceneStory visual is not enough: each chapter needs a
         # matching mobile visual slot or the mobile story silently renders empty.
         if re.search(r"<SceneStory\b",app) and re.search(r"<template\s+#visual\b",app):
