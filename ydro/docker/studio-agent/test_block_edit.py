@@ -74,7 +74,13 @@ class BlockEditTests(unittest.TestCase):
         self.assertIn(b'data-tn-hero-film',out["src/App.vue"])
         self.assertIn(b'data-tn-film-version="2"',out["src/App.vue"])
         self.assertIn(b'data-tn-film-turn="360"',out["src/App.vue"])
-        self.assertIn(b'data-tn-film-background>',out["src/App.vue"])
+        # Attribute order is not part of the HTML contract; check the actual home root.
+        from block_edit import FilmMarkup
+        source=out["src/App.vue"].decode()
+        _,start,end=find_block({"src/App.vue":source},"home")
+        root=FilmMarkup(source[start:end]).nodes[0]
+        self.assertIn("data-tn-film-background",root["attrs"])
+        self.assertEqual(root["attrs"].get("data-tn-film-turn"),"360")
         self.assertIn(b'data-tn-film-background-layer><CinemaModel',out["src/App.vue"])
         self.assertIn(b'class="tn-film-screen"',out["src/App.vue"])
         self.assertIn(self.about.encode(),out["src/App.vue"])
