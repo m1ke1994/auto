@@ -38,8 +38,26 @@ function submitBlock(){run(async()=>{
   apply((await http.post(base+id+'/blocks/'+targetBlock.value+'/regenerate/',{instruction:blockInstruction.value,upgrade_motion:targetBlock.value==='home'&&upgradeMotion.value})).data)
   compareVersion.value='candidate';blockInstruction.value='';await refresh()
 })}
+const emptyHeroOptions=()=>({direction:'',motion:'',speed:'',lighting:''})
+const heroOptions=ref(emptyHeroOptions())
+const heroCaptionInput=ref('')
+const heroFields=[
+  ['direction','Художественное направление',{auto:'Автоматически','large-static':'Архитектура','large-dynamic':'Транспорт','compact-product':'Продукт',organic:'Природа',abstract:'Абстракция','human-scale':'Интерьер и оборудование',universal:'Сдержанное'}],
+  ['motion','Движение объекта',{directed:'По сценарию',still:'Неподвижный объект'}],
+  ['speed','Скорость',{focused:'Быстрее',balanced:'Умеренная',calm:'Медленнее'}],
+  ['lighting','Освещение',{auto:'Автоматически',softbox:'Мягкое',dramatic:'Контрастное'}],
+]
 function applyHeroFilm(){run(async()=>{
-  apply((await http.post(base+current.value.id+'/blocks/home/regenerate/',{instruction:'Full-screen two-act Hero film',local_hero_film:true,upgrade_motion:true})).data)
+  const options=Object.fromEntries(Object.entries(heroOptions.value).filter(([,value])=>value))
+  const captions=heroCaptionInput.value.split('\n').map(line=>line.trim()).filter(Boolean)
+  if(captions.length>5||new Set(captions).size!==captions.length||captions.some(text=>text.length<2||text.length>145||text.includes('{'))){
+    error.value='Введите до пяти разных титров, от 2 до 145 символов каждый.'
+    return
+  }
+  if(captions.length)options.captions=captions
+  apply((await http.post(base+current.value.id+'/blocks/home/regenerate/',{instruction:'Cinematic Hero',local_hero_film:true,upgrade_motion:true,hero_options:options})).data)
+  heroOptions.value=emptyHeroOptions()
+  heroCaptionInput.value=''
   compareVersion.value='candidate';await refresh()
 })}
 function decideBlock(editId,action){run(async()=>{
@@ -52,7 +70,15 @@ const visualReview=computed(()=>current.value?.visual_review || {status:'unverif
 const visualLabel=computed(()=>({passed:'Технически проверен · премиальная оценка пройдена',needs_revision:'Сайт готов к просмотру · дизайн требует улучшения',unavailable:'Сайт готов к просмотру · критик недоступен',skipped:'Сайт готов к просмотру · визуальная оценка пропущена',unverified:'Сайт готов к просмотру · премиальность не подтверждена'})[visualReview.value.status])
 
 async function run(fn){if(busy.value)return;busy.value=true;error.value='';try{await fn()}catch(e){error.value=e.response?.data?.detail||'Не удалось выполнить операцию. Проверьте локальную Studio.'}finally{busy.value=false}}
-function apply(project){const same=current.value?.id===project.id;current.value=project;if(!same||!project.revisions?.some(r=>r.id===selected.value))selected.value=project.revisions?.[0]?.id||null}
+function apply(project){
+  const same=current.value?.id===project.id
+  current.value=project
+  if(!same){
+    heroOptions.value=emptyHeroOptions()
+    heroCaptionInput.value=''
+  }
+  if(!same||!project.revisions?.some(r=>r.id===selected.value))selected.value=project.revisions?.[0]?.id||null
+}
 
 const phases=[
   ['preparing','Подготовка среды','Проверка контейнеров и инструментов'],
@@ -176,7 +202,15 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
           <form v-if="!editingBlock&&!candidateReady" @submit.prevent="submitBlock">
             
             <label>Что изменить?<textarea v-model="blockInstruction" required maxlength="4000" rows="3" placeholder="Опишите, что хотите изменить…"></textarea></label>
-            <details v-if="targetBlock==='home'" class="advanced editor-advanced"><summary>Настройки анимации</summary><label class="check"><input v-model="upgradeMotion" type="checkbox"> Обновить анимацию</label><button type="button" :disabled="busy||activeJob||!config.cinematic_enabled" @click="applyHeroFilm">Обновить киносцену</button></details>
+            <details v-if="targetBlock==='home'" class="advanced editor-advanced">
+              <summary>Настройки анимации</summary>
+              <label v-for="[key,label,options] in heroFields" :key="key">{{ label }}
+                <select v-model="heroOptions[key]" :aria-label="label"><option value="">Текущее</option><option v-for="(text,value) in options" :key="value" :value="value">{{ text }}</option></select>
+              </label>
+              <label>Титры, по одному на строке<textarea v-model="heroCaptionInput" rows="3" maxlength="729" placeholder="Текущие титры"></textarea></label>
+              <button type="button" :disabled="busy||activeJob||!config.cinematic_enabled" @click="applyHeroFilm">Обновить киносцену</button>
+              <label class="check"><input v-model="upgradeMotion" type="checkbox"> Обновить анимацию при правке блока</label>
+            </details>
             <p class="request-note">Используется один платный запрос.</p>
             <button type="submit" class="primary" :disabled="busy||activeJob||!config.cinematic_enabled||!blockInstruction.trim()">Применить изменения</button>
           </form>

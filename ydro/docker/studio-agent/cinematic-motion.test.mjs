@@ -1,6 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset, smoothScrollProgress, scrollFrameElapsed, modelPixelRatio, needsTransformPin, stableFilmCameraTrack, filmCameraDistance, filmCameraPose, filmCaptionOpacity } from './cinematic-motion.js'
+import {
+  MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress,
+  heroFilmProgress, pinnedFilmFrame, centeredViewOffset, smoothScrollProgress,
+  scrollFrameElapsed, modelPixelRatio, needsTransformPin, stableFilmCameraTrack,
+  filmCameraDistance, filmCameraPose, filmCaptionOpacity, resolvedFilmDirection,
+} from './cinematic-motion.js'
 
 test('all presets are bounded, deterministic and genuinely distinct',()=>{
   const signatures=new Set()
@@ -74,6 +79,17 @@ test('film camera performs a reversible orbit, dolly and light sweep',()=>{
   assert.ok(poses.some(p=>Math.abs(p.light)>15))
   assert.ok(poses.every(p=>p.distance>=1.05&&p.distance<=1.12))
   assert.deepEqual(filmCameraPose(.25),filmCameraPose(.25))
+})
+
+test('geometry guards the directed preset and stationary objects keep a finite camera track',()=>{
+  assert.equal(resolvedFilmDirection('large-static',[4,3,2]),'large-static')
+  assert.equal(resolvedFilmDirection('compact-product',[.01,2,1]),'universal')
+  assert.equal(resolvedFilmDirection('invalid',[1,1,1]),'universal')
+  assert.deepEqual(pinnedFilmFrame(-100,300,100,0).angle,0)
+  assert.notEqual(filmCameraPose(.25,'large-static').yaw,filmCameraPose(.25,'compact-product').yaw)
+  const corners=[-1,1].flatMap(x=>[-1,1].flatMap(y=>[-1,1].map(z=>[x,y,z])))
+  const track=stableFilmCameraTrack(corners,40,12,0,0,.8,38,'large-static')
+  assert(track.distances.every(distance=>Number.isFinite(distance)&&distance>0))
 })
 
 test('five subtitle beats are distinct at the five film checkpoints and reverse cleanly',()=>{

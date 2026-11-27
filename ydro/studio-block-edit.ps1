@@ -18,7 +18,10 @@ $statusName=[IO.Path]::GetFileName($ProgressFile)
 $progressContainerPath="/studio-status/$statusName"
 # Images are prebuilt by the update command; no rebuild on each edit.
 $payload=@{block=$Job.block;instruction=$Job.instruction;upgrade_motion=($Job.upgrade_motion -eq $true)}
-if ($Job.local_hero_film -eq $true) {$payload.local_hero_film=$true}
+if ($Job.local_hero_film -eq $true) {
+    $payload.local_hero_film=$true
+    if ($null -ne $Job.hero_options) {$payload.hero_options=$Job.hero_options}
+}
 $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($payload|ConvertTo-Json -Compress)))
 Write-StudioProgress $ProgressFile 'generating'
 if ($Job.local_hero_film -eq $true) {

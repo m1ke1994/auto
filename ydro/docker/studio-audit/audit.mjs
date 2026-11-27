@@ -37,6 +37,7 @@ try {
     });
     const page=await context.newPage();
     page.on('pageerror',e=>errors.push(String(e).slice(0,400)));
+    page.on('console',m=>{if(m.type()==='error'&&/WebGL|GL_INVALID/i.test(m.text()))errors.push(m.text().slice(0,400));});
     stage=name+' page load';
     await page.goto(origin+'/',{waitUntil:'load',timeout:30000});
     await page.waitForTimeout(1500);
@@ -176,6 +177,7 @@ try {
     }
     const filmSamples=[];
     const isFilm=await page.locator('#home[data-tn-hero-film]').count()===1;
+    const directedFilm=isFilm&&await page.locator('#home[data-tn-film-direction]').count()===1;
     const productFilm=isFilm&&await page.locator('#home[data-tn-film-composition="product"]').count()===1;
     const pinnedFilm=await page.locator('#home[data-tn-film-version="2"]').count()===1;
     const backgroundFilm=await page.locator('#home[data-tn-film-background]').count()===1;
@@ -222,14 +224,15 @@ try {
           function screenElement(){return root.querySelector('.tn-film-screen')}
           const captions=[...root.querySelectorAll('[data-tn-film-caption]')].map(el=>{
             const {left,right,top,bottom}=el.getBoundingClientRect();
-            return {text:el.textContent.trim(),opacity:opacity(el),left,right,top,bottom};
+            return {text:el.textContent.trim(),opacity:opacity(el),left,right,top,bottom,
+              start:Number(el.dataset.tnFilmStart),end:Number(el.dataset.tnFilmEnd)};
           });
           const motion=host.dataset.tnModelMotionPose?.split(',').map(Number);
           return {captions,motion,yaw:Number(host.dataset.tnRelativeYaw),objectYaw:Number(host.dataset.tnObjectYaw)*180/Math.PI,reveal:Number(root.dataset.tnFilmReveal),progress:Number(host.dataset.tnCameraProgress),framed,coverage:Number(host.dataset.tnModelCoverage),clipped:host.dataset.tnModelClipped==='true',width:r.width,height:r.height,textVisible,textBottom:hr.bottom,modelTop:r.top,viewportWidth:innerWidth,viewportHeight:innerHeight,
-            cameraMode:host.dataset.tnModelCameraMode,cameraDistance:Number(host.dataset.tnModelCameraDistance||0),scrollBehavior:getComputedStyle(document.documentElement).scrollBehavior,targetProgress:Number(host.dataset.tnModelTargetProgress??host.dataset.tnCameraProgress),frameElapsed:Number(host.dataset.tnModelFrameElapsed||0),pinMode:root.dataset.tnFilmPin,screenPosition:getComputedStyle(root.querySelector('.tn-film-screen')||root).position,bufferResizes:Number(host.dataset.tnModelBufferResizes||0),bufferWidth:host.querySelector('canvas')?.width,bufferHeight:host.querySelector('canvas')?.height,frames:Number(host.dataset.tnFrames||0),trackHeight:root.getBoundingClientRect().height,screenTop:screen?.top,screenHeight:screen?.height,screenWidth:screen?.width,turn:Number(root.dataset.tnFilmTurn)||180,title:Number(root.dataset.tnFilmTitle),description:Number(root.dataset.tnFilmDescription),actions:Number(root.dataset.tnFilmActions),actualTitle:opacity(h),actualDescription:opacity(descriptionEl),actualActions:opacity(actionsEl),canvasHeight:canvas?.height,canvasWidth:canvas?.width,canvasLeft:canvas?.left,canvasTop:canvas?.top,contentWidth,centerX,centerY,overlayAbove,backgroundLayer,layerLeft:lr?.left,layerTop:lr?.top,layerWidth:lr?.width,layerHeight:lr?.height};
+            cameraMode:host.dataset.tnModelCameraMode,cameraDistance:Number(host.dataset.tnModelCameraDistance||0),scrollBehavior:getComputedStyle(document.documentElement).scrollBehavior,targetProgress:Number(host.dataset.tnModelTargetProgress??host.dataset.tnCameraProgress),frameElapsed:Number(host.dataset.tnModelFrameElapsed||0),pinMode:root.dataset.tnFilmPin,screenPosition:getComputedStyle(root.querySelector('.tn-film-screen')||root).position,bufferResizes:Number(host.dataset.tnModelBufferResizes||0),bufferWidth:host.querySelector('canvas')?.width,bufferHeight:host.querySelector('canvas')?.height,frames:Number(host.dataset.tnFrames||0),trackHeight:root.getBoundingClientRect().height,screenTop:screen?.top,screenHeight:screen?.height,screenWidth:screen?.width,direction:host.dataset.tnFilmDirection,speed:root.dataset.tnFilmSpeed,turn:Number(host.dataset.tnFilmEffectiveTurn??root.dataset.tnFilmTurn??180),title:Number(root.dataset.tnFilmTitle),description:Number(root.dataset.tnFilmDescription),actions:Number(root.dataset.tnFilmActions),actualTitle:opacity(h),actualDescription:opacity(descriptionEl),actualActions:opacity(actionsEl),canvasHeight:canvas?.height,canvasWidth:canvas?.width,canvasLeft:canvas?.left,canvasTop:canvas?.top,contentWidth,centerX,centerY,overlayAbove,backgroundLayer,layerLeft:lr?.left,layerTop:lr?.top,layerWidth:lr?.width,layerHeight:lr?.height};
         });
         filmSamples.push({...sample,fraction});
-        if((productFilm?[0,.25,.5,.75,1]:[0,.5,1]).includes(fraction)&&filmSamples.length<=9)await capture(page,name+'-hero-film-'+Math.round(fraction*100)+'.png');
+        if(((productFilm||directedFilm)?[0,.25,.5,.75,1]:[0,.5,1]).includes(fraction)&&filmSamples.length<=9)await capture(page,name+'-hero-film-'+Math.round(fraction*100)+'.png');
       }
     }
     let filmIdle=null;
@@ -248,6 +251,7 @@ try {
       filmRelease=await page.evaluate(()=>{const screen=document.querySelector('#home .tn-film-screen').getBoundingClientRect();return {top:screen.top,bottom:screen.bottom,viewport:innerHeight}});
     }
     let shortFilm=null;
+    let tabletFilm=null;
     if(pinnedFilm&&name==='desktop'){
       await page.setViewportSize({width:1100,height:540});
       await page.waitForTimeout(500);
@@ -255,6 +259,17 @@ try {
       await page.waitForTimeout(1000);
       shortFilm=await page.evaluate(()=>{const root=document.querySelector('#home[data-tn-film-version="2"]'),screen=root.querySelector('.tn-film-screen').getBoundingClientRect(),host=root.querySelector('[data-tn-model][data-tn-model-role="primary"]'),r=host.getBoundingClientRect();return {top:screen.top,height:screen.height,hostTop:r.top,hostHeight:r.height,viewport:innerHeight,progress:Number(host.dataset.tnCameraProgress),clipped:host.dataset.tnModelClipped==='true'}});
       await capture(page,'desktop-hero-film-short.png');
+      if(directedFilm){
+        await page.setViewportSize({width:834,height:1112});
+        await page.evaluate(()=>{const root=document.querySelector('#home[data-tn-film-direction]'),r=root.getBoundingClientRect();window.scrollTo({top:scrollY+r.top+(r.height-innerHeight)*.5,behavior:'instant'});});
+        await page.waitForFunction(()=>Math.abs(Number(document.querySelector('#home [data-tn-model-role="primary"]')?.dataset.tnCameraProgress)-.5)<.003,{},{timeout:8000});
+        tabletFilm=await page.evaluate(()=>{
+          const host=document.querySelector('#home [data-tn-model-role="primary"]'),r=host.getBoundingClientRect();
+          return {overflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,
+            clipped:host.dataset.tnModelClipped==='true',top:r.top,width:r.width,height:r.height,
+            viewportWidth:innerWidth,viewportHeight:innerHeight};
+        });
+      }
       await page.setViewportSize({width,height});
       await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));await page.waitForTimeout(500);
     }
@@ -403,28 +418,46 @@ try {
       const captionsReady=compactFilm
         ? earlyDescription.description>.5&&(earlyDescription.actualDescription===null||earlyDescription.actualDescription>.5)&&earlyDescription.actions<=.01&&earlyActions.actions>=.99&&(earlyActions.actualActions===null||earlyActions.actualActions>=.95)
         : middle.description>.5&&(middle.actualDescription===null||middle.actualDescription>.5)&&middle.actions<=.01&&late.actions>=.99&&(late.actualActions===null||late.actualActions>=.95);
-      const compactTrackOk=!compactFilm||(backgroundFilm&&filmSamples.every(s=>Math.abs(s.trackHeight-s.viewportHeight*(s.viewportWidth<=760?1.8:2.2))<=3));
+      const trackSizes=({focused:[3.5,4.5],balanced:[3.8,4.8],calm:[4.5,5.5]})[first.speed];
+      const compactTrackOk=!compactFilm||(backgroundFilm&&filmSamples.every(s=>Math.abs(s.trackHeight-s.viewportHeight*(directedFilm?trackSizes?.[s.viewportWidth<=760?0:1]:s.viewportWidth<=760?1.8:2.2))<=3));
       const smoothOk=!smoothFilm||(filmIdle&&filmIdle.before>0&&filmIdle.extraFrames>=0&&filmIdle.extraFrames<=1&&filmSamples.every(s=>((s.pinMode==='native'&&s.screenPosition==='sticky')||(s.pinMode==='transform'&&s.screenPosition==='absolute'))&&s.bufferResizes===first.bufferResizes&&s.bufferResizes>0&&s.bufferWidth===first.bufferWidth&&s.bufferHeight===first.bufferHeight));
       checks.heroFilm=filmSamples.length===10&&filmSamples.every(s=>s.framed&&!s.clipped&&s.coverage>=.55&&s.coverage<=.98&&Math.abs(s.screenTop)<=3&&Math.abs(s.screenHeight-s.viewportHeight)<=3&&s.screenWidth>=s.viewportWidth*.97&&Math.abs(s.modelTop)<=3&&s.height>=s.viewportHeight*.97&&s.width>=s.viewportWidth*.97&&s.canvasHeight>=s.viewportHeight*.97&&s.canvasWidth>=s.viewportWidth*.97&&Number.isFinite(s.objectYaw))&&
         first.title<=.01&&first.description<=.01&&first.actions<=.01&&first.actualTitle<=.01&&first.actualDescription<=.01&&first.actualActions<=.01&&quarter.title>.5&&quarter.actualTitle>.5&&quarter.description<=.01&&captionsReady&&compactTrackOk&&smoothOk&&(!stableCamera||filmSamples.every(s=>s.scrollBehavior==='auto'&&['fixed','track'].includes(s.cameraMode)&&s.cameraDistance>0))&&last.textVisible&&
-        Math.abs(last.objectYaw-first.objectYaw-last.turn)<=1&&forward.every((s,i)=>i===0||s.objectYaw>forward[i-1].objectYaw+5)&&Math.abs(reverse.objectYaw-quarter.objectYaw)<=1&&
+        Math.abs(last.objectYaw-first.objectYaw-last.turn)<=1&&forward.every((s,i)=>i===0||Math.abs(s.objectYaw-forward[i-1].objectYaw-first.turn/8)<=1.5)&&Math.abs(reverse.objectYaw-quarter.objectYaw)<=1&&
         filmRelease?.top < -filmRelease?.viewport*.25&&(name!=='desktop'||(shortFilm&&Math.abs(shortFilm.top)<=3&&Math.abs(shortFilm.height-shortFilm.viewport)<=3&&Math.abs(shortFilm.hostTop)<=3&&shortFilm.hostHeight>=shortFilm.viewport*.97&&shortFilm.progress>.4&&shortFilm.progress<.7&&!shortFilm.clipped));
       if(backgroundFilm){
         const origin=first.objectYaw
         checks.heroBackgroundCenter=filmSamples.every(s=>s.backgroundLayer&&s.overlayAbove&&Math.abs(s.layerLeft)<=3&&Math.abs(s.layerTop)<=3&&Math.abs(s.layerWidth-s.contentWidth)<=3&&Math.abs(s.layerHeight-s.viewportHeight)<=3&&Math.abs(s.canvasLeft)<=3&&Math.abs(s.canvasTop)<=3&&Math.abs(s.canvasWidth-s.contentWidth)<=3&&Number.isFinite(s.centerX)&&Number.isFinite(s.centerY)&&Math.abs(s.centerX-.5)<=(productFilm?.08:.035)&&Math.abs(s.centerY-.5)<=(productFilm?.05:.035))
         const expectedTurn=first.turn;
-        checks.heroFullTurn=[180,360].includes(expectedTurn)&&filmSamples.every(s=>s.turn===expectedTurn)&&[0,2,4,6,8].every((index,i)=>Math.abs(filmSamples[index].objectYaw-origin-i*expectedTurn/4)<=1.5)
-        if(productFilm){
+        checks.heroFullTurn=(directedFilm?[0,25,45,90,120,150]:[180,360]).includes(expectedTurn)&&filmSamples.every(s=>s.turn===expectedTurn)&&[0,2,4,6,8].every((index,i)=>Math.abs(filmSamples[index].objectYaw-origin-i*expectedTurn/4)<=1.5)
+        if(directedFilm){
+          if(name==='desktop')checks.tabletFilm=!!tabletFilm&&tabletFilm.overflow<=2&&!tabletFilm.clipped&&
+            Math.abs(tabletFilm.top)<=3&&tabletFilm.width>=tabletFilm.viewportWidth*.97&&tabletFilm.height>=tabletFilm.viewportHeight*.97;
+          const turns={'large-static':0,'large-dynamic':90,'compact-product':120,organic:25,abstract:150,'human-scale':45,universal:0};
+          checks.heroDirection=Object.hasOwn(turns,first.direction)&&[0,turns[first.direction]].includes(expectedTurn)&&
+            filmSamples.every(s=>s.direction===first.direction);
+          const smooth=value=>{const x=Math.max(0,Math.min(1,value));return x*x*(3-2*x);};
+          checks.heroCaptionTimeline=first.captions?.length>=1&&first.captions.length<=5&&
+            first.captions.every(({start,end},i)=>0<=start&&start<end&&end<=1&&(!i||first.captions[i-1].end<=start))&&
+            filmSamples.every(s=>s.captions?.length===first.captions.length&&s.captions.filter(c=>c.opacity>.05).length<=1&&
+              s.captions.every(({start,end,opacity})=>{
+                const fade=(end-start)*.2;
+                const enter=start===0?1:smooth((s.progress-start)/fade);
+                const leave=end===1?1:smooth((end-s.progress)/fade);
+                return Math.abs(opacity-Math.min(enter,leave))<=.025;
+              }));
+        }
+        if(productFilm||directedFilm){
           const beats=[first,quarter,middle,filmSamples[6],last];
           const visible=beats.map((s,i)=>s.captions?.[i]);
-          checks.heroCaptions=beats.every((s,i)=>s.captions?.length===5&&s.captions.every((c,j)=>i===j
+          if(first.captions?.length===5||(!directedFilm&&productFilm))checks.heroCaptions=beats.every((s,i)=>s.captions?.length===5&&s.captions.every((c,j)=>i===j
             ? c.opacity>=.95&&c.left>=0&&c.right<=s.viewportWidth&&c.top>=s.viewportHeight*.5&&c.bottom<=s.viewportHeight
             : c.opacity<=.01))&&new Set(visible.map(c=>c?.text).filter(Boolean)).size===5&&
             new Set(visible.map(c=>c&&[Math.round(c.left+c.right),Math.round(c.top)].join(','))).size>=4&&
             reverse.captions?.every((c,i)=>Math.abs(c.opacity-quarter.captions[i].opacity)<=.05)===true;
           const changes=(start,end)=>new Set(beats.map(s=>s.motion?.slice(start,end).join(','))).size>=3;
           checks.heroCameraAndLight=beats.every(s=>s.motion?.length===11&&s.motion.every(Number.isFinite))&&
-            changes(0,3)&&changes(8,11)&&quarter.centerX-filmSamples[6].centerX>.1;
+            changes(0,3)&&changes(8,11)&&(!productFilm||first.direction==='universal'||quarter.centerX-filmSamples[6].centerX>.1);
         }
         if(!checks.heroFilm||!checks.heroFullTurn){
           console.log('FILM_DIAGNOSTICS: '+JSON.stringify({device:name,captionsReady,compactTrackOk,smoothOk,filmIdle,filmRelease,shortFilm,samples:filmSamples.map(s=>({fraction:s.fraction,progress:s.progress,targetProgress:s.targetProgress,angle:s.objectYaw,expectedAngle:origin+s.fraction*expectedTurn,frameElapsed:s.frameElapsed,cameraMode:s.cameraMode,cameraDistance:s.cameraDistance,screenTop:s.screenTop,pinMode:s.pinMode,bufferResizes:s.bufferResizes,coverage:s.coverage,clipped:s.clipped}))}))
@@ -469,7 +502,7 @@ try {
       if(sceneContract?.version===1||sceneDiagnostics.carousels.length) checks.carouselControls=sceneDiagnostics.carousels.length>0&&sceneDiagnostics.carousels.every(x=>x.ok);
       if(sceneContract?.version===1||sceneDiagnostics.stories.length) checks.storyProgress=sceneDiagnostics.stories.length>0&&sceneDiagnostics.stories.every(x=>x.ok);
     }
-    report.checks.push({name,checks,film:{enabled:isFilm,pinned:pinnedFilm,compact:compactFilm,smooth:smoothFilm,stableCamera,product:productFilm},metrics:result,sections,navigation,heroFraming,heroObject,aboutMetrics,steps,filmSamples,filmIdle,filmRelease,shortFilm,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
+    report.checks.push({name,checks,film:{enabled:isFilm,pinned:pinnedFilm,compact:compactFilm,smooth:smoothFilm,stableCamera,product:productFilm||directedFilm},metrics:result,sections,navigation,heroFraming,heroObject,aboutMetrics,steps,filmSamples,filmIdle,filmRelease,shortFilm,tabletFilm,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
     await context.close();
   }
 } catch(error){report.error=String(error).slice(0,700);report.errorStage=stage;}

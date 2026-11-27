@@ -68,12 +68,12 @@ class BlockEditTests(unittest.TestCase):
 
     def test_local_film_preserves_other_blocks_and_assets(self):
         from block_edit import apply_hero_film
-        home='<section id="home" data-tn-section="home" class="hero"><div class="hero-stage"><CinemaModel model-path="tn-models/car/model.gltf" /></div><div class="hero-content"><h1>Engineering</h1></div></section>'
+        home='<section id="home" data-tn-section="home" class="hero"><div class="hero-stage"><CinemaModel model-path="tn-models/car/model.gltf" label="Sports car" /></div><div class="hero-content"><h1>Engineering</h1></div></section>'
         self.files["src/App.vue"]=("<template>"+home+self.about+"</template>").encode()
         out=apply_hero_film(self.files)
         self.assertIn(b'data-tn-hero-film',out["src/App.vue"])
         self.assertIn(b'data-tn-film-version="2"',out["src/App.vue"])
-        self.assertIn(b'data-tn-film-turn="360"',out["src/App.vue"])
+        self.assertIn(b'data-tn-film-turn="90"',out["src/App.vue"])
         self.assertIn(b'data-tn-film-pace="compact"',out["src/App.vue"])
         # Attribute order is not part of the HTML contract; check the actual home root.
         from block_edit import FilmMarkup
@@ -81,13 +81,13 @@ class BlockEditTests(unittest.TestCase):
         _,start,end=find_block({"src/App.vue":source},"home")
         root=FilmMarkup(source[start:end]).nodes[0]
         self.assertIn("data-tn-film-background",root["attrs"])
-        self.assertEqual(root["attrs"].get("data-tn-film-turn"),"360")
+        self.assertEqual(root["attrs"].get("data-tn-film-turn"),"90")
         self.assertEqual(root["attrs"].get("data-tn-film-pace"),"compact")
         self.assertEqual(root["attrs"].get("data-tn-film-engine"),"smooth")
         self.assertEqual(root["attrs"].get("data-tn-film-camera"),"stable")
         import json
         meta=json.loads(out["tracknode-agent.json"])
-        self.assertEqual(meta["hero_film_turn"],360)
+        self.assertEqual(meta["hero_film_turn"],90)
         self.assertEqual(meta["hero_film_pace"],"compact")
         self.assertEqual(meta["hero_film_engine"],"smooth")
         self.assertEqual(meta["hero_film_camera"],"stable")
@@ -102,10 +102,28 @@ class BlockEditTests(unittest.TestCase):
         self.assertEqual(out["public/photo.webp"],self.files["public/photo.webp"])
         self.assertEqual(apply_hero_film(out)["src/App.vue"],out["src/App.vue"])
         self.assertEqual(apply_hero_film(out)["src/style.css"],out["src/style.css"])
+    def test_hero_categories_are_subject_specific_and_ambiguous_is_static(self):
+        from art_direction import HERO_DIRECTIONS, classify_film_subject
+        pairs={"Apartment building":"large-static","Sports car":"large-dynamic","Pendant lamp":"compact-product",
+               "Coral":"organic","Abstract sculpture":"abstract","Office chair":"human-scale",
+               "Building with car":"universal","Unknown asset":"universal"}
+        for label,direction in pairs.items():
+            with self.subTest(label=label):
+                self.assertEqual(classify_film_subject(label),direction)
+        self.assertEqual(HERO_DIRECTIONS["large-static"][0],0)
+
     def test_local_film_refuses_unknown_layout(self):
         from block_edit import apply_hero_film
         with self.assertRaises(ValueError):
             apply_hero_film(self.files)
+
+    def test_hero_options_reject_unsafe_or_ambiguous_captions(self):
+        from storyboard import validate_hero_options
+        self.assertEqual(validate_hero_options({"motion":"still","speed":"calm","captions":[" One "]}),
+                         {"motion":"still","speed":"calm","captions":["One"]})
+        for options in ({"lighting":"invalid"},{"captions":["{{ unsafe }}"]},{"captions":["same"," same "]}):
+            with self.subTest(options=options), self.assertRaises(ValueError):
+                validate_hero_options(options)
 
     def test_windows_archive_with_directory_records(self):
         import tempfile, zipfile

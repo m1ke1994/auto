@@ -65,11 +65,29 @@ export function pinnedFilmFrame(top,height,viewport,turn=360,compact=false) {
   const progress=travel>0?offset/travel:0
   const motion=progress
   const fade=(a,b)=>{const x=clamp((progress-a)/(b-a),0,1);return x*x*(3-2*x)}
-  return {offset,progress,motion,angle:(turn===180?180:360)*motion,title:compact?fade(.10,.18):fade(.16,.25),description:compact?fade(.28,.38):fade(.40,.50),actions:compact?fade(.48,.58):fade(.65,.75)}
+  return {offset,progress,motion,angle:clamp(finite(turn,360),0,360)*motion,title:compact?fade(.10,.18):fade(.16,.25),description:compact?fade(.28,.38):fade(.40,.50),actions:compact?fade(.48,.58):fade(.65,.75)}
 }
 
-/** Camera path for a directed product film. Values are scroll-linked and reversible. */
-export function filmCameraPose(progress) {
+const filmProfiles={
+  'large-static':[1.7,.7,35,0],
+  'large-dynamic':[1.3,1,65,0],
+  'compact-product':[1,1,55,.065],
+  organic:[.8,1.3,25,0],
+  abstract:[1.2,1.6,75,0],
+  'human-scale':[1.5,.8,40,0],
+  universal:[.8,.7,25,0],
+  legacy:[1,1,55,0],
+}
+
+export function resolvedFilmDirection(direction, dimensions) {
+  if(!direction)return 'legacy'
+  const valid=dimensions.length===3&&dimensions.every(value=>Number.isFinite(value)&&value>0)
+  if(!valid||Math.max(...dimensions)/Math.min(...dimensions)>30)return 'universal'
+  return Object.hasOwn(filmProfiles,direction)?direction:'universal'
+}
+
+/** Evaluate camera, key light and screen composition from the same progress. */
+export function filmCameraPose(progress,direction='legacy') {
   const p=clamp(finite(progress,0),0,1)
   const shots=[
     {at:0,yaw:0,pitch:0,distance:1.10,light:-12},
@@ -84,7 +102,9 @@ export function filmCameraPose(progress) {
   const t=clamp((p-a.at)/(b.at-a.at),0,1)
   const eased=t*t*(3-2*t)
   const lerp=(x,y)=>x+(y-x)*eased
-  return {yaw:lerp(a.yaw,b.yaw),pitch:lerp(a.pitch,b.pitch),distance:lerp(a.distance,b.distance),light:lerp(a.light,b.light)}
+  const [orbit,tilt,light,shift]=filmProfiles[direction]||filmProfiles.legacy
+  return {yaw:lerp(a.yaw,b.yaw)*orbit,pitch:lerp(a.pitch,b.pitch)*tilt,distance:lerp(a.distance,b.distance),
+    light:lerp(a.light,b.light)*light/55,...(direction==='legacy'?{}:{shift:Math.sin(p*2*Math.PI)*shift})}
 }
 
 /** One caption occupies a deliberate interval; reverse scrolling reverses both fades. */
@@ -131,12 +151,16 @@ export function needsTransformPin(overflowModes) {
 }
 
 /** Camera distance is planned once per viewport, never fitted afresh on scroll. */
-export function stableFilmCameraTrack(corners,yaw,pitch,start,turn,aspect,fov=38){
-  const radians=Math.PI/180,cy=Math.cos(yaw*radians),sy=Math.sin(yaw*radians)
-  const cp=Math.cos(pitch*radians),sp=Math.sin(pitch*radians)
+export function stableFilmCameraTrack(corners,yaw,pitch,start,turn,aspect,fov=38,direction='legacy'){
+  const radians=Math.PI/180
   const tv=Math.tan(fov*radians/2),th=tv*aspect
-  const count=Math.ceil(Math.abs(turn))+1
+  const count=Math.max(2,Math.ceil(Math.abs(turn))+1,direction==='legacy'?2:121)
   const samples=Array.from({length:count},(_,i)=>{
+    const pose=direction==='legacy'?null:filmCameraPose(i/(count-1),direction)
+    const cy=pose?Math.cos((yaw+pose.yaw)*radians):Math.cos(yaw*radians)
+    const sy=pose?Math.sin((yaw+pose.yaw)*radians):Math.sin(yaw*radians)
+    const cp=pose?Math.cos((pitch+pose.pitch)*radians):Math.cos(pitch*radians)
+    const sp=pose?Math.sin((pitch+pose.pitch)*radians):Math.sin(pitch*radians)
     const angle=(start+turn*i/(count-1))*radians,c=Math.cos(angle),s=Math.sin(angle)
     const points=corners.map(([x,y,z])=>{
       const rx=x*c+z*s,rz=z*c-x*s

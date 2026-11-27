@@ -7,7 +7,7 @@ from ai_builder.jobs import project_dist, refresh_project
 from ai_builder.block_jobs import active_for_owner, state, queue_edit
 
 class Command(BaseCommand):
-    help = "Queue an offline audited 360-degree Hero film (preserves existing copy) for an existing project."
+    help = "Queue an offline audited subject-directed Hero film (preserves existing copy) for an existing project."
 
     def add_arguments(self, parser):
         parser.add_argument("--preview-token", required=True)
@@ -33,6 +33,6 @@ class Command(BaseCommand):
                 raise CommandError("The current project needs a completed source archive")
             if project.block_edits.count()>=30:
                 raise CommandError("Local edit limit reached")
-            edit=BlockEdit.objects.create(project=project,block="home",base_run=project.run_directory,base_stage=project.generation_stage,instruction="Full-screen 360-degree Hero film (local, no AI)",upgrade_motion=True)
+            edit=BlockEdit.objects.create(project=project,block="home",base_run=project.run_directory,base_stage=project.generation_stage,instruction="Subject-directed Hero film (local, no AI)",upgrade_motion=True)
             transaction.on_commit(lambda:queue_edit(edit,local_hero_film=True))
         self.stdout.write(self.style.SUCCESS(f"LOCAL_HERO_FILM_QUEUED: {edit.id}"))

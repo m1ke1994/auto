@@ -202,10 +202,24 @@ class CinematicExport(StudioView):
         response["Content-Disposition"]='attachment; filename="tracknode-cinematic-site.zip"'
         return response
 
+class HeroOptions(serializers.Serializer):
+    direction=serializers.ChoiceField(("auto","large-static","large-dynamic","compact-product","organic","abstract","human-scale","universal"),required=False)
+    motion=serializers.ChoiceField(("directed","still"),required=False)
+    speed=serializers.ChoiceField(("focused","balanced","calm"),required=False)
+    lighting=serializers.ChoiceField(("auto","softbox","dramatic"),required=False)
+    captions=serializers.ListField(child=serializers.CharField(min_length=2,max_length=145),min_length=1,max_length=5,required=False)
+
+    def validate_captions(self, captions):
+        if len(set(captions))!=len(captions) or any("{" in text for text in captions):
+            raise serializers.ValidationError("Use distinct plain-text captions.")
+        return captions
+
+
 class BlockInput(serializers.Serializer):
     instruction=serializers.CharField(max_length=4000)
     upgrade_motion=serializers.BooleanField(default=False)
     local_hero_film=serializers.BooleanField(default=False)
+    hero_options=HeroOptions(required=False)
 
 class Blocks(StudioView):
     def get(self,request,pk):
@@ -242,7 +256,7 @@ class RegenerateBlock(StudioView):
             return Response({"detail":"Полноэкранная сцена доступна только для Hero."},status=400)
         edit=BlockEdit.objects.create(project=p,block=block,base_run=p.run_directory,base_stage=p.generation_stage,
             instruction="Full-screen two-act Hero film (local, no AI)" if local_film else s.validated_data["instruction"],upgrade_motion=block=="home" and (local_film or s.validated_data["upgrade_motion"]))
-        transaction.on_commit(lambda:queue_edit(edit,local_hero_film=local_film))
+        transaction.on_commit(lambda:queue_edit(edit,local_hero_film=local_film,hero_options=s.validated_data.get("hero_options")))
         return Response(project_data(p,True),status=202)
 
 class BlockDecision(StudioView):

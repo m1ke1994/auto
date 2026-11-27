@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset, smoothScrollProgress, scrollFrameElapsed, modelPixelRatio, needsTransformPin, stableFilmCameraTrack, filmCameraDistance, filmCameraPose, filmCaptionOpacity } from '../cinematic-motion.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset, smoothScrollProgress, scrollFrameElapsed, modelPixelRatio, needsTransformPin, stableFilmCameraTrack, filmCameraDistance, filmCameraPose, filmCaptionOpacity, resolvedFilmDirection } from '../cinematic-motion.js'
 
 const props = defineProps({
   modelPath: { type: String, required: true },
@@ -51,7 +51,7 @@ function normalizedShots() {
 }
 let renderer, scene, camera, model, env, pmrem, observer, intersection, raf=0, disposed=false
 let visible=true, motionQuery, current=0, radius=1, frameCount=0, shots, primaryHero=false
-let corners=[], bounds, groundPlane, keyLight, modelPivot, filmRoot, pinnedFrame, filmTurn=360
+let corners=[], bounds, groundPlane, keyLight, modelPivot, filmRoot, pinnedFrame, filmTurn=360, filmDirection='legacy'
 let filmScreen, filmActions, filmCaptions=[], smoothFilm=false, transformPin=false, modelSize
 let renderWidth=0,renderHeight=0,renderRatio=0,lastRendered=null,lastFrameTime=null,resizeCount=0
 let chapter, header, cameraTrack, contactTexture
@@ -151,37 +151,6 @@ function renderFrame(timestamp) {
     targetProgress=staticFilm?0:pinnedFrame.motion
     // Native sticky owns the pin; only an incompatible ancestor uses a compositor transform.
     if(!smoothFilm||transformPin)filmStyle('--tn-film-offset',(staticFilm?0:pinnedFrame.offset)+'px')
-    for(const key of ['title','description','actions']){
-      const value=(staticFilm?1:pinnedFrame[key]).toFixed(4)
-      filmStyle('--tn-film-'+key,value)
-      filmData('tnFilm'+key[0].toUpperCase()+key.slice(1),value)
-    }
-    for(const caption of filmCaptions){
-      if(staticFilm){
-        caption.style.opacity=''
-        caption.style.transform=''
-        caption.removeAttribute('aria-hidden')
-        delete caption.dataset.tnFilmOpacity
-        if(caption.inert)caption.inert=false
-        continue
-      }
-      const alpha=filmCaptionOpacity(pinnedFrame.progress,Number(caption.dataset.tnFilmStart),Number(caption.dataset.tnFilmEnd))
-      const opacity=alpha.toFixed(4)
-      if(caption.dataset.tnFilmOpacity!==opacity){
-        caption.style.opacity=opacity
-        caption.style.transform='translate3d(0,'+(12*(1-alpha)).toFixed(2)+'px,0)'
-        caption.dataset.tnFilmOpacity=opacity
-      }
-      const hidden=alpha<.05
-      if(caption.getAttribute('aria-hidden')!==String(hidden))caption.setAttribute('aria-hidden',String(hidden))
-      if(caption.inert!==hidden)caption.inert=hidden
-    }
-    if(filmActions){
-      const inert=!staticFilm&&pinnedFrame.actions<.05
-      if(filmActions.inert!==inert)filmActions.inert=inert
-    }
-    filmData('tnFilmReveal',String(staticFilm?1:pinnedFrame.title))
-    filmData('tnFilmPhase',staticFilm||pinnedFrame.title>.01?'reveal':'opening')
     inView=rect.bottom>0&&rect.top<innerHeight
   } else if(filmRoot){
     const film=heroFilmProgress(rect.top,rect.height,innerHeight)
@@ -200,6 +169,40 @@ function renderFrame(timestamp) {
   if(!inView){current=targetProgress;lastFrameTime=null;return}
   const elapsed=scrollFrameElapsed(lastFrameTime,timestamp)
   current=staticFilm||lastRendered===null?targetProgress:smoothScrollProgress(current,targetProgress,elapsed)
+  if(fullFilm){
+    const displayFrame=pinnedFilmFrame(-current,2,1,filmTurn,filmRoot.dataset.tnFilmPace==='compact')
+    for(const key of ['title','description','actions']){
+      const value=(staticFilm?1:displayFrame[key]).toFixed(4)
+      filmStyle('--tn-film-'+key,value)
+      filmData('tnFilm'+key[0].toUpperCase()+key.slice(1),value)
+    }
+    for(const caption of filmCaptions){
+      if(staticFilm){
+        caption.style.opacity=''
+        caption.style.transform=''
+        caption.removeAttribute('aria-hidden')
+        delete caption.dataset.tnFilmOpacity
+        if(caption.inert)caption.inert=false
+        continue
+      }
+      const alpha=filmCaptionOpacity(displayFrame.progress,Number(caption.dataset.tnFilmStart),Number(caption.dataset.tnFilmEnd),filmDirection==='legacy'?.025:(Number(caption.dataset.tnFilmEnd)-Number(caption.dataset.tnFilmStart))*.2)
+      const opacity=alpha.toFixed(4)
+      if(caption.dataset.tnFilmOpacity!==opacity){
+        caption.style.opacity=opacity
+        caption.style.transform='translate3d(0,'+(12*(1-alpha)).toFixed(2)+'px,0)'
+        caption.dataset.tnFilmOpacity=opacity
+      }
+      const hidden=alpha<.05
+      if(caption.getAttribute('aria-hidden')!==String(hidden))caption.setAttribute('aria-hidden',String(hidden))
+      if(caption.inert!==hidden)caption.inert=hidden
+    }
+    if(filmActions){
+      const inert=!staticFilm&&displayFrame.actions<.05
+      if(filmActions.inert!==inert)filmActions.inert=inert
+    }
+    filmData('tnFilmReveal',String(staticFilm?1:displayFrame.title))
+    filmData('tnFilmPhase',staticFilm||displayFrame.title>.01?'reveal':'opening')
+  }
   const settling=current!==targetProgress
   // Reset the timestamp only when actually idle, never during a slow active frame.
   lastFrameTime=settling?timestamp:null
@@ -213,7 +216,7 @@ function renderFrame(timestamp) {
   const from=shots[b-1],to=shots[b]
   const t=clamp((current-from.at)/Math.max(.00001,to.at-from.at),0,1)
   const blend=(a,b)=>THREE.MathUtils.lerp(a,b,t*t*(3-2*t))
-  const filmPose=fullFilm?filmCameraPose(current):null
+  const filmPose=fullFilm?filmCameraPose(current,filmDirection):null
   let yaw=THREE.MathUtils.degToRad(blend(from.yaw,to.yaw))
   if(fullFilm) yaw=THREE.MathUtils.degToRad(shots[0].yaw+filmPose.yaw)
   const modelYaw=THREE.MathUtils.degToRad(fullFilm?shots[0].modelYaw+filmTurn*current:blend(from.modelYaw,to.modelYaw))
@@ -251,7 +254,7 @@ function renderFrame(timestamp) {
   // A factor of 1 fits the box inside 84% of the limiting screen dimension.
   let distance
   if(stableCamera){
-    if(!cameraTrack)cameraTrack=stableFilmCameraTrack(corners.map(c=>c.toArray()),shots[0].yaw,shots[0].pitch,shots[0].modelYaw,filmTurn,camera.aspect,camera.fov)
+    if(!cameraTrack)cameraTrack=stableFilmCameraTrack(corners.map(c=>c.toArray()),shots[0].yaw,shots[0].pitch,shots[0].modelYaw,filmTurn,camera.aspect,camera.fov,filmDirection)
     distance=filmCameraDistance(cameraTrack,current)*(fullFilm?filmPose.distance:1)
     host.value.dataset.tnModelCameraMode=cameraTrack.mode
     host.value.dataset.tnModelCameraDistance=distance.toFixed(5)
@@ -277,7 +280,7 @@ function renderFrame(timestamp) {
     const w=renderWidth,h=renderHeight
     const [x,y]=centeredViewOffset(initial.map(p=>p.x),initial.map(p=>p.y),w,h)
     const product=filmRoot.dataset.tnFilmComposition==='product'&&!motionQuery.matches
-    const shift=product?Math.sin(current*2*Math.PI)*.065:0
+    const shift=product?(filmDirection==='legacy'?Math.sin(current*2*Math.PI)*.065:filmPose.shift):0
     camera.setViewOffset(w,h,x-shift*w,y+(product?.035*h:0),w,h)
   }
   if(stableCamera&&groundPlane)groundPlane.rotation.z=modelYaw
@@ -316,7 +319,7 @@ onMounted(async()=>{
       filmCaptions=Array.from(filmRoot.querySelectorAll('[data-tn-film-caption]'))
       smoothFilm=Boolean(filmScreen&&filmRoot.dataset.tnFilmEngine==='smooth')
       stableCamera=smoothFilm&&filmRoot.hasAttribute('data-tn-film-background')&&filmRoot.dataset.tnFilmCamera==='stable'
-      filmTurn=filmRoot.dataset.tnFilmTurn==='180'?180:360
+      filmTurn=clamp(Number(filmRoot.dataset.tnFilmTurn??180),0,360)
       const start=shots[0]
       shots=presetShots('hero_turn',finite(start?.yaw,props.openingYaw),1).map(s=>({...s,modelYaw:s.modelYaw+finite(start?.modelYaw,0)}))
     } else if(primaryHero) shots=heroMotionShots(shots,props.openingYaw)
@@ -341,7 +344,11 @@ onMounted(async()=>{
     try { env=pmrem.fromScene(room,.04); scene.environment=env.texture }
     finally { room.dispose() }
     scene.environmentIntensity=lighting.environment
-    const key=new THREE.DirectionalLight(0xfff4e6,lighting.key)
+    const filmLighting=filmRoot?.dataset.tnFilmLighting
+    const keyWeight=filmLighting==='softbox'?.85:1
+    const fillWeight=filmLighting==='dramatic'?.72:1
+    const rimWeight=filmLighting==='dramatic'?1.18:1
+    const key=new THREE.DirectionalLight(0xfff4e6,lighting.key*keyWeight)
     keyLight=key
     key.position.set(4,6,5); scene.add(key)
     if(props.ground&&!stableCamera){
@@ -352,9 +359,9 @@ onMounted(async()=>{
       key.shadow.camera.updateProjectionMatrix()
       key.shadow.normalBias=.025
     }
-    const rim=new THREE.DirectionalLight(props.accent,lighting.rim)
+    const rim=new THREE.DirectionalLight(props.accent,lighting.rim*rimWeight)
     rim.position.set(-4,2,-5); scene.add(rim)
-    const fill=new THREE.HemisphereLight(0xc3d8ff,0x28221d,lighting.fill)
+    const fill=new THREE.HemisphereLight(0xc3d8ff,0x28221d,lighting.fill*fillWeight)
     scene.add(fill)
     resize()
     loadStage='gltf-load'
@@ -376,6 +383,12 @@ onMounted(async()=>{
     scene.updateMatrixWorld(true)
     bounds=new THREE.Box3().setFromObject(pivot)
     modelSize=bounds.getSize(new THREE.Vector3())
+    if(filmRoot?.dataset.tnFilmDirection){
+      filmDirection=resolvedFilmDirection(filmRoot.dataset.tnFilmDirection,modelSize.toArray())
+      if(filmDirection==='universal')filmTurn=0
+      host.value.dataset.tnFilmDirection=filmDirection
+      host.value.dataset.tnFilmEffectiveTurn=String(filmTurn)
+    }
     corners=[]
     for(const x of [bounds.min.x,bounds.max.x])
       for(const y of [bounds.min.y,bounds.max.y])
