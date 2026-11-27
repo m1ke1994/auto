@@ -59,13 +59,43 @@ export function heroFilmProgress(top,height,viewport) {
   return {progress,motion:clamp(progress/.86,0,1),reveal:x*x*(3-2*x)}
 }
 
-export function pinnedFilmFrame(top,height,viewport,turn=180,compact=false) {
+export function pinnedFilmFrame(top,height,viewport,turn=360,compact=false) {
   const travel=Math.max(0,height-viewport)
   const offset=clamp(-top,0,travel)
   const progress=travel>0?offset/travel:0
   const motion=progress
   const fade=(a,b)=>{const x=clamp((progress-a)/(b-a),0,1);return x*x*(3-2*x)}
   return {offset,progress,motion,angle:(turn===180?180:360)*motion,title:compact?fade(.10,.18):fade(.16,.25),description:compact?fade(.28,.38):fade(.40,.50),actions:compact?fade(.48,.58):fade(.65,.75)}
+}
+
+/** Camera path for a directed product film. Values are scroll-linked and reversible. */
+export function filmCameraPose(progress) {
+  const p=clamp(finite(progress,0),0,1)
+  const shots=[
+    {at:0,yaw:0,pitch:0,distance:1.10,light:-12},
+    {at:.25,yaw:-7,pitch:-1.5,distance:1.08,light:18},
+    {at:.5,yaw:6,pitch:1.5,distance:1.06,light:28},
+    {at:.75,yaw:4,pitch:-1,distance:1.08,light:-20},
+    {at:1,yaw:0,pitch:0,distance:1.10,light:0}
+  ]
+  let i=shots.findIndex(s=>s.at>=p)
+  if(i<1)i=1
+  const a=shots[i-1],b=shots[i]
+  const t=clamp((p-a.at)/(b.at-a.at),0,1)
+  const eased=t*t*(3-2*t)
+  const lerp=(x,y)=>x+(y-x)*eased
+  return {yaw:lerp(a.yaw,b.yaw),pitch:lerp(a.pitch,b.pitch),distance:lerp(a.distance,b.distance),light:lerp(a.light,b.light)}
+}
+
+/** One caption occupies a deliberate interval; reverse scrolling reverses both fades. */
+export function filmCaptionOpacity(progress,start,end,fade=.045) {
+  const p=clamp(finite(progress,0),0,1)
+  const a=clamp(finite(start,0),0,1),b=clamp(finite(end,1),0,1)
+  if(b<=a)return 0
+  const smooth=x=>{const t=clamp(x,0,1);return t*t*(3-2*t)}
+  const enter=a===0?1:smooth((p-a)/Math.max(.001,fade))
+  const leave=b===1?1:1-smooth((p-(b-fade))/Math.max(.001,fade))
+  return Math.min(enter,leave)
 }
 
 /** Center the projected bounding box in both axes; units are viewport pixels. */
