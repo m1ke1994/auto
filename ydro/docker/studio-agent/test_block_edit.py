@@ -92,6 +92,7 @@ class BlockEditTests(unittest.TestCase):
         self.assertEqual(meta["hero_film_engine"],"smooth")
         self.assertEqual(meta["hero_film_camera"],"stable")
         self.assertIn(b'position:sticky !important; top:0',out["src/style.css"])
+        self.assertIn(b'.tn-film-captions',out["src/style.css"])
         self.assertIn(b'transform:translate3d(0,var(--tn-film-offset),0)',out["src/style.css"])
         self.assertIn(b'height:calc(var(--tn-film-vh)*2.2)',out["src/style.css"])
         self.assertIn(b'height:calc(var(--tn-film-vh)*1.8)',out["src/style.css"])
