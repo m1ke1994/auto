@@ -79,8 +79,14 @@ export function smoothScrollProgress(current,target,elapsedMs) {
   const end=clamp(finite(target,0),0,1)
   const start=clamp(finite(current,end),0,1)
   if(Math.abs(end-start)<=.0008)return end
-  const next=start+(end-start)*(1-Math.exp(-clamp(finite(elapsedMs,16.67),1,64)/45))
+  const next=start+(end-start)*(1-Math.exp(-clamp(finite(elapsedMs,16.67),1,350)/45))
   return Math.abs(end-next)<=.0008?end:next
+}
+
+export function scrollFrameElapsed(previousTimestamp,timestamp) {
+  // The first frame after idle uses one nominal interval; a slow active frame
+  // must use real elapsed time, not masquerade as a 60 Hz frame.
+  return previousTimestamp===null?16.67:Math.max(1,finite(timestamp-previousTimestamp,16.67))
 }
 
 /** Limit drawing-buffer cost without reducing CSS size or camera framing. */

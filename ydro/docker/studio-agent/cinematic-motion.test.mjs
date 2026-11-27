@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset, smoothScrollProgress, modelPixelRatio, needsTransformPin } from './cinematic-motion.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset, smoothScrollProgress, scrollFrameElapsed, modelPixelRatio, needsTransformPin } from './cinematic-motion.js'
 
 test('all presets are bounded, deterministic and genuinely distinct',()=>{
   const signatures=new Set()
@@ -118,4 +118,22 @@ test('drawing buffer is bounded and CSS viewport is independent of DPR',()=>{
 test('native sticky is preferred unless a nested ancestor creates a scroll container',()=>{
   assert.equal(needsTransformPin(['visible','clip']),false)
   for(const mode of ['auto','scroll','hidden','overlay'])assert.equal(needsTransformPin(['visible',mode]),true)
+})
+
+test('slow active GPU frames use real elapsed time and settle within bounded wall time',()=>{
+  assert.equal(scrollFrameElapsed(null,5000),16.67)
+  assert.equal(scrollFrameElapsed(5000,5200),200)
+  assert.equal(scrollFrameElapsed(5200,5600),400)
+  for(const gap of [16.67,33,64,100,150,200,350,500]){
+    for(const [start,target] of [[0,1],[1,0],[.25,.875]]){
+      let current=start,elapsed=0,previous=null
+      while(current!==target&&elapsed<2000){
+        current=smoothScrollProgress(current,target,scrollFrameElapsed(previous,elapsed))
+        previous=elapsed
+        elapsed+=gap
+      }
+      assert.equal(current,target)
+      assert.ok(elapsed<=350+2*gap,'slow active frames must not prolong easing')
+    }
+  }
 })

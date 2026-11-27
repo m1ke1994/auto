@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset, smoothScrollProgress, modelPixelRatio, needsTransformPin } from '../cinematic-motion.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset, smoothScrollProgress, scrollFrameElapsed, modelPixelRatio, needsTransformPin } from '../cinematic-motion.js'
 
 const props = defineProps({
   modelPath: { type: String, required: true },
@@ -175,11 +175,14 @@ function renderFrame(timestamp) {
     targetProgress=staticFilm?0:primaryHero?cameraTrackProgress(rect.top,rect.height,innerHeight,chapter!==host.value,inset):clamp(-rect.top/Math.max(innerHeight*.4,rect.height-innerHeight*.35),0,1)
   }
   if(!inView){current=targetProgress;lastFrameTime=null;return}
-  const elapsed=lastFrameTime===null||timestamp-lastFrameTime>100?16.67:timestamp-lastFrameTime
+  const elapsed=scrollFrameElapsed(lastFrameTime,timestamp)
   current=staticFilm||lastRendered===null?targetProgress:smoothScrollProgress(current,targetProgress,elapsed)
-  lastFrameTime=timestamp
-  // Stop rendering when settled. A new scroll/resize/visibility event wakes the renderer.
-  if(current!==targetProgress)schedule()
+  const settling=current!==targetProgress
+  // Reset the timestamp only when actually idle, never during a slow active frame.
+  lastFrameTime=settling?timestamp:null
+  host.value.dataset.tnModelTargetProgress=targetProgress.toFixed(4)
+  host.value.dataset.tnModelFrameElapsed=elapsed.toFixed(1)
+  if(settling)schedule()
   if(lastRendered===current)return
   lastRendered=current
   let b=shots.findIndex(s=>s.at>=current)
@@ -230,7 +233,8 @@ function renderFrame(timestamp) {
   }
   const zoom=centeredFilm?1:blend(from.distance,to.distance)
   const distance=fit*(primaryHero?clamp(zoom,1,1.08):(opening>0?THREE.MathUtils.lerp(zoom,clamp(zoom,.98,1.08),opening):zoom))
-  camera.far=Math.max(100,distance+radius*8); camera.updateProjectionMatrix()
+  const far=Math.max(100,distance+radius*8)
+  if(camera.far!==far){camera.far=far;camera.updateProjectionMatrix()}
   camera.position.copy(target).addScaledVector(direction,distance)
   camera.lookAt(target)
   camera.updateMatrixWorld()
