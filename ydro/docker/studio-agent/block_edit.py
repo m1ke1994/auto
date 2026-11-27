@@ -385,6 +385,33 @@ FILM_CSS="""
 }
 #home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-background][data-tn-film-fallback] > .tn-film-screen {display:flex !important;flex-direction:column !important;}
 #home[data-tn-hero-film][data-tn-film-version="2"][data-tn-film-background][data-tn-film-fallback] > .tn-film-screen > .tn-film-background {position:relative !important;inset:auto !important;height:65svh !important;}
+
+/* Five independent scroll-synchronized subtitle beats. */
+#home[data-tn-hero-film][data-tn-film-version="2"] .tn-film-captions {
+  position:absolute !important; top:clamp(150px,34vh,380px) !important; left:0 !important; right:0 !important;
+  width:100% !important; max-width:min(900px,calc(100% - 36px)) !important; margin:0 auto !important;
+  display:grid !important; place-items:center !important; pointer-events:none !important; z-index:7 !important;
+  text-align:center !important; text-shadow:0 2px 24px rgba(0,0,0,.95);
+}
+#home[data-tn-hero-film][data-tn-film-version="2"] .tn-film-captions [data-tn-film-caption] {
+  grid-area:1/1 !important; width:100% !important; margin:0 !important; padding:0 12px !important;
+  font-size:clamp(1rem,2.1vw,1.65rem) !important; line-height:1.35 !important; letter-spacing:.015em;
+  font-weight:500 !important; opacity:0 !important; transform:translate3d(0,12px,0); will-change:opacity,transform;
+  color:inherit !important; text-align:center !important; overflow-wrap:anywhere !important;
+}
+@media(max-width:760px) {
+  #home[data-tn-hero-film][data-tn-film-version="2"] .tn-film-captions {top:clamp(145px,32vh,270px) !important;max-width:calc(100% - 28px) !important;}
+  #home[data-tn-hero-film][data-tn-film-version="2"] .tn-film-captions [data-tn-film-caption] {font-size:clamp(.9rem,4vw,1.15rem) !important;}
+}
+@media(prefers-reduced-motion:reduce) {
+  #home[data-tn-hero-film][data-tn-film-version="2"] .tn-film-captions {
+    position:relative !important; inset:auto !important; transform:none !important; display:grid !important;
+    gap:10px !important; margin:20px auto !important; text-shadow:none;
+  }
+  #home[data-tn-hero-film][data-tn-film-version="2"] .tn-film-captions [data-tn-film-caption] {
+    position:relative !important; grid-area:auto !important; opacity:1 !important; transform:none !important; will-change:auto;
+  }
+}
 /* TN_FILM_V2_END */
 """
 
@@ -523,7 +550,7 @@ def apply_hero_film(files):
     opening_text=re.sub(r"""\s+data-tn-film-pace\s*=\s*(?:"[^"]*"|'[^']*')""","",opening_text)
     opening_text=re.sub(r"""\s+data-tn-film-engine\s*=\s*(?:"[^"]*"|'[^']*')""","",opening_text)
     opening_text=re.sub(r"""\s+data-tn-film-camera\s*=\s*(?:"[^"]*"|'[^']*')""","",opening_text)
-    opening_text=opening_text[:-1]+' data-tn-film-turn="180" data-tn-film-pace="compact" data-tn-film-engine="smooth" data-tn-film-camera="stable">'
+    opening_text=opening_text[:-1]+' data-tn-film-turn="360" data-tn-film-pace="compact" data-tn-film-engine="smooth" data-tn-film-camera="stable">'
     markup=normalize_film_markup(opening_text+markup[opening.end():])
     result=dict(files)
     result[name]=(sources[name][:start]+markup+sources[name][end:]).encode()
@@ -533,7 +560,7 @@ def apply_hero_film(files):
     for path in ("src/components/CinemaModel.vue","src/cinematic-motion.js"):
         result[path]=Path(__file__).with_name(Path(path).name).read_bytes()
     meta=json.loads(result["tracknode-agent.json"])
-    meta.update(build_verified=False,visual_verified=False,block_edit="home",hero_film=True,hero_film_version=2,hero_film_background=True,hero_film_turn=180,hero_film_pace="compact",hero_film_engine="smooth",hero_film_camera="stable")
+    meta.update(build_verified=False,visual_verified=False,block_edit="home",hero_film=True,hero_film_version=2,hero_film_background=True,hero_film_turn=360,hero_film_pace="compact",hero_film_engine="smooth",hero_film_camera="stable")
     result["tracknode-agent.json"]=json.dumps(meta,ensure_ascii=False).encode()
     return result
 
