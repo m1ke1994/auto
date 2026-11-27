@@ -95,6 +95,15 @@ class SceneComponentTests(unittest.TestCase):
         issues=quality_issues({"src/App.vue":broken},"cinema")
         self.assertTrue(any("scroll intervals" in x for x in issues))
 
+    def test_primary_cinema_model_cannot_be_only_in_a_later_section(self):
+        from quality import quality_issues
+        app='''<template>
+<section id="home" data-tn-section="home"><h1>Hero</h1></section>
+<section id="about" data-tn-section="about"><CinemaModel model-path="tn-models/car/model.gltf" /></section>
+</template>'''
+        issues=quality_issues({"src/App.vue":app},"cinema")
+        self.assertTrue(any("inside the home Hero" in x for x in issues))
+
     def test_automated_review_is_honestly_labeled(self):
         import tempfile, zipfile, json
         from site_store import SiteStore
