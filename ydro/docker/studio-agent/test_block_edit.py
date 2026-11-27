@@ -81,7 +81,7 @@ class BlockEditTests(unittest.TestCase):
         _,start,end=find_block({"src/App.vue":source},"home")
         root=FilmMarkup(source[start:end]).nodes[0]
         self.assertIn("data-tn-film-background",root["attrs"])
-        self.assertEqual(root["attrs"].get("data-tn-film-turn"),"180")
+        self.assertEqual(root["attrs"].get("data-tn-film-turn"),"360")
         self.assertEqual(root["attrs"].get("data-tn-film-pace"),"compact")
         self.assertEqual(root["attrs"].get("data-tn-film-engine"),"smooth")
         self.assertEqual(root["attrs"].get("data-tn-film-camera"),"stable")
