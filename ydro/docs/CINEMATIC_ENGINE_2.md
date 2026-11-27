@@ -14,3 +14,18 @@ Local regression: Docker agent build runs existing Python tests including the re
 Then run studio-quality.ps1 with a matching, existing preflight to test full browser output. Inspect desktop/mobile screenshots; technical checks are not artistic acceptance. No deployment is implied.
 
 Audit diagnostics now include projected 3D bounding-box overlap with hero headlines/CTAs (advisory, not a silhouette test), horizontal overflow at all sampled scroll positions, and per-instance motion comparison. The visual critic checks the cinematic story beyond the hero, photo reuse, negative space and text collisions. No score thresholds were lowered.
+
+
+## Cinematic Hero Motion v2
+
+New Cinema generations receive a subject-aware direction from `art_direction.cinematic_direction`. The classifier distinguishes `large_object`, `small_object`, `architecture`, `environment`, and `abstract_scene`; it uses the project brief and does not infer physical scale from normalized 3D asset bounds.
+
+- Default hero/model film turn is 180 degrees. A 360-degree turn is opt-in only through an explicit runtime turn value or explicit user direction.
+- Large objects use center or intentional left/right offset composition, with camera, perspective, light reveal and depth preferred over continuous model spinning.
+- Architecture and interiors are spatial scenes; camera/parallax/light reveal are preferred and a building is never forced into a turntable presentation.
+- Small products use title-first/editorial direction, gentle lateral drift, restrained scale/yaw changes and soft light sweeps.
+- Environments use layered parallax and atmospheric reveal.
+- The subject-aware recommendation is passed from the runner into the generation prompt. The generated storyboard and layout remain subject-specific rather than a fixed shared template.
+- Reduced-motion, mobile fallback, safe framing and existing browser/source gates remain in force.
+
+Regression coverage: `test_asset_preflight.py` checks subject classification and direction selection; `cinematic-motion.test.mjs` checks the 180-degree default and explicit 360-degree opt-in.
