@@ -240,3 +240,76 @@ class StudioTests(APITestCase):
             self.assertIs(envelope["local_hero_film"],True)
             self.assertEqual(result.data["preview_version"],"original")
             self.assertEqual(envelope["base_run"],"original")
+
+
+    @override_settings(STUDIO_CINEMATIC_ENABLED=True)
+    def test_project_versions_restore_history_and_export(self):
+        from .models import Project, BlockEdit
+        with tempfile.TemporaryDirectory() as jobs, tempfile.TemporaryDirectory() as outputs, override_settings(STUDIO_JOB_ROOT=jobs, STUDIO_OUTPUT_ROOT=outputs):
+            root=Path(outputs)
+            for run in ("original", "block-edit-one", "block-edit-two"):
+                dist=root/run/"dist"
+                dist.mkdir(parents=True)
+                (dist/"index.html").write_text(run)
+                (root/run/"tracknode-agent-site.zip").write_bytes(run.encode())
+                (root/run/"studio-result.json").write_text(json.dumps({"technical_passed":True,"status":"skipped"}))
+            p=Project.objects.create(owner=self.a,name="Versions",prompt="Test",engine="cinematic",run_directory="original",generation_stage="technical-preview")
+            url=f"/api/studio/projects/{p.id}/"
+            initial=self.client.get(url).data["versions"][0]
+            self.assertEqual(initial["number"],1)
+            self.assertTrue(initial["current"])
+            self.assertEqual(len(self.client.get(url+"versions/").data),1)
+            status_dir=Path(jobs)/"status"
+            status_dir.mkdir()
+            for base,run in (("original","block-edit-one"),("block-edit-one","block-edit-two")):
+                e=BlockEdit.objects.create(project=p,block="home",instruction=run,base_run=base,base_stage="technical-preview")
+                (status_dir/f"{e.id}.json").write_text(json.dumps({"project_id":str(e.id),"status":"complete","stage":"technical-preview","run_directory":run}))
+                accepted=self.client.post(url+f"block-edits/{e.id}/accept/")
+                self.assertEqual(accepted.status_code,200)
+            versions=accepted.data["versions"]
+            self.assertEqual([x["number"] for x in versions],[3,2,1])
+            self.assertTrue(versions[0]["current"])
+            latest=versions[0]
+            self.assertEqual(self.client.get(initial["preview_path"]).status_code,200)
+            self.assertEqual(self.client.get(url+f'versions/{initial["id"]}/export/').status_code,200)
+            restore_url=url+f'versions/{initial["id"]}/restore/'
+            self.client.force_authenticate(self.b)
+            self.assertEqual(self.client.get(url+"versions/").status_code,404)
+            self.assertEqual(self.client.post(restore_url,{"expected_version":latest["id"]},format="json").status_code,404)
+            self.assertEqual(self.client.get(url+f'versions/{initial["id"]}/export/').status_code,404)
+            self.client.force_authenticate(self.a)
+            pending=BlockEdit.objects.create(project=p,block="home",instruction="Pending",base_run="block-edit-two",base_stage="technical-preview")
+            self.assertEqual(self.client.post(restore_url,{"expected_version":latest["id"]},format="json").status_code,409)
+            pending.decision="discarded"
+            pending.save(update_fields=["decision"])
+            restored=self.client.post(restore_url,{"expected_version":latest["id"]},format="json")
+            self.assertEqual(restored.status_code,200)
+            self.assertEqual(restored.data["preview_version"],"original")
+            self.assertEqual(restored.data["versions"][0]["kind"],"restored")
+            self.assertEqual(restored.data["versions"][0]["restored_from"],initial["id"])
+            self.assertEqual(len(restored.data["versions"]),4)
+            self.assertEqual(self.client.post(restore_url,{"expected_version":latest["id"]},format="json").status_code,409)
+            self.assertTrue((root/"block-edit-two"/"dist"/"index.html").exists())
+            (root/"block-edit-one"/"tracknode-agent-site.zip").unlink()
+            missing=url+f'versions/{versions[1]["id"]}/restore/'
+            self.assertEqual(self.client.post(missing,{"expected_version":restored.data["versions"][0]["id"]},format="json").status_code,409)
+
+    def test_project_versions_adopt_existing_accepted_history(self):
+        from .models import Project, BlockEdit
+        with tempfile.TemporaryDirectory() as jobs, tempfile.TemporaryDirectory() as outputs, override_settings(STUDIO_JOB_ROOT=jobs, STUDIO_OUTPUT_ROOT=outputs):
+            root=Path(outputs)
+            for run in ("original","block-edit-old"):
+                (root/run/"dist").mkdir(parents=True)
+                (root/run/"dist"/"index.html").write_text(run)
+                (root/run/"studio-result.json").write_text(json.dumps({"technical_passed":True,"status":"skipped"}))
+            p=Project.objects.create(owner=self.a,name="Legacy",prompt="Test",engine="cinematic",run_directory="block-edit-old",generation_stage="technical-preview")
+            e=BlockEdit.objects.create(project=p,block="home",instruction="Old",base_run="original",base_stage="technical-preview",decision="accepted")
+            status=Path(jobs)/"status"/f"{e.id}.json"
+            status.parent.mkdir()
+            status.write_text(json.dumps({"project_id":str(e.id),"status":"complete","stage":"technical-preview","run_directory":"block-edit-old"}))
+            url=f"/api/studio/projects/{p.id}/versions/"
+            first=self.client.get(url).data
+            self.assertEqual(len(first),2)
+            self.assertTrue(first[0]["current"])
+            self.assertTrue(all(v["legacy"] for v in first))
+            self.assertEqual([v["id"] for v in self.client.get(url).data],[v["id"] for v in first])

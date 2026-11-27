@@ -17,6 +17,10 @@ const revision=computed(()=>current.value?.revisions?.find(r=>r.id===selected.va
 const previewHtml=computed(()=>revision.value?.html.replaceAll('href="#page-', 'href="about:srcdoc#page-') || '')
 const blockOptions=[['home','Главная'],['header','Шапка'],['about','О компании'],['services','Услуги'],['benefits','Преимущества'],['contacts','Контакты'],['footer','Подвал']]
 const inspectorTab=ref('edit')
+const historyPreview=ref(null)
+const activeVersion=computed(()=>current.value?.versions?.find(v=>v.current))
+const historicalVersion=computed(()=>inspectorTab.value==='versions'?current.value?.versions?.find(v=>v.id===historyPreview.value):null)
+const versionLabels={initial:'Первая версия',baseline:'Сохранённая версия',accepted:'Принятое изменение',restored:'Восстановление'}
 const targetBlock=ref('home'), blockInstruction=ref(''), upgradeMotion=ref(true), compareVersion=ref('candidate')
 const blockEdit=computed(()=>current.value?.block_edit)
 const editingBlock=computed(()=>['queued','running'].includes(blockEdit.value?.status))
@@ -28,11 +32,19 @@ const blockProgress=computed(()=>blockEdit.value?.status==='complete'?100:Math.m
 const blockEventAge=computed(()=>formatDuration(now.value-Date.parse(blockEdit.value?.updated_at||blockEdit.value?.created_at||'')))
 const blockEventStale=computed(()=>!!blockEdit.value?.updated_at&&now.value-Date.parse(blockEdit.value.updated_at)>180000)
 const previewSrc=computed(()=>{
-  const path=candidateReady.value&&compareVersion.value==='candidate'?blockEdit.value.preview_path:current.value?.preview_path
+  const path=candidateReady.value&&compareVersion.value==='candidate'?blockEdit.value.preview_path:historicalVersion.value?.preview_path||current.value?.preview_path
   if(!path)return ''
   return BACKEND_URL+path
 })
 const previewKey=computed(()=>previewSrc.value+'|'+(current.value?.preview_version||''))
+function restoreVersion(v){
+  if(!activeVersion.value||v.current||!v.restorable||activeJob.value||candidateReady.value)return
+  if(!window.confirm('Восстановить версию '+v.number+'? Текущая версия останется в истории.'))return
+  run(async()=>{
+    apply((await http.post(base+current.value.id+'/versions/'+v.id+'/restore/',{expected_version:activeVersion.value.id})).data)
+    historyPreview.value=null;await refresh()
+  })
+}
 function submitBlock(){run(async()=>{
   const id=current.value.id
   apply((await http.post(base+id+'/blocks/'+targetBlock.value+'/regenerate/',{instruction:blockInstruction.value,upgrade_motion:targetBlock.value==='home'&&upgradeMotion.value})).data)
@@ -74,6 +86,7 @@ function apply(project){
   const same=current.value?.id===project.id
   current.value=project
   if(!same){
+    historyPreview.value=null
     heroOptions.value=emptyHeroOptions()
     heroCaptionInput.value=''
   }
@@ -122,7 +135,7 @@ const poll=setInterval(()=>{if(!busy.value&&(activeJob.value||generating.value||
 const clock=setInterval(()=>{now.value=Date.now()},1000)
 onBeforeUnmount(()=>{disposed=true;clearInterval(poll);clearInterval(clock)})
 
-function open(id){inspectorTab.value='edit';showPrompt.value=false;targetBlock.value='home';blockInstruction.value='';upgradeMotion.value=true;compareVersion.value='candidate';run(async()=>apply((await http.get(base+id+'/')).data))}
+function open(id){inspectorTab.value='edit';historyPreview.value=null;showPrompt.value=false;targetBlock.value='home';blockInstruction.value='';upgradeMotion.value=true;compareVersion.value='candidate';run(async()=>apply((await http.get(base+id+'/')).data))}
 function newProject(from=null){
   engine.value='cinematic';style.value='auto';assetStyle.value='realistic';heroMode.value='auto';requireModel.value=false
   name.value=from?from.name+' — Cinema':''
@@ -139,7 +152,7 @@ function create(){if(engine.value==='cinematic'&&activeJob.value)return;if(engin
 function edit(){run(async()=>{apply((await http.post(base+current.value.id+'/edit/',{instruction:instruction.value,revision:selected.value},{timeout:105000})).data);instruction.value=''})}
 function publish(){run(async()=>{current.value=(await http.post(base+current.value.id+'/publish/'+selected.value+'/')).data})}
 function download(){run(async()=>{
-  const path=cinematic.value?base+current.value.id+'/cinematic-export/':base+current.value.id+'/export/'+selected.value+'/'
+  const path=cinematic.value?(historicalVersion.value?base+current.value.id+'/versions/'+historicalVersion.value.id+'/export/':base+current.value.id+'/cinematic-export/'):base+current.value.id+'/export/'+selected.value+'/'
   const response=await http.get(path,{responseType:'blob'});const url=URL.createObjectURL(response.data);const a=document.createElement('a');a.href=url;a.download=cinematic.value?'tracknode-cinematic-site.zip':'tracknode-site.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
 })}
 function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank','noopener,noreferrer')}
@@ -187,12 +200,25 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
       <div v-if="cinematic" class="inspector-tabs" aria-label="Панель проекта">
         <button type="button" :class="{active:inspectorTab==='edit'}" :aria-pressed="inspectorTab==='edit'" @click="inspectorTab='edit'">Редактор</button>
         <button type="button" :class="{active:inspectorTab==='info'}" :aria-pressed="inspectorTab==='info'" @click="inspectorTab='info'">О проекте</button>
+        <button type="button" :class="{active:inspectorTab==='versions'}" :aria-pressed="inspectorTab==='versions'" :disabled="busy||editingBlock||candidateReady||generating" @click="inspectorTab='versions'">Версии</button>
       </div>
       <p v-if="current.generation_status==='failed'" class="notice error">Не удалось создать сайт.</p>
       <div v-if="!cinematic||inspectorTab==='info'" class="project-details">
         <details class="brief"><summary>Описание проекта</summary><p class="project-description">{{current.prompt}}</p></details>
         <details v-if="cinematic&&Object.keys(current.contacts||{}).length" class="brief"><summary>Контакты</summary><p v-for="field in contactFields.filter(f=>current.contacts?.[f[0]])" :key="field[0]" class="contact-summary"><strong>{{field[1]}}</strong><br>{{current.contacts[field[0]]}}</p></details>
       </div>
+      <section v-if="cinematic&&inspectorTab==='versions'&&current.generation_status==='complete'" class="version-history">
+        <div class="section-heading"><span>История версий</span><button type="button" class="text-button" @click="historyPreview=null">Текущая</button></div>
+        <p v-if="!current.versions?.length" class="muted">История появится после создания сайта.</p>
+        <article v-for="v in current.versions" :key="v.id" class="version-entry" :class="{active:historyPreview===v.id}">
+          <div class="version-heading"><strong>Версия {{v.number}}</strong><small v-if="v.current" class="project-state complete">Текущая</small></div>
+          <p>{{versionLabels[v.kind]||'Сохранённая версия'}}</p>
+          <small v-if="v.legacy" class="muted">Из существующей истории</small><small v-else class="muted">{{new Date(v.created_at).toLocaleString('ru-RU')}}</small>
+          <p v-if="v.instruction" class="brief-text">{{v.instruction}}</p>
+          <p v-if="!v.preview_path" class="muted">Сборка недоступна</p>
+          <div class="version-actions"><button :disabled="busy||!v.preview_path" @click="historyPreview=v.current?null:v.id">Посмотреть</button><button v-if="!v.current" :disabled="busy||activeJob||candidateReady||!v.restorable" @click="restoreVersion(v)">Восстановить</button></div>
+        </article>
+      </section>
       <template v-if="!cinematic"><button class="primary" :disabled="busy" @click="newProject(current)">Создать полноценный сайт</button><h3>История изменений</h3><div class="revision-list"><button v-for="r in current.revisions" :key="r.id" :disabled="busy" :class="{active:r.id===selected}" @click="selected=r.id">{{r.instruction}}</button></div><form @submit.prevent="edit"><label>Изменение<textarea v-model="instruction" required maxlength="8000" rows="3" placeholder="Например: сделай тёмный дизайн"></textarea></label><button :disabled="busy||!config.configured||!revision">Создать версию</button></form></template>
       <div v-else-if="cinematic&&current.generation_status==='complete'" v-show="inspectorTab==='edit'||candidateReady||editingBlock" class="block-editor">
         <div class="section-heading"><span>Редактирование блоков</span></div>
@@ -223,7 +249,8 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
       <div v-else-if="generating" class="muted small-info">Можно закрыть страницу — создание продолжится.</div>
     </aside>
     <main class="panel preview-panel">
-      <div class="toolbar"><div class="devices"><button :class="{active:device==='100%'}" :aria-pressed="device==='100%'" @click="device='100%'" aria-label="Компьютер" title="Компьютер"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="13" rx="2"/><path d="M12 16v5m-4 0h8"/></svg></button><button :class="{active:device==='390px'}" :aria-pressed="device==='390px'" @click="device='390px'" aria-label="Телефон" title="Телефон"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></button></div><div class="actions"><button v-if="cinematic" :disabled="!previewSrc" @click="openPreview">Открыть ↗</button><button v-else :disabled="busy||!revision" @click="publish">Утвердить локально</button><button :disabled="busy||(cinematic?(!previewSrc||!current.source_archive_available):!revision)" @click="download">{{candidateReady?'ZIP действующей версии':'Скачать ZIP'}}</button></div></div>
+      <div class="toolbar"><div class="devices"><button :class="{active:device==='100%'}" :aria-pressed="device==='100%'" @click="device='100%'" aria-label="Компьютер" title="Компьютер"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="13" rx="2"/><path d="M12 16v5m-4 0h8"/></svg></button><button :class="{active:device==='390px'}" :aria-pressed="device==='390px'" @click="device='390px'" aria-label="Телефон" title="Телефон"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></button></div><div class="actions"><button v-if="cinematic" :disabled="!previewSrc" @click="openPreview">Открыть ↗</button><button v-else :disabled="busy||!revision" @click="publish">Утвердить локально</button><button :disabled="busy||(cinematic?(!previewSrc||!(historicalVersion?historicalVersion.source_archive_available:current.source_archive_available)):!revision)" @click="download">{{candidateReady?'ZIP действующей версии':historicalVersion?'ZIP версии '+historicalVersion.number:'Скачать ZIP'}}</button></div></div>
+      <div v-if="historicalVersion&&!candidateReady" class="version-preview-label"><span>Предпросмотр версии {{historicalVersion.number}} · действующий сайт не изменён</span><button class="text-button" @click="historyPreview=null">Вернуться</button></div>
       <div v-if="cinematic&&generating" class="waiting">
         <div class="progress-head"><div><span class="eyebrow">ГЕНЕРАЦИЯ САЙТА</span><h2>{{current.generation_status==='queued'?'В очереди':phaseIndex>=0?phases[phaseIndex]?.[1]:'Создание сайта'}}</h2></div><span class="elapsed">{{elapsed}}</span></div>
         <div v-if="progressKnown" class="progress-track" role="progressbar" aria-label="Завершённые этапы" :aria-valuenow="completedSteps" aria-valuemin="0" :aria-valuemax="phases.length"><span :style="{width:(completedSteps/phases.length*100)+'%'}"/></div>
@@ -272,4 +299,15 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
 @media(min-width:901px) and (max-width:1250px){.workspace{grid-template-columns:minmax(0,1fr) minmax(225px,255px)}}
 @media(max-width:900px){.workspace{grid-template-columns:minmax(0,1fr);grid-template-areas:"preview" "inspector"}.preview-panel{height:clamp(350px,64dvh,720px)}.project-info{max-height:none;overflow:visible}.studio{padding:12px}.block-options{grid-template-columns:repeat(auto-fit,minmax(100px,1fr))}}
 @media(max-width:480px){.studio h1{font-size:25px}.studio-head{gap:8px}.projects button{flex-basis:148px}.preview-panel{padding:6px}.toolbar{gap:5px}.devices button{width:36px;height:34px}.actions button{padding:7px 6px;font-size:11px}.project-info{padding:12px}.preview-panel{height:clamp(320px,60dvh,620px)}}
+
+.inspector-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+.version-history{display:grid;gap:8px;min-width:0}
+.version-entry{border:1px solid var(--line);border-radius:10px;padding:10px;overflow-wrap:anywhere}
+.version-entry.active{border-color:var(--accent)}
+.version-heading,.version-preview-label{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.version-entry p{margin:5px 0;font-size:12px}
+.version-entry small{font-size:11px}
+.version-actions{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.version-actions button{font-size:11px;padding:6px}
+.version-preview-label{font-size:12px;padding:6px 4px;flex-wrap:wrap}
 </style>

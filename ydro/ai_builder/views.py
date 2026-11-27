@@ -15,6 +15,7 @@ from .block_jobs import BLOCKS, state as edit_state, block_edit_data, active_for
 from .design import STYLES, preview, source_files
 from .jobs import project_dist, queue_project, refresh_project, visual_result, progress_event
 from .provider import generate, mode, GenerationError
+from .versions import archive_for, ensure_history, history_data, record as record_version
 
 class ContactInput(serializers.Serializer):
     phone=serializers.RegexField(r"^\+?[0-9 ()-]{5,32}$",required=False,allow_blank=True,max_length=32)
@@ -80,6 +81,7 @@ def project_data(p,detail=False):
     if detail:
         data["revisions"]=[revision_data(r) for r in p.revisions.all()[:30]]
         data["block_edits"]=[block_edit_data(e) for e in p.block_edits.all()[:30]]
+        data["versions"]=history_data(p)
     return data
 
 class StudioView(APIView):
@@ -262,12 +264,14 @@ class RegenerateBlock(StudioView):
 class BlockDecision(StudioView):
     @transaction.atomic
     def post(self,request,pk,edit_id,action):
+        get_user_model().objects.select_for_update().get(pk=request.user.pk)
         p=get_object_or_404(Project.objects.select_for_update(),pk=pk,owner=request.user)
         e=get_object_or_404(p.block_edits.select_for_update(),pk=edit_id)
         s=edit_state(e)
         if s["status"]!="complete":
             return Response({"detail":"Вариант ещё не прошёл техническую проверку."},status=409)
         if action=="accept" and e.decision=="pending" and p.run_directory==e.base_run:
+            ensure_history(p)
             p.run_directory=s["run_directory"]
             p.generation_stage="technical-preview"
             e.decision="accepted"
@@ -276,6 +280,7 @@ class BlockDecision(StudioView):
         elif action=="rollback" and e.decision=="accepted" and p.run_directory==s["run_directory"] and run_dist(e.base_run):
             if active_for_owner(request.user) or any(edit_state(x)["status"]=="complete" for x in p.block_edits.filter(decision="pending")):
                 return Response({"detail":"Сначала завершите, примите или отклоните текущую правку."},status=409)
+            ensure_history(p)
             p.run_directory=e.base_run
             p.generation_stage=e.base_stage
             e.decision="rolled_back"
@@ -283,4 +288,63 @@ class BlockDecision(StudioView):
             return Response({"detail":"Версия уже изменена или действие недоступно."},status=409)
         p.save(update_fields=["run_directory","generation_stage","updated_at"])
         e.save(update_fields=["decision"])
+        if action=="accept":
+            record_version(p,kind="accepted",instruction=e.instruction,edit=e)
+        elif action=="rollback":
+            previous=p.versions.filter(run_directory=e.base_run).first()
+            record_version(p,kind="restored",restored_from=previous)
         return Response(project_data(p,True))
+
+
+class RestoreVersionInput(serializers.Serializer):
+    expected_version = serializers.UUIDField()
+
+
+class ProjectVersions(StudioView):
+    def get(self, request, pk):
+        return Response(history_data(refresh_project(self.project(request, pk))))
+
+
+class VersionRestore(StudioView):
+    @transaction.atomic
+    def post(self, request, pk, version_id):
+        get_user_model().objects.select_for_update().get(pk=request.user.pk)
+        p = get_object_or_404(Project.objects.select_for_update(), pk=pk, owner=request.user)
+        if p.engine != "cinematic" or p.generation_status != "complete":
+            return Response({"detail": "Восстановление доступно для готового сайта."}, status=409)
+        data = RestoreVersionInput(data=request.data)
+        data.is_valid(raise_exception=True)
+        active = ensure_history(p)
+        target = get_object_or_404(p.versions, pk=version_id)
+        if not active or active.id != data.validated_data["expected_version"]:
+            return Response({"detail": "Версия сайта уже изменилась. Обновите проект."}, status=409)
+        if target.id == active.id:
+            return Response(project_data(p, True))
+        for pending in Project.objects.filter(owner=request.user, engine="cinematic",
+                                               generation_status__in=("queued", "running")):
+            refresh_project(pending)
+        if (active_for_owner(request.user)
+                or Project.objects.filter(owner=request.user, engine="cinematic",
+                                          generation_status__in=("queued", "running")).exists()
+                or any(edit_state(e)["status"] == "complete"
+                       for e in p.block_edits.filter(decision="pending"))):
+            return Response({"detail": "Сначала завершите, примите или отклоните активную правку."}, status=409)
+        if not archive_for(target):
+            return Response({"detail": "Сборка или исходный архив версии недоступны."}, status=409)
+        p.run_directory = target.run_directory
+        p.generation_stage = target.generation_stage
+        p.save(update_fields=["run_directory", "generation_stage", "updated_at"])
+        record_version(p, kind="restored", restored_from=target)
+        return Response(project_data(p, True))
+
+
+class VersionExport(StudioView):
+    def get(self, request, pk, version_id):
+        p = self.project(request, pk)
+        version = get_object_or_404(p.versions, pk=version_id)
+        archive = archive_for(version)
+        if not archive:
+            raise Http404
+        response = FileResponse(archive.open("rb"), content_type="application/zip")
+        response["Content-Disposition"] = f'attachment; filename="tracknode-version-{version.number}.zip"'
+        return response

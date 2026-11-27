@@ -1,6 +1,9 @@
 from django.urls import path
 from . import views
 urlpatterns = [
+    path('projects/<uuid:pk>/versions/', views.ProjectVersions.as_view()),
+    path('projects/<uuid:pk>/versions/<uuid:version_id>/restore/', views.VersionRestore.as_view()),
+    path('projects/<uuid:pk>/versions/<uuid:version_id>/export/', views.VersionExport.as_view()),
     path('projects/<uuid:pk>/blocks/', views.Blocks.as_view()),
     path('projects/<uuid:pk>/blocks/<str:block>/regenerate/', views.RegenerateBlock.as_view()),
     path('projects/<uuid:pk>/block-edits/<uuid:edit_id>/<str:action>/', views.BlockDecision.as_view()),

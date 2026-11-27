@@ -50,3 +50,21 @@ class BlockEdit(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         ordering = ["-created_at", "-id"]
+
+class ProjectVersion(models.Model):
+    """Append-only history of accepted cinematic builds; artifacts remain in their run."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="versions")
+    number = models.PositiveIntegerField()
+    run_directory = models.CharField(max_length=128)
+    generation_stage = models.CharField(max_length=80, blank=True)
+    kind = models.CharField(max_length=16)
+    instruction = models.TextField(blank=True)
+    legacy = models.BooleanField(default=False)
+    block_edit = models.ForeignKey(BlockEdit, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    restored_from = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-number"]
+        constraints = [models.UniqueConstraint(fields=["project", "number"], name="studio_version_project_number")]
