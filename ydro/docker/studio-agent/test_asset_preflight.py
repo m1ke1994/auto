@@ -4,6 +4,7 @@ from art_direction import classify_hero_subject, cinematic_direction
 class PreflightTests(unittest.TestCase):
     def test_cinematic_subject_classification_and_direction(self):
         self.assertEqual(classify_hero_subject({"subject":"sports car"}, "premium automobile"), "large_object")
+        self.assertEqual(classify_hero_subject({"subject":"car"}, ""), "large_object")
         self.assertEqual(classify_hero_subject({"subject":"luxury residence"}, "architecture and interior"), "architecture")
         self.assertEqual(classify_hero_subject({"subject":"cosmetic tube"}, "small product"), "small_object")
         self.assertEqual(classify_hero_subject({"subject":"forest"}, "landscape environment"), "environment")
