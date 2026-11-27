@@ -88,7 +88,7 @@ export function filmCameraPose(progress) {
 }
 
 /** One caption occupies a deliberate interval; reverse scrolling reverses both fades. */
-export function filmCaptionOpacity(progress,start,end,fade=.045) {
+export function filmCaptionOpacity(progress,start,end,fade=.025) {
   const p=clamp(finite(progress,0),0,1)
   const a=clamp(finite(start,0),0,1),b=clamp(finite(end,1),0,1)
   if(b<=a)return 0
