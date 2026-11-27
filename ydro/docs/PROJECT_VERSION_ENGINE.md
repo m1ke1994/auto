@@ -55,3 +55,15 @@ operator procedure: compare version.json and copy the verified snapshot
 to its original run_directory while Studio is idle; do not overwrite a
 live run. No automatic pruning is enabled; this avoids deleting any
 version or artifact still referenced by a project.
+
+
+## Interrupted worker recovery
+
+The watcher holds an exclusive workspace file handle for its entire life.
+On startup it inspects orphaned running envelopes. Recovery is conservative:
+if Docker state cannot be read, a known pipeline container exists, or another
+local pipeline is detected, it refuses to recover. Otherwise terminal states
+are preserved and nonterminal interrupted jobs become failed; original job
+envelopes are archived under a unique .done name. There is no automatic paid
+retry. This does not cancel a live slow request or prove why the worker exited.
+The status UI can release the failed edit once it polls the backend.

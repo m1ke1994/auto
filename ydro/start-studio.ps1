@@ -36,8 +36,6 @@ try {
         }
     }
     if ($RestartWatcher) {
-        $active=@(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'studio-jobs/pending'),(Join-Path $PSScriptRoot 'studio-jobs/running') -Filter '*.json' -File)
-        if ($active.Count -gt 0) { throw 'Do not restart the worker while a generation is queued or running.' }
         $pidFile=Join-Path $PSScriptRoot 'studio-jobs/watcher.pid'
         if (Test-Path -LiteralPath $pidFile -PathType Leaf) {
             $savedPid=0

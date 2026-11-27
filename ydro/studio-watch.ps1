@@ -20,6 +20,47 @@ function Write-State([string]$Id,[hashtable]$State){
     Move-Item -LiteralPath $temp -Destination $target -Force
 }
 
+function Recover-InterruptedJobs {
+    $claimedJobs=@(Get-ChildItem -LiteralPath $running -Filter '*.json' -File)
+    if (!$claimedJobs.Count) { return }
+    # Never recover while another pipeline may still be writing this workspace.
+    $pipelineScripts=@('studio-block-edit.ps1','studio-quality.ps1','studio-technical.ps1','studio-visual-review.ps1')
+    $other=@(Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object {
+        $command=$_.CommandLine
+        if (!$command -or $_.ProcessId -eq $PID) { return $false }
+        foreach ($script in $pipelineScripts) {
+            if ($command.IndexOf((Join-Path $PSScriptRoot $script),[StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
+        }
+        return $false
+    })
+    if ($other.Count) { throw 'Interrupted jobs exist but another local Studio pipeline is active. Recovery deferred.' }
+    $images=@('tracknode20-agent-openhands:latest','tracknode-studio-build:latest','tracknode-studio-audit:latest')
+    foreach ($image in $images) {
+        $containers=@(& docker ps -q --filter "ancestor=$image")
+        if ($LASTEXITCODE -ne 0) { throw 'Docker state unavailable; recovery deferred.' }
+        if ($containers.Count) { throw 'A Studio pipeline container is still active; recovery deferred.' }
+    }
+    foreach ($file in $claimedJobs) {
+        $id=$file.BaseName
+        $guid=[guid]::Empty
+        if (![guid]::TryParseExact($id,'D',[ref]$guid)) {
+            throw 'Invalid interrupted job name; operator review required.'
+        }
+        $old=$null
+        $statusPath=Join-Path $status ($id+'.json')
+        if (Test-Path -LiteralPath $statusPath -PathType Leaf) {
+            try { $old=Get-Content -LiteralPath $statusPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch {}
+        }
+        if (!$old -or $old.project_id -ne $id -or $old.status -notin @('complete','failed')) {
+            Write-State $id @{status='failed';stage='failed';error='Studio worker interrupted. Original website preserved. Start a new edit manually.';run_directory=''}
+        }
+        # Unique name preserves the original job even if a .done file already exists.
+        $suffix='.interrupted.'+[guid]::NewGuid().ToString('N')+'.done'
+        Move-Item -LiteralPath $file.FullName -Destination ($file.FullName+$suffix) -ErrorAction Stop
+        Write-Host "STUDIO_JOB_RECOVERED: $id"
+    }
+}
+
 function Process-Job([IO.FileInfo]$File){
     if($File.BaseName -notmatch '^[0-9a-fA-F-]{36}$'){ Move-Item -LiteralPath $File.FullName -Destination ($File.FullName+'.invalid') -Force; return }
     $id=$File.BaseName
@@ -80,7 +121,18 @@ function Process-Job([IO.FileInfo]$File){
     }
 }
 
-do{
-    Get-ChildItem -LiteralPath $pending -Filter '*.json' -File | Sort-Object CreationTime | ForEach-Object { Process-Job $_ }
-    if(!$Once){Start-Sleep -Seconds $PollSeconds}
-}while(!$Once)
+$lockPath=Join-Path $root 'watcher.lock'
+try {
+    $workerLock=[IO.File]::Open($lockPath,[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+} catch {
+    throw 'Another Studio watcher owns this workspace lock.'
+}
+try {
+    Recover-InterruptedJobs
+    do{
+        Get-ChildItem -LiteralPath $pending -Filter '*.json' -File | Sort-Object CreationTime | ForEach-Object { Process-Job $_ }
+        if(!$Once){Start-Sleep -Seconds $PollSeconds}
+    }while(!$Once)
+} finally {
+    $workerLock.Dispose()
+}
