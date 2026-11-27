@@ -175,7 +175,8 @@ function renderFrame(timestamp) {
     targetProgress=staticFilm?0:primaryHero?cameraTrackProgress(rect.top,rect.height,innerHeight,chapter!==host.value,inset):clamp(-rect.top/Math.max(innerHeight*.4,rect.height-innerHeight*.35),0,1)
   }
   if(!inView){current=targetProgress;lastFrameTime=null;return}
-  current=staticFilm||lastFrameTime===null?targetProgress:smoothScrollProgress(current,targetProgress,timestamp-lastFrameTime)
+  const elapsed=lastFrameTime===null||timestamp-lastFrameTime>100?16.67:timestamp-lastFrameTime
+  current=staticFilm||lastRendered===null?targetProgress:smoothScrollProgress(current,targetProgress,elapsed)
   lastFrameTime=timestamp
   // Stop rendering when settled. A new scroll/resize/visibility event wakes the renderer.
   if(current!==targetProgress)schedule()

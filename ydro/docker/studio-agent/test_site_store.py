@@ -132,6 +132,14 @@ const options = { scrub: true }
                 deps=json.loads(z.read("package.json"))["dependencies"]
                 self.assertEqual(set(deps),{"vue","three","gsap","lenis"})
 
+    def test_model_pages_reject_competing_lenis_import(self):
+        from quality import quality_issues
+        for js in ("import Smooth from 'lenis'", 'const lib=import("lenis")', 'import "lenis"'):
+            files={"src/App.vue":"<template><CinemaModel /></template>","src/motion.js":js}
+            self.assertTrue(any("Remove Lenis" in issue for issue in quality_issues(files,"cinema")))
+            files["src/App.vue"]="<template><main /></template>"
+            self.assertFalse(any("Remove Lenis" in issue for issue in quality_issues(files,"cinema")))
+
     def test_quality_gate(self):
         from quality import quality_issues
         store=SiteStore()

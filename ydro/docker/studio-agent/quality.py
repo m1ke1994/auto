@@ -37,6 +37,12 @@ def quality_issues(files, profile):
         issues.append("Import SiteFooter from ./components/SiteFooter.vue in App.vue.")
     if not re.search(r"<a\b|<nav\b",footer):
         issues.append("Footer needs useful navigation or contact links, not only copyright.")
+    # The trusted model renderer already eases motion; a second page-scroll
+    # controller competes with it. Reject obvious Lenis imports on model pages.
+    if re.search(r"<CinemaModel\b",source):
+        scripts="\n".join(v for p,v in files.items() if p.endswith((".vue",".js",".ts")))
+        if re.search(r"""(?:\bfrom\s*|\bimport\s*(?:\(\s*)?)['"]lenis(?:/[^'"]*)?['"]""",scripts,re.I):
+            issues.append("Remove Lenis from pages with CinemaModel; use native scroll and the trusted model renderer.")
     if profile=="cinema":
         # A custom desktop SceneStory visual is not enough: each chapter needs a
         # matching mobile visual slot or the mobile story silently renders empty.

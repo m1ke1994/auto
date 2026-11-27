@@ -189,6 +189,13 @@ try {
           window.scrollTo({top:scrollY+r.top+Math.max(0,r.height-innerHeight)*f,behavior:'instant'});
         },fraction);
         await page.waitForTimeout(1000);
+        if(smoothFilm&&pinnedFilm){
+          // Slow software WebGL may need extra frames to reach the scroll target.
+          await page.waitForFunction(f=>{
+            const host=document.querySelector('#home [data-tn-model][data-tn-model-role="primary"]');
+            return host?.dataset.tnModelState==='ready'&&Math.abs(Number(host.dataset.tnCameraProgress)-f)<=.0025;
+          },fraction,{timeout:3500}).catch(()=>{});
+        }
         const sample=await page.evaluate(()=>{
           const root=document.querySelector('#home[data-tn-hero-film]'),host=root.querySelector('[data-tn-model][data-tn-model-role="primary"]');
           const h=root.querySelector('h1'),copy=root.querySelector('.hero-content');
