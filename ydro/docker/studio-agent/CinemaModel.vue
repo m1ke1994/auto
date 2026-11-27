@@ -110,7 +110,7 @@ function cleanup() {
 let loadStage='initializing'
 function fail(reason=loadStage) {
   if(host.value) host.value.dataset.tnModelFailure=reason
-  if(filmRoot){filmRoot.dataset.tnFilmFallback='true';filmRoot.dataset.tnFilmPhase='reveal';filmRoot.style.setProperty('--tn-film-reveal','1');for(const key of ['title','description','actions'])filmRoot.style.setProperty('--tn-film-'+key,'1');const actions=filmRoot.querySelector('.hero-actions');if(actions)actions.inert=false}
+  if(filmRoot){filmRoot.dataset.tnFilmFallback='true';filmRoot.dataset.tnFilmPhase='reveal';filmRoot.style.setProperty('--tn-film-reveal','1');for(const key of ['title','description','actions'])filmRoot.style.setProperty('--tn-film-'+key,'1');for(const caption of filmRoot.querySelectorAll('[data-tn-film-caption]')){caption.style.opacity='1';caption.style.transform='none';caption.removeAttribute('aria-hidden');caption.inert=false}const actions=filmRoot.querySelector('.hero-actions');if(actions)actions.inert=false}
   state.value='fallback'; cleanup()
 }
 function lost(e) { e.preventDefault(); fail('webgl-context-lost') }
@@ -161,6 +161,7 @@ function renderFrame(timestamp) {
         caption.style.opacity=''
         caption.style.transform=''
         caption.removeAttribute('aria-hidden')
+        delete caption.dataset.tnFilmOpacity
         if(caption.inert)caption.inert=false
         continue
       }
