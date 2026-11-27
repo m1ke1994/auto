@@ -13,15 +13,18 @@ if (!(($base).StartsWith($root+[IO.Path]::DirectorySeparatorChar,[StringComparis
 $archive=(Resolve-Path -LiteralPath (Join-Path $base 'tracknode-agent-site.zip')).Path
 $out=(New-Item -ItemType Directory -Path (Join-Path $root ('block-edit-'+[guid]::NewGuid().ToString('N')))).FullName
 $compose=@('compose','--env-file','.env.studio.local','-p','tracknode20-agent','-f','docker-compose.openhands.yml')
+$statusDir=[IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($ProgressFile))
+$statusName=[IO.Path]::GetFileName($ProgressFile)
+$progressContainerPath="/studio-status/$statusName"
 # Images are prebuilt by the update command; no rebuild on each edit.
 $payload=@{block=$Job.block;instruction=$Job.instruction;upgrade_motion=($Job.upgrade_motion -eq $true)}
 if ($Job.local_hero_film -eq $true) {$payload.local_hero_film=$true}
 $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($payload|ConvertTo-Json -Compress)))
 Write-StudioProgress $ProgressFile 'generating'
 if ($Job.local_hero_film -eq $true) {
-    & docker run --pull never --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 2 --pids-limit 128 --tmpfs /tmp:rw,size=64m -e "TN_BLOCK_JOB=$encoded" -v "$($archive):/repair-source.zip:ro" -v "$($out):/output" --entrypoint python tracknode20-agent-openhands /opt/studio-agent/block_edit.py
+    & docker run --pull never --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 2 --pids-limit 128 --tmpfs /tmp:rw,size=64m -e "TN_BLOCK_JOB=$encoded" -e "TN_PROGRESS_FILE=$progressContainerPath" -v "$($statusDir):/studio-status" -v "$($archive):/repair-source.zip:ro" -v "$($out):/output" --entrypoint python tracknode20-agent-openhands /opt/studio-agent/block_edit.py
 } else {
-    & docker @compose run --rm --no-deps --entrypoint python -e "TN_BLOCK_JOB=$encoded" -v "$($archive):/repair-source.zip:ro" -v "$($out):/output" openhands /opt/studio-agent/block_edit.py
+    & docker @compose run --rm --no-deps --entrypoint python -e "TN_BLOCK_JOB=$encoded" -e "TN_PROGRESS_FILE=$progressContainerPath" -v "$($statusDir):/studio-status" -v "$($archive):/repair-source.zip:ro" -v "$($out):/output" openhands /opt/studio-agent/block_edit.py
 }
 if ($LASTEXITCODE -ne 0) {
     $message='Block edit failed; original preview preserved'
