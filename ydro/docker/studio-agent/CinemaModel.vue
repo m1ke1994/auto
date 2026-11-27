@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset } from '../cinematic-motion.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset, smoothScrollProgress, modelPixelRatio, needsTransformPin } from '../cinematic-motion.js'
 
 const props = defineProps({
   modelPath: { type: String, required: true },
@@ -52,6 +52,27 @@ function normalizedShots() {
 let renderer, scene, camera, model, env, pmrem, observer, intersection, raf=0, disposed=false
 let visible=true, motionQuery, current=0, radius=1, frameCount=0, shots, primaryHero=false
 let corners=[], bounds, groundPlane, keyLight, modelPivot, filmRoot, pinnedFrame, filmTurn=360
+let filmScreen, filmActions, smoothFilm=false, transformPin=false, modelSize
+let renderWidth=0,renderHeight=0,renderRatio=0,lastRendered=null,lastFrameTime=null,resizeCount=0
+let chapter, header
+const filmValues=new Map()
+function filmStyle(key,value) {
+  if(filmValues.get(key)===value)return
+  filmRoot.style.setProperty(key,value)
+  filmValues.set(key,value)
+}
+function filmData(key,value) {
+  if(filmRoot.dataset[key]!==value)filmRoot.dataset[key]=value
+}
+function updatePinMode() {
+  if(!smoothFilm)return
+  const modes=[]
+  for(let n=filmRoot.parentElement;n&&n!==document.body&&n!==document.documentElement;n=n.parentElement){
+    modes.push(getComputedStyle(n).overflowY)
+  }
+  transformPin=needsTransformPin(modes)
+  filmData('tnFilmPin',transformPin?'transform':'native')
+}
 const yAxis=new THREE.Vector3(0,1,0)
 function disposeModel(root) {
   const geometries=new Set(), materials=new Set(), textures=new Set()
@@ -93,63 +114,81 @@ function fail(reason=loadStage) {
 function lost(e) { e.preventDefault(); fail('webgl-context-lost') }
 function resize() {
   if(!renderer || !host.value) return
+  updatePinMode()
   const w=Math.max(1,host.value.clientWidth), h=Math.max(1,host.value.clientHeight)
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,w<640?1.25:1.75))
-  renderer.setSize(w,h,false)
-  camera.aspect=w/h; camera.updateProjectionMatrix()
+  const ratio=modelPixelRatio(w,h,window.devicePixelRatio||1,innerWidth<=760)
+  if(w!==renderWidth||h!==renderHeight||ratio!==renderRatio){
+    renderWidth=w;renderHeight=h;renderRatio=ratio
+    // setDrawingBufferSize changes the GPU buffer once, without changing CSS.
+    renderer.setDrawingBufferSize(w,h,ratio)
+    camera.aspect=w/h; camera.updateProjectionMatrix()
+    lastRendered=null
+    host.value.dataset.tnModelBufferResizes=String(++resizeCount)
+    host.value.dataset.tnModelPixelRatio=ratio.toFixed(3)
+  }
   schedule()
 }
 function schedule() { if(!disposed && renderer && !raf) raf=requestAnimationFrame(draw) }
-function draw() {
+function draw(timestamp) {
   raf=0
-  try { renderFrame() } catch { fail('render-frame') }
+  try { renderFrame(timestamp) } catch { fail('render-frame') }
 }
-function renderFrame() {
+function renderFrame(timestamp) {
   if(!renderer || !model || !host.value) return
-  // Update the pin even if the previous intersection sample was offscreen.
-  if(!visible&&!filmRoot) return
-  // Use the surrounding narrative chapter, not a nested scroll container.
-  const chapter=filmRoot || host.value.closest('[data-tn-camera-track]') || host.value
+  if(!visible&&!filmRoot){lastFrameTime=null;return}
+  // Read layout once, before writes. The film height is CSS-owned (stable svh).
   const rect=chapter.getBoundingClientRect()
-  const header=document.querySelector('[data-tn-header]')
-  const headerPosition=header?getComputedStyle(header).position:''
-  const inset=primaryHero&&['sticky','fixed'].includes(headerPosition)?clamp(header.getBoundingClientRect().bottom,0,innerHeight*.2):0
-  const progress=primaryHero?cameraTrackProgress(rect.top,rect.height,innerHeight,chapter!==host.value,inset):clamp(-rect.top/Math.max(innerHeight*.4,rect.height-innerHeight*.35),0,1)
-  if(filmRoot?.dataset.tnFilmVersion==='2'){
-    const staticFilm=motionQuery.matches
-    filmRoot.style.setProperty('--tn-film-vh',innerHeight+'px')
-    const updated=filmRoot.getBoundingClientRect()
-    pinnedFrame=pinnedFilmFrame(updated.top,updated.height,innerHeight,filmTurn,filmRoot.dataset.tnFilmPace==='compact')
-    current=staticFilm?0:pinnedFrame.motion
-    filmRoot.style.setProperty('--tn-film-offset',(staticFilm?0:pinnedFrame.offset)+'px')
+  const fullFilm=filmRoot?.dataset.tnFilmVersion==='2'
+  let targetProgress=0
+  let staticFilm=motionQuery.matches
+  let inView=visible
+  if(fullFilm){
+    const viewport=Math.max(1,smoothFilm?renderHeight:innerHeight)
+    pinnedFrame=pinnedFilmFrame(rect.top,rect.height,viewport,filmTurn,filmRoot.dataset.tnFilmPace==='compact')
+    targetProgress=staticFilm?0:pinnedFrame.motion
+    // Native sticky owns the pin; only an incompatible ancestor uses a compositor transform.
+    if(!smoothFilm||transformPin)filmStyle('--tn-film-offset',(staticFilm?0:pinnedFrame.offset)+'px')
     for(const key of ['title','description','actions']){
-      const value=staticFilm?1:pinnedFrame[key]
-      filmRoot.style.setProperty('--tn-film-'+key,value.toFixed(4))
-      filmRoot.dataset['tnFilm'+key[0].toUpperCase()+key.slice(1)]=value.toFixed(4)
+      const value=(staticFilm?1:pinnedFrame[key]).toFixed(4)
+      filmStyle('--tn-film-'+key,value)
+      filmData('tnFilm'+key[0].toUpperCase()+key.slice(1),value)
     }
-    const actions=filmRoot.querySelector('.hero-actions')
-    if(actions)actions.inert=!staticFilm&&pinnedFrame.actions<.05
-    filmRoot.dataset.tnFilmReveal=String(staticFilm?1:pinnedFrame.title)
-    filmRoot.dataset.tnFilmPhase=staticFilm||pinnedFrame.title>.01?'reveal':'opening'
-    if(updated.bottom<0||updated.top>innerHeight)return
+    if(filmActions){
+      const inert=!staticFilm&&pinnedFrame.actions<.05
+      if(filmActions.inert!==inert)filmActions.inert=inert
+    }
+    filmData('tnFilmReveal',String(staticFilm?1:pinnedFrame.title))
+    filmData('tnFilmPhase',staticFilm||pinnedFrame.title>.01?'reveal':'opening')
+    inView=rect.bottom>0&&rect.top<innerHeight
   } else if(filmRoot){
     const film=heroFilmProgress(rect.top,rect.height,innerHeight)
-    const staticFilm=motionQuery.matches||matchMedia('(max-height: 600px)').matches
-    current=staticFilm?0:film.motion
+    staticFilm=staticFilm||matchMedia('(max-height: 600px)').matches
+    targetProgress=staticFilm?0:film.motion
     const reveal=staticFilm?1:film.reveal
-    filmRoot.style.setProperty('--tn-film-reveal',reveal.toFixed(4))
-    filmRoot.dataset.tnFilmReveal=reveal.toFixed(4)
-    filmRoot.dataset.tnFilmPhase=reveal<.05?'opening':'reveal'
-  } else current=motionQuery.matches?0:progress
+    filmStyle('--tn-film-reveal',reveal.toFixed(4))
+    filmData('tnFilmReveal',reveal.toFixed(4))
+    filmData('tnFilmPhase',reveal<.05?'opening':'reveal')
+    inView=rect.bottom>0&&rect.top<innerHeight
+  } else {
+    const headerPosition=primaryHero&&header?getComputedStyle(header).position:''
+    const inset=['sticky','fixed'].includes(headerPosition)?clamp(header.getBoundingClientRect().bottom,0,innerHeight*.2):0
+    targetProgress=staticFilm?0:primaryHero?cameraTrackProgress(rect.top,rect.height,innerHeight,chapter!==host.value,inset):clamp(-rect.top/Math.max(innerHeight*.4,rect.height-innerHeight*.35),0,1)
+  }
+  if(!inView){current=targetProgress;lastFrameTime=null;return}
+  current=staticFilm||lastFrameTime===null?targetProgress:smoothScrollProgress(current,targetProgress,timestamp-lastFrameTime)
+  lastFrameTime=timestamp
+  // Stop rendering when settled. A new scroll/resize/visibility event wakes the renderer.
+  if(current!==targetProgress)schedule()
+  if(lastRendered===current)return
+  lastRendered=current
   let b=shots.findIndex(s=>s.at>=current)
   if(b<1)b=1
   const from=shots[b-1],to=shots[b]
   const t=clamp((current-from.at)/Math.max(.00001,to.at-from.at),0,1)
   const blend=(a,b)=>THREE.MathUtils.lerp(a,b,t*t*(3-2*t))
   let yaw=THREE.MathUtils.degToRad(blend(from.yaw,to.yaw))
-  const fullFilm=filmRoot?.dataset.tnFilmVersion==='2'
   if(fullFilm) yaw=THREE.MathUtils.degToRad(shots[0].yaw)
-  const modelYaw=THREE.MathUtils.degToRad(fullFilm?shots[0].modelYaw+(motionQuery.matches?0:pinnedFrame.angle):blend(from.modelYaw,to.modelYaw))
+  const modelYaw=THREE.MathUtils.degToRad(fullFilm?shots[0].modelYaw+filmTurn*current:blend(from.modelYaw,to.modelYaw))
   const lift=fullFilm||props.ground?0:blend(from.lift,to.lift)
   const lightAngle=THREE.MathUtils.degToRad(blend(from.light,to.light))
   modelPivot.rotation.y=modelYaw
@@ -159,7 +198,7 @@ function renderFrame() {
   keyLight.position.set(4*Math.cos(lightAngle)+5*Math.sin(lightAngle),6,5*Math.cos(lightAngle)-4*Math.sin(lightAngle))
   const pitch=THREE.MathUtils.degToRad(blend(from.pitch,to.pitch))
   // Avoid an end-on opening shot of elongated horizontal objects.
-  const size=bounds.getSize(new THREE.Vector3())
+  const size=modelSize
   const opening=1-THREE.MathUtils.smoothstep(current,0,.25)
   if(!fullFilm && motionName==='custom' && size.z>size.x*1.5 && size.z>size.y*1.4 && Math.abs(Math.sin(yaw))<.5){
     yaw+=(Math.sin(yaw)<0?-1:1)*.65*opening
@@ -172,9 +211,9 @@ function renderFrame() {
   // Shift only the camera composition, never the full viewport canvas.
   const captionShift=fullFilm&&!centeredFilm&&!motionQuery.matches ? .09*(pinnedFrame?.title||0) : 0
   if(fullFilm){
-    const w=Math.max(1,host.value.clientWidth),h=Math.max(1,host.value.clientHeight)
+    const w=renderWidth,h=renderHeight
     if(captionShift>0)camera.setViewOffset(w,h,0,-h*captionShift,w,h)
-    else camera.clearViewOffset()
+    else if(camera.view?.enabled)camera.clearViewOffset()
   }
   const halfV=THREE.MathUtils.degToRad(camera.fov/2)
   const tanV=Math.tan(halfV),tanH=tanV*camera.aspect
@@ -198,10 +237,11 @@ function renderFrame() {
     // Center the projected object, not just its canvas or its world-space pivot.
     // Recompute for each angle to handle asymmetric geometry and perspective.
     const initial=posedCorners.map(v=>v.clone().project(camera))
-    const w=Math.max(1,host.value.clientWidth),h=Math.max(1,host.value.clientHeight)
+    const w=renderWidth,h=renderHeight
     const [x,y]=centeredViewOffset(initial.map(p=>p.x),initial.map(p=>p.y),w,h)
     camera.setViewOffset(w,h,x,y,w,h)
   }
+  if(props.ground)renderer.shadowMap.needsUpdate=true
   renderer.render(scene,camera)
   const projected=posedCorners.map(v=>v.clone().project(camera))
   const xs=projected.map(v=>v.x),ys=projected.map(v=>v.y)
@@ -228,7 +268,12 @@ onMounted(async()=>{
     primaryHero=role==='primary'&&Boolean(host.value.closest('[data-tn-section="home"]'))
     shots=normalizedShots()
     filmRoot=primaryHero?host.value.closest('[data-tn-hero-film]'):null
+    chapter=filmRoot||host.value.closest('[data-tn-camera-track]')||host.value
+    header=document.querySelector('[data-tn-header]')
     if(filmRoot){
+      filmScreen=filmRoot.querySelector('.tn-film-screen')
+      filmActions=filmRoot.querySelector('.hero-actions')
+      smoothFilm=Boolean(filmScreen&&filmRoot.dataset.tnFilmEngine==='smooth')
       filmTurn=filmRoot.dataset.tnFilmTurn==='180'?180:360
       const start=shots[0]
       shots=presetShots('hero_turn',finite(start?.yaw,props.openingYaw),1).map(s=>({...s,modelYaw:s.modelYaw+finite(start?.modelYaw,0)}))
@@ -241,6 +286,7 @@ onMounted(async()=>{
     renderer.setClearColor(0x000000,0)
     renderer.shadowMap.enabled=props.ground
     renderer.shadowMap.type=THREE.PCFSoftShadowMap
+    renderer.shadowMap.autoUpdate=false
     renderer.domElement.style.cssText=filmRoot?.hasAttribute('data-tn-film-background')?'position:absolute;inset:0;display:block;width:100%;height:100%;margin:0;padding:0;pointer-events:none;transform:none;':'display:block;width:100%;height:100%;pointer-events:none;'
     renderer.domElement.setAttribute('aria-hidden','true')
     renderer.domElement.addEventListener('webglcontextlost',lost)
@@ -258,7 +304,8 @@ onMounted(async()=>{
     key.position.set(4,6,5); scene.add(key)
     if(props.ground){
       key.castShadow=true
-      key.shadow.mapSize.set(1024,1024)
+      const shadowSize=innerWidth<=760?512:1024
+      key.shadow.mapSize.set(shadowSize,shadowSize)
       Object.assign(key.shadow.camera,{left:-2.4,right:2.4,top:2.4,bottom:-2.4,near:.1,far:20})
       key.shadow.camera.updateProjectionMatrix()
       key.shadow.normalBias=.025
@@ -286,6 +333,7 @@ onMounted(async()=>{
     radius=1
     scene.updateMatrixWorld(true)
     bounds=new THREE.Box3().setFromObject(pivot)
+    modelSize=bounds.getSize(new THREE.Vector3())
     corners=[]
     for(const x of [bounds.min.x,bounds.max.x])
       for(const y of [bounds.min.y,bounds.max.y])

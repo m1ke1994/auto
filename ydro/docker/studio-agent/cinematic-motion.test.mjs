@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset } from './cinematic-motion.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset, smoothScrollProgress, modelPixelRatio, needsTransformPin } from './cinematic-motion.js'
 
 test('all presets are bounded, deterministic and genuinely distinct',()=>{
   const signatures=new Set()
@@ -95,4 +95,27 @@ test('compact 180 film pins and releases over the shorter desktop and mobile tra
     assert.ok(Math.abs(at(1.2).angle-180)<1e-8)
     assert.deepEqual(at(.25),at(.25))
   }
+})
+
+test('scroll easing converges in both directions without overshoot or endless RAF',()=>{
+  let x=0,frames=0
+  while(x!==1&&frames++<100)x=smoothScrollProgress(x,1,16.67)
+  assert.equal(x,1);assert.ok(frames<30)
+  frames=0
+  while(x!==0&&frames++<100)x=smoothScrollProgress(x,0,16.67)
+  assert.equal(x,0);assert.ok(frames<30)
+  assert.equal(smoothScrollProgress(.5,.5,16),.5)
+  assert.ok(Math.abs(smoothScrollProgress(smoothScrollProgress(0,1,16),1,16)-smoothScrollProgress(0,1,32))<1e-10)
+})
+test('drawing buffer is bounded and CSS viewport is independent of DPR',()=>{
+  for(const [w,h,dpr,mobile] of [[1440,900,2,false],[3840,2160,2,false],[390,844,3,true],[760,1000,3,true]]){
+    const ratio=modelPixelRatio(w,h,dpr,mobile)
+    assert.ok(w*h*ratio*ratio<=(mobile?900000:2000000)+1e-6)
+    assert.ok(ratio<=(mobile?1.25:1.5))
+  }
+  assert.equal(modelPixelRatio(390,844,1,true),1)
+})
+test('native sticky is preferred unless a nested ancestor creates a scroll container',()=>{
+  assert.equal(needsTransformPin(['visible','clip']),false)
+  for(const mode of ['auto','scroll','hidden','overlay'])assert.equal(needsTransformPin(['visible',mode]),true)
 })

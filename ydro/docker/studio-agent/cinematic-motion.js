@@ -73,3 +73,23 @@ export function centeredViewOffset(xs,ys,width,height) {
   if(xs.length===0||ys.length===0||!xs.every(Number.isFinite)||!ys.every(Number.isFinite))return [0,0]
   return [(Math.min(...xs)+Math.max(...xs))*width/4,-(Math.min(...ys)+Math.max(...ys))*height/4]
 }
+
+/** Frame-rate independent, bounded scroll easing. Exact endpoints after settling. */
+export function smoothScrollProgress(current,target,elapsedMs) {
+  const end=clamp(finite(target,0),0,1)
+  const start=clamp(finite(current,end),0,1)
+  if(Math.abs(end-start)<=.0008)return end
+  const next=start+(end-start)*(1-Math.exp(-clamp(finite(elapsedMs,16.67),1,64)/45))
+  return Math.abs(end-next)<=.0008?end:next
+}
+
+/** Limit drawing-buffer cost without reducing CSS size or camera framing. */
+export function modelPixelRatio(width,height,deviceRatio=1,mobile=false) {
+  const pixels=Math.max(1,width)*Math.max(1,height)
+  return Math.min(Math.max(1,finite(deviceRatio,1)),mobile?1.25:1.5,Math.sqrt((mobile?900000:2000000)/pixels))
+}
+
+/** A nested scrolling/clipping ancestor breaks native viewport sticky. */
+export function needsTransformPin(overflowModes) {
+  return overflowModes.some(mode=>/^(auto|scroll|hidden|overlay)$/.test(mode))
+}
