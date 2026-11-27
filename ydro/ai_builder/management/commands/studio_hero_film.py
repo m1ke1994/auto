@@ -7,7 +7,7 @@ from ai_builder.jobs import project_dist, refresh_project
 from ai_builder.block_jobs import active_for_owner, state, queue_edit
 
 class Command(BaseCommand):
-    help = "Queue an offline audited 360-degree Hero film with five scroll-synchronized captions for an existing project."
+    help = "Queue an offline audited 360-degree Hero film (preserves existing copy) for an existing project."
 
     def add_arguments(self, parser):
         parser.add_argument("--preview-token", required=True)
