@@ -20,7 +20,7 @@ test('all presets are bounded, deterministic and genuinely distinct',()=>{
 test('object turn and light sweep need no camera yaw change',()=>{
   const turn=presetShots('turntable',135)
   assert.ok(turn.every(s=>s.yaw===135))
-  assert.equal(turn.at(-1).modelYaw,360)
+  assert.equal(turn.at(-1).modelYaw,180)
   const light=presetShots('light_sweep',45)
   assert.ok(light.every(s=>s.yaw===45&&s.modelYaw===0))
   assert.notEqual(light[0].light,light[1].light)
@@ -29,8 +29,8 @@ test('object turn and light sweep need no camera yaw change',()=>{
 test('invalid inputs and intensity bounds',()=>{
   const shots=presetShots('orbit_soft',Infinity,NaN)
   assert.equal(shots[0].yaw,50)
-  assert.equal(presetShots('turntable',0,100).at(-1).modelYaw,450)
-  assert.equal(presetShots('turntable',0,-100).at(-1).modelYaw,90)
+  assert.equal(presetShots('turntable',0,100).at(-1).modelYaw,225)
+  assert.equal(presetShots('turntable',0,-100).at(-1).modelYaw,45)
 })
 
 test('primary hero gets a readable relative turn even when camera and object cancel',()=>{
@@ -69,14 +69,22 @@ test('full viewport pin, captions, half/full turn and release',()=>{
   assert.ok(at(900).angle<at(1800).angle)
 })
 
-test('background turns 360 degrees in exact quarter steps without shifting captions',()=>{
+test('background defaults to a 180-degree turn in exact quarter steps without shifting captions',()=>{
   const at=f=>pinnedFilmFrame(-4500*f,5400,900)
-  assert.deepEqual([0,.25,.5,.75,1].map(f=>at(f).angle),[0,90,180,270,360])
+  assert.deepEqual([0,.25,.5,.75,1].map(f=>at(f).angle),[0,45,90,135,180])
   assert.equal(at(.25).title,1);assert.equal(at(.25).description,0)
   assert.equal(at(.5).description,1);assert.equal(at(.5).actions,0)
   assert.equal(at(.75).actions,1)
   assert.deepEqual(centeredViewOffset([-.2,.8],[-.7,.3],1000,800).map(Math.round),[150,80])
   assert.deepEqual(centeredViewOffset([-.8,.8],[-.4,.4],1000,800),[0,-0])
+})
+
+
+test('180 degrees is the default film limit; 360 requires explicit opt-in',()=>{
+  const at=f=>pinnedFilmFrame(-2700*f,3600,900)
+  assert.deepEqual([0,.25,.5,.75,1].map(f=>at(f).angle),[0,45,90,135,180])
+  const full=f=>pinnedFilmFrame(-2700*f,3600,900,360)
+  assert.deepEqual([0,.25,.5,.75,1].map(f=>full(f).angle),[0,90,180,270,360])
 })
 
 test('compact 180 film pins and releases over the shorter desktop and mobile tracks',()=>{
