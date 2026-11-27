@@ -15,7 +15,7 @@ from .block_jobs import BLOCKS, state as edit_state, block_edit_data, active_for
 from .design import STYLES, preview, source_files
 from .jobs import project_dist, queue_project, refresh_project, visual_result, progress_event
 from .provider import generate, mode, GenerationError
-from .versions import archive_for, ensure_history, history_data, record as record_version
+from .versions import archive_for, ensure_history, history_data, verify_version, record as record_version
 
 class ContactInput(serializers.Serializer):
     phone=serializers.RegexField(r"^\+?[0-9 ()-]{5,32}$",required=False,allow_blank=True,max_length=32)
@@ -281,6 +281,9 @@ class BlockDecision(StudioView):
             if active_for_owner(request.user) or any(edit_state(x)["status"]=="complete" for x in p.block_edits.filter(decision="pending")):
                 return Response({"detail":"Сначала завершите, примите или отклоните текущую правку."},status=409)
             ensure_history(p)
+            previous=p.versions.filter(run_directory=e.base_run).first()
+            if not previous or not verify_version(previous):
+                return Response({"detail":"Исходная сборка недоступна или её файлы изменены."},status=409)
             p.run_directory=e.base_run
             p.generation_stage=e.base_stage
             e.decision="rolled_back"
@@ -329,8 +332,8 @@ class VersionRestore(StudioView):
                 or any(edit_state(e)["status"] == "complete"
                        for e in p.block_edits.filter(decision="pending"))):
             return Response({"detail": "Сначала завершите, примите или отклоните активную правку."}, status=409)
-        if not archive_for(target):
-            return Response({"detail": "Сборка или исходный архив версии недоступны."}, status=409)
+        if not verify_version(target):
+            return Response({"detail": "Сборка или архив версии недоступны либо не прошли проверку целостности."}, status=409)
         p.run_directory = target.run_directory
         p.generation_stage = target.generation_stage
         p.save(update_fields=["run_directory", "generation_stage", "updated_at"])
@@ -345,6 +348,8 @@ class VersionExport(StudioView):
         archive = archive_for(version)
         if not archive:
             raise Http404
+        if not verify_version(version):
+            return Response({"detail": "Файлы версии изменены. Экспорт остановлен."}, status=409)
         response = FileResponse(archive.open("rb"), content_type="application/zip")
         response["Content-Disposition"] = f'attachment; filename="tracknode-version-{version.number}.zip"'
         return response

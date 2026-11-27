@@ -313,3 +313,25 @@ class StudioTests(APITestCase):
             self.assertTrue(first[0]["current"])
             self.assertTrue(all(v["legacy"] for v in first))
             self.assertEqual([v["id"] for v in self.client.get(url).data],[v["id"] for v in first])
+
+
+    def test_version_manifest_rejects_modified_artifact_and_backup(self):
+        from django.core.management import call_command
+        from .models import Project
+        from .version_artifacts import build_manifest
+        with tempfile.TemporaryDirectory() as jobs, tempfile.TemporaryDirectory() as outputs, tempfile.TemporaryDirectory() as backups, override_settings(STUDIO_JOB_ROOT=jobs, STUDIO_OUTPUT_ROOT=outputs):
+            root=Path(outputs)/"original"
+            (root/"dist").mkdir(parents=True)
+            (root/"dist"/"index.html").write_text("original")
+            (root/"tracknode-agent-site.zip").write_bytes(b"fixture")
+            p=Project.objects.create(owner=self.a,name="Backup",prompt="Test",engine="cinematic",run_directory="original")
+            url=f"/api/studio/projects/{p.id}/"
+            version=self.client.get(url+"versions/").data[0]
+            self.assertEqual(version["integrity"],"unrecorded")
+            call_command("studio_version_backup",project=str(p.id),destination=backups)
+            saved=Path(backups)/str(p.id)/version["id"]
+            self.assertEqual(build_manifest(saved),build_manifest(root))
+            call_command("studio_version_backup",project=str(p.id),destination=backups)
+            (root/"dist"/"index.html").write_text("modified")
+            self.assertEqual(self.client.get(url+f'versions/{version["id"]}/export/').status_code,409)
+            self.assertEqual((saved/"dist"/"index.html").read_text(),"original")

@@ -61,6 +61,7 @@ class ProjectVersion(models.Model):
     kind = models.CharField(max_length=16)
     instruction = models.TextField(blank=True)
     legacy = models.BooleanField(default=False)
+    manifest = models.JSONField(default=dict, blank=True)
     block_edit = models.ForeignKey(BlockEdit, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     restored_from = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)

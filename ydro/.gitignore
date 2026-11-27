@@ -21,3 +21,5 @@ backups/
 .studio-repair-ledger.json.tmp
 .studio-visual-review-ledger.json
 .studio-visual-review-ledger.json.tmp
+
+/studio-version-backups/

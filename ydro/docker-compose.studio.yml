@@ -30,6 +30,7 @@ services:
     volumes:
       - ./studio-jobs:/studio-jobs
       - ./studio-agent-output:/studio-output:ro
+      - ./studio-version-backups:/studio-version-backups
     healthcheck:
       test: ["CMD", "curl", "--noproxy", "*", "--fail", "--silent", "--show-error", "--max-time", "5", "http://127.0.0.1:8000/api/health/"]
       interval: 10s

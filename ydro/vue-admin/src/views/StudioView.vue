@@ -18,6 +18,7 @@ const previewHtml=computed(()=>revision.value?.html.replaceAll('href="#page-', '
 const blockOptions=[['home','Главная'],['header','Шапка'],['about','О компании'],['services','Услуги'],['benefits','Преимущества'],['contacts','Контакты'],['footer','Подвал']]
 const inspectorTab=ref('edit')
 const historyPreview=ref(null)
+const historyCompare=ref(false)
 const activeVersion=computed(()=>current.value?.versions?.find(v=>v.current))
 const historicalVersion=computed(()=>inspectorTab.value==='versions'&&!candidateReady.value&&!editingBlock.value?current.value?.versions?.find(v=>v.id===historyPreview.value):null)
 const versionLabels={initial:'Первая версия',baseline:'Сохранённая версия',accepted:'Принятое изменение',restored:'Восстановление'}
@@ -37,6 +38,7 @@ const previewSrc=computed(()=>{
   return BACKEND_URL+path
 })
 const previewKey=computed(()=>previewSrc.value+'|'+(current.value?.preview_version||''))
+const compareCurrentSrc=computed(()=>historyCompare.value&&historicalVersion.value&&current.value?.preview_path?BACKEND_URL+current.value.preview_path:'')
 function restoreVersion(v){
   if(!activeVersion.value||v.current||!v.restorable||activeJob.value||candidateReady.value)return
   if(!window.confirm('Восстановить версию '+v.number+'? Текущая версия останется в истории.'))return
@@ -215,8 +217,8 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
           <p>{{versionLabels[v.kind]||'Сохранённая версия'}}</p>
           <small v-if="v.legacy" class="muted">Из существующей истории</small><small v-else class="muted">{{new Date(v.created_at).toLocaleString('ru-RU')}}</small>
           <p v-if="v.instruction" class="brief-text">{{v.instruction}}</p>
-          <p v-if="!v.preview_path" class="muted">Сборка недоступна</p>
-          <div class="version-actions"><button :disabled="busy||!v.preview_path" @click="historyPreview=v.current?null:v.id">Посмотреть</button><button v-if="!v.current" :disabled="busy||activeJob||candidateReady||!v.restorable" @click="restoreVersion(v)">Восстановить</button></div>
+          <p v-if="!v.preview_path" class="muted">Сборка недоступна</p><small v-if="v.integrity==='unrecorded'" class="muted">Историческая целостность не зафиксирована</small>
+          <div class="version-actions"><button :disabled="busy||!v.preview_path" @click="historyCompare=false;historyPreview=v.current?null:v.id">Посмотреть</button><button v-if="!v.current" :disabled="busy||!v.preview_path||!current.preview_path" @click="historyPreview=v.id;historyCompare=true">Сравнить</button><button v-if="!v.current" :disabled="busy||activeJob||candidateReady||!v.restorable" @click="restoreVersion(v)">Восстановить</button></div>
         </article>
       </section>
       <template v-if="!cinematic"><button class="primary" :disabled="busy" @click="newProject(current)">Создать полноценный сайт</button><h3>История изменений</h3><div class="revision-list"><button v-for="r in current.revisions" :key="r.id" :disabled="busy" :class="{active:r.id===selected}" @click="selected=r.id">{{r.instruction}}</button></div><form @submit.prevent="edit"><label>Изменение<textarea v-model="instruction" required maxlength="8000" rows="3" placeholder="Например: сделай тёмный дизайн"></textarea></label><button :disabled="busy||!config.configured||!revision">Создать версию</button></form></template>
@@ -260,6 +262,7 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
         <p v-if="pollError" role="status" class="muted">Восстанавливаем соединение…</p>
         <p v-if="oldEvent&&!pollError" class="notice">Этот этап занимает больше времени, чем обычно.</p>
       </div>
+      <div v-else-if="cinematic&&previewSrc&&compareCurrentSrc" class="version-comparison"><section><small>Текущая версия</small><iframe title="Текущая версия" sandbox="allow-scripts allow-same-origin" :src="compareCurrentSrc"/></section><section><small>Версия {{historicalVersion.number}}</small><iframe title="Историческая версия" :key="previewKey" sandbox="allow-scripts allow-same-origin" :src="previewSrc"/></section></div>
       <div v-else-if="cinematic&&previewSrc" class="preview-frame"><iframe title="Кинематографический предпросмотр сайта" :key="previewKey" sandbox="allow-scripts allow-same-origin" :src="previewSrc" :style="{width:device,maxWidth:'100%'}"/></div>
       <div v-else-if="!cinematic&&revision" class="preview-frame"><iframe title="Предпросмотр сайта" sandbox="" :srcdoc="previewHtml" :style="{width:device,maxWidth:'100%'}"/></div>
       <div v-else class="empty-preview"><h2>{{current.generation_status==='failed'?'Генерация не завершилась':'Предпросмотр недоступен'}}</h2><p class="muted">Предпросмотр появится после создания сайта.</p></div>
@@ -310,4 +313,10 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
 .version-actions{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
 .version-actions button{font-size:11px;padding:6px}
 .version-preview-label{font-size:12px;padding:6px 4px;flex-wrap:wrap}
+
+.version-comparison{flex:1;min-height:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;overflow:auto}
+.version-comparison section{min-width:0;min-height:0;display:flex;flex-direction:column;gap:6px}
+.version-comparison small{color:var(--muted);font-size:12px}
+.version-comparison iframe{width:100%;flex:1;min-height:300px;border:1px solid var(--line);border-radius:8px}
+@media(max-width:900px){.version-comparison{grid-template-columns:1fr}.version-comparison section{min-height:340px}}
 </style>

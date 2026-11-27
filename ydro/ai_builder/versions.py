@@ -7,6 +7,7 @@ from django.db import transaction
 from .models import Project
 from .jobs import RUN_NAME
 from .block_jobs import run_dist, state as edit_state
+from .version_artifacts import build_manifest, matches_manifest
 
 
 def archive_for(version):
@@ -23,12 +24,20 @@ def record(project, *, kind, instruction="", edit=None, restored_from=None,
     if not isinstance(name, str) or not RUN_NAME.fullmatch(name):
         raise ValueError("Invalid version run")
     last = project.versions.first()
+    manifest = dict(restored_from.manifest) if restored_from and restored_from.manifest else {}
+    if not manifest and not legacy:
+        dist = run_dist(name)
+        if dist:
+            try:
+                manifest = build_manifest(dist.parent)
+            except (OSError, ValueError):
+                pass
     return project.versions.create(
         number=(last.number + 1 if last else 1),
         run_directory=name,
         generation_stage=project.generation_stage if stage is None else stage,
         kind=kind, instruction=instruction, block_edit=edit,
-        restored_from=restored_from, legacy=legacy,
+        restored_from=restored_from, legacy=legacy, manifest=manifest,
     )
 
 
@@ -75,6 +84,9 @@ def version_data(version, active_id):
         "preview_path": f"/studio-preview/{version.id}/" if dist else "",
         "source_archive_available": bool(archive),
         "restorable": bool(dist and archive),
+        "integrity": "recorded" if version.manifest else "unrecorded",
+        "runtime_fingerprint": version.manifest.get("runtime", {}).get("src/cinematic-motion.js", ""),
+        "archive_bytes": version.manifest.get("archive_bytes"),
         "restored_from": str(version.restored_from_id) if version.restored_from_id else None,
     }
 
@@ -86,3 +98,21 @@ def history_data(project):
     locked = Project.objects.select_for_update().get(pk=project.pk)
     current = ensure_history(locked)
     return [version_data(v, current.id if current else None) for v in locked.versions.all()]
+
+
+def verify_version(version):
+    archive = archive_for(version)
+    if not archive:
+        return False
+    # Older builds had no digest at acceptance. Seal only the files currently
+    # present; do not claim this proves their historical integrity.
+    if not version.manifest:
+        try:
+            manifest = build_manifest(archive.parent)
+        except (OSError, ValueError):
+            return False
+        # Conditional write prevents concurrent sealing from overwriting a digest.
+        version.project.versions.filter(pk=version.pk, manifest={}).update(manifest=manifest)
+        version.refresh_from_db(fields=["manifest"])
+        return version.manifest == manifest
+    return matches_manifest(archive.parent, version.manifest)

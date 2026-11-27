@@ -26,3 +26,32 @@ Local validation:
 3. On LUMERA, open Versions, preview a past build, restore and restore forward again.
 4. Verify candidate/active job conflicts, historical ZIP and ownership checks.
 5. Confirm no assets, existing projects or volumes were modified.
+
+
+## Artifact integrity and backup
+
+Migration 0007 stores a SHA-256 fingerprint of the original source ZIP and
+the entire built dist tree. Trusted runtime files and STORYBOARD.json have
+separate fingerprints if present. No artificial engine version is assigned.
+New versions capture a manifest when artifacts are available; legacy or
+previously unavailable manifests are sealed at first explicit verification.
+This cannot prove what a legacy file contained before sealing.
+
+Restore and historical ZIP export verify the stored manifest and reject a
+modified or missing artifact. The history list does not rehash every build on
+every poll. "Recorded" means a fingerprint exists, not a fresh verification.
+The Versions tab also offers a side-by-side comparison against the active
+build (stacked on smaller screens).
+
+Local backup (idle Studio, no changes to source runs):
+```powershell
+docker compose -p tracknode20 -f docker-compose.yml -f docker-compose.studio.yml exec -T backend python manage.py studio_version_backup
+```
+The command copies accepted builds to studio-version-backups, verifies the
+copy, writes version.json, skips identical existing copies, and never
+deletes or overwrites a backup. Keep this directory and the PostgreSQL
+database on independent backup storage. Recovery of a lost run is an
+operator procedure: compare version.json and copy the verified snapshot
+to its original run_directory while Studio is idle; do not overwrite a
+live run. No automatic pruning is enabled; this avoids deleting any
+version or artifact still referenced by a project.
