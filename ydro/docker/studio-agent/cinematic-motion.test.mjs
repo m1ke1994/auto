@@ -78,3 +78,21 @@ test('background turns 360 degrees in exact quarter steps without shifting capti
   assert.deepEqual(centeredViewOffset([-.2,.8],[-.7,.3],1000,800).map(Math.round),[150,80])
   assert.deepEqual(centeredViewOffset([-.8,.8],[-.4,.4],1000,800),[0,-0])
 })
+
+test('compact 180 film pins and releases over the shorter desktop and mobile tracks',()=>{
+  for(const [viewport,ratio] of [[900,2.2],[844,1.8],[540,2.2]]){
+    const height=viewport*ratio,travel=height-viewport
+    const at=f=>pinnedFilmFrame(-travel*f,height,viewport,180,true)
+    for(const f of [0,.25,.5,.75,1]){
+      assert.ok(Math.abs(at(f).angle-180*f)<1e-8)
+      assert.ok(Math.abs(at(f).offset-travel*f)<1e-8)
+    }
+    assert.equal(at(0).title,0);assert.equal(at(0).description,0);assert.equal(at(0).actions,0)
+    assert.ok(at(.18).title>.999);assert.equal(at(.25).description,0)
+    assert.ok(at(.38).description>.999);assert.equal(at(.375).actions,0)
+    assert.ok(at(.58).actions>.999);assert.equal(at(.625).actions,1)
+    assert.ok(Math.abs(at(1.2).offset-travel)<1e-8)
+    assert.ok(Math.abs(at(1.2).angle-180)<1e-8)
+    assert.deepEqual(at(.25),at(.25))
+  }
+})

@@ -59,13 +59,13 @@ export function heroFilmProgress(top,height,viewport) {
   return {progress,motion:clamp(progress/.86,0,1),reveal:x*x*(3-2*x)}
 }
 
-export function pinnedFilmFrame(top,height,viewport,turn=360) {
+export function pinnedFilmFrame(top,height,viewport,turn=360,compact=false) {
   const travel=Math.max(0,height-viewport)
   const offset=clamp(-top,0,travel)
   const progress=travel>0?offset/travel:0
   const motion=progress
   const fade=(a,b)=>{const x=clamp((progress-a)/(b-a),0,1);return x*x*(3-2*x)}
-  return {offset,progress,motion,angle:(turn===180?180:360)*motion,title:fade(.16,.25),description:fade(.40,.50),actions:fade(.65,.75)}
+  return {offset,progress,motion,angle:(turn===180?180:360)*motion,title:compact?fade(.10,.18):fade(.16,.25),description:compact?fade(.28,.38):fade(.40,.50),actions:compact?fade(.48,.58):fade(.65,.75)}
 }
 
 /** Center the projected bounding box in both axes; units are viewport pixels. */

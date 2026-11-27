@@ -73,14 +73,22 @@ class BlockEditTests(unittest.TestCase):
         out=apply_hero_film(self.files)
         self.assertIn(b'data-tn-hero-film',out["src/App.vue"])
         self.assertIn(b'data-tn-film-version="2"',out["src/App.vue"])
-        self.assertIn(b'data-tn-film-turn="360"',out["src/App.vue"])
+        self.assertIn(b'data-tn-film-turn="180"',out["src/App.vue"])
+        self.assertIn(b'data-tn-film-pace="compact"',out["src/App.vue"])
         # Attribute order is not part of the HTML contract; check the actual home root.
         from block_edit import FilmMarkup
         source=out["src/App.vue"].decode()
         _,start,end=find_block({"src/App.vue":source},"home")
         root=FilmMarkup(source[start:end]).nodes[0]
         self.assertIn("data-tn-film-background",root["attrs"])
-        self.assertEqual(root["attrs"].get("data-tn-film-turn"),"360")
+        self.assertEqual(root["attrs"].get("data-tn-film-turn"),"180")
+        self.assertEqual(root["attrs"].get("data-tn-film-pace"),"compact")
+        import json
+        meta=json.loads(out["tracknode-agent.json"])
+        self.assertEqual(meta["hero_film_turn"],180)
+        self.assertEqual(meta["hero_film_pace"],"compact")
+        self.assertIn(b'height:calc(var(--tn-film-vh)*2.2)',out["src/style.css"])
+        self.assertIn(b'height:calc(var(--tn-film-vh)*1.8)',out["src/style.css"])
         self.assertIn(b'data-tn-film-background-layer><CinemaModel',out["src/App.vue"])
         self.assertIn(b'class="tn-film-screen"',out["src/App.vue"])
         self.assertIn(self.about.encode(),out["src/App.vue"])
@@ -145,8 +153,10 @@ class BlockEditTests(unittest.TestCase):
         self.assertNotIn(b"right-column",out["src/App.vue"])
         self.assertIn(b'<div class="hero-content"><h1>Engineering</h1>',out["src/App.vue"])
         old=dict(out)
-        old["src/App.vue"]=old["src/App.vue"].replace(b'data-tn-film-turn="360"',b'data-tn-film-turn="180"')
+        old["src/App.vue"]=old["src/App.vue"].replace(b'data-tn-film-turn="180" data-tn-film-pace="compact"',b'data-tn-film-turn="360"')
+        old["src/style.css"]=old["src/style.css"].replace(b'height:calc(var(--tn-film-vh)*2.2)',b'height:calc(var(--tn-film-vh)*6)').replace(b'height:calc(var(--tn-film-vh)*1.8)',b'height:calc(var(--tn-film-vh)*6)')
         self.assertEqual(apply_hero_film(old)["src/App.vue"],out["src/App.vue"])
+        self.assertEqual(apply_hero_film(old)["src/style.css"],out["src/style.css"])
         self.assertEqual(apply_hero_film(out)["src/style.css"],out["src/style.css"])
 
     def test_nested_split_layout_is_hoisted_to_fullscreen_background(self):

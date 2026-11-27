@@ -119,7 +119,7 @@ function renderFrame() {
     const staticFilm=motionQuery.matches
     filmRoot.style.setProperty('--tn-film-vh',innerHeight+'px')
     const updated=filmRoot.getBoundingClientRect()
-    pinnedFrame=pinnedFilmFrame(updated.top,updated.height,innerHeight,filmTurn)
+    pinnedFrame=pinnedFilmFrame(updated.top,updated.height,innerHeight,filmTurn,filmRoot.dataset.tnFilmPace==='compact')
     current=staticFilm?0:pinnedFrame.motion
     filmRoot.style.setProperty('--tn-film-offset',(staticFilm?0:pinnedFrame.offset)+'px')
     for(const key of ['title','description','actions']){
@@ -229,7 +229,7 @@ onMounted(async()=>{
     shots=normalizedShots()
     filmRoot=primaryHero?host.value.closest('[data-tn-hero-film]'):null
     if(filmRoot){
-      filmTurn=filmRoot.dataset.tnFilmBackground!==undefined?360:(filmRoot.dataset.tnFilmTurn==='180'?180:360)
+      filmTurn=filmRoot.dataset.tnFilmTurn==='180'?180:360
       const start=shots[0]
       shots=presetShots('hero_turn',finite(start?.yaw,props.openingYaw),1).map(s=>({...s,modelYaw:s.modelYaw+finite(start?.modelYaw,0)}))
     } else if(primaryHero) shots=heroMotionShots(shots,props.openingYaw)
