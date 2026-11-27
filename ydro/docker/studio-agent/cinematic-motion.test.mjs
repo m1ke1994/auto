@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset, smoothScrollProgress, scrollFrameElapsed, modelPixelRatio, needsTransformPin, stableFilmCameraTrack, filmCameraDistance } from './cinematic-motion.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset, smoothScrollProgress, scrollFrameElapsed, modelPixelRatio, needsTransformPin, stableFilmCameraTrack, filmCameraDistance, filmCameraPose, filmCaptionOpacity } from './cinematic-motion.js'
 
 test('all presets are bounded, deterministic and genuinely distinct',()=>{
   const signatures=new Set()
@@ -55,53 +55,54 @@ test('film has an opening act and reversible motion',()=>{
   assert.ok(at(500).motion<at(1000).motion)
 })
 
-test('full viewport pin, captions, half/full turn and release',()=>{
-  const at=(y,turn=180)=>pinnedFilmFrame(-y,3600,900,turn)
+test('full viewport pin, five captions, full turn and release',()=>{
+  const at=(y,turn=360)=>pinnedFilmFrame(-y,3600,900,turn)
   for(const y of [0,450,900,1350,1800,2250,2700])assert.equal(-y+at(y).offset,0)
   assert.equal(at(0).angle,0)
-  assert.equal(at(0).title,0)
-  assert.ok(at(900).title>0&&at(900).description===0)
-  assert.ok(at(1800).description===1&&at(1800).actions<1)
-  assert.equal(at(2700).angle,180)
-  assert.equal(at(2700,360).angle,360)
+  assert.equal(at(2700).angle,360)
   assert.equal(at(3000).offset,2700)
   assert.equal(-3000+at(3000).offset,-300)
   assert.ok(at(900).angle<at(1800).angle)
 })
 
-test('background defaults to a 180-degree turn in exact quarter steps without shifting captions',()=>{
-  const at=f=>pinnedFilmFrame(-4500*f,5400,900)
-  assert.deepEqual([0,.25,.5,.75,1].map(f=>at(f).angle),[0,45,90,135,180])
-  assert.equal(at(.25).title,1);assert.equal(at(.25).description,0)
-  assert.equal(at(.5).description,1);assert.equal(at(.5).actions,0)
-  assert.equal(at(.75).actions,1)
-  assert.deepEqual(centeredViewOffset([-.2,.8],[-.7,.3],1000,800).map(Math.round),[150,80])
-  assert.deepEqual(centeredViewOffset([-.8,.8],[-.4,.4],1000,800),[0,-0])
+test('film camera performs a reversible orbit, dolly and light sweep',()=>{
+  const poses=[0,.25,.5,.75,1].map(filmCameraPose)
+  assert.equal(poses[0].yaw,0)
+  assert.equal(poses[4].yaw,0)
+  assert.ok(poses.some(p=>Math.abs(p.yaw)>5))
+  assert.ok(poses.some(p=>Math.abs(p.pitch)>1))
+  assert.ok(poses.some(p=>Math.abs(p.light)>15))
+  assert.ok(poses.every(p=>p.distance>=1.05&&p.distance<=1.12))
+  assert.deepEqual(filmCameraPose(.25),filmCameraPose(.25))
 })
 
-
-test('180 degrees is the default film limit; 360 requires explicit opt-in',()=>{
-  const at=f=>pinnedFilmFrame(-2700*f,3600,900)
-  assert.deepEqual([0,.25,.5,.75,1].map(f=>at(f).angle),[0,45,90,135,180])
-  const full=f=>pinnedFilmFrame(-2700*f,3600,900,360)
-  assert.deepEqual([0,.25,.5,.75,1].map(f=>full(f).angle),[0,90,180,270,360])
+test('five subtitle beats are distinct at the five film checkpoints and reverse cleanly',()=>{
+  const beats=[[0,.18],[.20,.38],[.40,.58],[.60,.78],[.80,1]]
+  const visible=(p)=>beats.map(([a,b])=>filmCaptionOpacity(p,a,b)>.95)
+  assert.deepEqual(visible(0),[true,false,false,false,false])
+  assert.deepEqual(visible(.25),[false,true,false,false,false])
+  assert.deepEqual(visible(.5),[false,false,true,false,false])
+  assert.deepEqual(visible(.75),[false,false,false,true,false])
+  assert.deepEqual(visible(1),[false,false,false,false,true])
+  for(const [a,b] of beats){
+    assert.ok(filmCaptionOpacity(a,a,b)>=.99)
+    assert.ok(filmCaptionOpacity(b,a,b)>=.99)
+  }
+  assert.ok(filmCaptionOpacity(.18,0,.18)<.05)
+  assert.ok(filmCaptionOpacity(.20,0,.18)<.05)
+  assert.ok(filmCaptionOpacity(.25,.20,.38)>.99)
 })
 
-test('compact 180 film pins and releases over the shorter desktop and mobile tracks',()=>{
+test('360 degrees is the default compact film limit on desktop and mobile',()=>{
   for(const [viewport,ratio] of [[900,2.2],[844,1.8],[540,2.2]]){
     const height=viewport*ratio,travel=height-viewport
-    const at=f=>pinnedFilmFrame(-travel*f,height,viewport,180,true)
+    const at=f=>pinnedFilmFrame(-travel*f,height,viewport,360,true)
     for(const f of [0,.25,.5,.75,1]){
-      assert.ok(Math.abs(at(f).angle-180*f)<1e-8)
+      assert.ok(Math.abs(at(f).angle-360*f)<1e-8)
       assert.ok(Math.abs(at(f).offset-travel*f)<1e-8)
     }
-    assert.equal(at(0).title,0);assert.equal(at(0).description,0);assert.equal(at(0).actions,0)
-    assert.ok(at(.18).title>.999);assert.equal(at(.25).description,0)
-    assert.ok(at(.38).description>.999);assert.equal(at(.375).actions,0)
-    assert.ok(at(.58).actions>.999);assert.equal(at(.625).actions,1)
     assert.ok(Math.abs(at(1.2).offset-travel)<1e-8)
-    assert.ok(Math.abs(at(1.2).angle-180)<1e-8)
-    assert.deepEqual(at(.25),at(.25))
+    assert.ok(Math.abs(at(1.2).angle-360)<1e-8)
   }
 })
 
