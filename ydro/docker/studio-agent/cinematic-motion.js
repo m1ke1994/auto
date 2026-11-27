@@ -25,7 +25,7 @@ export function presetShots(name, openingYaw=50, strength=1) {
     case 'hero_turn': return [shot(0),shot(.25,-8,12,1.04,[0,0,0],14,0,18),shot(.65,-22,10,1,[.035,0,0],42,0,48),shot(1,-32,15,1.04,[0,0,0],58,0,75)]
     case 'orbit_soft': return [shot(0),shot(.5,-35,17,.98),shot(1,-75,12,1.05)]
     case 'orbit_dramatic': return [shot(0),shot(.38,-50,8,1.08),shot(.72,-100,20,.98),shot(1,-155,14,1.05)]
-    case 'turntable': return [shot(0),shot(.5,0,14,1,[0,0,0],180),shot(1,0,14,1,[0,0,0],360)]
+    case 'turntable': return [shot(0),shot(.5,0,14,1,[0,0,0],90),shot(1,0,14,1,[0,0,0],180)]
     case 'front_reveal': return [shot(0),shot(.4,-18,10,1.05),shot(1,-62,12,1)]
     case 'fly_by': return [shot(0),shot(.42,22,9,1.08,[-.12,0,0]),shot(1,-36,17,1.12,[.12,0,0])]
     case 'detail_focus': return [shot(0,0,14,1.12),shot(.55,-25,18,.98,[0,.05,0]),shot(1,-48,12,1.1)]
@@ -59,7 +59,7 @@ export function heroFilmProgress(top,height,viewport) {
   return {progress,motion:clamp(progress/.86,0,1),reveal:x*x*(3-2*x)}
 }
 
-export function pinnedFilmFrame(top,height,viewport,turn=360,compact=false) {
+export function pinnedFilmFrame(top,height,viewport,turn=180,compact=false) {
   const travel=Math.max(0,height-viewport)
   const offset=clamp(-top,0,travel)
   const progress=travel>0?offset/travel:0
