@@ -76,6 +76,25 @@ class SceneComponentTests(unittest.TestCase):
             s.write("src/components/HeroObjectStage.vue","override")
         self.assertIn("import('three')",(ROOT/"HeroObjectStage.vue").read_text(encoding="utf-8"))
 
+    def test_primary_cinema_hero_requires_five_timed_film_captions(self):
+        from quality import quality_issues
+        app='''<template>
+<section id="home" data-tn-section="home">
+<div class="hero-stage"><CinemaModel model-path="tn-models/car/model.gltf" /></div>
+<div class="hero-content"><h1>Drive the future</h1><div class="tn-film-captions">
+<p data-tn-film-caption data-tn-film-start="0" data-tn-film-end="0.18">First</p>
+<p data-tn-film-caption data-tn-film-start="0.20" data-tn-film-end="0.38">Second</p>
+<p data-tn-film-caption data-tn-film-start="0.40" data-tn-film-end="0.58">Third</p>
+<p data-tn-film-caption data-tn-film-start="0.60" data-tn-film-end="0.78">Fourth</p>
+<p data-tn-film-caption data-tn-film-start="0.80" data-tn-film-end="1">Fifth</p>
+</div></div></section></template>'''
+        files={"src/App.vue":app}
+        issues=quality_issues(files,"cinema")
+        self.assertFalse(any("film Hero" in x or "film captions" in x or "scroll intervals" in x for x in issues))
+        broken=app.replace('data-tn-film-end="0.38"','data-tn-film-end="0.58"')
+        issues=quality_issues({"src/App.vue":broken},"cinema")
+        self.assertTrue(any("scroll intervals" in x for x in issues))
+
     def test_automated_review_is_honestly_labeled(self):
         import tempfile, zipfile, json
         from site_store import SiteStore
