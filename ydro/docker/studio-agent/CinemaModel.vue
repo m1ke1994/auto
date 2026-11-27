@@ -51,7 +51,7 @@ function normalizedShots() {
 }
 let renderer, scene, camera, model, env, pmrem, observer, intersection, raf=0, disposed=false
 let visible=true, motionQuery, current=0, radius=1, frameCount=0, shots, primaryHero=false
-let corners=[], bounds, groundPlane, keyLight, modelPivot, filmRoot, pinnedFrame, filmTurn=360
+let corners=[], bounds, groundPlane, keyLight, modelPivot, filmRoot, pinnedFrame, filmTurn=180
 let filmScreen, filmActions, smoothFilm=false, transformPin=false, modelSize
 let renderWidth=0,renderHeight=0,renderRatio=0,lastRendered=null,lastFrameTime=null,resizeCount=0
 let chapter, header, cameraTrack, contactTexture
@@ -292,7 +292,7 @@ onMounted(async()=>{
       filmActions=filmRoot.querySelector('.hero-actions')
       smoothFilm=Boolean(filmScreen&&filmRoot.dataset.tnFilmEngine==='smooth')
       stableCamera=smoothFilm&&filmRoot.hasAttribute('data-tn-film-background')&&filmRoot.dataset.tnFilmCamera==='stable'
-      filmTurn=filmRoot.dataset.tnFilmTurn==='180'?180:360
+      filmTurn=filmRoot.dataset.tnFilmTurn==='360'?360:180
       const start=shots[0]
       shots=presetShots('hero_turn',finite(start?.yaw,props.openingYaw),1).map(s=>({...s,modelYaw:s.modelYaw+finite(start?.modelYaw,0)}))
     } else if(primaryHero) shots=heroMotionShots(shots,props.openingYaw)
