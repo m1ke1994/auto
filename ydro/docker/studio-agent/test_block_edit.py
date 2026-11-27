@@ -73,7 +73,7 @@ class BlockEditTests(unittest.TestCase):
         out=apply_hero_film(self.files)
         self.assertIn(b'data-tn-hero-film',out["src/App.vue"])
         self.assertIn(b'data-tn-film-version="2"',out["src/App.vue"])
-        self.assertIn(b'data-tn-film-turn="180"',out["src/App.vue"])
+        self.assertIn(b'data-tn-film-turn="360"',out["src/App.vue"])
         self.assertIn(b'data-tn-film-pace="compact"',out["src/App.vue"])
         # Attribute order is not part of the HTML contract; check the actual home root.
         from block_edit import FilmMarkup
@@ -87,7 +87,7 @@ class BlockEditTests(unittest.TestCase):
         self.assertEqual(root["attrs"].get("data-tn-film-camera"),"stable")
         import json
         meta=json.loads(out["tracknode-agent.json"])
-        self.assertEqual(meta["hero_film_turn"],180)
+        self.assertEqual(meta["hero_film_turn"],360)
         self.assertEqual(meta["hero_film_pace"],"compact")
         self.assertEqual(meta["hero_film_engine"],"smooth")
         self.assertEqual(meta["hero_film_camera"],"stable")
@@ -159,7 +159,7 @@ class BlockEditTests(unittest.TestCase):
         self.assertNotIn(b"right-column",out["src/App.vue"])
         self.assertIn(b'<div class="hero-content"><h1>Engineering</h1>',out["src/App.vue"])
         old=dict(out)
-        old["src/App.vue"]=old["src/App.vue"].replace(b'data-tn-film-turn="180" data-tn-film-pace="compact" data-tn-film-engine="smooth" data-tn-film-camera="stable"',b'data-tn-film-turn="360"')
+        old["src/App.vue"]=old["src/App.vue"].replace(b'data-tn-film-turn="360" data-tn-film-pace="compact" data-tn-film-engine="smooth" data-tn-film-camera="stable"',b'data-tn-film-turn="360"')
         old["src/style.css"]=old["src/style.css"].replace(b'height:calc(var(--tn-film-vh)*2.2)',b'height:calc(var(--tn-film-vh)*6)').replace(b'height:calc(var(--tn-film-vh)*1.8)',b'height:calc(var(--tn-film-vh)*6)')
         self.assertEqual(apply_hero_film(old)["src/App.vue"],out["src/App.vue"])
         self.assertEqual(apply_hero_film(old)["src/style.css"],out["src/style.css"])
