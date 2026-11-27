@@ -48,40 +48,84 @@ def procedural_preset(plan, brief):
         return "microphone"
     return None
 
+def classify_hero_subject(plan, brief=""):
+    """Classify the visual subject from the brief; never infer scale from a GLB's normalized bounds."""
+    text=(str(plan.get("subject", ""))+" "+brief).lower()
+    if any(x in text for x in ("здан", "архитект", "фасад", "интерьер", "резиденц", "отел", "hotel", "architecture", "building", "interior", "facade")):
+        return "architecture"
+    if any(x in text for x in ("автомоб", "машин", "мотоцикл", "яхт", "корабл", "самолет", "самолёт", "мебел", "станок", "car ", "vehicle", "motorcycle", "yacht", "aircraft", "furniture")):
+        return "large_object"
+    if any(x in text for x in ("тюбик", "флакон", "баночк", "бутыл", "часы", "кольц", "упаков", "космет", "гаджет", "tube", "bottle", "watch", "ring", "packaging", "cosmetic", "product")):
+        return "small_object"
+    if any(x in text for x in ("ландшафт", "природ", "пейзаж", "городск", "пространств", "landscape", "environment", "cityscape")):
+        return "environment"
+    return "abstract_scene"
+
+
 def cinematic_direction(plan, selected, brief=""):
     import hashlib
     seed=int(hashlib.sha256(brief.encode("utf-8")).hexdigest()[:12],16)
     mode=plan.get("mode","cinematic")
     subject=str(plan.get("subject","")).lower()
+    subject_type=classify_hero_subject(plan, brief)
     options=COMPOSITIONS.get(mode,COMPOSITIONS["cinematic"])
     conditional=bool(selected and selected.get("quality_tier")=="conditional")
-    # The brief may explicitly request small edge decorations; never infer physical
-    # size from the normalized model. Preserve the planner's mode otherwise.
     accent_requested=any(x in brief.lower() for x in (
         "маленькие модели", "маленькая модель", "небольшие модели", "небольшая модель",
         "по краям", "small model", "edge accents", "small decorative", "floating edges"))
     layout="floating_edges" if selected and accent_requested else options[seed%len(options)]
-    preset=None
     if not selected:
-        # Keep the established photo-led fallback when no subject-matched object exists.
-        # The deterministic composition variants apply when a verified model is selected.
         layout="editorial_photo"
     if conditional and layout=="detail_editorial":
         layout="museum_focus"
     role="accent" if layout=="floating_edges" else "primary"
-    vehicle=any(x in subject for x in ("car","vehicle","automobile","supercar","машин","автомоб"))
-    if role=="accent":
-        motions=("edge_spin_soft","parallax_massive") if vehicle else ("edge_spin_soft","idle_float","parallax_massive")
-    elif conditional or vehicle:
-        motions=("hero_turn","orbit_dramatic","hero_turn","orbit_soft")
+    if subject_type=="small_object":
+        compositions=("title_first","editorial_product","offset_left","offset_right")
+        motions=("idle_float","edge_spin_soft","light_sweep")
+        title_strategy="intro_titles"
+        light_strategy="softbox"
+    elif subject_type=="large_object":
+        compositions=("center_focus","offset_left","offset_right")
+        motions=("parallax_massive","front_reveal","hero_turn","orbit_soft")
+        title_strategy="staggered_titles"
+        light_strategy="reveal"
+    elif subject_type=="architecture":
+        compositions=("environment_full","offset_left","offset_right")
+        motions=("parallax_massive","light_sweep","front_reveal")
+        title_strategy="overlay_static"
+        light_strategy="ambient_depth"
+    elif subject_type=="environment":
+        compositions=("environment_full","layered_depth")
+        motions=("parallax_massive","light_sweep")
+        title_strategy="staggered_titles"
+        light_strategy="ambient_depth"
     else:
-        motions=("hero_turn","orbit_soft","orbit_dramatic","turntable","front_reveal")
+        compositions=("center_focus","editorial_product","environment_full")
+        motions=("light_sweep","idle_float","front_reveal")
+        title_strategy="intro_titles"
+        light_strategy="editorial"
+    composition=compositions[(seed//3)%len(compositions)]
+    if role=="accent" and selected:
+        composition="floating_edges"
+        motions=("edge_spin_soft","idle_float")
+    if conditional and selected:
+        motions=("front_reveal","parallax_massive")
     lights=("studio","softbox","dramatic","editorial") if conditional else ("studio","softbox","dramatic","editorial","silhouette")
-    return {"layout":layout,"hero_preset":preset,"model_role":role if selected else None,
-            "motion":motions[(seed//7)%len(motions)] if selected else None,
-            "lighting":lights[(seed//31)%len(lights)] if selected else None,
-            "opening_yaw":selected.get("yaw",50) if selected else None,
-            "chapters":["opening","development","detail_or_contrast","resolution"]}
+    return {
+        "subject_type":subject_type,
+        "layout":layout,
+        "composition":composition,
+        "hero_preset":None,
+        "model_role":role if selected else None,
+        "motion":motions[(seed//7)%len(motions)] if selected else None,
+        "lighting":lights[(seed//31)%len(lights)] if selected else None,
+        "opening_yaw":selected.get("yaw",50) if selected else None,
+        "max_rotation_deg":180,
+        "camera_strategy":"camera_and_light_reveal" if subject_type in ("large_object","architecture","environment") else "gentle_product_drift",
+        "light_strategy":light_strategy,
+        "title_strategy":title_strategy,
+        "chapters":["opening","development","detail_or_contrast","resolution"]
+    }
 
 def build_prompt(brief, profile, media_enabled=False, sketchfab_enabled=False, asset_style='realistic'):
     sketchfab = ("Sketchfab is enabled for the authenticated local user. Use only the real downloaded model path approved by preflight. Build a scene with intentional camera framing, physically plausible lights, shadow/contact depth, scroll-linked object or camera movement and a photographic fallback. Use the trusted CinemaModel component and mark animated editorial layers data-tn-motion. Do not pretend stock props depict the real client. Attribution is exported automatically. No extra CDN or decoders." if sketchfab_enabled else "Do not create procedural 3D or substitute Three.js primitives. If preflight did not approve a downloadable Sketchfab model, use a high-quality photographic/editorial composition.")
@@ -95,6 +139,15 @@ Trusted components in src/components (do not write or overwrite them):
 - SceneCarousel: import SceneCarousel from './components/SceneCarousel.vue' (adjust relative path). Props :items array 3–8 meaningful objects {title,text,kicker?,image?,alt?}; mode narrative, horizontal, stack, showcase, chapter, editorial; label, previous-label, next-label for localization. Slot #slide="{ item, index, active }" allows own semantic card/figure and images. Native horizontal snap, swipe, keyboard arrows/Home/End on focused track, previous/next and dots; no autoplay. Keep content and CTA readable. If services use it, put data-tn-service on each actual card inside the slide slot. Do not use model canvases in every slide. No global overflow masking.
 - SceneStory: import SceneStory from './components/SceneStory.vue'. Props :chapters array 2–5 {title,text,kicker?,image?,alt?}, mode split, reverse or overlay, label. Slot #visual="{ item,index }" may contain one persistent CinemaModel (do not bind a changing :key) or your own visual. Slot #chapter="{ item,index,active }" allows custom heading, text and detail annotations. The stage stays sticky on desktop, active chapter follows natural page scroll, mobile/reduced motion presents readable vertical chapters. The visual slot is rendered only in the persistent desktop stage and may contain one persistent CinemaModel. For mobile, provide a separate #mobile-visual slot inside each chapter; it must be a lightweight image or original CSS/SVG composition, never another CinemaModel/canvas. Keep both slots declarative and free of IDs, event listeners or side effects. Give every chapter a distinct image, crop or original motif; never repeat an empty number card with only its text changed. Do not put data-tn-motion on every nested story chapter or sticky visual: the story active-state controller already drives chapter changes. The component checks that each mobile chapter has a real visual and readable caption. Use CSS variables --tn-story-top, --tn-story-bg, --tn-caption-bg, --tn-caption-color for the site's own style; avoid sticky-breaking overflow on ancestors. Mark outer section with literal data-tn-scene; ensure heading and substantive text at section start. Add actual GSAP scrub motion for at least two appropriate data-tn-motion layers as the existing quality contract requires; do not animate essential text to invisible for entire scroll intervals. For a moving 3D stage use independent keyframes, not a continuous second renderer or remount; ground physical objects appropriately. Use short real labels and captions tied to the brief; do not invent specifications. Scroll stays native, with no page-wide horizontal drag or trapping.
 For new Cinema, render both trusted components in real middle chapters, not hidden/offscreen dummy components. In existing repair preserve prior layout. Scene components are optional for standard/premium. Visual freedom remains in typography, slot contents, animation, palette and framing.
+
+CINEMATIC HERO MOTION V2 — mandatory art-direction rules:
+Classify the main subject using the supplied CINEMATIC DIRECTION RECOMMENDATION. Treat max_rotation_deg=180 as the default hard creative limit; never choose a 360-degree turntable unless the user explicitly requests a full rotation.
+- LARGE OBJECTS (cars, motorcycles, yachts, substantial furniture, machinery): keep the object center-stage or intentionally offset left/right. Do not shrink it into a side thumbnail. Compose readable copy in the opposite negative-space area. Prefer camera orbit/angle changes, parallax, controlled light reveal, reflections and contact shadows. A slow model turn may cover at most 180 degrees.
+- ARCHITECTURE/buildings/interiors: treat the subject as a space, not a turntable asset. Keep the scene centered or offset, move the camera through a restrained viewpoint/parallax change, reveal facade/interior lighting and depth. No forced object spin.
+- SMALL PRODUCTS (tube, bottle, jar, watch, ring, compact device): use title-first/editorial product direction. Large opening typography may lead; let the product drift smoothly left/right across scroll chapters, with restrained scale and gentle yaw. Use soft light sweeps and material highlights; avoid continuous spinning.
+- ENVIRONMENTS: layered parallax and camera/light reveal; no forced spin.
+- Keep the subject inside safe viewport bounds at desktop/tablet/mobile. Rebalance composition per breakpoint; no horizontal page overflow. Respect reduced motion with a static, fully readable opening frame.
+- The hero is one directed scene. Coordinate title timing, object movement, camera and light with the storyboard; do not put a large object in a narrow side column by default.
 
 HERO FIRST — establish one recognizable subject and balanced visual weight before building:
 Choose subject from the actual business: product, vehicle, architecture, person in licensed illustrative photography, landscape, or original conceptual artwork. Never rely on a blank gradient, particles or low abstract waves alone. For a split product hero use a meaningful focal object taking about 40–55% of desktop hero width, with generous but intentional negative space and separate readable copy. Full-bleed and centered heroes remain valid when better suited to the brief. Match image subject to captions, use different assets in adjacent chapters unless deliberate continuity is needed. Compose at desktop and mobile scale, not a narrow central column on wide screens. Keep native carousel scroll usable; style scrollbars or provide accessible controls. Avoid oversized translated children, use min-width:0 in flex/grid, and keep essential headings/content visible even when the scroll trigger never fires. Mobile menu must not inherit fixed-header height or clipping.
