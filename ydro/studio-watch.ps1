@@ -24,7 +24,7 @@ function Recover-InterruptedJobs {
     $claimedJobs=@(Get-ChildItem -LiteralPath $running -Filter '*.json' -File)
     if (!$claimedJobs.Count) { return }
     # Never recover while another pipeline may still be writing this workspace.
-    $pipelineScripts=@('studio-block-edit.ps1','studio-quality.ps1','studio-technical.ps1','studio-visual-review.ps1')
+    $pipelineScripts=@('studio-watch.ps1','studio-block-edit.ps1','studio-quality.ps1','studio-technical.ps1','studio-visual-review.ps1')
     $other=@(Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object {
         $command=$_.CommandLine
         if (!$command -or $_.ProcessId -eq $PID) { return $false }

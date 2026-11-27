@@ -262,7 +262,7 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
         <p v-if="pollError" role="status" class="muted">Восстанавливаем соединение…</p>
         <p v-if="oldEvent&&!pollError" class="notice">Этот этап занимает больше времени, чем обычно.</p>
       </div>
-      <div v-else-if="cinematic&&previewSrc&&compareCurrentSrc" class="version-comparison"><section><small>Текущая версия</small><iframe title="Текущая версия" sandbox="allow-scripts allow-same-origin" :src="compareCurrentSrc"/></section><section><small>Версия {{historicalVersion.number}}</small><iframe title="Историческая версия" :key="previewKey" sandbox="allow-scripts allow-same-origin" :src="previewSrc"/></section></div>
+      <div v-else-if="cinematic&&previewSrc&&compareCurrentSrc" class="version-comparison"><section><small>Текущая версия</small><iframe title="Текущая версия" sandbox="allow-scripts allow-same-origin" :src="compareCurrentSrc" :style="{width:device,maxWidth:'100%'}"/></section><section><small>Версия {{historicalVersion.number}}</small><iframe title="Историческая версия" :key="previewKey" sandbox="allow-scripts allow-same-origin" :src="previewSrc" :style="{width:device,maxWidth:'100%'}"/></section></div>
       <div v-else-if="cinematic&&previewSrc" class="preview-frame"><iframe title="Кинематографический предпросмотр сайта" :key="previewKey" sandbox="allow-scripts allow-same-origin" :src="previewSrc" :style="{width:device,maxWidth:'100%'}"/></div>
       <div v-else-if="!cinematic&&revision" class="preview-frame"><iframe title="Предпросмотр сайта" sandbox="" :srcdoc="previewHtml" :style="{width:device,maxWidth:'100%'}"/></div>
       <div v-else class="empty-preview"><h2>{{current.generation_status==='failed'?'Генерация не завершилась':'Предпросмотр недоступен'}}</h2><p class="muted">Предпросмотр появится после создания сайта.</p></div>
@@ -317,6 +317,6 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
 .version-comparison{flex:1;min-height:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;overflow:auto}
 .version-comparison section{min-width:0;min-height:0;display:flex;flex-direction:column;gap:6px}
 .version-comparison small{color:var(--muted);font-size:12px}
-.version-comparison iframe{width:100%;flex:1;min-height:300px;border:1px solid var(--line);border-radius:8px}
+.version-comparison iframe{align-self:center;width:100%;flex:1;min-height:300px;border:1px solid var(--line);border-radius:8px}
 @media(max-width:900px){.version-comparison{grid-template-columns:1fr}.version-comparison section{min-height:340px}}
 </style>

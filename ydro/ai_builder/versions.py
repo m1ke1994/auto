@@ -107,12 +107,16 @@ def verify_version(version):
     # Older builds had no digest at acceptance. Seal only the files currently
     # present; do not claim this proves their historical integrity.
     if not version.manifest:
+        known = (version.project.versions.filter(run_directory=version.run_directory)
+                 .exclude(manifest={}).first())
+        if known and not matches_manifest(archive.parent, known.manifest):
+            return False
         try:
-            manifest = build_manifest(archive.parent)
+            manifest = known.manifest if known else build_manifest(archive.parent)
         except (OSError, ValueError):
             return False
         # Conditional write prevents concurrent sealing from overwriting a digest.
-        version.project.versions.filter(pk=version.pk, manifest={}).update(manifest=manifest)
+        version.project.versions.filter(run_directory=version.run_directory, manifest={}).update(manifest=manifest)
         version.refresh_from_db(fields=["manifest"])
         return version.manifest == manifest
     return matches_manifest(archive.parent, version.manifest)

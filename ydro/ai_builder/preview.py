@@ -34,6 +34,6 @@ def cinematic_preview(request, token, path="index.html"):
         raise Http404
     content_type=mimetypes.guess_type(requested.name)[0] or "application/octet-stream"
     response=FileResponse(requested.open("rb"),content_type=content_type)
-    response["Cache-Control"]="no-store" if requested.name=="index.html" else "public, max-age=3600"
+    response["Cache-Control"]="no-store" if project or requested.name=="index.html" else "private, max-age=3600"
     response["Content-Security-Policy"]="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors http://localhost:8001 http://127.0.0.1:8001"
     return response

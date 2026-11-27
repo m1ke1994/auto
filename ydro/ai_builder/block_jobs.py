@@ -10,7 +10,11 @@ def run_dist(name):
     if not isinstance(name,str) or not RUN_NAME.fullmatch(name):
         return None
     root=output_root().resolve()
-    dist=(root/name/"dist").resolve()
+    run=root/name
+    raw_dist=run/"dist"
+    if run.is_symlink() or raw_dist.is_symlink():
+        return None
+    dist=raw_dist.resolve()
     try:
         dist.relative_to(root)
     except ValueError:
