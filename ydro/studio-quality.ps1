@@ -3,6 +3,7 @@ param(
     [ValidateSet("standard","premium","cinema")][string]$Profile="cinema",
     [ValidateSet("realistic","stylized")][string]$AssetStyle="realistic",
     [switch]$SkipVisualReview,
+    [switch]$RebuildImages,
     [switch]$AllowVisualWarnings,
     [ValidateRange(0,1)][int]$MaxRepairs=0,
     [ValidateRange(0,1)][int]$MaxTechnicalRepairs=0,
@@ -24,14 +25,25 @@ function Assert-Exit([string]$Step) {
     if ($LASTEXITCODE -ne 0) { throw "$Step failed ($LASTEXITCODE)" }
 }
 Write-StudioProgress $ProgressFile "preparing"
-& docker @compose build openhands
-Assert-Exit "Agent build"
+function Ensure-StudioImage([string]$Image,[scriptblock]$Build,[string]$Label) {
+    $exists=$false
+    if (!$RebuildImages) {
+        & docker image inspect $Image *> $null
+        $exists=($LASTEXITCODE -eq 0)
+    }
+    if ($exists) {
+        Write-Host "IMAGE_READY: $Image (reuse local image)"
+        return
+    }
+    Write-Host "IMAGE_BUILD: $Image"
+    & $Build
+    Assert-Exit "$Label build"
+}
+Ensure-StudioImage "tracknode20-agent-openhands:latest" { & docker @compose build openhands } "Agent"
+Ensure-StudioImage "tracknode-studio-build:latest" { docker build -t tracknode-studio-build -f docker/studio-build/Dockerfile docker/studio-build } "Site builder"
+Ensure-StudioImage "tracknode-studio-audit:latest" { docker build -t tracknode-studio-audit docker/studio-audit } "Browser audit"
 & docker @compose run --rm --no-deps openhands --check
 Assert-Exit "SDK check"
-docker build -t tracknode-studio-build -f docker/studio-build/Dockerfile docker/studio-build
-Assert-Exit "Site builder build"
-docker build -t tracknode-studio-audit docker/studio-audit
-Assert-Exit "Browser audit image build"
 Write-StudioProgress $ProgressFile "assets"
 if ($PreflightDirectory) {
     $preflight=(Resolve-Path -LiteralPath $PreflightDirectory).Path
