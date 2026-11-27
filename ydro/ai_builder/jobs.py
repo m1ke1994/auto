@@ -4,6 +4,8 @@ import re
 from pathlib import Path
 
 from django.conf import settings
+from django.db import transaction
+from .models import Project
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
@@ -43,8 +45,13 @@ def queue_project(project, *, profile, asset_style, hero_mode, require_model):
     _atomic_json(job_root() / "pending" / f"{project.id}.json", payload)
 
 
+@transaction.atomic
 def refresh_project(project):
     if project.engine != "cinematic" or project.generation_status in TERMINAL:
+        return project
+    # Polling requests may race. Refresh the locked row before applying a terminal state.
+    project = Project.objects.select_for_update().get(pk=project.pk)
+    if project.generation_status in TERMINAL:
         return project
     state_path = job_root() / "status" / f"{project.id}.json"
     if not state_path.is_file():
@@ -72,6 +79,9 @@ def refresh_project(project):
     project.generation_error = error[:2000]
     project.run_directory = run_directory
     project.save(update_fields=["generation_status", "generation_stage", "generation_error", "run_directory", "updated_at"])
+    if status == "complete" and run_directory and not project.versions.exists():
+        from .versions import record
+        record(project, kind="initial")
     return project
 
 

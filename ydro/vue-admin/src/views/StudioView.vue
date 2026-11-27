@@ -19,7 +19,7 @@ const blockOptions=[['home','Главная'],['header','Шапка'],['about','
 const inspectorTab=ref('edit')
 const historyPreview=ref(null)
 const activeVersion=computed(()=>current.value?.versions?.find(v=>v.current))
-const historicalVersion=computed(()=>inspectorTab.value==='versions'?current.value?.versions?.find(v=>v.id===historyPreview.value):null)
+const historicalVersion=computed(()=>inspectorTab.value==='versions'&&!candidateReady.value&&!editingBlock.value?current.value?.versions?.find(v=>v.id===historyPreview.value):null)
 const versionLabels={initial:'Первая версия',baseline:'Сохранённая версия',accepted:'Принятое изменение',restored:'Восстановление'}
 const targetBlock=ref('home'), blockInstruction=ref(''), upgradeMotion=ref(true), compareVersion=ref('candidate')
 const blockEdit=computed(()=>current.value?.block_edit)
@@ -32,7 +32,7 @@ const blockProgress=computed(()=>blockEdit.value?.status==='complete'?100:Math.m
 const blockEventAge=computed(()=>formatDuration(now.value-Date.parse(blockEdit.value?.updated_at||blockEdit.value?.created_at||'')))
 const blockEventStale=computed(()=>!!blockEdit.value?.updated_at&&now.value-Date.parse(blockEdit.value.updated_at)>180000)
 const previewSrc=computed(()=>{
-  const path=candidateReady.value&&compareVersion.value==='candidate'?blockEdit.value.preview_path:historicalVersion.value?.preview_path||current.value?.preview_path
+  const path=candidateReady.value&&compareVersion.value==='candidate'?blockEdit.value.preview_path:historicalVersion.value?historicalVersion.value.preview_path:current.value?.preview_path
   if(!path)return ''
   return BACKEND_URL+path
 })
@@ -74,7 +74,7 @@ function applyHeroFilm(){run(async()=>{
 })}
 function decideBlock(editId,action){run(async()=>{
   apply((await http.post(base+current.value.id+'/block-edits/'+editId+'/'+action+'/')).data)
-  compareVersion.value='candidate';await refresh()
+  historyPreview.value=null;compareVersion.value='candidate';await refresh()
 })}
 const cinematic=computed(()=>current.value?.engine==='cinematic')
 const generating=computed(()=>['queued','running'].includes(current.value?.generation_status))
