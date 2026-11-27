@@ -86,7 +86,8 @@ test('five subtitle beats are distinct at the five film checkpoints and reverse 
   assert.deepEqual(visible(1),[false,false,false,false,true])
   for(const [a,b] of beats){
     assert.ok(filmCaptionOpacity(a,a,b)>=.99)
-    assert.ok(filmCaptionOpacity(b,a,b)>=.99)
+    if(b===1)assert.ok(filmCaptionOpacity(b,a,b)>=.99)
+    else assert.ok(filmCaptionOpacity(b,a,b)<.05)
   }
   assert.ok(filmCaptionOpacity(.18,0,.18)<.05)
   assert.ok(filmCaptionOpacity(.20,0,.18)<.05)
