@@ -422,12 +422,12 @@ try {
       if(sceneContract?.version===1||sceneDiagnostics.carousels.length) checks.carouselControls=sceneDiagnostics.carousels.length>0&&sceneDiagnostics.carousels.every(x=>x.ok);
       if(sceneContract?.version===1||sceneDiagnostics.stories.length) checks.storyProgress=sceneDiagnostics.stories.length>0&&sceneDiagnostics.stories.every(x=>x.ok);
     }
-    report.checks.push({name,checks,metrics:result,sections,navigation,heroFraming,heroObject,aboutMetrics,steps,filmSamples,filmRelease,shortFilm,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
+    report.checks.push({name,checks,film:{enabled:isFilm,pinned:pinnedFilm},metrics:result,sections,navigation,heroFraming,heroObject,aboutMetrics,steps,filmSamples,filmRelease,shortFilm,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
     await context.close();
   }
 } catch(error){report.error=String(error).slice(0,700);report.errorStage=stage;}
 finally { if(browser) await browser.close().catch(error=>{if(!report.error){report.error=String(error).slice(0,700);report.errorStage='browser close';}}); }
 finalizeAudit(report);
 await writeFile('/report/quality-report.json',JSON.stringify(report,null,2));
-console.log(JSON.stringify({passed:report.passed,functionalPassed:report.functionalPassed,screenshotsComplete:report.screenshotsComplete,screenshotFailures:report.screenshotFailures,checks:report.checks.map(({name,checks})=>({name,checks})),error:report.error,errorStage:report.errorStage},null,2));
+console.log(JSON.stringify({passed:report.passed,functionalPassed:report.functionalPassed,screenshotsComplete:report.screenshotsComplete,screenshotFailures:report.screenshotFailures,missingScreenshots:report.missingScreenshots,unexpectedScreenshots:report.unexpectedScreenshots,duplicateScreenshots:report.duplicateScreenshots,checks:report.checks.map(({name,checks})=>({name,checks})),error:report.error,errorStage:report.errorStage},null,2));
 if(!report.passed) process.exitCode=1;

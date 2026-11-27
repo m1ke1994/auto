@@ -60,3 +60,50 @@ test('functional success cannot hide missing screenshots or failed checks',()=>{
   assert.equal(report.functionalPassed,false);
   assert.equal(report.passed,false);
 });
+
+function filmReport(pinned=true){
+  const checks=['desktop','mobile'].map(name=>({name,checks:{rendered:true,heroFilm:true},film:{enabled:true,pinned}}));
+  const screenshots=checks.flatMap(({name:d})=>[
+    ...[0,25,50,75,100].map(n=>d+'-'+n+'.png'),
+    ...['home','about','services','benefits','contacts'].map(s=>d+'-section-'+s+'.png'),
+    ...[0,50,100].map(n=>d+'-hero-film-'+n+'.png'),
+    ...(d==='desktop'&&pinned?['desktop-hero-film-short.png']:[])
+  ]).map(file=>({file,ok:true}));
+  return {checks,screenshots,screenshotFailures:[]};
+}
+test('pinned 360 film requires and accepts exactly 27 successful screenshots',()=>{
+  const report=filmReport();
+  assert.equal(report.screenshots.length,27);
+  finalizeAudit(report);
+  assert.equal(report.functionalPassed,true);
+  assert.equal(report.screenshotsComplete,true);
+  assert.equal(report.passed,true);
+  assert.deepEqual(report.missingScreenshots,[]);
+  report.screenshots=report.screenshots.filter(s=>s.file!=='desktop-hero-film-short.png');
+  finalizeAudit(report);
+  assert.equal(report.passed,false);
+  assert.deepEqual(report.missingScreenshots,['desktop-hero-film-short.png']);
+});
+test('legacy film accepts 26 screenshots without a short viewport capture',()=>{
+  const report=filmReport(false);
+  assert.equal(report.screenshots.length,26);
+  assert.equal(finalizeAudit(report).passed,true);
+});
+test('film screenshots do not conceal failed checks, duplicates or unknown frames',()=>{
+  const report=filmReport();
+  report.checks[1].checks.heroFilm=false;
+  assert.equal(finalizeAudit(report).passed,false);
+  assert.equal(report.screenshotsComplete,true);
+  report.checks[1].checks.heroFilm=true;
+  report.screenshots.push({...report.screenshots[0]});
+  assert.equal(finalizeAudit(report).passed,false);
+  assert.deepEqual(report.duplicateScreenshots,['desktop-0.png']);
+  report.screenshots.pop();
+  report.screenshots.push({file:'unknown.png',ok:true});
+  assert.equal(finalizeAudit(report).passed,false);
+  assert.deepEqual(report.unexpectedScreenshots,['unknown.png']);
+  report.screenshots.pop();
+  report.screenshots.find(s=>s.file==='mobile-hero-film-50.png').ok=false;
+  assert.equal(finalizeAudit(report).passed,false);
+  assert.deepEqual(report.missingScreenshots,['mobile-hero-film-50.png']);
+});

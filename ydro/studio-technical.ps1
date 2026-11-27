@@ -71,6 +71,14 @@ for ($attempt=0; $attempt -le $MaxTechnicalRepairs; $attempt++) {
                 return $run
             }
             if ($audit.screenshotFailures -and @($audit.screenshotFailures).Count -gt 0) { throw "Screenshot capture incomplete; functional checks are recorded. No paid repair: $reportPath" }
+            if ($audit.functionalPassed -eq $true -and $audit.screenshotsComplete -ne $true) {
+                $detail=@()
+                if ($audit.missingScreenshots) { $detail+="missing: "+($audit.missingScreenshots -join ', ') }
+                if ($audit.unexpectedScreenshots) { $detail+="unexpected: "+($audit.unexpectedScreenshots -join ', ') }
+                if ($audit.duplicateScreenshots) { $detail+="duplicate: "+($audit.duplicateScreenshots -join ', ') }
+                if (!$detail.Count) { $detail+="screenshot manifest mismatch" }
+                throw "Screenshot manifest incomplete ($($detail -join '; ')); functional checks passed. No paid repair: $reportPath"
+            }
             if ($auditExit -ne 1 -or $audit.passed -ne $false -or $audit.error -or @($audit.checks).Count -ne 2) { throw "Browser audit infrastructure or invalid report; no paid repair: $run" }
             $failed=@(foreach ($device in $audit.checks) {
                 foreach ($check in $device.checks.PSObject.Properties) {
@@ -78,7 +86,8 @@ for ($attempt=0; $attempt -le $MaxTechnicalRepairs; $attempt++) {
                 }
             })
             $unsupported=@($failed | Where-Object { $_ -notin $repairableChecks })
-            if ($failed.Count -eq 0 -or $unsupported.Count -gt 0) { throw "Audit failure requires separate diagnosis (possibly model/WebGL): $($unsupported -join ', '); no paid repair: $run" }
+            if ($failed.Count -eq 0) { throw "Audit rejected without failed functional checks; inspect report metadata. No paid repair: $reportPath" }
+            if ($unsupported.Count -gt 0) { throw "Audit failure requires separate diagnosis (possibly model/WebGL): $($unsupported -join ', '); no paid repair: $reportPath" }
             $diagnostic=@{kind="tracknode-technical-failure";stage="audit";audit=$audit}
         }
     }
