@@ -31,7 +31,7 @@ A useful photo-led hero is acceptable when consistent with the brief; missing re
 is a critical issue. Do not demand 3D for a standard non-3D brief.
 Assess all supplied frames, not only hero. Consider section hierarchy, diversity of
 layouts, typography, cards, spacing, palette, lighting, header, footer, CTA and usability.
-Compare the composition of the hero, intermediate chapters and closing CTA: a generic
+For a cinematic Hero containing a primary CinemaModel, compare desktop-0/25/50/75/100 and mobile-0/25/50/75/100 as a single scroll film: the same recognizable model must remain the full-screen background, visibly change its angle/pose across samples, and five different short subtitle beats must appear in sequence rather than all at once or remain frozen. If the model is a static thumbnail/side column, the camera/object never visibly changes, captions are missing/repeated/overlapping/unreadable, or the hero is merely a spinning object with no directed scene, report a CRITICAL Hero defect. A passing cinema Hero requires zero critical defects; a high numeric score cannot override any critical Hero defect. Compare the composition of the hero, intermediate chapters and closing CTA: a generic
 card-grid landing page with a rotating 3D object only in the hero is not a complete
 cinematic narrative. Check whether projected objects obscure headlines or buttons,
 whether the page uses intentional negative space rather than accidental empty areas,
