@@ -13,19 +13,19 @@ class PreflightTests(unittest.TestCase):
         large=cinematic_direction({"subject":"sports car","mode":"cinematic"},selected,"sports car")
         self.assertEqual(large["subject_type"],"large_object")
         self.assertIn(large["composition"],("center_focus","offset_left","offset_right"))
-        self.assertEqual(large["max_rotation_deg"],180)
+        self.assertEqual(large["max_rotation_deg"],360)
         self.assertEqual(large["camera_strategy"],"camera_and_light_reveal")
 
         small=cinematic_direction({"subject":"cosmetic tube","mode":"product"},selected,"cosmetic tube")
         self.assertEqual(small["subject_type"],"small_object")
         self.assertEqual(small["title_strategy"],"intro_titles")
         self.assertEqual(small["camera_strategy"],"gentle_product_drift")
-        self.assertEqual(small["max_rotation_deg"],180)
+        self.assertEqual(small["max_rotation_deg"],360)
 
         building=cinematic_direction({"subject":"modern building","mode":"immersive"},selected,"modern building")
         self.assertEqual(building["subject_type"],"architecture")
         self.assertEqual(building["title_strategy"],"overlay_static")
-        self.assertEqual(building["max_rotation_deg"],180)
+        self.assertEqual(building["max_rotation_deg"],360)
 
     def test_critical_overrides_score(self):
         self.assertIsNone(choose_review({"reviews":[{"candidate":"candidate-1","score":100,"critical":True,"reason":"Huge podium","yaw":45}]},["candidate-1"]))
