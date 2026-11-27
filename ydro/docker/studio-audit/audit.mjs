@@ -180,6 +180,7 @@ try {
     const backgroundFilm=await page.locator('#home[data-tn-film-background]').count()===1;
     const compactFilm=await page.locator('#home[data-tn-film-pace="compact"]').count()===1;
     const smoothFilm=await page.locator('#home[data-tn-film-engine="smooth"]').count()===1;
+    const stableCamera=await page.locator('#home[data-tn-film-camera="stable"]').count()===1;
     if(isFilm){
       if(name==='mobile'){await page.emulateMedia({reducedMotion:'no-preference'});await page.waitForTimeout(500);}
       for(const fraction of (pinnedFilm?[0,.125,.25,.375,.5,.625,.75,.875,1,.25]:[0,.25,.5,.75,1,.25])){
@@ -219,7 +220,7 @@ try {
           const backgroundLayer=Boolean(layer&&host.parentElement===layer&&layer.parentElement===screenElement()&&getComputedStyle(layer).position==='absolute'&&getComputedStyle(host).visibility==='visible'&&Number(getComputedStyle(host).opacity)>.95)
           function screenElement(){return root.querySelector('.tn-film-screen')}
           return {yaw:Number(host.dataset.tnRelativeYaw),objectYaw:Number(host.dataset.tnObjectYaw)*180/Math.PI,reveal:Number(root.dataset.tnFilmReveal),progress:Number(host.dataset.tnCameraProgress),framed,coverage:Number(host.dataset.tnModelCoverage),clipped:host.dataset.tnModelClipped==='true',width:r.width,height:r.height,textVisible,textBottom:hr.bottom,modelTop:r.top,viewportWidth:innerWidth,viewportHeight:innerHeight,
-            targetProgress:Number(host.dataset.tnModelTargetProgress??host.dataset.tnCameraProgress),frameElapsed:Number(host.dataset.tnModelFrameElapsed||0),pinMode:root.dataset.tnFilmPin,screenPosition:getComputedStyle(root.querySelector('.tn-film-screen')||root).position,bufferResizes:Number(host.dataset.tnModelBufferResizes||0),bufferWidth:host.querySelector('canvas')?.width,bufferHeight:host.querySelector('canvas')?.height,frames:Number(host.dataset.tnFrames||0),trackHeight:root.getBoundingClientRect().height,screenTop:screen?.top,screenHeight:screen?.height,screenWidth:screen?.width,turn:Number(root.dataset.tnFilmTurn)||180,title:Number(root.dataset.tnFilmTitle),description:Number(root.dataset.tnFilmDescription),actions:Number(root.dataset.tnFilmActions),actualTitle:opacity(h),actualDescription:opacity(descriptionEl),actualActions:opacity(actionsEl),canvasHeight:canvas?.height,canvasWidth:canvas?.width,canvasLeft:canvas?.left,canvasTop:canvas?.top,contentWidth,centerX,centerY,overlayAbove,backgroundLayer,layerLeft:lr?.left,layerTop:lr?.top,layerWidth:lr?.width,layerHeight:lr?.height};
+            cameraMode:host.dataset.tnModelCameraMode,cameraDistance:Number(host.dataset.tnModelCameraDistance||0),scrollBehavior:getComputedStyle(document.documentElement).scrollBehavior,targetProgress:Number(host.dataset.tnModelTargetProgress??host.dataset.tnCameraProgress),frameElapsed:Number(host.dataset.tnModelFrameElapsed||0),pinMode:root.dataset.tnFilmPin,screenPosition:getComputedStyle(root.querySelector('.tn-film-screen')||root).position,bufferResizes:Number(host.dataset.tnModelBufferResizes||0),bufferWidth:host.querySelector('canvas')?.width,bufferHeight:host.querySelector('canvas')?.height,frames:Number(host.dataset.tnFrames||0),trackHeight:root.getBoundingClientRect().height,screenTop:screen?.top,screenHeight:screen?.height,screenWidth:screen?.width,turn:Number(root.dataset.tnFilmTurn)||180,title:Number(root.dataset.tnFilmTitle),description:Number(root.dataset.tnFilmDescription),actions:Number(root.dataset.tnFilmActions),actualTitle:opacity(h),actualDescription:opacity(descriptionEl),actualActions:opacity(actionsEl),canvasHeight:canvas?.height,canvasWidth:canvas?.width,canvasLeft:canvas?.left,canvasTop:canvas?.top,contentWidth,centerX,centerY,overlayAbove,backgroundLayer,layerLeft:lr?.left,layerTop:lr?.top,layerWidth:lr?.width,layerHeight:lr?.height};
         });
         filmSamples.push({...sample,fraction});
         if([0,.5,1].includes(fraction))await capture(page,name+'-hero-film-'+Math.round(fraction*100)+'.png');
@@ -399,7 +400,7 @@ try {
       const compactTrackOk=!compactFilm||(backgroundFilm&&filmSamples.every(s=>s.turn===180&&Math.abs(s.trackHeight-s.viewportHeight*(s.viewportWidth<=760?1.8:2.2))<=3));
       const smoothOk=!smoothFilm||(filmIdle&&filmIdle.before>0&&filmIdle.extraFrames>=0&&filmIdle.extraFrames<=1&&filmSamples.every(s=>((s.pinMode==='native'&&s.screenPosition==='sticky')||(s.pinMode==='transform'&&s.screenPosition==='absolute'))&&s.bufferResizes===first.bufferResizes&&s.bufferResizes>0&&s.bufferWidth===first.bufferWidth&&s.bufferHeight===first.bufferHeight));
       checks.heroFilm=filmSamples.length===10&&filmSamples.every(s=>s.framed&&!s.clipped&&s.coverage>=.55&&s.coverage<=.98&&Math.abs(s.screenTop)<=3&&Math.abs(s.screenHeight-s.viewportHeight)<=3&&s.screenWidth>=s.viewportWidth*.97&&Math.abs(s.modelTop)<=3&&s.height>=s.viewportHeight*.97&&s.width>=s.viewportWidth*.97&&s.canvasHeight>=s.viewportHeight*.97&&s.canvasWidth>=s.viewportWidth*.97&&Number.isFinite(s.objectYaw))&&
-        first.title<=.01&&first.description<=.01&&first.actions<=.01&&first.actualTitle<=.01&&first.actualDescription<=.01&&first.actualActions<=.01&&quarter.title>.5&&quarter.actualTitle>.5&&quarter.description<=.01&&captionsReady&&compactTrackOk&&smoothOk&&last.textVisible&&
+        first.title<=.01&&first.description<=.01&&first.actions<=.01&&first.actualTitle<=.01&&first.actualDescription<=.01&&first.actualActions<=.01&&quarter.title>.5&&quarter.actualTitle>.5&&quarter.description<=.01&&captionsReady&&compactTrackOk&&smoothOk&&(!stableCamera||filmSamples.every(s=>s.scrollBehavior==='auto'&&['fixed','track'].includes(s.cameraMode)&&s.cameraDistance>0))&&last.textVisible&&
         Math.abs(last.objectYaw-first.objectYaw-last.turn)<=1&&forward.every((s,i)=>i===0||s.objectYaw>forward[i-1].objectYaw+5)&&Math.abs(reverse.objectYaw-quarter.objectYaw)<=1&&
         filmRelease?.top < -filmRelease?.viewport*.25&&(name!=='desktop'||(shortFilm&&Math.abs(shortFilm.top)<=3&&Math.abs(shortFilm.height-shortFilm.viewport)<=3&&Math.abs(shortFilm.hostTop)<=3&&shortFilm.hostHeight>=shortFilm.viewport*.97&&shortFilm.progress>.4&&shortFilm.progress<.7&&!shortFilm.clipped));
       if(backgroundFilm){
@@ -408,7 +409,7 @@ try {
         const expectedTurn=compactFilm?180:360;
         checks.heroFullTurn=filmSamples.every(s=>s.turn===expectedTurn)&&[0,2,4,6,8].every((index,i)=>Math.abs(filmSamples[index].objectYaw-origin-i*expectedTurn/4)<=1.5)
         if(!checks.heroFilm||!checks.heroFullTurn){
-          console.log('FILM_DIAGNOSTICS: '+JSON.stringify({device:name,captionsReady,compactTrackOk,smoothOk,filmIdle,filmRelease,shortFilm,samples:filmSamples.map(s=>({fraction:s.fraction,progress:s.progress,targetProgress:s.targetProgress,angle:s.objectYaw,expectedAngle:origin+s.fraction*expectedTurn,frameElapsed:s.frameElapsed,screenTop:s.screenTop,pinMode:s.pinMode,bufferResizes:s.bufferResizes,coverage:s.coverage,clipped:s.clipped}))}))
+          console.log('FILM_DIAGNOSTICS: '+JSON.stringify({device:name,captionsReady,compactTrackOk,smoothOk,filmIdle,filmRelease,shortFilm,samples:filmSamples.map(s=>({fraction:s.fraction,progress:s.progress,targetProgress:s.targetProgress,angle:s.objectYaw,expectedAngle:origin+s.fraction*expectedTurn,frameElapsed:s.frameElapsed,cameraMode:s.cameraMode,cameraDistance:s.cameraDistance,screenTop:s.screenTop,pinMode:s.pinMode,bufferResizes:s.bufferResizes,coverage:s.coverage,clipped:s.clipped}))}))
         }
       }
     } else if(isFilm){
@@ -450,7 +451,7 @@ try {
       if(sceneContract?.version===1||sceneDiagnostics.carousels.length) checks.carouselControls=sceneDiagnostics.carousels.length>0&&sceneDiagnostics.carousels.every(x=>x.ok);
       if(sceneContract?.version===1||sceneDiagnostics.stories.length) checks.storyProgress=sceneDiagnostics.stories.length>0&&sceneDiagnostics.stories.every(x=>x.ok);
     }
-    report.checks.push({name,checks,film:{enabled:isFilm,pinned:pinnedFilm,compact:compactFilm,smooth:smoothFilm},metrics:result,sections,navigation,heroFraming,heroObject,aboutMetrics,steps,filmSamples,filmIdle,filmRelease,shortFilm,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
+    report.checks.push({name,checks,film:{enabled:isFilm,pinned:pinnedFilm,compact:compactFilm,smooth:smoothFilm,stableCamera},metrics:result,sections,navigation,heroFraming,heroObject,aboutMetrics,steps,filmSamples,filmIdle,filmRelease,shortFilm,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
     await context.close();
   }
 } catch(error){report.error=String(error).slice(0,700);report.errorStage=stage;}

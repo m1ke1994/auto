@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset, smoothScrollProgress, scrollFrameElapsed, modelPixelRatio, needsTransformPin } from '../cinematic-motion.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset, smoothScrollProgress, scrollFrameElapsed, modelPixelRatio, needsTransformPin, stableFilmCameraTrack, filmCameraDistance } from '../cinematic-motion.js'
 
 const props = defineProps({
   modelPath: { type: String, required: true },
@@ -54,7 +54,8 @@ let visible=true, motionQuery, current=0, radius=1, frameCount=0, shots, primary
 let corners=[], bounds, groundPlane, keyLight, modelPivot, filmRoot, pinnedFrame, filmTurn=360
 let filmScreen, filmActions, smoothFilm=false, transformPin=false, modelSize
 let renderWidth=0,renderHeight=0,renderRatio=0,lastRendered=null,lastFrameTime=null,resizeCount=0
-let chapter, header
+let chapter, header, cameraTrack, contactTexture
+let stableCamera=false
 const filmValues=new Map()
 function filmStyle(key,value) {
   if(filmValues.get(key)===value)return
@@ -96,6 +97,7 @@ function cleanup() {
   motionQuery?.removeEventListener('change',schedule)
   disposeModel(model); model=null
   if(groundPlane){groundPlane.geometry.dispose();groundPlane.material.dispose();groundPlane=null}
+  contactTexture?.dispose(); contactTexture=null
   keyLight?.shadow?.dispose()
   env?.dispose(); pmrem?.dispose()
   if(renderer){
@@ -116,13 +118,14 @@ function resize() {
   if(!renderer || !host.value) return
   updatePinMode()
   const w=Math.max(1,host.value.clientWidth), h=Math.max(1,host.value.clientHeight)
-  const ratio=modelPixelRatio(w,h,window.devicePixelRatio||1,innerWidth<=760)
+  const ratio=Math.min(modelPixelRatio(w,h,window.devicePixelRatio||1,innerWidth<=760),stableCamera?Math.sqrt((innerWidth<=760?750000:1250000)/(w*h)):Infinity)
   if(w!==renderWidth||h!==renderHeight||ratio!==renderRatio){
     renderWidth=w;renderHeight=h;renderRatio=ratio
     // setDrawingBufferSize changes the GPU buffer once, without changing CSS.
     renderer.setDrawingBufferSize(w,h,ratio)
     camera.aspect=w/h; camera.updateProjectionMatrix()
     lastRendered=null
+    cameraTrack=null
     host.value.dataset.tnModelBufferResizes=String(++resizeCount)
     host.value.dataset.tnModelPixelRatio=ratio.toFixed(3)
   }
@@ -194,13 +197,13 @@ function renderFrame(timestamp) {
   if(fullFilm) yaw=THREE.MathUtils.degToRad(shots[0].yaw)
   const modelYaw=THREE.MathUtils.degToRad(fullFilm?shots[0].modelYaw+filmTurn*current:blend(from.modelYaw,to.modelYaw))
   const lift=fullFilm||props.ground?0:blend(from.lift,to.lift)
-  const lightAngle=THREE.MathUtils.degToRad(blend(from.light,to.light))
+  const lightAngle=stableCamera?0:THREE.MathUtils.degToRad(blend(from.light,to.light))
   modelPivot.rotation.y=modelYaw
   modelPivot.position.y=lift
   // Fit the transformed bounds, not the original unrotated box.
   const posedCorners=corners.map(c=>c.clone().applyAxisAngle(yAxis,modelYaw).addScaledVector(yAxis,lift))
   keyLight.position.set(4*Math.cos(lightAngle)+5*Math.sin(lightAngle),6,5*Math.cos(lightAngle)-4*Math.sin(lightAngle))
-  const pitch=THREE.MathUtils.degToRad(blend(from.pitch,to.pitch))
+  const pitch=THREE.MathUtils.degToRad(stableCamera?shots[0].pitch:blend(from.pitch,to.pitch))
   // Avoid an end-on opening shot of elongated horizontal objects.
   const size=modelSize
   const opening=1-THREE.MathUtils.smoothstep(current,0,.25)
@@ -225,14 +228,22 @@ function renderFrame(timestamp) {
   const up=new THREE.Vector3().crossVectors(direction,right).normalize()
   // Solve perspective fit for all eight corners, taking depth into account.
   // A factor of 1 fits the box inside 84% of the limiting screen dimension.
-  let fit=.15
-  for(const corner of posedCorners){
-    const rel=corner.clone().sub(target)
-    const depth=rel.dot(direction)
-    fit=Math.max(fit,depth+Math.abs(rel.dot(right))/(tanH*.84),depth+Math.abs(rel.dot(up))/(tanV*(.84-2*captionShift)),depth+.15)
+  let distance
+  if(stableCamera){
+    if(!cameraTrack)cameraTrack=stableFilmCameraTrack(corners.map(c=>c.toArray()),shots[0].yaw,shots[0].pitch,shots[0].modelYaw,filmTurn,camera.aspect,camera.fov)
+    distance=filmCameraDistance(cameraTrack,current)
+    host.value.dataset.tnModelCameraMode=cameraTrack.mode
+    host.value.dataset.tnModelCameraDistance=distance.toFixed(5)
+  } else {
+    let fit=.15
+    for(const corner of posedCorners){
+      const rel=corner.clone().sub(target)
+      const depth=rel.dot(direction)
+      fit=Math.max(fit,depth+Math.abs(rel.dot(right))/(tanH*.84),depth+Math.abs(rel.dot(up))/(tanV*(.84-2*captionShift)),depth+.15)
+    }
+    const zoom=centeredFilm?1:blend(from.distance,to.distance)
+    distance=fit*(primaryHero?clamp(zoom,1,1.08):(opening>0?THREE.MathUtils.lerp(zoom,clamp(zoom,.98,1.08),opening):zoom))
   }
-  const zoom=centeredFilm?1:blend(from.distance,to.distance)
-  const distance=fit*(primaryHero?clamp(zoom,1,1.08):(opening>0?THREE.MathUtils.lerp(zoom,clamp(zoom,.98,1.08),opening):zoom))
   const far=Math.max(100,distance+radius*8)
   if(camera.far!==far){camera.far=far;camera.updateProjectionMatrix()}
   camera.position.copy(target).addScaledVector(direction,distance)
@@ -246,7 +257,8 @@ function renderFrame(timestamp) {
     const [x,y]=centeredViewOffset(initial.map(p=>p.x),initial.map(p=>p.y),w,h)
     camera.setViewOffset(w,h,x,y,w,h)
   }
-  if(props.ground)renderer.shadowMap.needsUpdate=true
+  if(stableCamera&&groundPlane)groundPlane.rotation.z=modelYaw
+  if(props.ground&&!stableCamera)renderer.shadowMap.needsUpdate=true
   renderer.render(scene,camera)
   const projected=posedCorners.map(v=>v.clone().project(camera))
   const xs=projected.map(v=>v.x),ys=projected.map(v=>v.y)
@@ -279,6 +291,7 @@ onMounted(async()=>{
       filmScreen=filmRoot.querySelector('.tn-film-screen')
       filmActions=filmRoot.querySelector('.hero-actions')
       smoothFilm=Boolean(filmScreen&&filmRoot.dataset.tnFilmEngine==='smooth')
+      stableCamera=smoothFilm&&filmRoot.hasAttribute('data-tn-film-background')&&filmRoot.dataset.tnFilmCamera==='stable'
       filmTurn=filmRoot.dataset.tnFilmTurn==='180'?180:360
       const start=shots[0]
       shots=presetShots('hero_turn',finite(start?.yaw,props.openingYaw),1).map(s=>({...s,modelYaw:s.modelYaw+finite(start?.modelYaw,0)}))
@@ -289,7 +302,7 @@ onMounted(async()=>{
     renderer.toneMapping=THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure=clamp(finite(props.exposure,1.1),.5,2)
     renderer.setClearColor(0x000000,0)
-    renderer.shadowMap.enabled=props.ground
+    renderer.shadowMap.enabled=props.ground&&!stableCamera
     renderer.shadowMap.type=THREE.PCFSoftShadowMap
     renderer.shadowMap.autoUpdate=false
     renderer.domElement.style.cssText=filmRoot?.hasAttribute('data-tn-film-background')?'position:absolute;inset:0;display:block;width:100%;height:100%;margin:0;padding:0;pointer-events:none;transform:none;':'display:block;width:100%;height:100%;pointer-events:none;'
@@ -307,7 +320,7 @@ onMounted(async()=>{
     const key=new THREE.DirectionalLight(0xfff4e6,lighting.key)
     keyLight=key
     key.position.set(4,6,5); scene.add(key)
-    if(props.ground){
+    if(props.ground&&!stableCamera){
       key.castShadow=true
       const shadowSize=innerWidth<=760?512:1024
       key.shadow.mapSize.set(shadowSize,shadowSize)
@@ -344,11 +357,25 @@ onMounted(async()=>{
       for(const y of [bounds.min.y,bounds.max.y])
         for(const z of [bounds.min.z,bounds.max.z]) corners.push(new THREE.Vector3(x,y,z))
     if(props.ground){
-      model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}})
-      groundPlane=new THREE.Mesh(new THREE.PlaneGeometry(8,8),new THREE.ShadowMaterial({opacity:.35}))
+      if(stableCamera){
+        // A cheap soft contact shadow avoids re-rendering every model triangle
+        // into a shadow map on every scroll frame. The imported asset is unchanged.
+        const side=64,data=new Uint8Array(side*side*4)
+        for(let y=0;y<side;y++)for(let x=0;x<side;x++){
+          const r=Math.hypot((x+.5)/side*2-1,(y+.5)/side*2-1)
+          data[(y*side+x)*4+3]=Math.round(255*Math.pow(Math.max(0,1-r*r),2))
+        }
+        contactTexture=new THREE.DataTexture(data,side,side,THREE.RGBAFormat)
+        contactTexture.minFilter=contactTexture.magFilter=THREE.LinearFilter
+        contactTexture.needsUpdate=true
+        groundPlane=new THREE.Mesh(new THREE.PlaneGeometry(Math.max(.15,modelSize.x*1.45),Math.max(.15,modelSize.z*1.45)),new THREE.MeshBasicMaterial({map:contactTexture,transparent:true,opacity:.45,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1}))
+      } else {
+        model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}})
+        groundPlane=new THREE.Mesh(new THREE.PlaneGeometry(8,8),new THREE.ShadowMaterial({opacity:.35}))
+        groundPlane.receiveShadow=true
+      }
       groundPlane.rotation.x=-Math.PI/2
       groundPlane.position.y=bounds.min.y-.012
-      groundPlane.receiveShadow=true
       scene.add(groundPlane)
     }
     loadStage='ready'
@@ -376,4 +403,9 @@ onBeforeUnmount(()=>{disposed=true;cleanup()})
 .tn-cinema-model.tn-cinema-accent{min-height:100px}
 .tn-cinema-fallback{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
 .tn-cinema-fallback :deep(img){width:100%;height:100%;object-fit:cover}
+</style>
+
+<style>
+/* Only model pages: one native vertical scroll controller. Local carousels retain snap. */
+html:has([data-tn-model]),body:has([data-tn-model]){scroll-behavior:auto!important;scroll-snap-type:none!important}
 </style>

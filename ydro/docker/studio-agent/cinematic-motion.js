@@ -99,3 +99,49 @@ export function modelPixelRatio(width,height,deviceRatio=1,mobile=false) {
 export function needsTransformPin(overflowModes) {
   return overflowModes.some(mode=>/^(auto|scroll|hidden|overlay)$/.test(mode))
 }
+
+/** Camera distance is planned once per viewport, never fitted afresh on scroll. */
+export function stableFilmCameraTrack(corners,yaw,pitch,start,turn,aspect,fov=38){
+  const radians=Math.PI/180,cy=Math.cos(yaw*radians),sy=Math.sin(yaw*radians)
+  const cp=Math.cos(pitch*radians),sp=Math.sin(pitch*radians)
+  const tv=Math.tan(fov*radians/2),th=tv*aspect
+  const count=Math.ceil(Math.abs(turn))+1
+  const samples=Array.from({length:count},(_,i)=>{
+    const angle=(start+turn*i/(count-1))*radians,c=Math.cos(angle),s=Math.sin(angle)
+    const points=corners.map(([x,y,z])=>{
+      const rx=x*c+z*s,rz=z*c-x*s
+      return [rx*cy-rz*sy,-rx*sy*sp+y*cp-rz*cy*sp,rx*sy*cp+y*sp+rz*cy*cp]
+    })
+    const fit=Math.max(.15,...points.map(([x,y,z])=>z+Math.max(Math.abs(x)/(th*.84),Math.abs(y)/(tv*.84),.15)))
+    return {points,fit}
+  })
+  const coverage=(sample,distance)=>{
+    const x=sample.points.map(p=>p[0]/((distance-p[2])*th))
+    const y=sample.points.map(p=>p[1]/((distance-p[2])*tv))
+    return Math.max(Math.max(...x)-Math.min(...x),Math.max(...y)-Math.min(...y))/2
+  }
+  const peak=Math.max(...samples.map(s=>s.fit))*1.005
+  // Prefer one constant distance. For unusually narrow silhouettes, retain
+  // enough coverage using a smoothly varying, conservative distance envelope.
+  const base=samples.map((s,i)=>{
+    const window=samples.slice(Math.max(0,i-5),i+6)
+    return Math.max(s.fit,window.reduce((n,x)=>n+x.fit,0)/window.length)*1.005
+  })
+  let blend=1
+  for(let i=0;i<samples.length;i++){
+    const s=samples[i]
+    if(coverage(s,peak)>=.58)continue
+    let lo=s.fit*1.005,hi=peak
+    for(let k=0;k<24;k++){const mid=(lo+hi)/2;if(coverage(s,mid)>=.58)lo=mid;else hi=mid}
+    base[i]=Math.min(base[i],lo)
+    if(peak>base[i])blend=Math.min(blend,clamp((lo-base[i])/(peak-base[i]),0,1))
+  }
+  const distances=base.map(x=>x+(peak-x)*blend)
+  return {distances,mode:blend===1?'fixed':'track',minCoverage:Math.min(...samples.map((s,i)=>coverage(s,distances[i])))}
+}
+
+export function filmCameraDistance(track,progress){
+  const index=clamp(progress,0,1)*(track.distances.length-1)
+  const a=Math.floor(index),b=Math.min(a+1,track.distances.length-1)
+  return track.distances[a]+(track.distances[b]-track.distances[a])*(index-a)
+}

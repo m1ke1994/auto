@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset, smoothScrollProgress, scrollFrameElapsed, modelPixelRatio, needsTransformPin } from './cinematic-motion.js'
+import { MOTION_PRESETS, LIGHTING_PRESETS, presetShots, heroMotionShots, cameraTrackProgress, heroFilmProgress, pinnedFilmFrame, centeredViewOffset, smoothScrollProgress, scrollFrameElapsed, modelPixelRatio, needsTransformPin, stableFilmCameraTrack, filmCameraDistance } from './cinematic-motion.js'
 
 test('all presets are bounded, deterministic and genuinely distinct',()=>{
   const signatures=new Set()
@@ -134,6 +134,21 @@ test('slow active GPU frames use real elapsed time and settle within bounded wal
       }
       assert.equal(current,target)
       assert.ok(elapsed<=350+2*gap,'slow active frames must not prolong easing')
+    }
+  }
+})
+
+test('stable film camera prefers fixed distance and preserves framing for narrow models',()=>{
+  for(const dims of [[1,.38,.45],[.45,.38,1],[.3,.25,1],[1,.95,1],[.4,1,.4]]){
+    const corners=[-1,1].flatMap(x=>[-1,1].flatMap(y=>[-1,1].map(z=>[x*dims[0],y*dims[1],z*dims[2]])))
+    for(const aspect of [1440/900,390/844,1100/540]){
+      const track=stableFilmCameraTrack(corners,225,14,0,180,aspect)
+      assert.ok(track.distances.every(Number.isFinite))
+      assert.ok(track.minCoverage>=.55)
+      assert.ok(track.distances.slice(1).every((d,i)=>Math.abs(d-track.distances[i])/track.distances[i]<.035))
+      if(track.mode==='fixed')assert.ok(track.distances.every(d=>Math.abs(d-track.distances[0])<1e-8))
+      assert.equal(filmCameraDistance(track,0),track.distances[0])
+      assert.equal(filmCameraDistance(track,1),track.distances.at(-1))
     }
   }
 })
