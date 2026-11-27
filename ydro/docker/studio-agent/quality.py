@@ -47,7 +47,11 @@ def quality_issues(files, profile):
         # A primary 3D Hero is a film contract, not a decorative model embed.
         home_match=re.search(r"<section\b(?=[^>]*\bid\s*=\s*['\"]home['\"])[^>]*>(.*?)</section>",app,re.S)
         home=home_match.group(1) if home_match else ""
-        if re.search(r"<CinemaModel\b",home):
+        has_model=bool(re.search(r"<CinemaModel\b",source))
+        model_in_home=bool(re.search(r"<CinemaModel\b",home))
+        if has_model and not model_in_home:
+            issues.append("A primary CinemaModel must be rendered inside the home Hero, not only in a later section.")
+        if model_in_home:
             if len(re.findall(r"<CinemaModel\b",home))!=1:
                 issues.append("The film Hero must contain exactly one persistent primary CinemaModel.")
             if not re.search(r'class\s*=\s*["\'][^"\']*\bhero-stage\b',home):
