@@ -44,7 +44,7 @@ export function finalizeAudit(report){
     return [
       ...[0,25,50,75,100].map(n=>d+'-'+n+'.png'),
       ...['home','about','services','benefits','contacts'].map(s=>d+'-section-'+s+'.png'),
-      ...(film?.enabled?[0,50,100].map(n=>d+'-hero-film-'+n+'.png'):[]),
+      ...(film?.enabled?(film.product?[0,25,50,75,100]:[0,50,100]).map(n=>d+'-hero-film-'+n+'.png'):[]),
       ...(d==='desktop'&&film?.enabled&&film?.pinned?['desktop-hero-film-short.png']:[])
     ];
   });

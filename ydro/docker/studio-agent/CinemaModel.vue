@@ -276,7 +276,9 @@ function renderFrame(timestamp) {
     const initial=posedCorners.map(v=>v.clone().project(camera))
     const w=renderWidth,h=renderHeight
     const [x,y]=centeredViewOffset(initial.map(p=>p.x),initial.map(p=>p.y),w,h)
-    camera.setViewOffset(w,h,x,y,w,h)
+    const product=filmRoot.dataset.tnFilmComposition==='product'&&!motionQuery.matches
+    const shift=product?Math.sin(current*2*Math.PI)*.065:0
+    camera.setViewOffset(w,h,x-shift*w,y+(product?.035*h:0),w,h)
   }
   if(stableCamera&&groundPlane)groundPlane.rotation.z=modelYaw
   if(props.ground&&!stableCamera)renderer.shadowMap.needsUpdate=true

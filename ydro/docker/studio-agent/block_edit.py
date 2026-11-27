@@ -403,17 +403,46 @@ FILM_CSS="""
   #home[data-tn-hero-film][data-tn-film-version="2"] .tn-film-captions {top:clamp(145px,32vh,270px) !important;max-width:calc(100% - 28px) !important;}
   #home[data-tn-hero-film][data-tn-film-version="2"] .tn-film-captions [data-tn-film-caption] {font-size:clamp(.9rem,4vw,1.15rem) !important;}
 }
+#home[data-tn-hero-film][data-tn-film-version="2"] .tn-film-captions:has([data-tn-film-caption="intro"]) {
+  inset:0 !important; max-width:none !important;
+}
+#home[data-tn-hero-film][data-tn-film-version="2"] .tn-film-captions [data-tn-film-caption]:is([data-tn-film-caption="intro"],[data-tn-film-caption="left"],[data-tn-film-caption="center"],[data-tn-film-caption="right"],[data-tn-film-caption="outro"]) {
+  position:absolute; bottom:var(--tn-beat-bottom,9%); width:max-content !important; max-width:calc(100% - 36px);
+  padding:8px 14px !important; border-radius:6px; background:rgba(15,13,12,.76);
+}
+#home[data-tn-film-composition="product"] [data-tn-film-caption="intro"] {--tn-beat-bottom:17%;}
+#home[data-tn-film-composition="product"] [data-tn-film-caption="left"] {left:5%;--tn-beat-bottom:13%;}
+#home[data-tn-film-composition="product"] [data-tn-film-caption="right"] {right:5%;--tn-beat-bottom:13%;}
+#home[data-tn-film-composition="product"] [data-tn-film-caption="outro"] {--tn-beat-bottom:5%;}
 @media(prefers-reduced-motion:reduce) {
   #home[data-tn-hero-film][data-tn-film-version="2"] .tn-film-captions {
     position:relative !important; inset:auto !important; transform:none !important; display:grid !important;
     gap:10px !important; margin:20px auto !important; text-shadow:none;
   }
+  #home[data-tn-hero-film][data-tn-film-version="2"] .tn-film-captions:has([data-tn-film-caption="intro"]) {inset:auto !important;}
   #home[data-tn-hero-film][data-tn-film-version="2"] .tn-film-captions [data-tn-film-caption] {
-    position:relative !important; grid-area:auto !important; opacity:1 !important; transform:none !important; will-change:auto;
+    position:relative !important; inset:auto !important; grid-area:auto !important; opacity:1 !important; transform:none !important; will-change:auto;
   }
 }
 /* TN_FILM_V2_END */
 """
+
+LUMERA_CAPTIONS = (
+    "Свет — это архитектура эмоций.",
+    "Пространство начинается со света.",
+    "Свет раскрывает форму.",
+    "Инженерия эмоций.",
+    "Создаём атмосферу будущего.",
+)
+
+def install_lumera_captions(markup):
+    parsed=FilmMarkup(markup)
+    screen=parsed.by_class("tn-film-screen")[0]
+    beats=[]
+    for center,position,caption in zip((0,.25,.5,.75,1),("intro","left","center","right","outro"),LUMERA_CAPTIONS):
+        start,end=max(0,center-.075),min(1,center+.075)
+        beats.append(f'<p data-tn-film-caption="{position}" data-tn-film-start="{start:.3f}" data-tn-film-end="{end:.3f}">{caption}</p>')
+    return markup[:screen["open_end"]]+'\n<div class="tn-film-captions">'+"\n".join(beats)+'</div>\n'+markup[screen["open_end"]:]
 
 
 class FilmMarkup(HTMLParser):
@@ -543,15 +572,21 @@ def apply_hero_film(files):
     opening_text=opening.group()
     if "data-tn-film-version" not in opening_text:
         opening_text=opening_text[:-1]+' data-tn-film-version="2">'
-    # Migrate both older 180-degree layouts and long 360-degree backgrounds to compact film.
+    # Keep a compact track independently of the amount of model rotation.
     opening_text=re.sub(r"""\s+data-tn-film-turn\s*=\s*(?:"[^"]*"|'[^']*')""","",opening_text)
     if "data-tn-film-background" not in opening_text:
         opening_text=opening_text[:-1]+' data-tn-film-background>'
     opening_text=re.sub(r"""\s+data-tn-film-pace\s*=\s*(?:"[^"]*"|'[^']*')""","",opening_text)
     opening_text=re.sub(r"""\s+data-tn-film-engine\s*=\s*(?:"[^"]*"|'[^']*')""","",opening_text)
     opening_text=re.sub(r"""\s+data-tn-film-camera\s*=\s*(?:"[^"]*"|'[^']*')""","",opening_text)
-    opening_text=opening_text[:-1]+' data-tn-film-turn="360" data-tn-film-pace="compact" data-tn-film-engine="smooth" data-tn-film-camera="stable">'
+    lumera="LUMERA" in old and "Скульптурный подвес LUMERA" in old
+    turn=180 if lumera else 360
+    opening_text=re.sub(r'\s+data-tn-film-composition="product"',"",opening_text)
+    composition=' data-tn-film-composition="product"' if lumera else ''
+    opening_text=opening_text[:-1]+f' data-tn-film-turn="{turn}" data-tn-film-pace="compact" data-tn-film-engine="smooth" data-tn-film-camera="stable"{composition}>'
     markup=normalize_film_markup(opening_text+markup[opening.end():])
+    if lumera and not FilmMarkup(markup).by_class("tn-film-captions"):
+        markup=install_lumera_captions(markup)
     result=dict(files)
     result[name]=(sources[name][:start]+markup+sources[name][end:]).encode()
     css=result["src/style.css"].decode()
@@ -560,7 +595,7 @@ def apply_hero_film(files):
     for path in ("src/components/CinemaModel.vue","src/cinematic-motion.js"):
         result[path]=Path(__file__).with_name(Path(path).name).read_bytes()
     meta=json.loads(result["tracknode-agent.json"])
-    meta.update(build_verified=False,visual_verified=False,block_edit="home",hero_film=True,hero_film_version=2,hero_film_background=True,hero_film_turn=360,hero_film_pace="compact",hero_film_engine="smooth",hero_film_camera="stable")
+    meta.update(build_verified=False,visual_verified=False,block_edit="home",hero_film=True,hero_film_version=2,hero_film_background=True,hero_film_turn=turn,hero_film_pace="compact",hero_film_engine="smooth",hero_film_camera="stable")
     result["tracknode-agent.json"]=json.dumps(meta,ensure_ascii=False).encode()
     return result
 
