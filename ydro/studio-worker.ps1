@@ -19,14 +19,39 @@ if($Status){
 }
 & (Join-Path $PSScriptRoot 'studio-validate-scripts.ps1') -Quiet
 $watcherPath=Join-Path $PSScriptRoot 'studio-watch.ps1'
+$replacedId=0
+function Stop-IdleWorkspaceWatcher {
+    # The caller must stop only this local backend before any forced idle restart.
+    $compose=@('compose','-p','tracknode20','-f','docker-compose.yml','-f','docker-compose.studio.yml')
+    if(Test-Path '.env.studio.local' -PathType Leaf){$compose+=@('--env-file','.env.studio.local')}
+    $backends=@(& docker @compose ps --status running -q backend)
+    if($LASTEXITCODE -ne 0 -or $backends.Count){throw 'Stop the local Studio backend before restarting a watcher. Use start-studio.ps1 -RestartWatcher.'}
+    $remaining=@(Get-ChildItem -LiteralPath (Join-Path $root 'pending'),(Join-Path $root 'running') -Filter '*.json' -File)
+    if($remaining.Count){throw 'Do not restart with queued or running jobs.'}
+    $pidPath=Join-Path $root 'watcher.pid'
+    if(!(Test-Path -LiteralPath $pidPath)){return 0}
+    $oldId=0
+    if(![int]::TryParse((Get-Content -LiteralPath $pidPath -Raw).Trim(),[ref]$oldId)){return 0}
+    $process=Get-Process -Id $oldId -ErrorAction SilentlyContinue
+    if(!$process){return 0}
+    try {
+        $null=$process.Handle
+        if($process.HasExited){return 0}
+        $identity=Get-CimInstance Win32_Process -Filter "ProcessId=$oldId"
+        if(!$identity -or !$identity.CommandLine -or $identity.CommandLine.IndexOf($watcherPath,[StringComparison]::OrdinalIgnoreCase) -lt 0){return 0}
+        $remaining=@(Get-ChildItem -LiteralPath (Join-Path $root 'pending'),(Join-Path $root 'running') -Filter '*.json' -File)
+        if($remaining.Count){throw 'A job appeared; restart refused.'}
+        if(!$process.HasExited){$process.Kill()}
+        if(!$process.WaitForExit(15000)){throw 'Idle watcher did not exit.'}
+        Write-Host "Idle watcher stopped: $oldId"
+        return $oldId
+    }finally{$process.Dispose()}
+}
 $active=@(Get-ChildItem -LiteralPath (Join-Path $root 'pending'),(Join-Path $root 'running') -Filter '*.json' -File)
 if($task -and $task.State -eq 'Running'){
     if($Restart){
         if($active.Count){throw 'Do not restart the worker with queued or running jobs.'}
-        # A scheduler stop might terminate the supervisor without its child.
-        # Avoid stopping a live task; let it continue and use the new watcher
-        # on its next safe start. Explicit upgrade of a running supervisor is separate.
-        Write-Host 'Persistent worker already running; not terminating it.'
+        $replacedId=Stop-IdleWorkspaceWatcher
     }
 }else{
     $pidPath=Join-Path $root 'watcher.pid'
@@ -36,9 +61,8 @@ if($task -and $task.State -eq 'Running'){
             $old=Get-CimInstance Win32_Process -Filter "ProcessId=$oldId"
             if($old -and $old.CommandLine -and $old.CommandLine.IndexOf($watcherPath,[StringComparison]::OrdinalIgnoreCase) -ge 0){
                 if($active.Count){throw 'Legacy watcher is alive and jobs exist. Do not stop or duplicate it; inspect watcher.log.'}
-                # Old watcher could claim a new HTTP request during the upgrade;
-                # refuse implicit termination. Stop it explicitly when Studio is idle.
-                throw 'Legacy watcher is still alive. Stop it only while Studio is idle before installing the persistent worker.'
+                if(!$Restart){throw 'Legacy watcher is alive. Use start-studio.ps1 -RestartWatcher while idle.'}
+                $replacedId=Stop-IdleWorkspaceWatcher
             }
         }
     }
@@ -59,7 +83,9 @@ do{
         $data=Get-Content -LiteralPath $health -Raw -Encoding UTF8 | ConvertFrom-Json
         $age=([DateTimeOffset]::UtcNow-[DateTimeOffset]::Parse($data.updated_at)).TotalSeconds
         $live=Get-Process -Id $data.supervisor_pid -ErrorAction SilentlyContinue
-        if($live -and $data.protocol -eq 1 -and $data.state -in @('ready','busy') -and $age -ge -5 -and $age -le 12){
+        if($live -and $data.pid -ne $replacedId -and $data.protocol -eq 1 -and $data.state -in @('ready','busy') -and $age -ge -5 -and $age -le 12){
+            $ready=Get-Content -LiteralPath (Join-Path $root 'watcher-ready.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+            if($ready.pid -ne $data.pid -or $ready.features -notcontains 'visual-text-v1'){throw 'Watcher upgrade required'}
             Write-Host "STUDIO_WORKER_READY: $($data.state), PID $($data.pid), task $name"
             return
         }

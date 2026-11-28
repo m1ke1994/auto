@@ -397,8 +397,8 @@ class VisualSave(StudioView):
     def post(self, request, pk):
         get_user_model().objects.select_for_update().get(pk=request.user.pk)
         p = refresh_project(get_object_or_404(Project.objects.select_for_update(), pk=pk, owner=request.user))
-        if not getattr(settings, "STUDIO_CINEMATIC_ENABLED", False) or not worker_health()["available"]:
-            return Response({"detail": "Обработчик Studio недоступен. Черновик не отправлен."}, status=503)
+        if not getattr(settings, "STUDIO_CINEMATIC_ENABLED", False) or not worker_health()["visual_available"]:
+            return Response({"detail": "Обработчик визуального редактора недоступен или требует обновления. Черновик не отправлен."}, status=503)
         data = ManualEditInput(data=request.data)
         data.is_valid(raise_exception=True)
         payload = data.validated_data

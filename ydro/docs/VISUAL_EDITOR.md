@@ -24,3 +24,10 @@ Local: update backend/frontend via start-studio.ps1 after queued jobs finish.
 The offline patch script is mounted from the checkout into the existing agent
 image; no agent image rebuild is required. A live old watcher must be migrated
 or restarted safely while idle to recognize the new manual edit dispatch.
+
+Worker feature negotiation prevents older running watchers from accepting
+manual edit jobs. Update with start-studio.ps1 -RestartWatcher -Test while
+the queue is empty. The startup script stops only the local backend before
+replacing the idle watcher, so it cannot enqueue a job during the restart;
+the supervisor automatically launches the new watcher. It then starts the
+backend/frontend normally. No database or project artifacts are deleted.

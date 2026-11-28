@@ -419,3 +419,18 @@ class StudioTests(APITestCase):
             self.assertContains(preview,"tn-visual-select")
             normal=self.client.get(f"/studio-preview/{p.preview_token}/")
             self.assertNotIn(b"tn-visual-select",b"".join(normal.streaming_content))
+
+
+    @override_settings(STUDIO_WORKER_REQUIRED=True)
+    def test_visual_worker_feature_gate(self):
+        from django.utils import timezone
+        from .worker_health import worker_health
+        with tempfile.TemporaryDirectory() as jobs, override_settings(STUDIO_JOB_ROOT=jobs):
+            root=Path(jobs)
+            (root/"worker-health.json").write_text(json.dumps({"protocol":1,"state":"ready","pid":123,"updated_at":timezone.now().isoformat()}))
+            self.assertTrue(worker_health()["available"])
+            self.assertFalse(worker_health()["visual_available"])
+            (root/"watcher-ready.json").write_text(json.dumps({"protocol":1,"pid":456,"features":["visual-text-v1"]}))
+            self.assertFalse(worker_health()["visual_available"])
+            (root/"watcher-ready.json").write_text(json.dumps({"protocol":1,"pid":123,"features":["visual-text-v1"]}))
+            self.assertTrue(worker_health()["visual_available"])

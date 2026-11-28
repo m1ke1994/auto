@@ -12,6 +12,7 @@ const contactFields=[['phone','Телефон','tel','+7 (___) ___-__-__'],['ema
 const hasContacts=computed(()=>Object.values(contacts.value).some(v=>v.trim()))
 const config=ref({provider:null,configured:false,cinematic_enabled:false,cinematic_max_cost_usd:2.5,worker:null})
 const workerUnavailable=computed(()=>config.value.worker?.required&&!config.value.worker?.available)
+const visualWorkerUnavailable=computed(()=>config.value.worker?.required&&!config.value.worker?.visual_available)
 const styles=[['auto','Автоматический'],['business','Современный'],['cinema','Кинематографический']]
 const heroModes=[['auto','Автовыбор композиции'],['immersive','Крупный объект на фоне'],['product','Предметная сцена'],['split','Разделённый Hero'],['cinematic','Полноэкранная сцена'],['editorial','Editorial-фотография'],['environment','Иммерсивное пространство']]
 const revision=computed(()=>current.value?.revisions?.find(r=>r.id===selected.value))
@@ -51,7 +52,7 @@ function restoreVersion(v){
   if(!window.confirm('Восстановить версию '+v.number+'? Текущая версия останется в истории.'))return
   run(async()=>{
     apply((await http.post(base+current.value.id+'/versions/'+v.id+'/restore/',{expected_version:activeVersion.value.id})).data)
-    historyPreview.value=null;await refresh()
+    resetVisual();historyPreview.value=null;await refresh()
   })
 }
 function resetVisual(){
@@ -125,7 +126,7 @@ function applyHeroFilm(){run(async()=>{
 })}
 function decideBlock(editId,action){run(async()=>{
   apply((await http.post(base+current.value.id+'/block-edits/'+editId+'/'+action+'/')).data)
-  historyPreview.value=null;compareVersion.value='candidate';await refresh()
+  resetVisual();historyPreview.value=null;compareVersion.value='candidate';await refresh()
 })}
 const cinematic=computed(()=>current.value?.engine==='cinematic')
 const generating=computed(()=>['queued','running'].includes(current.value?.generation_status))
@@ -189,8 +190,9 @@ const workerPoll=setInterval(async()=>{if(disposed||checkingWorker)return;checki
 const clock=setInterval(()=>{now.value=Date.now()},1000)
 onBeforeUnmount(()=>{window.removeEventListener('message',receiveVisual);disposed=true;clearInterval(poll);clearInterval(clock);clearInterval(workerPoll)})
 
-function open(id){inspectorTab.value='edit';historyPreview.value=null;showPrompt.value=false;targetBlock.value='home';blockInstruction.value='';upgradeMotion.value=true;compareVersion.value='candidate';run(async()=>apply((await http.get(base+id+'/')).data))}
+function open(id){if(visualChanges.value.length&&id!==current.value?.id&&!window.confirm('Отбросить несохранённый черновик?'))return;inspectorTab.value='edit';historyPreview.value=null;showPrompt.value=false;targetBlock.value='home';blockInstruction.value='';upgradeMotion.value=true;compareVersion.value='candidate';run(async()=>apply((await http.get(base+id+'/')).data))}
 function newProject(from=null){
+  if(visualChanges.value.length&&!window.confirm('Отбросить несохранённый черновик?'))return
   resetVisual();inspectorTab.value='edit'
   engine.value='cinematic';style.value='auto';assetStyle.value='realistic';heroMode.value='auto';requireModel.value=false
   name.value=from?from.name+' — Cinema':''
@@ -273,7 +275,8 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value.split('?
         <label v-if="visualField">Текст<textarea :value="visualDraft[visualField.id]??visualField.text" maxlength="500" rows="4" @input="setVisualText($event.target.value)"></textarea></label>
         <p v-if="visualNote" class="muted" role="status">{{visualNote}}</p>
         <small>{{visualChanges.length}} / 12 изменений</small>
-        <div class="decision-actions"><button :disabled="busy||!visualChanges.length" @click="visualDraft={};sendVisualDraft()">Сбросить</button><button class="primary" :disabled="busy||activeJob||workerUnavailable||!visualChanges.length||visualChanges.some(c=>c.text.trim().length<2)" @click="saveVisual">Собрать версию</button></div>
+        <p v-if="visualWorkerUnavailable" class="notice error">Для сохранения необходимо обновить обработчик Studio.</p>
+        <div class="decision-actions"><button :disabled="busy||!visualChanges.length" @click="visualDraft={};sendVisualDraft()">Сбросить</button><button class="primary" :disabled="busy||activeJob||visualWorkerUnavailable||!visualChanges.length||visualChanges.some(c=>c.text.trim().length<2)" @click="saveVisual">Собрать версию</button></div>
         <p class="muted">Сборка и техническая проверка выполняются локально. Примите новый вариант после просмотра.</p>
       </section>
       <section v-if="cinematic&&inspectorTab==='versions'&&current.generation_status==='complete'" class="version-history">

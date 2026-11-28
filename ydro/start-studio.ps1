@@ -21,6 +21,12 @@ try {
 
     Write-Host '[1/4] Validate configuration'
     Invoke-StudioCompose config --quiet
+    if ($RestartWatcher) {
+        $active=@(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'studio-jobs/pending'),(Join-Path $PSScriptRoot 'studio-jobs/running') -Filter '*.json' -File)
+        if($active.Count){throw 'Finish queued/running jobs before restarting the Studio worker.'}
+        Invoke-StudioCompose stop backend
+        & (Join-Path $PSScriptRoot 'studio-worker.ps1') -Restart
+    }
     if (-not $SkipBuild) {
         Write-Host '[2/4] Build backend and frontend'
         Invoke-StudioCompose build backend frontend
@@ -35,7 +41,7 @@ try {
         Invoke-StudioCompose exec -T backend python manage.py test ai_builder --noinput
     }
     Invoke-StudioCompose ps
-    & (Join-Path $PSScriptRoot 'studio-worker.ps1') -Restart:$RestartWatcher
+    & (Join-Path $PSScriptRoot 'studio-worker.ps1')
     Write-Host 'Studio: http://localhost:8001/studio' -ForegroundColor Green
 } catch {
     $failure = $_

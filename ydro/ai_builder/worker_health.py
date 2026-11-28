@@ -8,7 +8,7 @@ from .jobs import job_root
 
 def worker_health():
     required = getattr(settings, "STUDIO_WORKER_REQUIRED", False)
-    result = {"required": required, "available": not required, "state": "unknown", "updated_at": None}
+    result = {"required": required, "available": not required, "state": "unknown", "updated_at": None, "visual_available": not required}
     try:
         path = job_root() / "worker-health.json"
         if path.stat().st_size > 8192:
@@ -25,7 +25,19 @@ def worker_health():
         state = data.get("state")
         if state not in ("ready", "busy", "starting", "recovering", "blocked", "offline"):
             return result
-        return {**result, "state": state, "updated_at": stamp.isoformat(),
-                "available": not required or state in ("ready", "busy")}
+        available = not required or state in ("ready", "busy")
+        features = []
+        try:
+            ready = job_root() / "watcher-ready.json"
+            if ready.stat().st_size <= 8192:
+                ack = json.loads(ready.read_text(encoding="utf-8"))
+                if (isinstance(ack, dict) and ack.get("protocol") == 1
+                        and isinstance(ack.get("pid"), int) and ack["pid"] == data.get("pid")
+                        and isinstance(ack.get("features"), list)):
+                    features = ack["features"]
+        except (OSError, ValueError, TypeError):
+            pass
+        return {**result, "state": state, "updated_at": stamp.isoformat(), "available": available,
+                "visual_available": available and (not required or "visual-text-v1" in features)}
     except (OSError, ValueError, TypeError, OverflowError):
         return result
