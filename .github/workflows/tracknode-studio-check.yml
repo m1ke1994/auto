@@ -65,3 +65,13 @@ jobs:
       - run: node --test ../docker/studio-agent/cinematic-motion.test.mjs ../docker/studio-audit/capture.test.mjs
       - shell: pwsh
         run: ../studio-validate-scripts.ps1
+  worker-recovery-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: powershell
+        working-directory: ydro
+    steps:
+      - uses: actions/checkout@v4
+      - run: .\studio-validate-scripts.ps1
+      - run: .\studio-worker-smoke.ps1

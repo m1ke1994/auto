@@ -24,3 +24,8 @@ not as an always-on server when the user is logged out.
 No heartbeat can prove that a paid network request is progressing. A live
 busy watcher is not killed or replayed automatically. Windows/Docker execution
 and Task Scheduler installation need local integration testing.
+
+An interrupted job with its own result file, a local source ZIP, a built index
+and valid technical/visual marker is finalized rather than retried. Other
+interrupted jobs are marked failed; terminal records are left unchanged.
+The offline Windows smoke test covers these cases using a temporary workspace.

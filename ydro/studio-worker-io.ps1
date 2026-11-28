@@ -6,7 +6,7 @@ function Write-StudioJson([string]$Path,[hashtable]$Payload){
         for($attempt=0;$attempt -lt 8;$attempt++){
             try{
                 if([IO.File]::Exists($Path)){
-                    [IO.File]::Replace($temp,$Path,$null)
+                    [IO.File]::Replace($temp,$Path,[NullString]::Value)
                 }else{
                     [IO.File]::Move($temp,$Path)
                 }

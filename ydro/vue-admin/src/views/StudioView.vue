@@ -121,7 +121,6 @@ async function refresh(){
   if(polling||disposed)return
   polling=true
   try{
-    config.value=(await http.get('/api/studio/config/')).data
     const list=(await http.get(base)).data
     if(disposed)return
     projects.value=list
@@ -135,9 +134,11 @@ async function refresh(){
   finally{polling=false}
 }
 onMounted(()=>run(async()=>{config.value=(await http.get('/api/studio/config/')).data;await refresh()}))
-const poll=setInterval(()=>{if(!busy.value)refresh().catch(()=>{})},3000)
+const poll=setInterval(()=>{if(!busy.value&&(activeJob.value||generating.value||editingBlock.value||pollError.value))refresh().catch(()=>{})},3000)
+let checkingWorker=false
+const workerPoll=setInterval(async()=>{if(disposed||checkingWorker)return;checkingWorker=true;try{const next=(await http.get('/api/studio/config/')).data;if(!disposed)config.value=next}catch{}finally{checkingWorker=false}},5000)
 const clock=setInterval(()=>{now.value=Date.now()},1000)
-onBeforeUnmount(()=>{disposed=true;clearInterval(poll);clearInterval(clock)})
+onBeforeUnmount(()=>{disposed=true;clearInterval(poll);clearInterval(clock);clearInterval(workerPoll)})
 
 function open(id){inspectorTab.value='edit';historyPreview.value=null;showPrompt.value=false;targetBlock.value='home';blockInstruction.value='';upgradeMotion.value=true;compareVersion.value='candidate';run(async()=>apply((await http.get(base+id+'/')).data))}
 function newProject(from=null){
