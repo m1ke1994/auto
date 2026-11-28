@@ -89,7 +89,7 @@ class TextFields(HTMLParser):
         self.feed(source)
         self.close()
 
-    def offset(self):
+    def source_offset(self):
         row, column = self.getpos()
         return self.lines[row-1] + column
 
@@ -109,7 +109,7 @@ class TextFields(HTMLParser):
             str(attrs.get("href") or "").startswith(("tel:", "mailto:")) or
             (tag not in TAGS and tag not in ("template", "main", "section", "header", "footer",
                                               "article", "aside", "nav", "ul", "ol", "figure", "form")))
-        self.stack.append({"tag": tag, "start": self.offset()+len(self.get_starttag_text()),
+        self.stack.append({"tag": tag, "start": self.source_offset()+len(self.get_starttag_text()),
                            "template": template, "blocked": blocked, "section": section})
 
     def handle_startendtag(self, tag, attrs):
@@ -124,7 +124,7 @@ class TextFields(HTMLParser):
             del self.stack[i:]
             if not exact or not node["template"] or node["blocked"] or tag not in TAGS:
                 return
-            start, end = node["start"], self.offset()
+            start, end = node["start"], self.source_offset()
             raw = self.source[start:end]
             # Only a plain leaf, never markup, directives, expressions or mixed content.
             if "<" in raw or "{" in raw or "}" in raw:
