@@ -231,8 +231,9 @@ class BlockInput(serializers.Serializer):
     hero_options=HeroOptions(required=False)
 
 class Blocks(StudioView):
+    @transaction.atomic
     def get(self,request,pk):
-        p=refresh_project(self.project(request,pk))
+        p=refresh_project(get_object_or_404(Project.objects.select_for_update(),pk=pk,owner=request.user))
         dist=project_dist(p)
         if not dist:
             return Response({"available":False,"blocks":[],"expected_version":None})

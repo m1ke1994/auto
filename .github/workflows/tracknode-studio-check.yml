@@ -9,6 +9,7 @@ on:
       - 'ydro/vue-admin/**'
       - 'ydro/docker/studio-agent/**'
       - 'ydro/docker/studio-audit/**'
+      - 'ydro/studio-e2e/**'
       - 'ydro/studio-*.ps1'
       - 'ydro/start-studio.ps1'
       - 'ydro/requirements.txt'
@@ -77,3 +78,29 @@ jobs:
       - uses: actions/checkout@v4
       - run: .\studio-validate-scripts.ps1
       - run: .\studio-worker-smoke.ps1
+  visual-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install isolated Playwright
+        run: |
+          mkdir -p "$RUNNER_TEMP/tn-browser"
+          npm install --prefix "$RUNNER_TEMP/tn-browser" --no-audit --no-fund playwright@1.64.1
+          "$RUNNER_TEMP/tn-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Run real browser preview test
+        working-directory: ydro
+        run: |
+          python -c "from ai_builder.visual_bridge import BRIDGE; from pathlib import Path; Path('/tmp/tn-visual-bridge.html').write_text(BRIDGE, encoding='utf-8')"
+          cp studio-e2e/visual-bridge.mjs "$RUNNER_TEMP/tn-browser/"
+          TN_BRIDGE_HTML=/tmp/tn-visual-bridge.html TN_BROWSER_REPORT="$RUNNER_TEMP/tn-browser-report" node "$RUNNER_TEMP/tn-browser/visual-bridge.mjs"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: studio-visual-browser-report
+          path: ${{ runner.temp }}/tn-browser-report

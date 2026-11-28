@@ -42,7 +42,7 @@ const historyCompare=ref(false)
 const activeVersion=computed(()=>current.value?.versions?.find(v=>v.current))
 const historicalVersion=computed(()=>inspectorTab.value==='versions'&&!candidateReady.value&&!editingBlock.value?current.value?.versions?.find(v=>v.id===historyPreview.value):null)
 const versionLabels={initial:'Первая версия',baseline:'Сохранённая версия',accepted:'Принятое изменение',restored:'Восстановление'}
-const targetBlock=ref('home'), blockInstruction=ref(''), upgradeMotion=ref(true), compareVersion=ref('candidate')
+const targetBlock=ref('home'), blockInstruction=ref(''), upgradeMotion=ref(false), compareVersion=ref('candidate')
 const blockEdit=computed(()=>current.value?.block_edit)
 const editingBlock=computed(()=>['queued','running'].includes(blockEdit.value?.status))
 const candidateReady=computed(()=>blockEdit.value?.status==='complete'&&blockEdit.value?.decision==='pending')
@@ -172,7 +172,7 @@ function apply(project){
   const same=current.value?.id===project.id
   const previousVersion=activeVersion.value?.id
   current.value=project
-  if(!same||previousVersion!==activeVersion.value?.id){blockCatalog.value=null;loadBlockCatalog()}
+  if(!same||previousVersion!==activeVersion.value?.id){blockCatalog.value=null;loadBlockCatalog();if(same&&visualCatalog.value&&visualCatalog.value.expected_version!==activeVersion.value?.id){resetVisual();inspectorTab.value='edit'}}
   if(!same){
     historyPreview.value=null
     resetVisual()
@@ -226,7 +226,7 @@ const workerPoll=setInterval(async()=>{if(disposed||checkingWorker)return;checki
 const clock=setInterval(()=>{now.value=Date.now()},1000)
 onBeforeUnmount(()=>{window.removeEventListener('message',receiveVisual);disposed=true;clearInterval(poll);clearInterval(clock);clearInterval(workerPoll)})
 
-function open(id){if(visualChanges.value.length&&id!==current.value?.id&&!window.confirm('Отбросить несохранённый черновик?'))return;inspectorTab.value='edit';historyPreview.value=null;showPrompt.value=false;targetBlock.value='home';blockInstruction.value='';upgradeMotion.value=true;compareVersion.value='candidate';run(async()=>apply((await http.get(base+id+'/')).data))}
+function open(id){if(visualChanges.value.length&&id!==current.value?.id&&!window.confirm('Отбросить несохранённый черновик?'))return;inspectorTab.value='edit';historyPreview.value=null;showPrompt.value=false;targetBlock.value='home';blockInstruction.value='';upgradeMotion.value=false;compareVersion.value='candidate';run(async()=>apply((await http.get(base+id+'/')).data))}
 function newProject(from=null){
   if(visualChanges.value.length&&!window.confirm('Отбросить несохранённый черновик?'))return
   resetVisual();blockCatalog.value=null;blockCatalogError.value='';inspectorTab.value='edit'

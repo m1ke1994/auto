@@ -20,3 +20,6 @@ vue-admin/dist
 .env.*.local
 **/.env.studio.local
 studio-agent-output
+
+studio-jobs
+studio-version-backups

@@ -37,6 +37,7 @@ class Sections(HTMLParser):
         self.offsets = [0] + [m.end() for m in re.finditer("\n", source)]
         self.stack = []
         self.found = []
+        self.seen_markers = []
         self.require_template = require_template
         self.feed(source)
         self.close()
@@ -57,9 +58,12 @@ class Sections(HTMLParser):
             or any(k.startswith(("v-slot:", "#")) for k in attrs))
         has_marker = ("data-tn-section" in attrs or "data-tn-header" in attrs or "data-tn-footer" in attrs)
         key = marker(tag, attrs)
+        if has_marker:
+            self.seen_markers.append(key)
         parents = [n for n in self.stack if n["has_marker"]]
-        for n in parents:
-            n["nested"] = True
+        if has_marker:
+            for n in parents:
+                n["nested"] = True
         self.stack.append({"tag": tag, "start": self.source_offset(), "template": in_template,
                            "blocked": blocked, "key": key, "has_marker": has_marker,
                            "nested": bool(parents)})
@@ -67,6 +71,7 @@ class Sections(HTMLParser):
     def handle_startendtag(self, tag, attrs):
         attrs = dict(attrs)
         if "data-tn-section" in attrs or "data-tn-header" in attrs or "data-tn-footer" in attrs:
+            self.seen_markers.append(marker(tag, attrs))
             for n in self.stack:
                 if n["has_marker"]:
                     n["nested"] = True
@@ -89,13 +94,15 @@ class Sections(HTMLParser):
 
 def discover(sources):
     found = []
+    counts = Counter()
     for name, source in sorted(sources.items()):
         if (not name.startswith("src/") or not name.endswith(".vue")
                 or PurePosixPath(name).name in TRUSTED or len(source.encode("utf-8")) > 64000):
             continue
-        for key, start, end, eligible in Sections(source).found:
+        parsed = Sections(source)
+        counts.update(key for key in parsed.seen_markers if key)
+        for key, start, end, eligible in parsed.found:
             if key:
                 found.append((key, name, start, end, eligible))
-    counts = Counter(item[0] for item in found)
     return {key: (name, start, end) for key, name, start, end, eligible in found
             if eligible and counts[key] == 1}
