@@ -189,6 +189,7 @@ class StudioTests(APITestCase):
 
     @override_settings(STUDIO_CINEMATIC_ENABLED=True)
     def test_block_edit_candidate_accept_and_rollback(self):
+        import zipfile
         from .models import Project
         with tempfile.TemporaryDirectory() as jobs, tempfile.TemporaryDirectory() as outputs, override_settings(STUDIO_JOB_ROOT=jobs,STUDIO_OUTPUT_ROOT=outputs):
             root=Path(outputs)
@@ -196,12 +197,15 @@ class StudioTests(APITestCase):
                 dist=root/run/"dist"
                 dist.mkdir(parents=True)
                 (dist/"index.html").write_text(run)
-                (root/run/"tracknode-agent-site.zip").write_bytes(b"fixture")
+                with zipfile.ZipFile(root/run/"tracknode-agent-site.zip","w") as archive:
+                    archive.writestr("tracknode-agent.json",json.dumps({"engine":"openhands-sdk"}))
+                    archive.writestr("src/App.vue",'<template><section id="home" data-tn-section="home"><h1>Title</h1></section><section id="about" data-tn-section="about"><h2>About</h2></section></template>')
                 (root/run/"studio-result.json").write_text(json.dumps({"technical_passed":True,"status":"skipped"}))
             p=Project.objects.create(owner=self.a,name="Cars",prompt="Cars",engine="cinematic",run_directory="original",generation_stage="technical-preview")
             url=f"/api/studio/projects/{p.id}/"
+            version=self.client.get(url+"blocks/").data["expected_version"]
             with self.captureOnCommitCallbacks(execute=True):
-                result=self.client.post(url+"blocks/home/regenerate/",{"instruction":"Fix title","upgrade_motion":True},format="json")
+                result=self.client.post(url+"blocks/home/regenerate/",{"instruction":"Fix title","upgrade_motion":True,"expected_version":version},format="json")
             self.assertEqual(result.status_code,202)
             edit=result.data["block_edit"]
             self.assertEqual(result.data["preview_version"],"original")
@@ -222,15 +226,18 @@ class StudioTests(APITestCase):
 
     @override_settings(STUDIO_CINEMATIC_ENABLED=True)
     def test_local_hero_film_queues_without_replacing_current_version(self):
+        import zipfile
         from .models import Project
         with tempfile.TemporaryDirectory() as jobs, tempfile.TemporaryDirectory() as outputs, override_settings(STUDIO_JOB_ROOT=jobs,STUDIO_OUTPUT_ROOT=outputs):
             root=Path(outputs)/"original"
             (root/"dist").mkdir(parents=True)
             (root/"dist"/"index.html").write_text("original")
-            (root/"tracknode-agent-site.zip").write_bytes(b"fixture")
+            with zipfile.ZipFile(root/"tracknode-agent-site.zip","w") as archive:
+                archive.writestr("tracknode-agent.json",json.dumps({"engine":"openhands-sdk"}))
+                archive.writestr("src/App.vue",'<template><section id="home" data-tn-section="home"><h1>Title</h1></section><section id="about" data-tn-section="about"><h2>About</h2></section></template>')
             p=Project.objects.create(owner=self.a,name="Cars",prompt="Cars",engine="cinematic",run_directory="original")
             url=f"/api/studio/projects/{p.id}/blocks/"
-            payload={"instruction":"film","local_hero_film":True}
+            payload={"instruction":"film","local_hero_film":True,"expected_version":self.client.get(url).data["expected_version"]}
             self.assertEqual(self.client.post(url+"about/regenerate/",payload,format="json").status_code,400)
             with self.captureOnCommitCallbacks(execute=True):
                 result=self.client.post(url+"home/regenerate/",payload,format="json")
@@ -460,3 +467,36 @@ class StudioTests(APITestCase):
                 apply_changes(files,fingerprint(files),[{"id":h["id"],"text":"Heading","styles":styles}])
         with self.assertRaises(ManualEditError):
             apply_changes(files,fingerprint(files),[{"id":p["id"],"text":"Protected text","styles":{"color":"#ffffff"}}])
+
+
+    @override_settings(STUDIO_CINEMATIC_ENABLED=True)
+    def test_dynamic_ai_scope_preflight_and_version_conflict(self):
+        import zipfile
+        import uuid
+        from .models import Project
+        with tempfile.TemporaryDirectory() as jobs, tempfile.TemporaryDirectory() as outputs, override_settings(STUDIO_JOB_ROOT=jobs,STUDIO_OUTPUT_ROOT=outputs):
+            root=Path(outputs)/"original"
+            (root/"dist").mkdir(parents=True)
+            (root/"dist"/"index.html").write_text("original")
+            with zipfile.ZipFile(root/"tracknode-agent-site.zip","w") as archive:
+                archive.writestr("tracknode-agent.json",json.dumps({"engine":"openhands-sdk"}))
+                archive.writestr("src/App.vue",'<template><section id="teachers-and-mentors" data-tn-section="teachers-and-mentors"><h2>Teachers</h2></section><section id="faq" data-tn-section="faq"><p>FAQ</p></section><section id="faq" data-tn-section="faq"><p>Duplicate</p></section></template>')
+            p=Project.objects.create(owner=self.a,name="School",prompt="Test",engine="cinematic",run_directory="original")
+            url=f"/api/studio/projects/{p.id}/blocks/"
+            data=self.client.get(url).data
+            self.assertEqual([b["id"] for b in data["blocks"]],["teachers-and-mentors"])
+            payload={"instruction":"Improve design","expected_version":data["expected_version"]}
+            self.assertEqual(self.client.post(url+"faq/regenerate/",payload,format="json").status_code,400)
+            self.assertEqual(self.client.post(url+"teachers-and-mentors/regenerate/",{**payload,"expected_version":str(uuid.uuid4())},format="json").status_code,409)
+            self.assertFalse(p.block_edits.exists())
+            self.client.force_authenticate(self.b)
+            self.assertEqual(self.client.get(url).status_code,404)
+            self.client.force_authenticate(self.a)
+            with self.captureOnCommitCallbacks(execute=True):
+                result=self.client.post(url+"teachers-and-mentors/regenerate/",payload,format="json")
+            self.assertEqual(result.status_code,202)
+            edit=p.block_edits.get()
+            envelope=json.loads((Path(jobs)/"pending"/f"{edit.id}.json").read_text())
+            self.assertEqual(envelope["block"],"teachers-and-mentors")
+            self.assertEqual(len(envelope["source_sha256"]),64)
+            self.assertEqual(p.run_directory,"original")

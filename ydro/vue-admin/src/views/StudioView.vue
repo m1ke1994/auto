@@ -12,12 +12,15 @@ const contactFields=[['phone','Телефон','tel','+7 (___) ___-__-__'],['ema
 const hasContacts=computed(()=>Object.values(contacts.value).some(v=>v.trim()))
 const config=ref({provider:null,configured:false,cinematic_enabled:false,cinematic_max_cost_usd:2.5,worker:null})
 const workerUnavailable=computed(()=>config.value.worker?.required&&!config.value.worker?.available)
-const visualWorkerUnavailable=computed(()=>config.value.worker?.required&&!config.value.worker?.visual_available)
+const visualWorkerUnavailable=computed(()=>config.value.worker?.required&&(!config.value.worker?.visual_available||(visualChanges.value.some(c=>c.styles!==undefined)&&!config.value.worker?.visual_style_available)))
 const styles=[['auto','Автоматический'],['business','Современный'],['cinema','Кинематографический']]
 const heroModes=[['auto','Автовыбор композиции'],['immersive','Крупный объект на фоне'],['product','Предметная сцена'],['split','Разделённый Hero'],['cinematic','Полноэкранная сцена'],['editorial','Editorial-фотография'],['environment','Иммерсивное пространство']]
 const revision=computed(()=>current.value?.revisions?.find(r=>r.id===selected.value))
 const previewHtml=computed(()=>revision.value?.html.replaceAll('href="#page-', 'href="about:srcdoc#page-') || '')
-const blockOptions=[['home','Главная'],['header','Шапка'],['about','О компании'],['services','Услуги'],['benefits','Преимущества'],['contacts','Контакты'],['footer','Подвал']]
+const blockCatalog=ref(null),blockCatalogError=ref('')
+const blockOptions=computed(()=>blockCatalog.value?.blocks?.map(b=>[b.id,b.label])||[])
+const scopeWorkerUnavailable=computed(()=>config.value.worker?.required&&!config.value.worker?.scope_edit_available)
+const blockAvailable=computed(()=>blockCatalog.value?.expected_version===activeVersion.value?.id&&blockOptions.value.some(b=>b[0]===targetBlock.value))
 const inspectorTab=ref('edit')
 const visualCatalog=ref(null), visualDraft=ref({}), visualSelected=ref(''), visualNote=ref(''), visualFilter=ref(''), visualFrame=ref(null)
 const visualFields=computed(()=>visualCatalog.value?.fields||[])
@@ -115,9 +118,22 @@ function saveVisual(){
     apply(data.data);resetVisual();inspectorTab.value='edit';compareVersion.value='candidate';await refresh()
   })
 }
-function submitBlock(){run(async()=>{
+async function loadBlockCatalog(){
+  const id=current.value?.id, version=activeVersion.value?.id
+  if(!id||!version||current.value?.generation_status!=='complete')return
+  blockCatalogError.value=''
+  try{
+    const data=(await http.get(base+id+'/blocks/')).data
+    if(current.value?.id!==id||activeVersion.value?.id!==version)return
+    blockCatalog.value=data
+    if(!data.blocks?.some(b=>b.id===targetBlock.value))targetBlock.value=data.blocks?.[0]?.id||''
+  }catch{
+    if(current.value?.id===id){blockCatalog.value=null;blockCatalogError.value='Не удалось прочитать доступные разделы сайта.'}
+  }
+}
+function submitBlock(){if(!blockAvailable.value||scopeWorkerUnavailable.value)return;run(async()=>{
   const id=current.value.id
-  apply((await http.post(base+id+'/blocks/'+targetBlock.value+'/regenerate/',{instruction:blockInstruction.value,upgrade_motion:targetBlock.value==='home'&&upgradeMotion.value})).data)
+  apply((await http.post(base+id+'/blocks/'+targetBlock.value+'/regenerate/',{expected_version:activeVersion.value.id,instruction:blockInstruction.value,upgrade_motion:targetBlock.value==='home'&&upgradeMotion.value})).data)
   compareVersion.value='candidate';blockInstruction.value='';await refresh()
 })}
 const emptyHeroOptions=()=>({direction:'',motion:'',speed:'',lighting:''})
@@ -129,7 +145,7 @@ const heroFields=[
   ['speed','Скорость',{focused:'Быстрее',balanced:'Умеренная',calm:'Медленнее'}],
   ['lighting','Освещение',{auto:'Автоматически',softbox:'Мягкое',dramatic:'Контрастное'}],
 ]
-function applyHeroFilm(){run(async()=>{
+function applyHeroFilm(){if(!blockAvailable.value||scopeWorkerUnavailable.value)return;run(async()=>{
   const options=Object.fromEntries(Object.entries(heroOptions.value).filter(([,value])=>value))
   const captions=heroCaptionInput.value.split('\n').map(line=>line.trim()).filter(Boolean)
   if(captions.length>5||new Set(captions).size!==captions.length||captions.some(text=>text.length<2||text.length>145||text.includes('{'))){
@@ -137,7 +153,7 @@ function applyHeroFilm(){run(async()=>{
     return
   }
   if(captions.length)options.captions=captions
-  apply((await http.post(base+current.value.id+'/blocks/home/regenerate/',{instruction:'Cinematic Hero',local_hero_film:true,upgrade_motion:true,hero_options:options})).data)
+  apply((await http.post(base+current.value.id+'/blocks/home/regenerate/',{expected_version:activeVersion.value.id,instruction:'Cinematic Hero',local_hero_film:true,upgrade_motion:true,hero_options:options})).data)
   heroOptions.value=emptyHeroOptions()
   heroCaptionInput.value=''
   compareVersion.value='candidate';await refresh()
@@ -154,7 +170,9 @@ const visualLabel=computed(()=>({passed:'Технически проверен �
 async function run(fn){if(busy.value)return;busy.value=true;error.value='';try{await fn()}catch(e){error.value=e.response?.data?.detail||'Не удалось выполнить операцию. Проверьте локальную Studio.'}finally{busy.value=false}}
 function apply(project){
   const same=current.value?.id===project.id
+  const previousVersion=activeVersion.value?.id
   current.value=project
+  if(!same||previousVersion!==activeVersion.value?.id){blockCatalog.value=null;loadBlockCatalog()}
   if(!same){
     historyPreview.value=null
     resetVisual()
@@ -211,7 +229,7 @@ onBeforeUnmount(()=>{window.removeEventListener('message',receiveVisual);dispose
 function open(id){if(visualChanges.value.length&&id!==current.value?.id&&!window.confirm('Отбросить несохранённый черновик?'))return;inspectorTab.value='edit';historyPreview.value=null;showPrompt.value=false;targetBlock.value='home';blockInstruction.value='';upgradeMotion.value=true;compareVersion.value='candidate';run(async()=>apply((await http.get(base+id+'/')).data))}
 function newProject(from=null){
   if(visualChanges.value.length&&!window.confirm('Отбросить несохранённый черновик?'))return
-  resetVisual();inspectorTab.value='edit'
+  resetVisual();blockCatalog.value=null;blockCatalogError.value='';inspectorTab.value='edit'
   engine.value='cinematic';style.value='auto';assetStyle.value='realistic';heroMode.value='auto';requireModel.value=false
   name.value=from?from.name+' — Cinema':''
   name.value=name.value.slice(0,120)
@@ -323,6 +341,9 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value.split('?
         <div class="section-heading"><span>Редактирование блоков</span></div>
         <p v-if="!current.source_archive_available" class="muted">Для правки нужен сохранённый исходный ZIP.</p>
         <template v-else>
+          <p v-if="blockCatalogError" class="notice error">{{blockCatalogError}} <button type="button" @click="loadBlockCatalog">Повторить</button></p>
+          <p v-else-if="!blockOptions.length&&!editingBlock&&!candidateReady" class="muted">Нет доступных однозначно определённых разделов или исходники ещё проверяются.</p>
+          <p v-if="scopeWorkerUnavailable" class="notice error">Для ИИ-правок обновите обработчик Studio.</p>
           <div class="block-options"><button v-for="b in blockOptions" :key="b[0]" type="button" :class="{active:targetBlock===b[0]}" :disabled="busy||editingBlock||candidateReady" @click="targetBlock=b[0]">{{b[1]}}</button></div>
           <form v-if="!editingBlock&&!candidateReady" @submit.prevent="submitBlock">
             
@@ -333,11 +354,11 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value.split('?
                 <select v-model="heroOptions[key]" :aria-label="label"><option value="">Текущее</option><option v-for="(text,value) in options" :key="value" :value="value">{{ text }}</option></select>
               </label>
               <label>Титры, по одному на строке<textarea v-model="heroCaptionInput" rows="3" maxlength="729" placeholder="Текущие титры"></textarea></label>
-              <button type="button" :disabled="busy||activeJob||workerUnavailable||!config.cinematic_enabled" @click="applyHeroFilm">Обновить киносцену</button>
+              <button type="button" :disabled="busy||activeJob||scopeWorkerUnavailable||!blockAvailable||!config.cinematic_enabled" @click="applyHeroFilm">Обновить киносцену</button>
               <label class="check"><input v-model="upgradeMotion" type="checkbox"> Обновить анимацию при правке блока</label>
             </details>
             <p class="request-note">Используется один платный запрос.</p>
-            <button type="submit" class="primary" :disabled="busy||activeJob||workerUnavailable||!config.cinematic_enabled||!blockInstruction.trim()">Применить изменения</button>
+            <button type="submit" class="primary" :disabled="busy||activeJob||scopeWorkerUnavailable||!blockAvailable||!config.cinematic_enabled||!blockInstruction.trim()">Применить изменения</button>
           </form>
           <div v-if="editingBlock" role="status" class="notice block-live-status"><div class="block-live-heading"><strong>{{blockPhaseNames[blockEdit.stage]||'Выполняется правка'}}</strong><span>{{blockProgress}}%</span></div><div class="progress-track"><span :style="{width:blockProgress+'%'}"/></div><small>Последнее подтверждение движка: {{blockEventAge}} назад. Статус обновляется автоматически.</small><p v-if="blockEventStale" class="block-stale">Движок пока не сообщил новый этап. Проверяем выполнение — не запускайте повторную правку.</p></div>
           <div v-if="blockEdit?.status==='failed'" class="notice error">Правка не завершилась. Исходный сайт сохранён.</div>

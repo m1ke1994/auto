@@ -1,6 +1,7 @@
 import io
 import zipfile
 from .manual_edit import read_source, fingerprint, public_fields, apply_changes, ManualEditError
+from .section_catalog import available_sections, valid_scope
 from pathlib import Path
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -224,6 +225,7 @@ class HeroOptions(serializers.Serializer):
 
 class BlockInput(serializers.Serializer):
     instruction=serializers.CharField(max_length=4000)
+    expected_version=serializers.UUIDField()
     upgrade_motion=serializers.BooleanField(default=False)
     local_hero_film=serializers.BooleanField(default=False)
     hero_options=HeroOptions(required=False)
@@ -232,8 +234,19 @@ class Blocks(StudioView):
     def get(self,request,pk):
         p=refresh_project(self.project(request,pk))
         dist=project_dist(p)
-        available=bool(dist and (dist.parent/"tracknode-agent-site.zip").is_file())
-        return Response({"available":available,"blocks":[{"id":k,"label":v} for k,v in BLOCKS.items()] if available else []})
+        if not dist:
+            return Response({"available":False,"blocks":[],"expected_version":None})
+        history=history_data(p)
+        version=next((v for v in history if v["current"]),None)
+        try:
+            sections=available_sections(dist.parent/"tracknode-agent-site.zip")
+        except (OSError,ValueError,TypeError,KeyError,zipfile.BadZipFile,RuntimeError,NotImplementedError):
+            sections={}
+        labels={**BLOCKS,"teachers":"Преподаватели","reviews":"Отзывы","pricing":"Стоимость",
+                "faq":"Вопросы и ответы","blog":"Блог","schedule":"Расписание","subjects":"Предметы",
+                "results":"Результаты","gallery":"Галерея","portfolio":"Портфолио","team":"Команда"}
+        return Response({"available":bool(sections and version),"expected_version":version["id"] if version else None,
+                         "blocks":[{"id":k,"label":labels.get(k,k.replace("-"," ").capitalize())} for k in sections]})
 
 class RegenerateBlock(StudioView):
     @transaction.atomic
@@ -243,9 +256,9 @@ class RegenerateBlock(StudioView):
         p=refresh_project(get_object_or_404(Project.objects.select_for_update(),pk=pk,owner=request.user))
         if not getattr(settings,"STUDIO_CINEMATIC_ENABLED",False):
             return Response({"detail":"Cinematic Engine недоступен."},status=503)
-        if not worker_health()["available"]:
-            return Response({"detail":"Обработчик Studio недоступен. Новое задание не создано."},status=503)
-        if block not in BLOCKS:
+        if not worker_health()["scope_edit_available"]:
+            return Response({"detail":"Обработчик ИИ-редактора недоступен или требует обновления."},status=503)
+        if not valid_scope(block):
             raise Http404
         dist=project_dist(p)
         if not dist or not (dist.parent/"tracknode-agent-site.zip").is_file():
@@ -260,12 +273,23 @@ class RegenerateBlock(StudioView):
             return Response({"detail":"Локальный лимит: 30 правок проекта."},status=400)
         s=BlockInput(data=request.data)
         s.is_valid(raise_exception=True)
+        active=ensure_history(p)
+        if not active or active.id != s.validated_data["expected_version"]:
+            return Response({"detail":"Версия сайта изменилась. Выберите раздел заново."},status=409)
+        if not verify_version(active):
+            return Response({"detail":"Исходная сборка недоступна или изменена."},status=409)
+        try:
+            scopes=available_sections(archive_for(active))
+        except (OSError,ValueError,TypeError,KeyError,zipfile.BadZipFile,RuntimeError,NotImplementedError):
+            scopes={}
+        if block not in scopes:
+            return Response({"detail":"Раздел отсутствует, неоднозначен или защищён от редактирования."},status=400)
         local_film=s.validated_data["local_hero_film"]
         if local_film and block!="home":
             return Response({"detail":"Полноэкранная сцена доступна только для Hero."},status=400)
         edit=BlockEdit.objects.create(project=p,block=block,base_run=p.run_directory,base_stage=p.generation_stage,
             instruction="Full-screen two-act Hero film (local, no AI)" if local_film else s.validated_data["instruction"],upgrade_motion=block=="home" and (local_film or s.validated_data["upgrade_motion"]))
-        transaction.on_commit(lambda:queue_edit(edit,local_hero_film=local_film,hero_options=s.validated_data.get("hero_options")))
+        transaction.on_commit(lambda:queue_edit(edit,local_hero_film=local_film,hero_options=s.validated_data.get("hero_options"),source_sha256=active.manifest["archive_sha256"]))
         return Response(project_data(p,True),status=202)
 
 class BlockDecision(StudioView):

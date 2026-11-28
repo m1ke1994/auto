@@ -214,3 +214,37 @@ class BlockEditTests(unittest.TestCase):
         self.assertTrue(primary_hero_film({"src/App.vue":source}))
         with self.assertRaises(BlockEditError):
             apply_hero_film(self.files)
+
+
+    def test_dynamic_section_and_protected_contract(self):
+        from section_scope import discover
+        section='<section id="teachers-and-mentors" data-tn-section="teachers-and-mentors"><h2>Teachers</h2><a href="#contacts" @click="track()">Book</a><p>{{ name }}</p></section>'
+        files=dict(self.files)
+        files["src/App.vue"]=("<template>"+self.home+section+self.about+"</template>").encode()
+        found=discover({"src/App.vue":files["src/App.vue"].decode()})
+        self.assertIn("teachers-and-mentors",found)
+        changed=patch(files,"teachers-and-mentors",{"markup":section.replace("Teachers","Our team"),"rules":[{"selector":"h2","declarations":"color:#123456","mobile":False}]})
+        self.assertIn(b"Our team",changed["src/App.vue"])
+        self.assertIn(self.home.encode(),changed["src/App.vue"])
+        self.assertIn(b"#teachers-and-mentors h2",changed["src/style.css"])
+        for bad in (section.replace("track()","other()"),section.replace("#contacts","https://example.com"),
+                    section.replace("{{ name }}","{{ unsafe() }}"),section.replace("</section>",'<section id="other" data-tn-section="other">Other</section></section>')):
+            with self.assertRaises(ValueError):
+                patch(files,"teachers-and-mentors",{"markup":bad,"rules":[]})
+        duplicate=files["src/App.vue"].decode().replace("</template>",section+"</template>")
+        self.assertNotIn("teachers-and-mentors",discover({"src/App.vue":duplicate}))
+
+    def test_existing_film_contract_unchanged_on_plain_copy_edit(self):
+        from block_edit import apply_hero_film
+        home='<section id="home" data-tn-section="home" class="hero"><div class="hero-stage"><CinemaModel model-path="tn-models/car/model.gltf" label="Sports car" /></div><div class="hero-content"><h1>Engineering</h1></div></section>'
+        files=dict(self.files)
+        files["src/App.vue"]=("<template>"+home+self.about+"</template>").encode()
+        film=apply_hero_film(files,{"captions":["One","Two","Three","Four","Five"],"speed":"calm"})
+        source=film["src/App.vue"].decode()
+        _,start,end=find_block({"src/App.vue":source},"home")
+        old=source[start:end]
+        result=patch(film,"home",{"markup":old.replace("<h1>Engineering</h1>","<h1>New heading</h1>"),"rules":[]},False)
+        self.assertIn(b"New heading",result["src/App.vue"])
+        self.assertEqual(film["src/cinematic-motion.js"],result["src/cinematic-motion.js"])
+        self.assertEqual(film["src/components/CinemaModel.vue"],result["src/components/CinemaModel.vue"])
+        self.assertEqual(__import__("json").loads(film["tracknode-agent.json"])["hero_options"],__import__("json").loads(result["tracknode-agent.json"])["hero_options"])

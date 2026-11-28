@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference='Stop'
 Set-Location $PSScriptRoot
 . (Join-Path $PSScriptRoot 'studio-progress.ps1')
-if ($Job.base_run -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' -or $Job.block -notin @('home','about','services','benefits','contacts','header','footer')) {throw 'Invalid block edit'}
+if ($Job.base_run -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' -or ($Job.block -notmatch '^[a-z][a-z0-9-]{0,47}$' -or $Job.block -eq 'manual')) {throw 'Invalid block edit'}
 $root=(Resolve-Path -LiteralPath 'studio-agent-output').Path
 $base=(Resolve-Path -LiteralPath (Join-Path $root $Job.base_run)).Path
 if (!(($base).StartsWith($root+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase))) {throw 'Invalid base run'}
@@ -18,6 +18,10 @@ $statusName=[IO.Path]::GetFileName($ProgressFile)
 $progressContainerPath="/studio-status/$statusName"
 # Images are prebuilt by the update command; no rebuild on each edit.
 $payload=@{block=$Job.block;instruction=$Job.instruction;upgrade_motion=($Job.upgrade_motion -eq $true)}
+if($Job.source_sha256){$payload.source_sha256=$Job.source_sha256}
+$agentScript=Join-Path $PSScriptRoot 'docker/studio-agent/block_edit.py'
+$scopeScript=Join-Path $PSScriptRoot 'docker/studio-agent/section_scope.py'
+$codeMounts=@('-v',"$($agentScript):/opt/studio-agent/block_edit.py:ro",'-v',"$($scopeScript):/opt/studio-agent/section_scope.py:ro")
 if ($Job.local_hero_film -eq $true) {
     $payload.local_hero_film=$true
     if ($null -ne $Job.hero_options) {$payload.hero_options=$Job.hero_options}
@@ -25,9 +29,9 @@ if ($Job.local_hero_film -eq $true) {
 $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($payload|ConvertTo-Json -Compress)))
 Write-StudioProgress $ProgressFile 'generating'
 if ($Job.local_hero_film -eq $true) {
-    & docker run --pull never --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 2 --pids-limit 128 --tmpfs /tmp:rw,size=64m -e "TN_BLOCK_JOB=$encoded" -e "TN_PROGRESS_FILE=$progressContainerPath" -v "$($statusDir):/studio-status" -v "$($archive):/repair-source.zip:ro" -v "$($out):/output" --entrypoint python tracknode20-agent-openhands /opt/studio-agent/block_edit.py
+    & docker run --pull never --rm @codeMounts --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 2 --pids-limit 128 --tmpfs /tmp:rw,size=64m -e "TN_BLOCK_JOB=$encoded" -e "TN_PROGRESS_FILE=$progressContainerPath" -v "$($statusDir):/studio-status" -v "$($archive):/repair-source.zip:ro" -v "$($out):/output" --entrypoint python tracknode20-agent-openhands /opt/studio-agent/block_edit.py
 } else {
-    & docker @compose run --rm --no-deps --entrypoint python -e "TN_BLOCK_JOB=$encoded" -e "TN_PROGRESS_FILE=$progressContainerPath" -v "$($statusDir):/studio-status" -v "$($archive):/repair-source.zip:ro" -v "$($out):/output" openhands /opt/studio-agent/block_edit.py
+    & docker @compose run --rm --no-deps @codeMounts --entrypoint python -e "TN_BLOCK_JOB=$encoded" -e "TN_PROGRESS_FILE=$progressContainerPath" -v "$($statusDir):/studio-status" -v "$($archive):/repair-source.zip:ro" -v "$($out):/output" openhands /opt/studio-agent/block_edit.py
 }
 if ($LASTEXITCODE -ne 0) {
     $message='Block edit failed; original preview preserved'

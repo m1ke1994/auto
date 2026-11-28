@@ -41,7 +41,7 @@ class Revision(models.Model):
 class BlockEdit(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="block_edits")
-    block = models.CharField(max_length=16)
+    block = models.CharField(max_length=48)
     instruction = models.TextField()
     base_run = models.CharField(max_length=128)
     base_stage = models.CharField(max_length=80)

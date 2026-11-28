@@ -8,7 +8,7 @@ from .jobs import job_root
 
 def worker_health():
     required = getattr(settings, "STUDIO_WORKER_REQUIRED", False)
-    result = {"required": required, "available": not required, "state": "unknown", "updated_at": None, "visual_available": not required, "visual_style_available": not required}
+    result = {"required": required, "available": not required, "state": "unknown", "updated_at": None, "visual_available": not required, "visual_style_available": not required, "scope_edit_available": not required}
     try:
         path = job_root() / "worker-health.json"
         if path.stat().st_size > 8192:
@@ -39,6 +39,7 @@ def worker_health():
             pass
         return {**result, "state": state, "updated_at": stamp.isoformat(), "available": available,
                 "visual_available": available and (not required or "visual-text-v1" in features),
-                "visual_style_available": available and (not required or "visual-style-v1" in features)}
+                "visual_style_available": available and (not required or "visual-style-v1" in features),
+                "scope_edit_available": available and (not required or "scope-edit-v2" in features)}
     except (OSError, ValueError, TypeError, OverflowError):
         return result

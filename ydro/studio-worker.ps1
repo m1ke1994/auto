@@ -85,7 +85,7 @@ do{
         $live=Get-Process -Id $data.supervisor_pid -ErrorAction SilentlyContinue
         if($live -and $data.pid -ne $replacedId -and $data.protocol -eq 1 -and $data.state -in @('ready','busy') -and $age -ge -5 -and $age -le 12){
             $ready=Get-Content -LiteralPath (Join-Path $root 'watcher-ready.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-            if($ready.pid -ne $data.pid -or $ready.features -notcontains 'visual-style-v1'){throw 'Watcher upgrade required'}
+            if($ready.pid -ne $data.pid -or $ready.features -notcontains 'scope-edit-v2'){throw 'Watcher upgrade required'}
             Write-Host "STUDIO_WORKER_READY: $($data.state), PID $($data.pid), task $name"
             return
         }
