@@ -21,7 +21,7 @@ const blockCatalog=ref(null),blockCatalogError=ref('')
 const blockOptions=computed(()=>blockCatalog.value?.blocks?.map(b=>[b.id,b.label])||[])
 const scopeWorkerUnavailable=computed(()=>config.value.worker?.required&&!config.value.worker?.scope_edit_available)
 const blockAvailable=computed(()=>blockCatalog.value?.expected_version===activeVersion.value?.id&&blockOptions.value.some(b=>b[0]===targetBlock.value))
-const inspectorTab=ref('edit')
+const inspectorTab=ref('edit'), expandedPreview=ref(false)
 const visualCatalog=ref(null), visualDraft=ref({}), visualSelected=ref(''), visualNote=ref(''), visualFilter=ref(''), visualFrame=ref(null)
 const visualFields=computed(()=>visualCatalog.value?.fields||[])
 const filteredVisualFields=computed(()=>visualFields.value.filter(f=>!visualFilter.value||f.text.toLowerCase().includes(visualFilter.value.toLowerCase())))
@@ -243,10 +243,11 @@ const workerPoll=setInterval(async()=>{if(disposed||checkingWorker)return;checki
 const clock=setInterval(()=>{now.value=Date.now()},1000)
 onBeforeUnmount(()=>{window.removeEventListener('message',receiveVisual);disposed=true;clearInterval(poll);clearInterval(clock);clearInterval(workerPoll)})
 
-function open(id){if(visualChanges.value.length&&id!==current.value?.id&&!window.confirm('Отбросить несохранённый черновик?'))return;inspectorTab.value='edit';historyPreview.value=null;showPrompt.value=false;targetBlock.value='home';blockInstruction.value='';upgradeMotion.value=false;compareVersion.value='candidate';run(async()=>apply((await http.get(base+id+'/')).data))}
+function switchProject(event){const id=event.target.value;event.target.value=current.value?.id||'';if(id&&id!==current.value?.id)open(id)}
+function open(id){if(visualChanges.value.length&&id!==current.value?.id&&!window.confirm('Отбросить несохранённый черновик?'))return;expandedPreview.value=false;inspectorTab.value='edit';historyPreview.value=null;showPrompt.value=false;targetBlock.value='home';blockInstruction.value='';upgradeMotion.value=false;compareVersion.value='candidate';run(async()=>apply((await http.get(base+id+'/')).data))}
 function newProject(from=null){
   if(visualChanges.value.length&&!window.confirm('Отбросить несохранённый черновик?'))return
-  resetVisual();blockCatalog.value=null;blockCatalogError.value='';inspectorTab.value='edit'
+  resetVisual();expandedPreview.value=false;blockCatalog.value=null;blockCatalogError.value='';inspectorTab.value='edit'
   engine.value='cinematic';style.value='auto';assetStyle.value='realistic';heroMode.value='auto';requireModel.value=false
   name.value=from?from.name+' — Cinema':''
   name.value=name.value.slice(0,120)
@@ -270,10 +271,25 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value.split('?
 
 <template>
 <section class="studio">
-  <header class="studio-head"><h1>Studio</h1><button class="primary compact" :disabled="busy" @click="newProject()">+ Новый проект</button></header>
+<header class="studio-head">
+    <div class="studio-title"><span class="eyebrow">TRACKNODE / STUDIO</span><h1>Студия сайтов</h1></div>
+    <div class="studio-head-actions">
+      <span class="studio-connection" role="status"><i :class="{online:config.worker?.available&&!pollError}"></i>{{pollError?'Восстанавливаем связь':workerUnavailable?'Движок недоступен':config.worker?.available?'Движок готов':'Подключение'}}</span>
+      <button class="primary compact" :disabled="busy" @click="newProject()">+ Новый проект</button>
+    </div>
+  </header>
   <div v-if="error" role="alert" class="notice error">{{error}}</div>
   <div v-if="workerUnavailable" role="status" class="notice error">Обработчик Studio недоступен. Новые задания временно отключены. Уже поставленные задания сохранены; проверяем восстановление.</div>
-  <div class="project-strip">
+  <div v-if="current" class="project-switcher">
+    <label for="studio-project-picker">Проект</label>
+    <select id="studio-project-picker" :value="current.id" :disabled="busy" @change="switchProject">
+      <option v-if="!projects.some(p=>p.id===current.id)" :value="current.id">{{current.name}}</option>
+      <option v-for="p in projects" :key="p.id" :value="p.id">{{p.name}} · {{projectStatus(p)}}</option>
+    </select>
+    <span v-if="activeVersion" class="current-version">Версия {{activeVersion.number}}</span>
+    <span class="project-state" :class="current.generation_status">{{projectStatus(current)}}</span>
+  </div>
+  <div v-else class="project-strip">
     <div class="section-heading"><span>Мои проекты <small>{{projects.length}}</small></span></div>
     <div v-if="projects.length" class="projects">
       <button v-for="p in projects" :key="p.id" :disabled="busy" :class="{active:current?.id===p.id}" @click="open(p.id)"><span class="project-name">{{p.name}}</span><small :class="['project-state',p.generation_status]">{{projectStatus(p)}}</small></button>
@@ -305,23 +321,25 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value.split('?
     <button class="primary launch" :disabled="busy||(engine==='cinematic'?(!config.cinematic_enabled||workerUnavailable||activeJob):!config.configured)">{{busy?'Отправляем запрос…':engine==='cinematic'?'Создать сайт':'Создать быструю концепцию'}}</button>
   </form>
 
-  <div v-else class="workspace">
-    <aside class="panel project-info">
-      <div class="inspector-heading"><h2>{{current.name}}</h2><span class="project-state" :class="current.generation_status">{{projectStatus(current)}}</span></div>
+  <div v-else class="workspace" :class="{'preview-expanded':expandedPreview}">
+    <aside v-show="!expandedPreview" class="panel project-info" aria-label="Редактор сайта">
+      <div class="inspector-top">
+      <div class="inspector-heading"><div><span class="eyebrow">РЕДАКТОР</span><h2>{{current.name}}</h2></div><span v-if="visualMode" class="mode-label">Без ИИ</span></div>
       <div v-if="cinematic" class="inspector-tabs" aria-label="Панель проекта">
+        <button type="button" :class="{active:inspectorTab==='visual'}" :aria-pressed="inspectorTab==='visual'" :disabled="busy||editingBlock||candidateReady||generating||current.generation_status!=='complete'" @click="visualCatalog?inspectorTab='visual':openVisual()">Визуально <i v-if="visualChanges.length" class="draft-dot" aria-label="Есть черновик"></i></button>
         <button type="button" :class="{active:inspectorTab==='edit'}" :aria-pressed="inspectorTab==='edit'" @click="inspectorTab='edit'">ИИ-правка</button>
-        <button type="button" :class="{active:inspectorTab==='visual'}" :aria-pressed="inspectorTab==='visual'" :disabled="busy||editingBlock||candidateReady||generating||current.generation_status!=='complete'" @click="visualCatalog?inspectorTab='visual':openVisual()">Визуально</button>
-        <button type="button" :class="{active:inspectorTab==='info'}" :aria-pressed="inspectorTab==='info'" @click="inspectorTab='info'">О проекте</button>
         <button type="button" :class="{active:inspectorTab==='versions'}" :aria-pressed="inspectorTab==='versions'" :disabled="busy||editingBlock||candidateReady||generating" @click="inspectorTab='versions'">Версии</button>
-      </div>
+        <button type="button" :class="{active:inspectorTab==='info'}" :aria-pressed="inspectorTab==='info'" @click="inspectorTab='info'">О проекте</button>
+      </div></div>
+      <div class="inspector-body">
       <p v-if="current.generation_status==='failed'" class="notice error">Не удалось создать сайт. {{current.generation_error}}</p>
       <div v-if="!cinematic||inspectorTab==='info'" class="project-details">
         <details class="brief"><summary>Описание проекта</summary><p class="project-description">{{current.prompt}}</p></details>
         <details v-if="cinematic&&Object.keys(current.contacts||{}).length" class="brief"><summary>Контакты</summary><p v-for="field in contactFields.filter(f=>current.contacts?.[f[0]])" :key="field[0]" class="contact-summary"><strong>{{field[1]}}</strong><br>{{current.contacts[field[0]]}}</p></details>
       </div>
       <section v-if="visualMode" class="visual-editor">
-        <div class="section-heading"><strong>Текст и оформление</strong><small>Без ИИ</small></div>
-        <p class="muted">Выберите текст кликом на сайте или из списка. Оформление применяется только к выбранному статическому элементу.</p>
+        <div class="section-heading"><strong>Текст и оформление</strong></div>
+        <p class="editor-hint">Нажмите текст на сайте или найдите его в списке. Изменения появятся в предпросмотре.</p>
         <input v-model="visualFilter" placeholder="Поиск текста" aria-label="Поиск текста">
         <label>Элемент<select v-model="visualSelected"><option value="">Выберите текст</option><option v-for="f in filteredVisualFields" :key="f.id" :value="f.id">{{f.section}} · {{f.text.slice(0,90)}}</option></select></label>
         <p v-if="!visualFields.length" class="muted">В исходниках нет поддерживаемых статических полей.</p>
@@ -330,16 +348,13 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value.split('?
           <div class="section-heading"><span>Оформление</span></div>
           <div v-for="key in visualCatalog.color_properties" :key="key" class="visual-color">
             <label>{{styleLabels[key]}}<input type="color" :aria-label="styleLabels[key]" :value="currentVisualStyles[key]||'#ffffff'" @input="setVisualStyle(key,$event.target.value)"></label>
-            <button type="button" class="text-button" :disabled="!currentVisualStyles[key]" @click="setVisualStyle(key,'')">Авто</button>
+            <button type="button" class="text-button" :aria-label="'Сбросить '+styleLabels[key]" :disabled="!currentVisualStyles[key]" @click="setVisualStyle(key,'')">Авто</button>
           </div>
           <label v-for="(choices,key) in visualCatalog.style_choices" :key="key">{{styleLabels[key]}}<select :aria-label="styleLabels[key]" :value="currentVisualStyles[key]||''" @change="setVisualStyle(key,$event.target.value)"><option value="">Как в дизайне</option><option v-for="choice in choices" :key="choice" :value="choice">{{styleValueLabels[choice]||choice}}</option></select></label>
         </div>
         <p v-else-if="visualField" class="muted">Собственные стили элемента защищены. Можно изменить текст.</p>
         <p v-if="visualNote" class="muted" role="status">{{visualNote}}</p>
-        <small>{{visualChanges.length}} / 12 изменений</small>
         <p v-if="visualWorkerUnavailable" class="notice error">Для сохранения необходимо обновить обработчик Studio.</p>
-        <div class="decision-actions"><button :disabled="busy||!visualChanges.length" @click="visualDraft={};sendVisualDraft()">Сбросить</button><button class="primary" :disabled="busy||activeJob||visualWorkerUnavailable||!visualChanges.length||visualChanges.some(c=>c.text.trim().length<2)" @click="saveVisual">Собрать версию</button></div>
-        <p class="muted">Сборка и техническая проверка выполняются локально. Примите новый вариант после просмотра.</p>
       </section>
       <section v-if="cinematic&&inspectorTab==='versions'&&current.generation_status==='complete'" class="version-history">
         <div class="section-heading"><span>История версий</span><button type="button" class="text-button" @click="historyPreview=null">Текущая</button></div>
@@ -361,8 +376,8 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value.split('?
           <p v-if="blockCatalogError" class="notice error">{{blockCatalogError}} <button type="button" @click="loadBlockCatalog">Повторить</button></p>
           <p v-else-if="!blockOptions.length&&!editingBlock&&!candidateReady" class="muted">Нет доступных однозначно определённых разделов или исходники ещё проверяются.</p>
           <p v-if="scopeWorkerUnavailable" class="notice error">Для ИИ-правок обновите обработчик Studio.</p>
-          <div class="block-options"><button v-for="b in blockOptions" :key="b[0]" type="button" :class="{active:targetBlock===b[0]}" :disabled="busy||editingBlock||candidateReady" @click="targetBlock=b[0]">{{b[1]}}</button></div>
-          <form v-if="!editingBlock&&!candidateReady" @submit.prevent="submitBlock">
+          <label v-if="!editingBlock&&!candidateReady&&blockOptions.length" class="block-picker">Раздел сайта<select v-model="targetBlock" :disabled="busy" aria-label="Раздел сайта"><option v-for="b in blockOptions" :key="b[0]" :value="b[0]">{{b[1]}}</option></select></label>
+          <form v-if="!editingBlock&&!candidateReady" id="studio-ai-edit" @submit.prevent="submitBlock">
             
             <label>Что изменить?<textarea v-model="blockInstruction" required maxlength="4000" rows="3" placeholder="Опишите, что хотите изменить…"></textarea></label>
             <details v-if="targetBlock==='home'" class="advanced editor-advanced">
@@ -374,19 +389,34 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value.split('?
               <button type="button" :disabled="busy||activeJob||scopeWorkerUnavailable||!blockAvailable||!config.cinematic_enabled" @click="applyHeroFilm">Обновить киносцену</button>
               <label class="check"><input v-model="upgradeMotion" type="checkbox"> Обновить анимацию при правке блока</label>
             </details>
-            <p class="request-note">Используется один платный запрос.</p>
-            <button type="submit" class="primary" :disabled="busy||activeJob||scopeWorkerUnavailable||!blockAvailable||!config.cinematic_enabled||!blockInstruction.trim()">Применить изменения</button>
+
           </form>
           <div v-if="editingBlock" role="status" class="notice block-live-status"><div class="block-live-heading"><strong>{{blockPhaseNames[blockEdit.stage]||'Выполняется правка'}}</strong><span>{{blockProgress}}%</span></div><div class="progress-track"><span :style="{width:blockProgress+'%'}"/></div><small>Последнее подтверждение движка: {{blockEventAge}} назад. Статус обновляется автоматически.</small><p v-if="blockEventStale" class="block-stale">Движок пока не сообщил новый этап. Проверяем выполнение — не запускайте повторную правку.</p></div>
           <div v-if="blockEdit?.status==='failed'" class="notice error">Правка не завершилась. Исходный сайт сохранён. <span v-if="blockEdit.error">{{blockEdit.error}}</span></div>
-          <div v-if="candidateReady" class="notice"><strong>Новый вариант собран</strong><p class="muted">Сравните версии перед сохранением.</p><div class="decision-actions"><button :class="{active:compareVersion==='original'}" @click="compareVersion='original'">До</button><button :class="{active:compareVersion==='candidate'}" @click="compareVersion='candidate'">После</button><button class="primary" :disabled="busy" @click="decideBlock(blockEdit.id,'accept')">Принять</button><button :disabled="busy" @click="decideBlock(blockEdit.id,'discard')">Отклонить</button></div></div>
+<div v-if="candidateReady" class="notice"><strong>Новый вариант собран</strong><p class="muted">Сравните результат с действующим сайтом. Изменения вступят в силу только после принятия.</p></div>
           <details v-if="current.block_edits?.length" class="block-history"><summary>История правок</summary><article v-for="e in current.block_edits" :key="e.id"><strong>{{blockOptions.find(b=>b[0]===e.block)?.[1]||e.block}}</strong><small>{{({pending:e.status==='failed'?'Ошибка':e.status==='complete'?'Готов к просмотру':'В работе',accepted:'Принято',discarded:'Отклонено',rolled_back:'Отменено'})[e.decision]}}</small><p class="brief-text">{{e.instruction}}</p><button v-if="e.decision==='accepted'&&current.preview_version===e.candidate_run" :disabled="busy||editingBlock||candidateReady" @click="decideBlock(e.id,'rollback')">Откатить версию</button></article></details>
         </template>
       </div>
       <div v-else-if="generating" class="muted small-info">Можно закрыть страницу — создание продолжится.</div>
+      </div>
+      <div v-if="candidateReady" class="inspector-footer">
+        <div class="footer-caption"><strong>Проверка результата</strong><span>Не сохранено</span></div>
+        <div class="decision-actions compare-actions"><button :class="{active:compareVersion==='original'}" @click="compareVersion='original'">До</button><button :class="{active:compareVersion==='candidate'}" @click="compareVersion='candidate'">После</button></div>
+        <div class="decision-actions"><button :disabled="busy" @click="decideBlock(blockEdit.id,'discard')">Отклонить</button><button class="primary" :disabled="busy" @click="decideBlock(blockEdit.id,'accept')">Принять</button></div>
+      </div>
+      <div v-else-if="visualMode" class="inspector-footer">
+        <div class="footer-caption" aria-live="polite"><strong>{{visualChanges.length ? 'Черновик · '+visualChanges.length+' / 12' : 'Нет изменений'}}</strong><span>Без ИИ</span></div>
+        <div class="decision-actions"><button :disabled="busy||!visualChanges.length" @click="visualDraft={};sendVisualDraft()">Сбросить</button><button class="primary" :disabled="busy||activeJob||visualWorkerUnavailable||!visualChanges.length||visualChanges.some(c=>c.text.trim().length<2)" @click="saveVisual">Собрать версию</button></div>
+        <small>Действующий сайт сохранится до принятия версии.</small>
+      </div>
+      <div v-else-if="cinematic&&inspectorTab==='edit'&&current.generation_status==='complete'&&current.source_archive_available&&!editingBlock" class="inspector-footer">
+        <small>Используется один платный запрос.</small>
+        <button type="submit" form="studio-ai-edit" class="primary" :disabled="busy||activeJob||scopeWorkerUnavailable||!blockAvailable||!config.cinematic_enabled||!blockInstruction.trim()">Применить изменения</button>
+      </div>
     </aside>
     <main class="panel preview-panel">
-      <div class="toolbar"><div class="devices"><button :class="{active:device==='100%'}" :aria-pressed="device==='100%'" @click="device='100%'" aria-label="Компьютер" title="Компьютер"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="13" rx="2"/><path d="M12 16v5m-4 0h8"/></svg></button><button :class="{active:device==='390px'}" :aria-pressed="device==='390px'" @click="device='390px'" aria-label="Телефон" title="Телефон"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></button></div><div class="actions"><button v-if="cinematic" :disabled="!previewSrc" @click="openPreview">Открыть ↗</button><button v-else :disabled="busy||!revision" @click="publish">Утвердить локально</button><button :disabled="busy||(cinematic?(!previewSrc||!(historicalVersion?historicalVersion.source_archive_available:current.source_archive_available)):!revision)" @click="download">{{candidateReady?'ZIP действующей версии':historicalVersion?'ZIP версии '+historicalVersion.number:'Скачать ZIP'}}</button></div></div>
+      <div class="toolbar"><div class="preview-title"><strong>Предпросмотр</strong><small>{{candidateReady?(compareVersion==='candidate'?'Новая версия':'Действующая версия'):visualMode?'Режим редактирования':historicalVersion?'История':'Действующий сайт'}}</small></div><div class="devices"><button :class="{active:device==='100%'}" :aria-pressed="device==='100%'" @click="device='100%'" aria-label="Компьютер" title="Компьютер"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="13" rx="2"/><path d="M12 16v5m-4 0h8"/></svg></button><button :class="{active:device==='834px'}" :aria-pressed="device==='834px'" @click="device='834px'" aria-label="Планшет" title="Планшет"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M11 18h2"/></svg></button><button :class="{active:device==='390px'}" :aria-pressed="device==='390px'" @click="device='390px'" aria-label="Телефон" title="Телефон"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></button></div><div class="actions"><button type="button" :aria-pressed="expandedPreview" @click="expandedPreview=!expandedPreview">{{expandedPreview?'Показать редактор':'Развернуть'}}</button><button v-if="cinematic" :disabled="!previewSrc" @click="openPreview">Открыть ↗</button><button v-else :disabled="busy||!revision" @click="publish">Утвердить локально</button><button :disabled="busy||(cinematic?(!previewSrc||!(historicalVersion?historicalVersion.source_archive_available:current.source_archive_available)):!revision)" @click="download">{{candidateReady?'ZIP действующей версии':historicalVersion?'ZIP версии '+historicalVersion.number:'Скачать ZIP'}}</button></div></div>
+      <div v-if="editingBlock" class="preview-job-status" role="status"><span>{{blockPhaseNames[blockEdit.stage]||'Выполняется правка'}}</span><div class="progress-track"><span :style="{width:blockProgress+'%'}"/></div><strong>{{blockProgress}}%</strong></div>
       <div v-if="historicalVersion&&!candidateReady" class="version-preview-label"><span>Предпросмотр версии {{historicalVersion.number}} · действующий сайт не изменён</span><button class="text-button" @click="historyPreview=null">Вернуться</button></div>
       <div v-if="cinematic&&generating" class="waiting">
         <div class="progress-head"><div><span class="eyebrow">ГЕНЕРАЦИЯ САЙТА</span><h2>{{current.generation_status==='queued'?'В очереди':phaseIndex>=0?phases[phaseIndex]?.[1]:'Создание сайта'}}</h2></div><span class="elapsed">{{elapsed}}</span></div>
@@ -461,4 +491,52 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value.split('?
 .visual-editor .decision-actions{flex-wrap:wrap}
 .visual-style-controls{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:10px}
 .visual-color{display:flex;align-items:end;gap:8px}.visual-color label{flex:1}.visual-color input{height:34px;padding:3px}
+
+/* Compact workspace: only content scrolls; mode navigation and save actions stay visible. */
+.studio{container-type:inline-size;--workspace-height:clamp(400px,calc(100dvh - 200px),1400px);padding:16px clamp(10px,1.5vw,24px);max-width:2200px}
+.studio-title{display:grid;gap:4px}.studio-title .eyebrow{font-size:10px;letter-spacing:.13em}
+.studio h1{font-size:26px;letter-spacing:-.04em}.studio-head{margin-bottom:14px;gap:12px}
+.studio-head-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.studio-connection{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+.studio-connection i,.draft-dot{height:7px;width:7px;border-radius:50%;background:#c9a36a;display:inline-block;flex:none}
+.studio-connection i.online{background:#75caa5}
+.project-switcher{display:flex;align-items:center;gap:10px;margin-bottom:12px;min-width:0}
+.project-switcher label{margin:0;color:var(--muted);font-size:12px}
+.project-switcher select{width:min(360px,100%);min-width:0;margin:0;padding:8px 10px;text-overflow:ellipsis}
+.current-version{font-size:12px;color:var(--muted);white-space:nowrap}
+.workspace{grid-template-columns:minmax(0,1fr) minmax(290px,342px);gap:12px}
+.workspace.preview-expanded{grid-template-columns:minmax(0,1fr);grid-template-areas:"preview"}
+.project-info{display:flex;flex-direction:column;height:var(--workspace-height);max-height:none;overflow:hidden;padding:0;min-width:0}
+.inspector-top{flex:none;padding:14px 14px 10px;border-bottom:1px solid var(--line);background:var(--panel)}
+.inspector-heading{padding-bottom:12px;align-items:flex-start}.inspector-heading h2{font-size:16px;margin-top:3px}
+.mode-label{font-size:11px;color:#91c9ac;white-space:nowrap;margin-top:4px}
+.inspector-tabs{grid-template-columns:repeat(2,minmax(0,1fr));margin:0;gap:4px;padding:4px}
+.inspector-tabs button{font-size:12px;min-height:36px;white-space:normal;display:flex;align-items:center;justify-content:center;gap:6px}
+.inspector-body{flex:1;min-height:0;min-width:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:12px 14px}
+.inspector-body label{margin:9px 0;font-size:12px}.inspector-body input,.inspector-body select,.inspector-body textarea{padding:9px 10px;margin-top:5px}
+.inspector-footer{flex:none;border-top:1px solid var(--line);padding:12px 14px;background:var(--panel);display:grid;gap:9px;min-width:0}
+.inspector-footer small{font-size:11px;line-height:1.45;color:var(--muted)}
+.footer-caption{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;flex-wrap:wrap}
+.footer-caption span{color:var(--muted);font-size:11px}
+.inspector-footer .decision-actions{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:7px}
+.inspector-footer .compare-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+.inspector-footer button{text-align:center;min-height:38px;padding:8px 7px;font-size:12px}
+.visual-editor{gap:7px;padding:0}.visual-editor>input{margin-top:0}
+.editor-hint{font-size:12px;line-height:1.5;color:var(--muted)}
+.visual-style-controls{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 10px;margin-top:2px}
+.visual-style-controls>.section-heading{grid-column:1/-1}
+.visual-style-controls label{margin:0;min-width:0;line-height:1.35}
+.visual-style-controls select{font-size:12px;padding:8px 5px}
+.visual-color{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px;align-items:end}
+.visual-color input{height:34px;padding:2px}
+.visual-color .text-button{font-size:10px;padding:6px 2px}
+.preview-panel{padding:10px;height:var(--workspace-height)}
+.preview-title{display:grid;gap:2px;min-width:0}.preview-title strong{font-size:13px;font-weight:650}.preview-title small{font-size:11px;color:var(--muted)}
+.toolbar{flex-wrap:wrap;gap:8px;padding:0 2px 10px}.devices button{width:36px;height:34px}.actions{justify-content:flex-end;flex-wrap:wrap}
+.preview-job-status{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);padding:6px 3px 10px}
+.preview-job-status .progress-track{flex:1;margin:0;height:5px;min-width:30px}
+.preview-frame{min-width:0}.studio iframe{width:100%;max-width:100%}
+@container(max-width:1000px){.workspace{grid-template-columns:minmax(0,1fr) minmax(270px,300px)}.preview-title{display:none}.studio-head{margin-bottom:10px}}
+@container(max-width:690px){.workspace{grid-template-columns:minmax(0,1fr);grid-template-areas:"preview" "inspector"}.preview-panel{height:clamp(320px,58dvh,700px)}.project-info{height:auto;max-height:none;overflow:visible}.inspector-body{overflow:visible}.inspector-footer{position:sticky;bottom:0;z-index:2;border-radius:0 0 16px 16px}.project-switcher{flex-wrap:wrap}.project-switcher select{flex:1 1 180px}.preview-title{display:grid}.studio-head-actions{gap:8px}.studio-connection{font-size:11px}}
+@container(max-width:420px){.studio-head-actions{width:100%;justify-content:space-between}.preview-title{display:none}.toolbar{justify-content:space-between}.actions button{font-size:11px;padding:7px 6px}.visual-style-controls{grid-template-columns:minmax(0,1fr)}}
 </style>

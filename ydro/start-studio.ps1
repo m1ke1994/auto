@@ -1,6 +1,6 @@
 # Run from any working directory. Never deletes database volumes.
 [CmdletBinding()]
-param([switch]$SkipBuild, [switch]$Test, [switch]$RestartWatcher)
+param([switch]$SkipBuild, [switch]$Test, [switch]$RestartWatcher, [switch]$RefreshRuntime)
 $ErrorActionPreference = 'Stop'
 Push-Location $PSScriptRoot
 try {
@@ -21,11 +21,18 @@ try {
 
     Write-Host '[1/4] Validate configuration'
     Invoke-StudioCompose config --quiet
-    if ($RestartWatcher) {
+    if ($RestartWatcher -or $RefreshRuntime) {
         $active=@(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'studio-jobs/pending'),(Join-Path $PSScriptRoot 'studio-jobs/running') -Filter '*.json' -File)
         if($active.Count){throw 'Finish queued/running jobs before restarting the Studio worker.'}
         Invoke-StudioCompose stop backend
-        & (Join-Path $PSScriptRoot 'studio-worker.ps1') -Restart
+        if ($RefreshRuntime) {
+            Write-Host '[Runtime] Refresh trusted generator and browser audit images'
+            & docker compose --env-file .env.studio.local -p tracknode20-agent -f docker-compose.openhands.yml build openhands
+            if ($LASTEXITCODE -ne 0) { throw 'Studio agent image build failed; generation remains disabled until startup succeeds.' }
+            & docker build -t tracknode-studio-audit -f docker/studio-audit/Dockerfile docker/studio-audit
+            if ($LASTEXITCODE -ne 0) { throw 'Studio audit image build failed; generation remains disabled until startup succeeds.' }
+        }
+        if ($RestartWatcher) { & (Join-Path $PSScriptRoot 'studio-worker.ps1') -Restart }
     }
     if (-not $SkipBuild) {
         Write-Host '[2/4] Build backend and frontend'

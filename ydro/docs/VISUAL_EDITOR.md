@@ -60,3 +60,13 @@ real watcher, manual, technical and progress scripts with fixture Docker
 commands; it checks dispatch, stage transitions, successful candidate metadata,
 original archive/preview preservation and invalid-stage rejection. It does not
 replace a real local Docker build and audit.
+
+## Workspace layout
+
+The selected project uses a compact project selector, independent preview and
+inspector areas, persistent mode tabs and a separate action footer. Text/style
+controls scroll without hiding save/accept actions. The preview has desktop,
+tablet, phone and expanded modes; narrow containers stack instead of forcing
+a horizontal layout. The real Vue fixture checks footer bounds, preview
+expansion, tablet width and narrow-screen overflow. Existing API contracts and
+version/candidate safety remain unchanged.
