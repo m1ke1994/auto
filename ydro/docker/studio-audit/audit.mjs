@@ -12,6 +12,8 @@ const expectedModels=modelDirs.map(dir=>'tn-models/'+dir+'/model.gltf');
 report.expectedModels=expectedModels;
 const sceneContract=await readFile(resolve(root,'tn-scene-contract.json'),'utf8').then(JSON.parse).catch(()=>null);
 report.sceneEngine=sceneContract?.version||0;
+const carouselContract=await readFile(resolve(root,'tn-carousel-contract.json'),'utf8').then(JSON.parse).catch(()=>null);
+report.carouselRuntime=carouselContract?.version||0;
 const contactContract=await readFile(resolve(root,'tn-contact-contract.json'),'utf8').then(JSON.parse).catch(()=>null);
 const capture=createCapture(report);
 let browser;
@@ -282,6 +284,7 @@ try {
       const c=carousels.nth(i);
       const track=c.locator('[data-tn-carousel-track]');
       let ok=false;
+      const details={index:i,ok:false,stage:'initial',reason:null};
       try {
         if(!await c.isVisible())throw Error('Carousel not visible');
         await c.scrollIntoViewIfNeeded({timeout:3000});
@@ -289,8 +292,17 @@ try {
         await track.evaluate(el=>el.scrollTo({left:0,behavior:'instant'}));
         await page.waitForTimeout(150);
         const before=await track.evaluate(el=>el.scrollLeft);
+        const modern=carouselContract?.version===2||await c.getAttribute('data-tn-carousel-runtime')==='2';
+        details.runtime=modern?2:1;
+        if(modern){
+          details.stage='scrollbar';
+          details.layout=await track.evaluate(el=>({width:el.clientWidth,scrollWidth:el.scrollWidth,scrollbar:getComputedStyle(el).scrollbarWidth,webkitDisplay:getComputedStyle(el,'::-webkit-scrollbar').display}));
+          if(details.layout.scrollbar!=='none'&&details.layout.webkitDisplay!=='none')throw Error('Visible horizontal carousel scrollbar');
+          if(await c.getAttribute('data-tn-carousel-runtime')!=='2')throw Error('Trusted carousel runtime missing');
+        }
+        details.stage='buttons';
         const button=c.locator('[data-tn-carousel-next]');
-        if(count>=3&&await button.isEnabled()){
+        if(count>=(sceneContract?.version===1?3:2)&&await button.isEnabled()){
           await button.click({timeout:3000});
           await page.waitForFunction(({i,before})=>{
             const node=document.querySelectorAll('[data-tn-carousel]')[i];
@@ -298,9 +310,37 @@ try {
           },{i,before},{timeout:3500});
           ok=true;
         }
+        if(modern){
+          if(!ok&&count>1)throw Error('Next button did not advance');
+          if(count>1){
+            details.stage='wheel';
+            await track.evaluate(el=>el.scrollTo({left:0,behavior:'instant'}));
+            await page.waitForFunction(i=>Number(document.querySelectorAll('[data-tn-carousel]')[i]?.dataset.tnActive)===0,i,{timeout:3500});
+            await track.hover({timeout:3000});
+            await page.mouse.wheel(0,180);
+            await page.waitForFunction(i=>Number(document.querySelectorAll('[data-tn-carousel]')[i]?.dataset.tnActive)>0,i,{timeout:3500});
+            details.wheel=true;
+            details.stage='keyboard';
+            await track.focus();
+            await track.press('Home');
+            await page.waitForFunction(i=>Number(document.querySelectorAll('[data-tn-carousel]')[i]?.dataset.tnActive)===0,i,{timeout:3500});
+            details.keyboard=true;
+          }
+          if(count===1&&!sceneContract?.carousel)ok=true;
+        }
         await track.evaluate(el=>el.scrollTo({left:0,behavior:'instant'}));
-      }catch{}
-      sceneDiagnostics.carousels.push({index:i,ok});
+        details.stage='complete';
+      }catch(error){ok=false;details.reason=String(error).slice(0,400);}
+      sceneDiagnostics.carousels.push({...details,ok});
+    }
+    // New exports must not introduce custom visible horizontal scrollers.
+    // Report the precise element, not merely the document's overflow status.
+    if(carouselContract?.version===2){
+      sceneDiagnostics.visibleHorizontalScrollbars=await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(el=>{
+        if(!el.getClientRects().length||el.clientWidth===0||el.scrollWidth-el.clientWidth<=2)return false;
+        const s=getComputedStyle(el);
+        return ['auto','scroll'].includes(s.overflowX)&&s.scrollbarWidth!=='none'&&getComputedStyle(el,'::-webkit-scrollbar').display!=='none';
+      }).slice(0,20).map(el=>({tag:el.tagName.toLowerCase(),id:el.id||'',className:typeof el.className==='string'?el.className.slice(0,120):'',width:el.clientWidth,scrollWidth:el.scrollWidth})));
     }
     for(let i=0;i<Math.min(await stories.count(),6);i++){
       const story=stories.nth(i),chapters=story.locator('[data-tn-story-chapter]');
@@ -501,6 +541,10 @@ try {
       }
       if(sceneContract?.version===1||sceneDiagnostics.carousels.length) checks.carouselControls=sceneDiagnostics.carousels.length>0&&sceneDiagnostics.carousels.every(x=>x.ok);
       if(sceneContract?.version===1||sceneDiagnostics.stories.length) checks.storyProgress=sceneDiagnostics.stories.length>0&&sceneDiagnostics.stories.every(x=>x.ok);
+    }
+    if(carouselContract?.version===2){
+      checks.noVisibleHorizontalScrollbars=sceneDiagnostics.visibleHorizontalScrollbars.length===0;
+      checks.carouselRuntime=await carousels.count()<=6&&sceneDiagnostics.carousels.every(x=>x.runtime===2&&x.ok);
     }
     report.checks.push({name,checks,film:{enabled:isFilm,pinned:pinnedFilm,compact:compactFilm,smooth:smoothFilm,stableCamera,product:productFilm||directedFilm},metrics:result,sections,navigation,heroFraming,heroObject,aboutMetrics,steps,filmSamples,filmIdle,filmRelease,shortFilm,tabletFilm,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
     await context.close();

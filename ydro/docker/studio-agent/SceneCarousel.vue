@@ -11,7 +11,7 @@ const modes=['narrative','horizontal','stack','showcase','chapter','editorial']
 const variant=computed(()=>modes.includes(props.mode)?props.mode:'horizontal')
 const slides=computed(()=>props.items.slice(0,12))
 const track=ref(null),active=ref(0)
-let observer,raf=0,query
+let observer,raf=0,query,wheelUntil=0,wheelDirection=0
 const children=()=>Array.from(track.value?.children||[]).filter(e=>e.hasAttribute('data-tn-slide'))
 function measure(){
   raf=0
@@ -25,7 +25,7 @@ function measure(){
   if(el.scrollLeft>=el.scrollWidth-el.clientWidth-2){active.value=list.length-1;return}
   let closest=Infinity
   list.forEach((child,i)=>{
-    const r=child.getBoundingClientRect(),d=Math.abs(r.left+r.width/2-center)
+    const d=Math.abs(rect.left+child.offsetLeft-el.scrollLeft+child.offsetWidth/2-center)
     if(d<closest){closest=d;active.value=i}
   })
 }
@@ -34,9 +34,25 @@ function go(index){
   const el=track.value,list=children()
   if(!el||!list.length)return
   const i=Math.max(0,Math.min(list.length-1,index))
-  const r=list[i].getBoundingClientRect(),t=el.getBoundingClientRect()
-  const left=el.scrollLeft+r.left-t.left-(el.clientWidth-r.width)/2
+  const child=list[i]
+  const left=child.offsetLeft-(el.clientWidth-child.offsetWidth)/2
   el.scrollTo({left:Math.max(0,Math.min(el.scrollWidth-el.clientWidth,left)),behavior:query?.matches?'instant':'smooth'})
+  schedule()
+}
+// Wheel is handled locally, never on window/document. Horizontal trackpads,
+// touch and Shift+wheel keep native scrolling. Release vertical scroll at edges.
+function wheel(event){
+  const el=track.value
+  if(!el||slides.value.length<2||event.ctrlKey||event.metaKey||event.shiftKey||event.defaultPrevented||!event.cancelable)return
+  if(Math.abs(event.deltaX)>=Math.abs(event.deltaY)||!event.deltaY)return
+  if(event.target instanceof Element&&event.target.closest('input,textarea,select,[contenteditable=true]'))return
+  const direction=Math.sign(event.deltaY),max=el.scrollWidth-el.clientWidth
+  if(max<=2||(direction<0&&el.scrollLeft<=2)||(direction>0&&el.scrollLeft>=max-2))return
+  event.preventDefault()
+  const now=performance.now()
+  if(now<wheelUntil&&direction===wheelDirection)return
+  wheelUntil=now+420;wheelDirection=direction
+  go(active.value+direction)
 }
 function key(event){
   if(event.key==='ArrowRight'){event.preventDefault();go(active.value+1)}
@@ -46,14 +62,15 @@ function key(event){
 }
 onMounted(()=>{
   query=matchMedia('(prefers-reduced-motion: reduce)')
-  observer=new ResizeObserver(schedule);observer.observe(track.value)
+  if(typeof ResizeObserver==='function'){observer=new ResizeObserver(schedule);observer.observe(track.value)}
+  track.value?.addEventListener('wheel',wheel,{passive:false})
   schedule()
 })
-onBeforeUnmount(()=>{observer?.disconnect();cancelAnimationFrame(raf)})
+onBeforeUnmount(()=>{track.value?.removeEventListener('wheel',wheel);observer?.disconnect();cancelAnimationFrame(raf)})
 </script>
 
 <template>
-  <div class="tn-carousel" :class="'tn-carousel--'+variant" data-tn-carousel :data-tn-carousel-mode="variant" :data-tn-active="active" :aria-label="label" role="region">
+  <div class="tn-carousel" :class="'tn-carousel--'+variant" data-tn-carousel data-tn-carousel-runtime="2" :data-tn-carousel-mode="variant" :data-tn-active="active" :aria-label="label" role="region">
     <div v-if="slides.length>1" class="tn-carousel-controls">
       <span class="tn-carousel-count" aria-live="polite">{{ String(active+1).padStart(2,'0') }} / {{ String(slides.length).padStart(2,'0') }}</span>
       <div class="tn-carousel-dots">
@@ -78,8 +95,9 @@ onBeforeUnmount(()=>{observer?.disconnect();cancelAnimationFrame(raf)})
 </template>
 
 <style scoped>
-.tn-carousel{width:100%;min-width:0;--tn-slide-width:76%;--tn-slide-gap:clamp(12px,2.5vw,32px)}
-.tn-carousel-track{display:flex;position:relative;direction:ltr;align-items:stretch;gap:var(--tn-slide-gap);overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;overscroll-behavior-inline:contain;scrollbar-width:thin;padding:8px 0 20px;box-sizing:border-box}
+.tn-carousel{width:100%;max-width:100%;min-width:0;--tn-slide-width:76%;--tn-slide-gap:clamp(12px,2.5vw,32px)}
+.tn-carousel-track{display:flex;position:relative;direction:ltr;align-items:stretch;gap:var(--tn-slide-gap);overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;overscroll-behavior-inline:contain;scrollbar-width:none!important;-ms-overflow-style:none;max-width:100%;min-width:0;width:100%;padding:8px 0 20px;box-sizing:border-box;touch-action:pan-x pan-y}
+.tn-carousel-track::-webkit-scrollbar{display:none!important;width:0!important;height:0!important}
 .tn-carousel-track::before,.tn-carousel-track::after{content:'';flex:0 0 max(0px,calc((100% - var(--tn-slide-width))/2 - var(--tn-slide-gap)))}
 .tn-carousel-slide{flex:0 0 var(--tn-slide-width);min-width:0;box-sizing:border-box;scroll-snap-align:center;border-radius:var(--tn-slide-radius,22px);overflow:hidden;background:var(--tn-slide-bg,transparent)}
 .tn-carousel-copy{padding:clamp(16px,3vw,36px)}
@@ -94,7 +112,7 @@ onBeforeUnmount(()=>{observer?.disconnect();cancelAnimationFrame(raf)})
 .tn-carousel-dots button{min-width:24px;min-height:24px;border:0;position:relative}
 .tn-carousel-dots button::after{content:'';position:absolute;inset:8px;border-radius:999px;background:currentColor;opacity:.35}
 .tn-carousel-dots button[aria-current=true]::after{opacity:1}
-.tn-carousel-track:focus-visible,.tn-carousel-controls button:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.tn-carousel-track:focus-visible{outline:2px solid currentColor;outline-offset:-2px}.tn-carousel-controls button:focus-visible{outline:2px solid currentColor;outline-offset:2px}
 .tn-carousel--narrative{--tn-slide-width:100%;--tn-slide-radius:0px}
 .tn-carousel--narrative .tn-carousel-copy{min-height:clamp(280px,55vh,520px);display:flex;flex-direction:column;justify-content:center}
 .tn-carousel--horizontal{--tn-slide-width:70%}

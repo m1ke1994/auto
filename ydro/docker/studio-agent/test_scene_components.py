@@ -7,6 +7,23 @@ STORY=(ROOT/"SceneStory.vue").read_text(encoding="utf-8")
 METRICS=(ROOT/"AboutMetrics.vue").read_text(encoding="utf-8")
 
 class SceneComponentTests(unittest.TestCase):
+    def test_carousel_is_trusted_and_exported_for_every_profile(self):
+        import json, tempfile, zipfile
+        from site_store import SiteStore, RESERVED
+        carousel=(ROOT/"SceneCarousel.vue").read_text(encoding="utf-8")
+        for token in ('data-tn-carousel-runtime="2"', 'scrollbar-width:none', '::-webkit-scrollbar', 'passive:false', 'event.cancelable', 'el.scrollLeft>=max-2'):
+            self.assertIn(token,carousel)
+        self.assertIn("src/components/SceneCarousel.vue",RESERVED)
+        s=SiteStore()
+        s.write("src/App.vue","<template><main><h1>Example</h1></main></template>")
+        s.write("src/style.css","main{color:red}")
+        with tempfile.TemporaryDirectory() as d:
+            output=Path(d)/"site.zip"
+            s.export(output,"test")
+            with zipfile.ZipFile(output) as z:
+                self.assertEqual(z.read("src/components/SceneCarousel.vue").decode(),carousel)
+                self.assertEqual(json.loads(z.read("public/tn-carousel-contract.json"))["version"],2)
+
     def test_about_metrics_is_trusted_accessible_and_motion_safe(self):
         for token in ("data-tn-about-metrics", "data-tn-metric-state", "ScrollTrigger.create", "once: props.once", "prefers-reduced-motion:reduce", "metric.current = metric.target", "tn-metric-digit-track"):
             self.assertIn(token,METRICS)

@@ -8,3 +8,5 @@
 - Check PowerShell syntax, Django migrations, backend tests, Vue build, worker recovery, agent patch tests and real browser checks. Inspect screenshot artifacts for UI changes; a green build alone is not visual acceptance.
 - Use only the workspace's Docker/Studio services, no destructive cleanup. Do not print .env, tokens, credentials or full resolved compose configs.
 - Keep tests and docs current. Record exact commit and actual verification evidence, list remaining limitations. Do not mark an unexecuted local integration test as passed.
+
+- Every generated gallery/slider uses trusted SceneCarousel. Hide only internal horizontal scrollbar chrome; preserve native touch/trackpad, keyboard and buttons. Wheel is local to the track and releases page scrolling at boundaries. Never hide document overflow to mask defects. Inspect carousel diagnostics in quality-report.json.

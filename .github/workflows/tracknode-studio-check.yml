@@ -49,7 +49,7 @@ jobs:
       - run: python manage.py check
       - run: python manage.py makemigrations ai_builder --check --dry-run
       - run: python manage.py test ai_builder --noinput --verbosity 2
-      - run: python -m unittest -v test_block_edit
+      - run: python -m unittest -v test_block_edit test_scene_components
         working-directory: ydro/docker/studio-agent
   frontend:
     runs-on: ubuntu-latest
@@ -115,3 +115,26 @@ jobs:
         with:
           name: studio-visual-browser-report
           path: ${{ runner.temp }}/tn-browser-report
+  carousel-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+        working-directory: ydro/vue-admin
+      - run: |
+          mkdir -p "$RUNNER_TEMP/tn-carousel"
+          npm install --prefix "$RUNNER_TEMP/tn-carousel" --no-audit --no-fund playwright@1.64.1
+          "$RUNNER_TEMP/tn-carousel/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Test shared Vue carousel in Chromium
+        working-directory: ydro
+        run: |
+          cp studio-e2e/carousel-browser.mjs "$RUNNER_TEMP/tn-carousel/"
+          TN_VUE_ROOT="$PWD/vue-admin" TN_CAROUSEL_SOURCE="$PWD/docker/studio-agent/SceneCarousel.vue" TN_CAROUSEL_ENTRY="$PWD/studio-e2e/carousel-entry.mjs" TN_BROWSER_REPORT="$RUNNER_TEMP/tn-carousel-report" node "$RUNNER_TEMP/tn-carousel/carousel-browser.mjs"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: studio-carousel-report
+          path: ${{ runner.temp }}/tn-carousel-report

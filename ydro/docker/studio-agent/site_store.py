@@ -246,6 +246,8 @@ export function installContacts(){
             trusted["src/main.js"] += "import {installContacts} from './tn-contacts.js';\ninstallContacts();\n"
         if self.storyboard:
             trusted["STORYBOARD.json"]=json.dumps(self.storyboard,ensure_ascii=False,indent=2)
+        # New exports declare the shared carousel behavior independently of profile.
+        trusted["public/tn-carousel-contract.json"]=json.dumps({"version":2,"hiddenScrollbar":True,"wheel":True})
         if self.scene_required:
             trusted["public/tn-scene-contract.json"]=json.dumps({"version":1,"carousel":True,"story":True,"heroPreset":self.hero_preset})
         if self.design_brief:

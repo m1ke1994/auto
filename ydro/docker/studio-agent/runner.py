@@ -326,6 +326,7 @@ def main():
             print("STUDIO_STAGE: existing source restored for targeted repair",flush=True)
         if not args.repair:
             STORE.scene_required=args.profile=="cinema"
+        prompt += "\nGLOBAL CAROUSEL CONTRACT: use the trusted SceneCarousel for every slider, gallery, review or horizontal card sequence in every profile. Never implement a competing horizontal scroller or wheel listener; no visible native horizontal scrollbar. Keep the track responsive and preserve its previous/next buttons, dots, native touch/trackpad and keyboard behavior. Vertical wheel over the track moves slides and releases the page at either edge. Style slide content and the documented CSS variables, not the trusted track overflow, scroll snap, scrollbar or controls. Do not mask page overflow with global overflow-x:hidden; fix the offending layout."
         if STORE.scene_required:
             prompt += "\nMANDATORY SCENE CONTRACT: save validated storyboard JSON using storyboard before writing, and render SceneCarousel and SceneStory in middle chapters. Preserve an existing storyboard during repair; read its summary below. " + (json.dumps(STORE.storyboard,ensure_ascii=False) if STORE.storyboard else "Create a new storyboard.")
         elif args.repair:
