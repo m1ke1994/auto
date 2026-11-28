@@ -329,10 +329,10 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value.split('?
         <div v-if="visualField&&visualField.styles!==null" class="visual-style-controls">
           <div class="section-heading"><span>Оформление</span></div>
           <div v-for="key in visualCatalog.color_properties" :key="key" class="visual-color">
-            <label>{{styleLabels[key]}}<input type="color" :value="currentVisualStyles[key]||'#ffffff'" @input="setVisualStyle(key,$event.target.value)"></label>
+            <label>{{styleLabels[key]}}<input type="color" :aria-label="styleLabels[key]" :value="currentVisualStyles[key]||'#ffffff'" @input="setVisualStyle(key,$event.target.value)"></label>
             <button type="button" class="text-button" :disabled="!currentVisualStyles[key]" @click="setVisualStyle(key,'')">Авто</button>
           </div>
-          <label v-for="(choices,key) in visualCatalog.style_choices" :key="key">{{styleLabels[key]}}<select :value="currentVisualStyles[key]||''" @change="setVisualStyle(key,$event.target.value)"><option value="">Как в дизайне</option><option v-for="choice in choices" :key="choice" :value="choice">{{styleValueLabels[choice]||choice}}</option></select></label>
+          <label v-for="(choices,key) in visualCatalog.style_choices" :key="key">{{styleLabels[key]}}<select :aria-label="styleLabels[key]" :value="currentVisualStyles[key]||''" @change="setVisualStyle(key,$event.target.value)"><option value="">Как в дизайне</option><option v-for="choice in choices" :key="choice" :value="choice">{{styleValueLabels[choice]||choice}}</option></select></label>
         </div>
         <p v-else-if="visualField" class="muted">Собственные стили элемента защищены. Можно изменить текст.</p>
         <p v-if="visualNote" class="muted" role="status">{{visualNote}}</p>
