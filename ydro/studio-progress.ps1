@@ -1,7 +1,7 @@
 # Real phase transitions, not a timer-based percentage. No output on the success stream.
 function Write-StudioProgress([string]$ProgressFile,[string]$Stage) {
     if ([string]::IsNullOrWhiteSpace($ProgressFile)) { return }
-    if ($Stage -notin @('preparing','assets','generating','building','auditing','visual-review','finalizing')) { throw 'Unknown Studio stage' }
+    if ($Stage -notin @('preparing','assets','generating','read_job','read_archive','ai_request','decode_response','decode_patch','validate_patch','write_archive','building','auditing','visual-review','finalizing')) { throw 'Unknown Studio stage' }
     $state=Get-Content -LiteralPath $ProgressFile -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($state.status -ne 'running') { throw 'Cannot update an inactive Studio job' }
     $state.stage=$Stage

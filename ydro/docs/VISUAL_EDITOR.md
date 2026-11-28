@@ -51,3 +51,12 @@ transport failures show a local warning without discarding the draft. CI
 also mounts the actual StudioView component in Vite, drives its text/style
 controls in Chromium, checks the iframe and validates the mocked save request.
 This complements (does not replace) end-to-end Docker/project acceptance.
+
+## Manual worker stage regression
+
+The shared progress writer accepts the editor's validate_patch stage and the
+other defined block edit milestones. The Windows manual smoke test runs the
+real watcher, manual, technical and progress scripts with fixture Docker
+commands; it checks dispatch, stage transitions, successful candidate metadata,
+original archive/preview preservation and invalid-stage rejection. It does not
+replace a real local Docker build and audit.

@@ -80,6 +80,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: .\studio-validate-scripts.ps1
       - run: .\studio-worker-smoke.ps1
+      - run: .\studio-manual-smoke.ps1
   visual-browser:
     runs-on: ubuntu-latest
     steps:
