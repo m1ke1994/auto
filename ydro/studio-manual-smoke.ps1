@@ -7,7 +7,7 @@ $tmp=Join-Path ([IO.Path]::GetTempPath()) ('tn-manual-test-'+[guid]::NewGuid().T
 $oldLocation=Get-Location
 try{
     $null=New-Item -ItemType Directory -Path $tmp
-    foreach($name in @('studio-watch.ps1','studio-worker-io.ps1','studio-validate-scripts.ps1','studio-manual-edit.ps1','studio-technical.ps1','studio-progress.ps1')){
+    foreach($name in @('studio-watch.ps1','studio-worker-io.ps1','studio-validate-scripts.ps1','studio-manual-edit.ps1','studio-technical.ps1','studio-progress.ps1','start-studio.ps1')){
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $tmp
     }
     . (Join-Path $tmp 'studio-worker-io.ps1')
