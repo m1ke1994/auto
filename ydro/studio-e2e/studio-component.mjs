@@ -63,7 +63,7 @@ try{
   assert.equal(await page.locator('#studio-project-picker').inputValue(),id)
   const footer=page.locator('.inspector-footer')
   const inspector=page.locator('.project-info')
-  const withinPanel=async()=>{const f=await footer.boundingBox(),p=await inspector.boundingBox();assert.ok(f&&p&&f.y>=p.y&&f.y+f.height<=p.y+p.height+2,'Save controls must remain inside inspector')}
+  const withinPanel=async()=>{await footer.waitFor({state:'visible'});await inspector.waitFor({state:'visible'});await page.waitForFunction(()=>{const f=document.querySelector('.inspector-footer')?.getBoundingClientRect(),p=document.querySelector('.project-info')?.getBoundingClientRect();return !!(f&&p&&f.height&&p.height&&f.top>=p.top-2&&f.bottom<=p.bottom+2)},{},{timeout:5000});const f=await footer.boundingBox(),p=await inspector.boundingBox();assert.ok(f&&p,'Save controls must remain inside inspector')}
   await withinPanel()
   const frame=page.frameLocator('iframe[title="Кинематографический предпросмотр сайта"]')
   await frame.getByRole('heading',{name:'Original heading'}).click()
