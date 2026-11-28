@@ -47,7 +47,10 @@ function wheel(event){
   if(Math.abs(event.deltaX)>=Math.abs(event.deltaY)||!event.deltaY)return
   if(event.target instanceof Element&&event.target.closest('input,textarea,select,[contenteditable=true]'))return
   const direction=Math.sign(event.deltaY),max=el.scrollWidth-el.clientWidth
-  if(max<=2||(direction<0&&el.scrollLeft<=2)||(direction>0&&el.scrollLeft>=max-2))return
+  // A full-width slide can be centered a few pixels before the physical
+  // scroll limit (the trailing gap). Use the selected slide as well as the
+  // pixel edge, otherwise wheel input can be trapped on that final slide.
+  if(max<=2||(direction<0&&(active.value===0||el.scrollLeft<=2))||(direction>0&&(active.value===slides.value.length-1||el.scrollLeft>=max-2)))return
   event.preventDefault()
   const now=performance.now()
   if(now<wheelUntil&&direction===wheelDirection)return

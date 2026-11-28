@@ -19,6 +19,7 @@ try{
     page=await browser.newPage({viewport:{width,height},reducedMotion:'reduce'})
     page.on('pageerror',e=>errors.push(String(e)))
     for(const mode of ['narrative','horizontal','stack','showcase','chapter','editorial']){
+      console.log('CAROUSEL_CASE',width,height,mode)
       await page.goto('http://127.0.0.1:8002/__carousel_test.html?mode='+mode)
       const carousel=page.locator('[data-tn-carousel]'),track=page.locator('[data-tn-carousel-track]')
       await carousel.waitFor()
@@ -34,10 +35,10 @@ try{
       await track.hover()
       const before=await page.evaluate(()=>scrollY)
       await page.mouse.wheel(0,300)
-      await page.waitForFunction(y=>scrollY>y+5,before)
+      await page.waitForFunction(y=>scrollY>y+5,before,{timeout:5000})
       await track.focus();await track.press('Home');await active(0)
       await track.hover();const upper=await page.evaluate(()=>scrollY)
-      await page.mouse.wheel(0,-300);await page.waitForFunction(y=>scrollY<y-5,upper)
+      await page.mouse.wheel(0,-300);await page.waitForFunction(y=>scrollY<y-5,upper,{timeout:5000})
       await carousel.scrollIntoViewIfNeeded()
       if(mode==='horizontal')await page.screenshot({path:path.join(report,'carousel-'+width+'.png')})
     }
@@ -45,6 +46,14 @@ try{
   }
   assert.deepEqual(errors,[])
   console.log('STUDIO_CAROUSEL_BROWSER_OK: 6 modes x 3 viewports')
+}catch(error){
+  if(page){
+    const diagnostics=await page.evaluate(()=>{const el=document.querySelector('[data-tn-carousel-track]');return {pageY:scrollY,pageMax:document.documentElement.scrollHeight-innerHeight,active:document.querySelector('[data-tn-carousel]')?.dataset.tnActive,left:el?.scrollLeft,max:el?el.scrollWidth-el.clientWidth:null,rect:el?.getBoundingClientRect().toJSON()}}).catch(()=>null)
+    console.error('CAROUSEL_FAILURE',diagnostics)
+    await fs.writeFile(path.join(report,'carousel-failure.json'),JSON.stringify({error:String(error),diagnostics},null,2))
+    await page.screenshot({path:path.join(report,'carousel-failure.png')}).catch(()=>{})
+  }
+  throw error
 }finally{
   if(browser)await browser.close()
   if(vite)vite.kill()

@@ -13,3 +13,5 @@ The generator and audit Docker images must be rebuilt before new generation.
 CI exercises the actual Vue component at desktop/tablet/mobile widths across
 all six modes. Real touch hardware and existing project migration are separate
 acceptance tasks.
+
+Boundary release uses the selected first/last slide as well as physical scroll limits, because full-width slides can be centered before the last spacer gap. Browser failure artifacts contain active slide, position, page/track limits and a screenshot.

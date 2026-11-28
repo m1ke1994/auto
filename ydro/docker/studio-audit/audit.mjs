@@ -280,7 +280,7 @@ try {
     const carousels=page.locator('[data-tn-carousel]');
     const stories=page.locator('[data-tn-story]');
     // Test the actual trusted controls, independently of sampled whole-page screenshots.
-    for(let i=0;i<Math.min(await carousels.count(),6);i++){
+    for(let i=0;i<Math.min(await carousels.count(),12);i++){
       const c=carousels.nth(i);
       const track=c.locator('[data-tn-carousel-track]');
       let ok=false;
@@ -544,7 +544,7 @@ try {
     }
     if(carouselContract?.version===2){
       checks.noVisibleHorizontalScrollbars=sceneDiagnostics.visibleHorizontalScrollbars.length===0;
-      checks.carouselRuntime=await carousels.count()<=6&&sceneDiagnostics.carousels.every(x=>x.runtime===2&&x.ok);
+      checks.carouselRuntime=await carousels.count()<=12&&sceneDiagnostics.carousels.every(x=>x.runtime===2&&x.ok);
     }
     report.checks.push({name,checks,film:{enabled:isFilm,pinned:pinnedFilm,compact:compactFilm,smooth:smoothFilm,stableCamera,product:productFilm||directedFilm},metrics:result,sections,navigation,heroFraming,heroObject,aboutMetrics,steps,filmSamples,filmIdle,filmRelease,shortFilm,tabletFilm,sceneDiagnostics,storyVisualLayouts,errors:errors.slice(0,20),missing:missing.slice(0,20),blocked:blocked.slice(0,20)});
     await context.close();
