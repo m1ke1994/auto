@@ -6,9 +6,14 @@ import json
 import tempfile
 from pathlib import Path
 
-@override_settings(STUDIO_DEMO_ENABLED=True, STUDIO_AI_PROVIDER='demo')
+@override_settings(STUDIO_DEMO_ENABLED=True, STUDIO_AI_PROVIDER='demo', STUDIO_WORKER_REQUIRED=False)
 class StudioTests(APITestCase):
     def setUp(self):
+        # Never read or write a live Windows worker's queue during API tests.
+        # Tests of the worker gate explicitly enable it and provide their own heartbeat.
+        sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(override_settings(STUDIO_JOB_ROOT=str(sandbox / 'jobs'),
+                                            STUDIO_OUTPUT_ROOT=str(sandbox / 'output')))
         User = get_user_model()
         self.a = User.objects.create_user(username="studio-a", password="test-password")
         self.b = User.objects.create_user(username="studio-b", password="test-password")
@@ -441,7 +446,29 @@ class StudioTests(APITestCase):
             self.assertFalse(worker_health()["visual_available"])
             (root/"watcher-ready.json").write_text(json.dumps({"protocol":1,"pid":123,"features":["visual-text-v1"]}))
             self.assertTrue(worker_health()["visual_available"])
+            self.assertFalse(worker_health()["visual_style_available"])
+            self.assertFalse(worker_health()["scope_edit_available"])
+            (root/"watcher-ready.json").write_text(json.dumps({"protocol":1,"pid":123,"features":["visual-text-v1","visual-style-v1","scope-edit-v2"]}))
+            self.assertTrue(worker_health()["visual_style_available"])
+            self.assertTrue(worker_health()["scope_edit_available"])
 
+    @override_settings(STUDIO_CINEMATIC_ENABLED=True, STUDIO_WORKER_REQUIRED=True)
+    def test_editor_endpoints_reject_offline_worker_without_queueing(self):
+        import zipfile
+        from django.conf import settings
+        from .models import Project
+        root=Path(settings.STUDIO_OUTPUT_ROOT)/"original"
+        (root/"dist").mkdir(parents=True)
+        (root/"dist"/"index.html").write_text("original")
+        with zipfile.ZipFile(root/"tracknode-agent-site.zip","w") as archive:
+            archive.writestr("tracknode-agent.json",json.dumps({"engine":"openhands-sdk"}))
+            archive.writestr("src/App.vue",'<template><section id="home" data-tn-section="home"><h1>Title</h1></section></template>')
+        p=Project.objects.create(owner=self.a,name="Offline",prompt="Test",engine="cinematic",run_directory="original")
+        url=f"/api/studio/projects/{p.id}/"
+        self.assertEqual(self.client.post(url+"blocks/home/regenerate/",{},format="json").status_code,503)
+        self.assertEqual(self.client.post(url+"visual-save/",{},format="json").status_code,503)
+        self.assertFalse(p.block_edits.exists())
+        self.assertFalse((Path(settings.STUDIO_JOB_ROOT)/"pending").exists())
 
     def test_visual_style_allowlist_and_repeat_edit(self):
         from .manual_edit import apply_changes, fingerprint, public_fields, ManualEditError

@@ -33,6 +33,8 @@ jobs:
       STUDIO_AI_PROVIDER: demo
       STUDIO_DEMO_ENABLED: "1"
       STUDIO_CINEMATIC_ENABLED: "1"
+      # Match the local Docker runtime; tests isolate their own worker fixtures.
+      STUDIO_WORKER_REQUIRED: "1"
       RUN_SEED_DEMO_DATA: "0"
       RUN_SEED_TRACKNODE_SITE: "0"
       RUN_SEED_MY_PORTFOLIO_SITE: "0"

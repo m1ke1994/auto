@@ -29,3 +29,13 @@ An interrupted job with its own result file, a local source ZIP, a built index
 and valid technical/visual marker is finalized rather than retried. Other
 interrupted jobs are marked failed; terminal records are left unchanged.
 The offline Windows smoke test covers these cases using a temporary workspace.
+
+## Test isolation
+
+The local Compose runtime requires a live worker heartbeat. API tests use
+private temporary job/output roots and explicitly disable the live-worker
+requirement except in dedicated gate tests, which enable it and supply
+controlled heartbeat fixtures. CI enables STUDIO_WORKER_REQUIRED=1 to match
+the local runtime and catch environment-dependent regressions. The running
+application retains the worker gate unchanged; a passing isolated API suite
+is not proof of actual Windows/Docker worker connectivity.
