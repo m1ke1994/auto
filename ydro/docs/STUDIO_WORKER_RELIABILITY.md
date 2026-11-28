@@ -39,3 +39,7 @@ controlled heartbeat fixtures. CI enables STUDIO_WORKER_REQUIRED=1 to match
 the local runtime and catch environment-dependent regressions. The running
 application retains the worker gate unchanged; a passing isolated API suite
 is not proof of actual Windows/Docker worker connectivity.
+
+## Runtime image refresh
+
+The agent Docker context uses an explicit allowlist. Every new Dockerfile COPY source must be included. CI now builds the actual agent, audit and site-builder images; source-only unit tests do not validate Docker context. Refresh builds both new images under temporary tags before stopping the backend. After a second idle-queue check it stops enqueueing, rechecks pending/running jobs and promotes the images. On a failed promotion it attempts to restore previous tags and restart the existing backend. No volumes are removed. A Windows fixture test covers failed agent/audit staging and failed tag promotion. Real local Docker acceptance is still required.

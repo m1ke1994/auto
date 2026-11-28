@@ -10,3 +10,5 @@
 - Keep tests and docs current. Record exact commit and actual verification evidence, list remaining limitations. Do not mark an unexecuted local integration test as passed.
 
 - Every generated gallery/slider uses trusted SceneCarousel. Hide only internal horizontal scrollbar chrome; preserve native touch/trackpad, keyboard and buttons. Wheel is local to the track and releases page scrolling at boundaries. Never hide document overflow to mask defects. Inspect carousel diagnostics in quality-report.json.
+
+- When changing a Dockerfile or runtime file, check `.dockerignore` and build the actual agent/audit/builder images. Do not equate source-only tests with a successful container build. Keep the existing backend online during staged runtime builds; report failures and verify recovery.

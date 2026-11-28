@@ -9,6 +9,7 @@ on:
       - 'ydro/vue-admin/**'
       - 'ydro/docker/studio-agent/**'
       - 'ydro/docker/studio-audit/**'
+      - 'ydro/docker/studio-build/**'
       - 'ydro/studio-e2e/**'
       - 'ydro/studio-*.ps1'
       - 'ydro/start-studio.ps1'
@@ -81,6 +82,7 @@ jobs:
       - run: .\studio-validate-scripts.ps1
       - run: .\studio-worker-smoke.ps1
       - run: .\studio-manual-smoke.ps1
+      - run: .\studio-runtime-refresh-smoke.ps1
   visual-browser:
     runs-on: ubuntu-latest
     steps:
@@ -138,3 +140,16 @@ jobs:
         with:
           name: studio-carousel-report
           path: ${{ runner.temp }}/tn-carousel-report
+  runtime-docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build actual agent image (includes agent unit tests)
+        run: docker build -t tn-ci-agent -f ydro/docker/studio-agent/Dockerfile ydro/docker/studio-agent
+      - name: Verify installed agent without network or credentials
+        run: docker run --rm --network none tn-ci-agent --check
+      - name: Build actual audit image
+        run: docker build -t tn-ci-audit -f ydro/docker/studio-audit/Dockerfile ydro/docker/studio-audit
+      - name: Build actual site builder image
+        run: docker build -t tn-ci-builder -f ydro/docker/studio-build/Dockerfile ydro/docker/studio-build
