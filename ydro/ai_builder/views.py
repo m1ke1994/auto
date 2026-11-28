@@ -365,6 +365,7 @@ class VersionExport(StudioView):
 class ManualChangeInput(serializers.Serializer):
     id = serializers.RegexField(r"^[0-9a-f]{32}$")
     text = serializers.CharField(min_length=2, max_length=500)
+    styles = serializers.DictField(child=serializers.CharField(max_length=16), required=False)
 
 
 class ManualEditInput(serializers.Serializer):
@@ -388,8 +389,10 @@ class VisualFields(StudioView):
             fields = public_fields(files)
         except (OSError, ValueError, UnicodeError, zipfile.BadZipFile, RuntimeError, NotImplementedError):
             return Response({"detail": "Исходники недоступны для ручного редактирования."}, status=409)
+        from .manual_edit import STYLE_CHOICES, COLOR_PROPERTIES
         return Response({"expected_version": version["id"], "source_fingerprint": fingerprint(files),
-                         "fields": fields})
+                         "fields": fields, "style_choices": {k: sorted(v) for k,v in STYLE_CHOICES.items()},
+                         "color_properties": sorted(COLOR_PROPERTIES)})
 
 
 class VisualSave(StudioView):
@@ -402,6 +405,8 @@ class VisualSave(StudioView):
         data = ManualEditInput(data=request.data)
         data.is_valid(raise_exception=True)
         payload = data.validated_data
+        if any('styles' in c for c in payload['changes']) and not worker_health()['visual_style_available']:
+            return Response({'detail':'Обновите обработчик визуального редактора.'}, status=503)
         active = ensure_history(p)
         if not active or active.id != payload["expected_version"]:
             return Response({"detail": "Версия сайта изменилась. Откройте редактор заново."}, status=409)
@@ -424,6 +429,6 @@ class VisualSave(StudioView):
             return Response({"detail": "Текст или исходная версия не прошли проверку. Используйте обычный текст и обновите редактор."}, status=400)
         edit = BlockEdit.objects.create(project=p, block="manual", base_run=p.run_directory,
                                        base_stage=p.generation_stage,
-                                       instruction="Ручное редактирование текста (без ИИ)")
+                                       instruction="Ручное редактирование (без ИИ)")
         transaction.on_commit(lambda: queue_edit(edit, manual=payload))
         return Response(project_data(p, True), status=202)

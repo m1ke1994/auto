@@ -13,6 +13,65 @@ MAX_ARCHIVE = 40 * 1024 * 1024
 MAX_FIELDS = 300
 MAX_CHANGES = 12
 MAX_TEXT = 500
+# Explicit values only: never accept arbitrary CSS, urls, expressions, or !important.
+STYLE_CHOICES = {
+    "font-size": {"0.875rem", "1rem", "1.125rem", "1.25rem", "1.5rem", "2rem", "2.5rem", "3rem"},
+    "font-weight": {"400", "500", "600", "700"},
+    "text-align": {"left", "center", "right"},
+    "letter-spacing": {"normal", "0.025em", "0.05em", "0.1em"},
+    "padding-block": {"0", "0.25rem", "0.5rem", "1rem", "1.5rem"},
+    "padding-inline": {"0", "0.25rem", "0.5rem", "1rem", "1.5rem"},
+}
+COLOR_PROPERTIES = {"color", "background-color"}
+STYLE_KEYS = set(STYLE_CHOICES) | COLOR_PROPERTIES
+OWN_STYLE = "data-tn-editor-style"
+
+
+def validate_styles(value):
+    if not isinstance(value, dict) or set(value) - STYLE_KEYS:
+        raise ManualEditError("Unsupported visual style")
+    for key, item in value.items():
+        if not isinstance(item, str):
+            raise ManualEditError("Invalid visual style value")
+        if key in COLOR_PROPERTIES:
+            if not re.fullmatch(r"#[0-9a-fA-F]{6}", item):
+                raise ManualEditError("Use a six-digit hex color")
+        elif item not in STYLE_CHOICES[key]:
+            raise ManualEditError("Unsupported visual style value")
+    return dict(sorted(value.items()))
+
+
+def render_style(values):
+    return ";".join(f"{key}:{value}" for key, value in sorted(values.items()))
+
+
+def editable_style(attrs):
+    # Existing custom and dynamic inline styles are never overwritten.
+    if any(k in attrs for k in (":style", "v-bind:style", "v-bind")):
+        return None
+    if "style" not in attrs and OWN_STYLE not in attrs:
+        return {}
+    if attrs.get(OWN_STYLE) != "1":
+        return None
+    raw = attrs.get("style") or ""
+    try:
+        pairs = [part.split(":", 1) for part in raw.split(";") if part]
+        values = validate_styles(dict(pairs))
+        return values if render_style(values) == raw else None
+    except (ValueError, TypeError):
+        return None
+
+
+def rewrite_style(opening, previous, values):
+    if previous:
+        literal = ' style="' + render_style(previous) + '" ' + OWN_STYLE + '="1"'
+        if opening.count(literal) != 1:
+            raise ManualEditError("Editor style marker changed")
+        opening = opening.replace(literal, "", 1)
+    if values:
+        opening = opening[:-1] + ' style="' + render_style(values) + '" ' + OWN_STYLE + '="1">'
+    return opening
+
 TAGS = {"h1", "h2", "h3", "h4", "h5", "h6", "p", "span", "a", "button",
         "li", "strong", "em", "small", "label", "blockquote", "figcaption", "div"}
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
@@ -110,6 +169,7 @@ class TextFields(HTMLParser):
             (tag not in TAGS and tag not in ("template", "main", "section", "header", "footer",
                                               "article", "aside", "nav", "ul", "ol", "figure", "form")))
         self.stack.append({"tag": tag, "start": self.source_offset()+len(self.get_starttag_text()),
+                           "opening": self.source_offset(), "attrs": attrs,
                            "template": template, "blocked": blocked, "section": section})
 
     def handle_startendtag(self, tag, attrs):
@@ -135,7 +195,8 @@ class TextFields(HTMLParser):
                 return
             start += len(raw)-len(raw.lstrip())
             end -= len(raw)-len(raw.rstrip())
-            self.fields.append((start, end, tag, node["section"] or "content", value))
+            self.fields.append((start, end, tag, node["section"] or "content", value,
+                                node["opening"], node["start"], editable_style(node["attrs"])))
             return
 
 
@@ -147,17 +208,18 @@ def catalog(files):
         if len(value) > 64000:
             continue
         source = value.decode("utf-8")
-        for start, end, tag, section, text in TextFields(source).fields:
+        for start, end, tag, section, text, opening, opening_end, styles in TextFields(source).fields:
             key = hashlib.sha256(f"{name}:{start}:{end}:{text}".encode()).hexdigest()[:32]
             fields.append({"id": key, "file": name, "start": start, "end": end,
-                           "tag": tag, "section": section, "text": text})
+                           "tag": tag, "section": section, "text": text,
+                           "opening": opening, "opening_end": opening_end, "styles": styles})
             if len(fields) >= MAX_FIELDS:
                 return fields
     return fields
 
 
 def public_fields(files):
-    return [{k: f[k] for k in ("id", "tag", "section", "text")} for f in catalog(files)]
+    return [{k: f[k] for k in ("id", "tag", "section", "text", "styles")} for f in catalog(files)]
 
 
 def apply_changes(files, expected, changes):
@@ -168,7 +230,7 @@ def apply_changes(files, expected, changes):
     fields = {f["id"]: f for f in catalog(files)}
     edits, seen = {}, set()
     for change in changes:
-        if not isinstance(change, dict) or set(change) != {"id", "text"}:
+        if not isinstance(change, dict) or not {"id", "text"} <= set(change) or set(change) - {"id", "text", "styles"}:
             raise ManualEditError("Invalid change")
         key, value = change["id"], change["text"]
         if not isinstance(key, str) or key not in fields or key in seen:
@@ -179,10 +241,21 @@ def apply_changes(files, expected, changes):
             raise ManualEditError("Invalid text; use plain text without template expressions")
         f = fields[key]
         value = normalize(value)
-        if value == f["text"]:
-            continue
-        # Escape HTML syntax; never generate Vue expressions, attributes or JS.
-        edits.setdefault(f["file"], []).append((f["start"], f["end"], escape(value, quote=False)))
+        if value != f["text"]:
+            # Escape HTML syntax; never generate Vue expressions, attributes or JS.
+            edits.setdefault(f["file"], []).append((f["start"], f["end"], escape(value, quote=False)))
+        if "styles" in change:
+            styles = validate_styles(change["styles"])
+            previous = f["styles"]
+            if previous is None:
+                raise ManualEditError("Custom inline styles are protected")
+            if styles != previous:
+                source = files[f["file"]].decode("utf-8")
+                opening = source[f["opening"]:f["opening_end"]]
+                if not previous and OWN_STYLE in opening:
+                    raise ManualEditError("Unexpected editor style marker")
+                edited = rewrite_style(opening, previous, styles)
+                edits.setdefault(f["file"], []).append((f["opening"], f["opening_end"], edited))
     if not edits:
         raise ManualEditError("No text changes")
     result = dict(files)

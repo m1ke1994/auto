@@ -434,3 +434,29 @@ class StudioTests(APITestCase):
             self.assertFalse(worker_health()["visual_available"])
             (root/"watcher-ready.json").write_text(json.dumps({"protocol":1,"pid":123,"features":["visual-text-v1"]}))
             self.assertTrue(worker_health()["visual_available"])
+
+
+    def test_visual_style_allowlist_and_repeat_edit(self):
+        from .manual_edit import apply_changes, fingerprint, public_fields, ManualEditError
+        source=b'<template><section data-tn-section="about"><h2>Heading</h2><p :style="dynamic">Protected text</p></section></template>'
+        files={"src/App.vue":source,"src/style.css":b"body{color:red}","tracknode-agent.json":b'{"engine":"openhands-sdk"}'}
+        fields=public_fields(files)
+        h=next(f for f in fields if f["tag"]=="h2")
+        p=next(f for f in fields if f["tag"]=="p")
+        self.assertEqual(h["styles"],{})
+        self.assertIsNone(p["styles"])
+        changes=[{"id":h["id"],"text":"New heading","styles":{"color":"#f0a000","font-size":"2rem"}}]
+        result=apply_changes(files,fingerprint(files),changes)
+        self.assertIn(b'style="color:#f0a000;font-size:2rem" data-tn-editor-style="1"',result["src/App.vue"])
+        self.assertIn(b'<p :style="dynamic">Protected text</p>',result["src/App.vue"])
+        self.assertEqual(files["src/App.vue"],source)
+        self.assertEqual(files["src/style.css"],result["src/style.css"])
+        next_h=next(f for f in public_fields(result) if f["tag"]=="h2")
+        self.assertEqual(next_h["styles"],changes[0]["styles"])
+        restored=apply_changes(result,fingerprint(result),[{"id":next_h["id"],"text":"New heading","styles":{}}])
+        self.assertNotIn(b"data-tn-editor-style",restored["src/App.vue"])
+        for styles in ({"color":"url(https://example.com)"},{"font-size":"999rem"},{"position":"fixed"},{"color":"#fff;display:none"}):
+            with self.assertRaises(ManualEditError):
+                apply_changes(files,fingerprint(files),[{"id":h["id"],"text":"Heading","styles":styles}])
+        with self.assertRaises(ManualEditError):
+            apply_changes(files,fingerprint(files),[{"id":p["id"],"text":"Protected text","styles":{"color":"#ffffff"}}])

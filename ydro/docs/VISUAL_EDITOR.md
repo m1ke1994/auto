@@ -31,3 +31,14 @@ the queue is empty. The startup script stops only the local backend before
 replacing the idle watcher, so it cannot enqueue a job during the restart;
 the supervisor automatically launches the new watcher. It then starts the
 backend/frontend normally. No database or project artifacts are deleted.
+
+## Local style controls
+
+Static text leaves without existing custom/dynamic inline styles support color,
+background color, bounded font sizes/weights, alignment, spacing and padding.
+Only explicit allowed values enter source. A marked inline style is owned by
+the editor; subsequent edits can update or remove it. Existing author styles
+and cinematic captions remain protected. The UI previews styling through the
+same isolated preview bridge. Styles are saved through the offline candidate
+pipeline. Image replacement, layout rearrangement, dynamic content editing
+and global themes remain outside this increment.

@@ -154,7 +154,7 @@ try {
     [IO.File]::WriteAllText((Join-Path $root 'watcher.pid'),[string]$PID,[Text.UTF8Encoding]::new($false))
     Recover-InterruptedJobs
     do{
-        Write-StudioJson $readyFile @{protocol=1;pid=$PID;features=@('visual-text-v1');updated_at=[DateTimeOffset]::UtcNow.ToString('o')}
+        Write-StudioJson $readyFile @{protocol=1;pid=$PID;features=@('visual-text-v1','visual-style-v1');updated_at=[DateTimeOffset]::UtcNow.ToString('o')}
         $next=@(Get-ChildItem -LiteralPath $pending -Filter '*.json' -File | Sort-Object CreationTime)
         foreach($file in $next){
             # Docker unavailable is not a failed generation. Leave unclaimed work
@@ -163,7 +163,7 @@ try {
             if($LASTEXITCODE -ne 0){throw 'Docker unavailable before claiming job'}
             Write-Host "STUDIO_JOB_START: $($file.BaseName)"
             Process-Job $file
-            Write-StudioJson $readyFile @{protocol=1;pid=$PID;features=@('visual-text-v1');updated_at=[DateTimeOffset]::UtcNow.ToString('o')}
+            Write-StudioJson $readyFile @{protocol=1;pid=$PID;features=@('visual-text-v1','visual-style-v1');updated_at=[DateTimeOffset]::UtcNow.ToString('o')}
         }
         if(!$Once){Start-Sleep -Seconds $PollSeconds}
     }while(!$Once)

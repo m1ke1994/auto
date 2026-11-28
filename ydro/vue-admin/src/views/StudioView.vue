@@ -23,7 +23,16 @@ const visualCatalog=ref(null), visualDraft=ref({}), visualSelected=ref(''), visu
 const visualFields=computed(()=>visualCatalog.value?.fields||[])
 const filteredVisualFields=computed(()=>visualFields.value.filter(f=>!visualFilter.value||f.text.toLowerCase().includes(visualFilter.value.toLowerCase())))
 const visualField=computed(()=>visualFields.value.find(f=>f.id===visualSelected.value))
-const visualChanges=computed(()=>visualFields.value.filter(f=>Object.hasOwn(visualDraft.value,f.id)&&visualDraft.value[f.id]!==f.text).map(f=>({id:f.id,text:visualDraft.value[f.id]})))
+const visualChanges=computed(()=>visualFields.value.flatMap(f=>{
+  const d=visualDraft.value[f.id];if(!d)return []
+  const text=d.text??f.text, styles=d.styles
+  const sorted=o=>JSON.stringify(Object.entries(o||{}).sort(([a],[b])=>a.localeCompare(b)))
+  const changedStyle=styles!==undefined&&sorted(styles)!==sorted(f.styles)
+  return text!==f.text||changedStyle?[{id:f.id,text,...(changedStyle?{styles}:{})}]:[]
+}))
+const styleLabels={'color':'Цвет текста','background-color':'Цвет фона','font-size':'Размер шрифта','font-weight':'Насыщенность','text-align':'Выравнивание','letter-spacing':'Межбуквенный интервал','padding-block':'Вертикальный отступ','padding-inline':'Горизонтальный отступ'}
+const styleValueLabels={left:'Слева',center:'По центру',right:'Справа',normal:'Обычный'}
+const currentVisualStyles=computed(()=>visualDraft.value[visualSelected.value]?.styles??visualField.value?.styles??{})
 const visualMode=computed(()=>inspectorTab.value==='visual'&&!!visualCatalog.value&&!editingBlock.value&&!candidateReady.value)
 const historyPreview=ref(null)
 const historyCompare=ref(false)
@@ -70,7 +79,7 @@ function openVisual(){
 function sendVisualDraft(){
   if(!visualMode.value||!visualFrame.value?.contentWindow)return
   const origin=new URL(previewSrc.value,window.location.href).origin
-  const changes=visualChanges.value.map(c=>{const f=visualFields.value.find(f=>f.id===c.id);return {before:f.text,after:c.text,tag:f.tag}})
+  const changes=visualChanges.value.map(c=>{const f=visualFields.value.find(f=>f.id===c.id);return {before:f.text,after:c.text,tag:f.tag,...(c.styles!==undefined?{styles:c.styles,removedStyles:Object.keys(f.styles||{}).filter(k=>!Object.hasOwn(c.styles,k))}:{})}})
   visualFrame.value.contentWindow.postMessage({type:'tn-visual-draft',changes},origin)
 }
 function receiveVisual(e){
@@ -88,7 +97,16 @@ function receiveVisual(e){
 function setVisualText(value){
   if(!visualField.value)return
   if(!Object.hasOwn(visualDraft.value,visualField.value.id)&&visualChanges.value.length>=12){visualNote.value='За один раз можно изменить до 12 полей.';return}
-  visualDraft.value={...visualDraft.value,[visualField.value.id]:value}
+  visualDraft.value={...visualDraft.value,[visualField.value.id]:{...visualDraft.value[visualField.value.id],text:value}}
+  sendVisualDraft()
+}
+function setVisualStyle(key,value){
+  const field=visualField.value
+  if(!field||field.styles===null)return
+  if(!Object.hasOwn(visualDraft.value,field.id)&&visualChanges.value.length>=12){visualNote.value='За один раз можно изменить до 12 полей.';return}
+  const styles={...currentVisualStyles.value}
+  if(value)styles[key]=value;else delete styles[key]
+  visualDraft.value={...visualDraft.value,[field.id]:{...visualDraft.value[field.id],styles}}
   sendVisualDraft()
 }
 function saveVisual(){
@@ -267,12 +285,21 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value.split('?
         <details v-if="cinematic&&Object.keys(current.contacts||{}).length" class="brief"><summary>Контакты</summary><p v-for="field in contactFields.filter(f=>current.contacts?.[f[0]])" :key="field[0]" class="contact-summary"><strong>{{field[1]}}</strong><br>{{current.contacts[field[0]]}}</p></details>
       </div>
       <section v-if="visualMode" class="visual-editor">
-        <div class="section-heading"><strong>Редактирование текста</strong><small>Без ИИ</small></div>
-        <p class="muted">Нажмите текст на сайте или выберите его из списка. Динамические элементы и 3D не меняются.</p>
+        <div class="section-heading"><strong>Текст и оформление</strong><small>Без ИИ</small></div>
+        <p class="muted">Выберите текст кликом на сайте или из списка. Оформление применяется только к выбранному статическому элементу.</p>
         <input v-model="visualFilter" placeholder="Поиск текста" aria-label="Поиск текста">
         <label>Элемент<select v-model="visualSelected"><option value="">Выберите текст</option><option v-for="f in filteredVisualFields" :key="f.id" :value="f.id">{{f.section}} · {{f.text.slice(0,90)}}</option></select></label>
         <p v-if="!visualFields.length" class="muted">В исходниках нет поддерживаемых статических полей.</p>
-        <label v-if="visualField">Текст<textarea :value="visualDraft[visualField.id]??visualField.text" maxlength="500" rows="4" @input="setVisualText($event.target.value)"></textarea></label>
+        <label v-if="visualField">Текст<textarea :value="visualDraft[visualField.id]?.text??visualField.text" maxlength="500" rows="4" @input="setVisualText($event.target.value)"></textarea></label>
+        <div v-if="visualField&&visualField.styles!==null" class="visual-style-controls">
+          <div class="section-heading"><span>Оформление</span></div>
+          <div v-for="key in visualCatalog.color_properties" :key="key" class="visual-color">
+            <label>{{styleLabels[key]}}<input type="color" :value="currentVisualStyles[key]||'#ffffff'" @input="setVisualStyle(key,$event.target.value)"></label>
+            <button type="button" class="text-button" :disabled="!currentVisualStyles[key]" @click="setVisualStyle(key,'')">Авто</button>
+          </div>
+          <label v-for="(choices,key) in visualCatalog.style_choices" :key="key">{{styleLabels[key]}}<select :value="currentVisualStyles[key]||''" @change="setVisualStyle(key,$event.target.value)"><option value="">Как в дизайне</option><option v-for="choice in choices" :key="choice" :value="choice">{{styleValueLabels[choice]||choice}}</option></select></label>
+        </div>
+        <p v-else-if="visualField" class="muted">Собственные стили элемента защищены. Можно изменить текст.</p>
         <p v-if="visualNote" class="muted" role="status">{{visualNote}}</p>
         <small>{{visualChanges.length}} / 12 изменений</small>
         <p v-if="visualWorkerUnavailable" class="notice error">Для сохранения необходимо обновить обработчик Studio.</p>
@@ -394,4 +421,6 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value.split('?
 .visual-editor label{min-width:0}
 .visual-editor select,.visual-editor input,.visual-editor textarea{width:100%;min-width:0}
 .visual-editor .decision-actions{flex-wrap:wrap}
+.visual-style-controls{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:10px}
+.visual-color{display:flex;align-items:end;gap:8px}.visual-color label{flex:1}.visual-color input{height:34px;padding:3px}
 </style>
