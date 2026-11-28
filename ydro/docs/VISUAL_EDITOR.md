@@ -42,3 +42,12 @@ and cinematic captions remain protected. The UI previews styling through the
 same isolated preview bridge. Styles are saved through the offline candidate
 pipeline. Image replacement, layout rearrangement, dynamic content editing
 and global themes remain outside this increment.
+
+## Vue transport regression
+
+The iframe bridge must receive plain data, never Vue reactive proxies. The
+Studio component serializes the permitted style fields before postMessage;
+transport failures show a local warning without discarding the draft. CI
+also mounts the actual StudioView component in Vite, drives its text/style
+controls in Chromium, checks the iframe and validates the mocked save request.
+This complements (does not replace) end-to-end Docker/project acceptance.

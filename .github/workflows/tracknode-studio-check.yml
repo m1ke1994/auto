@@ -101,6 +101,14 @@ jobs:
           python -c "from ai_builder.visual_bridge import BRIDGE; from pathlib import Path; Path('/tmp/tn-visual-bridge.html').write_text(BRIDGE, encoding='utf-8')"
           cp studio-e2e/visual-bridge.mjs "$RUNNER_TEMP/tn-browser/"
           TN_BRIDGE_HTML=/tmp/tn-visual-bridge.html TN_BROWSER_REPORT="$RUNNER_TEMP/tn-browser-report" node "$RUNNER_TEMP/tn-browser/visual-bridge.mjs"
+      - name: Install Vue application dependencies
+        working-directory: ydro/vue-admin
+        run: npm ci
+      - name: Test actual Vue Studio component
+        working-directory: ydro
+        run: |
+          cp studio-e2e/studio-component.mjs "$RUNNER_TEMP/tn-browser/"
+          TN_VUE_ROOT="$PWD/vue-admin" TN_COMPONENT_HTML="$PWD/studio-e2e/studio-component.html" TN_COMPONENT_ENTRY="$PWD/studio-e2e/studio-component-entry.mjs" TN_BRIDGE_HTML=/tmp/tn-visual-bridge.html TN_BROWSER_REPORT="$RUNNER_TEMP/tn-browser-report" node "$RUNNER_TEMP/tn-browser/studio-component.mjs"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

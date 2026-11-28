@@ -73,17 +73,34 @@ function resetVisual(){
 function openVisual(){
   run(async()=>{
     resetVisual();historyPreview.value=null;historyCompare.value=false
-    const id=current.value.id
+    const id=current.value.id, version=activeVersion.value?.id
     const catalog=(await http.get(base+id+'/visual-fields/')).data
-    if(current.value?.id!==id)return
+    if(current.value?.id!==id||activeVersion.value?.id!==version||catalog.expected_version!==version)return
     visualCatalog.value=catalog;inspectorTab.value='visual'
   })
 }
 function sendVisualDraft(){
   if(!visualMode.value||!visualFrame.value?.contentWindow)return
-  const origin=new URL(previewSrc.value,window.location.href).origin
-  const changes=visualChanges.value.map(c=>{const f=visualFields.value.find(f=>f.id===c.id);return {before:f.text,after:c.text,tag:f.tag,...(c.styles!==undefined?{styles:c.styles,removedStyles:Object.keys(f.styles||{}).filter(k=>!Object.hasOwn(c.styles,k))}:{})}})
-  visualFrame.value.contentWindow.postMessage({type:'tn-visual-draft',changes},origin)
+  // Vue refs contain Proxy objects. Structured clone (postMessage) rejects
+  // proxies even when the enclosing object/array is plain. Send only DTOs.
+  try{
+    const origin=new URL(previewSrc.value,window.location.href).origin
+    const changes=visualChanges.value.flatMap(c=>{
+      const f=visualFields.value.find(f=>f.id===c.id)
+      if(!f)return []
+      const message={before:f.text,after:c.text,tag:f.tag}
+      if(c.styles!==undefined){
+        message.styles=Object.fromEntries(Object.entries(c.styles).filter(([,v])=>typeof v==='string'))
+        message.removedStyles=Object.keys(f.styles||{}).filter(k=>!Object.hasOwn(message.styles,k))
+      }
+      return [message]
+    })
+    visualFrame.value.contentWindow.postMessage({type:'tn-visual-draft',changes},origin)
+  }catch(e){
+    // A preview transport failure must not unmount Studio or lose the draft.
+    console.warn('Studio preview message failed:',e?.name||'Error')
+    visualNote.value='Не удалось обновить предпросмотр. Черновик сохранён; можно повторить изменение или собрать версию.'
+  }
 }
 function receiveVisual(e){
   if(!visualMode.value||e.source!==visualFrame.value?.contentWindow||e.origin!==new URL(previewSrc.value,window.location.href).origin)return
@@ -361,7 +378,7 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value.split('?
             <button type="submit" class="primary" :disabled="busy||activeJob||scopeWorkerUnavailable||!blockAvailable||!config.cinematic_enabled||!blockInstruction.trim()">Применить изменения</button>
           </form>
           <div v-if="editingBlock" role="status" class="notice block-live-status"><div class="block-live-heading"><strong>{{blockPhaseNames[blockEdit.stage]||'Выполняется правка'}}</strong><span>{{blockProgress}}%</span></div><div class="progress-track"><span :style="{width:blockProgress+'%'}"/></div><small>Последнее подтверждение движка: {{blockEventAge}} назад. Статус обновляется автоматически.</small><p v-if="blockEventStale" class="block-stale">Движок пока не сообщил новый этап. Проверяем выполнение — не запускайте повторную правку.</p></div>
-          <div v-if="blockEdit?.status==='failed'" class="notice error">Правка не завершилась. Исходный сайт сохранён.</div>
+          <div v-if="blockEdit?.status==='failed'" class="notice error">Правка не завершилась. Исходный сайт сохранён. <span v-if="blockEdit.error">{{blockEdit.error}}</span></div>
           <div v-if="candidateReady" class="notice"><strong>Новый вариант собран</strong><p class="muted">Сравните версии перед сохранением.</p><div class="decision-actions"><button :class="{active:compareVersion==='original'}" @click="compareVersion='original'">До</button><button :class="{active:compareVersion==='candidate'}" @click="compareVersion='candidate'">После</button><button class="primary" :disabled="busy" @click="decideBlock(blockEdit.id,'accept')">Принять</button><button :disabled="busy" @click="decideBlock(blockEdit.id,'discard')">Отклонить</button></div></div>
           <details v-if="current.block_edits?.length" class="block-history"><summary>История правок</summary><article v-for="e in current.block_edits" :key="e.id"><strong>{{blockOptions.find(b=>b[0]===e.block)?.[1]||e.block}}</strong><small>{{({pending:e.status==='failed'?'Ошибка':e.status==='complete'?'Готов к просмотру':'В работе',accepted:'Принято',discarded:'Отклонено',rolled_back:'Отменено'})[e.decision]}}</small><p class="brief-text">{{e.instruction}}</p><button v-if="e.decision==='accepted'&&current.preview_version===e.candidate_run" :disabled="busy||editingBlock||candidateReady" @click="decideBlock(e.id,'rollback')">Откатить версию</button></article></details>
         </template>
