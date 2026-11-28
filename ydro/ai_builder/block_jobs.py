@@ -57,7 +57,7 @@ def block_edit_data(edit):
 def active_for_owner(owner):
     return any(state(e)["status"] in ("queued","running") for e in BlockEdit.objects.filter(project__owner=owner,decision="pending"))
 
-def queue_edit(edit, *, local_hero_film=False, hero_options=None):
+def queue_edit(edit, *, local_hero_film=False, hero_options=None, manual=None):
     p=edit.project
     profile="cinema" if p.style in ("auto","cinema","3d") else "premium" if p.style=="premium" else "standard"
     payload={
@@ -67,6 +67,8 @@ def queue_edit(edit, *, local_hero_film=False, hero_options=None):
         "base_run":edit.base_run,"block":edit.block,"instruction":edit.instruction,
         "upgrade_motion":edit.upgrade_motion,"created_at":timezone.now().isoformat()
     }
+    if manual is not None:
+        payload.update(manual_edit=True, source_fingerprint=manual["source_fingerprint"], changes=manual["changes"])
     if local_hero_film:
         payload["local_hero_film"]=True
         if hero_options:

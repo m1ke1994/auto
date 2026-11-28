@@ -18,6 +18,12 @@ const revision=computed(()=>current.value?.revisions?.find(r=>r.id===selected.va
 const previewHtml=computed(()=>revision.value?.html.replaceAll('href="#page-', 'href="about:srcdoc#page-') || '')
 const blockOptions=[['home','Главная'],['header','Шапка'],['about','О компании'],['services','Услуги'],['benefits','Преимущества'],['contacts','Контакты'],['footer','Подвал']]
 const inspectorTab=ref('edit')
+const visualCatalog=ref(null), visualDraft=ref({}), visualSelected=ref(''), visualNote=ref(''), visualFilter=ref(''), visualFrame=ref(null)
+const visualFields=computed(()=>visualCatalog.value?.fields||[])
+const filteredVisualFields=computed(()=>visualFields.value.filter(f=>!visualFilter.value||f.text.toLowerCase().includes(visualFilter.value.toLowerCase())))
+const visualField=computed(()=>visualFields.value.find(f=>f.id===visualSelected.value))
+const visualChanges=computed(()=>visualFields.value.filter(f=>Object.hasOwn(visualDraft.value,f.id)&&visualDraft.value[f.id]!==f.text).map(f=>({id:f.id,text:visualDraft.value[f.id]})))
+const visualMode=computed(()=>inspectorTab.value==='visual'&&!!visualCatalog.value&&!editingBlock.value&&!candidateReady.value)
 const historyPreview=ref(null)
 const historyCompare=ref(false)
 const activeVersion=computed(()=>current.value?.versions?.find(v=>v.current))
@@ -36,7 +42,7 @@ const blockEventStale=computed(()=>!!blockEdit.value?.updated_at&&now.value-Date
 const previewSrc=computed(()=>{
   const path=candidateReady.value&&compareVersion.value==='candidate'?blockEdit.value.preview_path:historicalVersion.value?historicalVersion.value.preview_path:current.value?.preview_path
   if(!path)return ''
-  return BACKEND_URL+path
+  return BACKEND_URL+path+(visualMode.value?'?tn_edit=1':'')
 })
 const previewKey=computed(()=>previewSrc.value+'|'+(current.value?.preview_version||''))
 const compareCurrentSrc=computed(()=>historyCompare.value&&historicalVersion.value&&current.value?.preview_path?BACKEND_URL+current.value.preview_path:'')
@@ -46,6 +52,48 @@ function restoreVersion(v){
   run(async()=>{
     apply((await http.post(base+current.value.id+'/versions/'+v.id+'/restore/',{expected_version:activeVersion.value.id})).data)
     historyPreview.value=null;await refresh()
+  })
+}
+function resetVisual(){
+  visualCatalog.value=null;visualDraft.value={};visualSelected.value='';visualNote.value='';visualFilter.value=''
+}
+function openVisual(){
+  run(async()=>{
+    resetVisual();historyPreview.value=null;historyCompare.value=false
+    const id=current.value.id
+    const catalog=(await http.get(base+id+'/visual-fields/')).data
+    if(current.value?.id!==id)return
+    visualCatalog.value=catalog;inspectorTab.value='visual'
+  })
+}
+function sendVisualDraft(){
+  if(!visualMode.value||!visualFrame.value?.contentWindow)return
+  const origin=new URL(previewSrc.value,window.location.href).origin
+  const changes=visualChanges.value.map(c=>{const f=visualFields.value.find(f=>f.id===c.id);return {before:f.text,after:c.text,tag:f.tag}})
+  visualFrame.value.contentWindow.postMessage({type:'tn-visual-draft',changes},origin)
+}
+function receiveVisual(e){
+  if(!visualMode.value||e.source!==visualFrame.value?.contentWindow||e.origin!==new URL(previewSrc.value,window.location.href).origin)return
+  if(e.data?.type==='tn-visual-ready'){sendVisualDraft();return}
+  if(e.data?.type==='tn-visual-applied'){
+    visualNote.value=e.data.applied===visualChanges.value.length?'':'Некоторые тексты нельзя однозначно показать до сборки. Изменения сохранены в черновике.'
+    return
+  }
+  if(e.data?.type!=='tn-visual-select')return
+  const matches=visualFields.value.filter(f=>f.text===e.data.text&&f.tag===e.data.tag)
+  if(matches.length===1){visualSelected.value=matches[0].id;visualFilter.value='';visualNote.value=''}
+  else{visualNote.value='Этот элемент динамический или неоднозначный. Выберите доступный текст из списка.'}
+}
+function setVisualText(value){
+  if(!visualField.value)return
+  if(!Object.hasOwn(visualDraft.value,visualField.value.id)&&visualChanges.value.length>=12){visualNote.value='За один раз можно изменить до 12 полей.';return}
+  visualDraft.value={...visualDraft.value,[visualField.value.id]:value}
+  sendVisualDraft()
+}
+function saveVisual(){
+  run(async()=>{
+    const data=await http.post(base+current.value.id+'/visual-save/',{expected_version:visualCatalog.value.expected_version,source_fingerprint:visualCatalog.value.source_fingerprint,changes:visualChanges.value})
+    apply(data.data);resetVisual();inspectorTab.value='edit';compareVersion.value='candidate';await refresh()
   })
 }
 function submitBlock(){run(async()=>{
@@ -90,6 +138,7 @@ function apply(project){
   current.value=project
   if(!same){
     historyPreview.value=null
+    resetVisual()
     heroOptions.value=emptyHeroOptions()
     heroCaptionInput.value=''
   }
@@ -133,15 +182,16 @@ async function refresh(){
   }catch(e){pollError.value=true;throw e}
   finally{polling=false}
 }
-onMounted(()=>run(async()=>{config.value=(await http.get('/api/studio/config/')).data;await refresh()}))
+onMounted(()=>{window.addEventListener('message',receiveVisual);run(async()=>{config.value=(await http.get('/api/studio/config/')).data;await refresh()})})
 const poll=setInterval(()=>{if(!busy.value&&(activeJob.value||generating.value||editingBlock.value||pollError.value))refresh().catch(()=>{})},3000)
 let checkingWorker=false
 const workerPoll=setInterval(async()=>{if(disposed||checkingWorker)return;checkingWorker=true;try{const next=(await http.get('/api/studio/config/')).data;if(!disposed)config.value=next}catch{}finally{checkingWorker=false}},5000)
 const clock=setInterval(()=>{now.value=Date.now()},1000)
-onBeforeUnmount(()=>{disposed=true;clearInterval(poll);clearInterval(clock);clearInterval(workerPoll)})
+onBeforeUnmount(()=>{window.removeEventListener('message',receiveVisual);disposed=true;clearInterval(poll);clearInterval(clock);clearInterval(workerPoll)})
 
 function open(id){inspectorTab.value='edit';historyPreview.value=null;showPrompt.value=false;targetBlock.value='home';blockInstruction.value='';upgradeMotion.value=true;compareVersion.value='candidate';run(async()=>apply((await http.get(base+id+'/')).data))}
 function newProject(from=null){
+  resetVisual();inspectorTab.value='edit'
   engine.value='cinematic';style.value='auto';assetStyle.value='realistic';heroMode.value='auto';requireModel.value=false
   name.value=from?from.name+' — Cinema':''
   name.value=name.value.slice(0,120)
@@ -160,7 +210,7 @@ function download(){run(async()=>{
   const path=cinematic.value?(historicalVersion.value?base+current.value.id+'/versions/'+historicalVersion.value.id+'/export/':base+current.value.id+'/cinematic-export/'):base+current.value.id+'/export/'+selected.value+'/'
   const response=await http.get(path,{responseType:'blob'});const url=URL.createObjectURL(response.data);const a=document.createElement('a');a.href=url;a.download=cinematic.value?'tracknode-cinematic-site.zip':'tracknode-site.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
 })}
-function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank','noopener,noreferrer')}
+function openPreview(){if(previewSrc.value)window.open(previewSrc.value.split('?')[0],'_blank','noopener,noreferrer')}
 </script>
 
 <template>
@@ -204,7 +254,8 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
     <aside class="panel project-info">
       <div class="inspector-heading"><h2>{{current.name}}</h2><span class="project-state" :class="current.generation_status">{{projectStatus(current)}}</span></div>
       <div v-if="cinematic" class="inspector-tabs" aria-label="Панель проекта">
-        <button type="button" :class="{active:inspectorTab==='edit'}" :aria-pressed="inspectorTab==='edit'" @click="inspectorTab='edit'">Редактор</button>
+        <button type="button" :class="{active:inspectorTab==='edit'}" :aria-pressed="inspectorTab==='edit'" @click="inspectorTab='edit'">ИИ-правка</button>
+        <button type="button" :class="{active:inspectorTab==='visual'}" :aria-pressed="inspectorTab==='visual'" :disabled="busy||editingBlock||candidateReady||generating||current.generation_status!=='complete'" @click="visualCatalog?inspectorTab='visual':openVisual()">Визуально</button>
         <button type="button" :class="{active:inspectorTab==='info'}" :aria-pressed="inspectorTab==='info'" @click="inspectorTab='info'">О проекте</button>
         <button type="button" :class="{active:inspectorTab==='versions'}" :aria-pressed="inspectorTab==='versions'" :disabled="busy||editingBlock||candidateReady||generating" @click="inspectorTab='versions'">Версии</button>
       </div>
@@ -213,6 +264,18 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
         <details class="brief"><summary>Описание проекта</summary><p class="project-description">{{current.prompt}}</p></details>
         <details v-if="cinematic&&Object.keys(current.contacts||{}).length" class="brief"><summary>Контакты</summary><p v-for="field in contactFields.filter(f=>current.contacts?.[f[0]])" :key="field[0]" class="contact-summary"><strong>{{field[1]}}</strong><br>{{current.contacts[field[0]]}}</p></details>
       </div>
+      <section v-if="visualMode" class="visual-editor">
+        <div class="section-heading"><strong>Редактирование текста</strong><small>Без ИИ</small></div>
+        <p class="muted">Нажмите текст на сайте или выберите его из списка. Динамические элементы и 3D не меняются.</p>
+        <input v-model="visualFilter" placeholder="Поиск текста" aria-label="Поиск текста">
+        <label>Элемент<select v-model="visualSelected"><option value="">Выберите текст</option><option v-for="f in filteredVisualFields" :key="f.id" :value="f.id">{{f.section}} · {{f.text.slice(0,90)}}</option></select></label>
+        <p v-if="!visualFields.length" class="muted">В исходниках нет поддерживаемых статических полей.</p>
+        <label v-if="visualField">Текст<textarea :value="visualDraft[visualField.id]??visualField.text" maxlength="500" rows="4" @input="setVisualText($event.target.value)"></textarea></label>
+        <p v-if="visualNote" class="muted" role="status">{{visualNote}}</p>
+        <small>{{visualChanges.length}} / 12 изменений</small>
+        <div class="decision-actions"><button :disabled="busy||!visualChanges.length" @click="visualDraft={};sendVisualDraft()">Сбросить</button><button class="primary" :disabled="busy||activeJob||workerUnavailable||!visualChanges.length||visualChanges.some(c=>c.text.trim().length<2)" @click="saveVisual">Собрать версию</button></div>
+        <p class="muted">Сборка и техническая проверка выполняются локально. Примите новый вариант после просмотра.</p>
+      </section>
       <section v-if="cinematic&&inspectorTab==='versions'&&current.generation_status==='complete'" class="version-history">
         <div class="section-heading"><span>История версий</span><button type="button" class="text-button" @click="historyPreview=null">Текущая</button></div>
         <p v-if="!current.versions?.length" class="muted">История появится после создания сайта.</p>
@@ -267,7 +330,7 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
         <p v-if="oldEvent&&!pollError" class="notice">Этот этап занимает больше времени, чем обычно.</p>
       </div>
       <div v-else-if="cinematic&&previewSrc&&compareCurrentSrc" class="version-comparison"><section><small>Текущая версия</small><iframe title="Текущая версия" sandbox="allow-scripts allow-same-origin" :src="compareCurrentSrc" :style="{width:device,maxWidth:'100%'}"/></section><section><small>Версия {{historicalVersion.number}}</small><iframe title="Историческая версия" :key="previewKey" sandbox="allow-scripts allow-same-origin" :src="previewSrc" :style="{width:device,maxWidth:'100%'}"/></section></div>
-      <div v-else-if="cinematic&&previewSrc" class="preview-frame"><iframe title="Кинематографический предпросмотр сайта" :key="previewKey" sandbox="allow-scripts allow-same-origin" :src="previewSrc" :style="{width:device,maxWidth:'100%'}"/></div>
+      <div v-else-if="cinematic&&previewSrc" class="preview-frame"><iframe ref="visualFrame" title="Кинематографический предпросмотр сайта" @load="sendVisualDraft" :key="previewKey" sandbox="allow-scripts allow-same-origin" :src="previewSrc" :style="{width:device,maxWidth:'100%'}"/></div>
       <div v-else-if="!cinematic&&revision" class="preview-frame"><iframe title="Предпросмотр сайта" sandbox="" :srcdoc="previewHtml" :style="{width:device,maxWidth:'100%'}"/></div>
       <div v-else class="empty-preview"><h2>{{current.generation_status==='failed'?'Генерация не завершилась':'Предпросмотр недоступен'}}</h2><p class="muted">Предпросмотр появится после создания сайта.</p></div>
     </main>
@@ -323,4 +386,9 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
 .version-comparison small{color:var(--muted);font-size:12px}
 .version-comparison iframe{align-self:center;width:100%;flex:1;min-height:300px;border:1px solid var(--line);border-radius:8px}
 @media(max-width:900px){.version-comparison{grid-template-columns:1fr}.version-comparison section{min-height:340px}}
+
+.visual-editor{display:grid;gap:10px;padding-block:12px}
+.visual-editor label{min-width:0}
+.visual-editor select,.visual-editor input,.visual-editor textarea{width:100%;min-width:0}
+.visual-editor .decision-actions{flex-wrap:wrap}
 </style>

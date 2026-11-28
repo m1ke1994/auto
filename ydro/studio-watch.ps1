@@ -44,7 +44,7 @@ function Recover-InterruptedJobs {
     $claimedJobs=@(Get-ChildItem -LiteralPath $running -Filter '*.json' -File)
     if (!$claimedJobs.Count) { return }
     # Never recover while another pipeline may still be writing this workspace.
-    $pipelineScripts=@('studio-watch.ps1','studio-block-edit.ps1','studio-quality.ps1','studio-technical.ps1','studio-visual-review.ps1')
+    $pipelineScripts=@('studio-watch.ps1','studio-manual-edit.ps1','studio-block-edit.ps1','studio-quality.ps1','studio-technical.ps1','studio-visual-review.ps1')
     $other=@(Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object {
         $command=$_.CommandLine
         if (!$command -or $_.ProcessId -eq $PID) { return $false }
@@ -119,7 +119,9 @@ function Process-Job([IO.FileInfo]$File){
         }
         if($job.require_model -eq $true){$qualityArgs.RequireModel=$true}
         if($job.contacts){$qualityArgs.ContactsJson=($job.contacts|ConvertTo-Json -Compress -Depth 3)}
-        if ($job.kind -eq 'block_edit') {
+        if ($job.kind -eq 'block_edit' -and $job.manual_edit -eq $true) {
+            & (Join-Path $PSScriptRoot 'studio-manual-edit.ps1') -Job $job -ResultFile $resultFile -ProgressFile $qualityArgs.ProgressFile
+        } elseif ($job.kind -eq 'block_edit') {
             & (Join-Path $PSScriptRoot 'studio-block-edit.ps1') -Job $job -ResultFile $resultFile -ProgressFile $qualityArgs.ProgressFile
         } else {
         # Do not merge native stderr here: BuildKit writes successful progress

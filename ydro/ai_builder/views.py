@@ -1,5 +1,6 @@
 import io
 import zipfile
+from .manual_edit import read_source, fingerprint, public_fields, apply_changes, ManualEditError
 from pathlib import Path
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -359,3 +360,70 @@ class VersionExport(StudioView):
         response = FileResponse(archive.open("rb"), content_type="application/zip")
         response["Content-Disposition"] = f'attachment; filename="tracknode-version-{version.number}.zip"'
         return response
+
+
+class ManualChangeInput(serializers.Serializer):
+    id = serializers.RegexField(r"^[0-9a-f]{32}$")
+    text = serializers.CharField(min_length=2, max_length=500)
+
+
+class ManualEditInput(serializers.Serializer):
+    expected_version = serializers.UUIDField()
+    source_fingerprint = serializers.RegexField(r"^[0-9a-f]{64}$")
+    changes = ManualChangeInput(many=True, min_length=1, max_length=12)
+
+
+class VisualFields(StudioView):
+    def get(self, request, pk):
+        p = refresh_project(self.project(request, pk))
+        dist = project_dist(p)
+        if not dist:
+            return Response({"detail": "Откройте готовый Cinema-сайт."}, status=409)
+        history = history_data(p)
+        version = next((v for v in history if v["current"]), None)
+        if not version:
+            return Response({"detail": "Версия сайта недоступна."}, status=409)
+        try:
+            files = read_source(dist.parent / "tracknode-agent-site.zip")
+            fields = public_fields(files)
+        except (OSError, ValueError, UnicodeError, zipfile.BadZipFile, RuntimeError, NotImplementedError):
+            return Response({"detail": "Исходники недоступны для ручного редактирования."}, status=409)
+        return Response({"expected_version": version["id"], "source_fingerprint": fingerprint(files),
+                         "fields": fields})
+
+
+class VisualSave(StudioView):
+    @transaction.atomic
+    def post(self, request, pk):
+        get_user_model().objects.select_for_update().get(pk=request.user.pk)
+        p = refresh_project(get_object_or_404(Project.objects.select_for_update(), pk=pk, owner=request.user))
+        if not getattr(settings, "STUDIO_CINEMATIC_ENABLED", False) or not worker_health()["available"]:
+            return Response({"detail": "Обработчик Studio недоступен. Черновик не отправлен."}, status=503)
+        data = ManualEditInput(data=request.data)
+        data.is_valid(raise_exception=True)
+        payload = data.validated_data
+        active = ensure_history(p)
+        if not active or active.id != payload["expected_version"]:
+            return Response({"detail": "Версия сайта изменилась. Откройте редактор заново."}, status=409)
+        for pending in Project.objects.filter(owner=request.user, engine="cinematic",
+                                               generation_status__in=("queued", "running")):
+            refresh_project(pending)
+        if (active_for_owner(request.user)
+                or Project.objects.filter(owner=request.user, engine="cinematic",
+                                          generation_status__in=("queued", "running")).exists()
+                or any(edit_state(e)["status"] == "complete" for e in p.block_edits.filter(decision="pending"))):
+            return Response({"detail": "Завершите или отклоните текущее задание."}, status=409)
+        if p.block_edits.count() >= 30:
+            return Response({"detail": "Локальный лимит: 30 правок проекта."}, status=400)
+        if not verify_version(active):
+            return Response({"detail": "Исходная сборка недоступна или изменена."}, status=409)
+        try:
+            files = read_source(archive_for(active))
+            apply_changes(files, payload["source_fingerprint"], payload["changes"])
+        except (OSError, ValueError, UnicodeError, zipfile.BadZipFile, RuntimeError, NotImplementedError):
+            return Response({"detail": "Текст или исходная версия не прошли проверку. Используйте обычный текст и обновите редактор."}, status=400)
+        edit = BlockEdit.objects.create(project=p, block="manual", base_run=p.run_directory,
+                                       base_stage=p.generation_stage,
+                                       instruction="Ручное редактирование текста (без ИИ)")
+        transaction.on_commit(lambda: queue_edit(edit, manual=payload))
+        return Response(project_data(p, True), status=202)

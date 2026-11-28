@@ -1,7 +1,8 @@
 import mimetypes
 from pathlib import Path
 
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, HttpResponse
+from .visual_bridge import BRIDGE
 from django.shortcuts import get_object_or_404
 from django.views.decorators.clickjacking import xframe_options_exempt
 
@@ -33,7 +34,16 @@ def cinematic_preview(request, token, path="index.html"):
     if not requested.is_file():
         raise Http404
     content_type=mimetypes.guess_type(requested.name)[0] or "application/octet-stream"
-    response=FileResponse(requested.open("rb"),content_type=content_type)
+    if project and requested.name == "index.html" and request.GET.get("tn_edit") == "1":
+        html = requested.read_text(encoding="utf-8")
+        index = html.lower().rfind("</body>")
+        if index < 0:
+            html += BRIDGE
+        else:
+            html = html[:index] + BRIDGE + html[index:]
+        response = HttpResponse(html, content_type="text/html; charset=utf-8")
+    else:
+        response=FileResponse(requested.open("rb"),content_type=content_type)
     response["Cache-Control"]="no-store" if project or requested.name=="index.html" else "private, max-age=3600"
     response["Content-Security-Policy"]="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors http://localhost:8001 http://127.0.0.1:8001"
     return response

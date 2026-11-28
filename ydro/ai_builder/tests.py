@@ -366,3 +366,56 @@ class StudioTests(APITestCase):
             queue_project(p,profile="standard",asset_style="realistic",hero_mode="auto",require_model=False)
         p.refresh_from_db()
         self.assertEqual(p.generation_status,"failed")
+
+
+    @override_settings(STUDIO_CINEMATIC_ENABLED=True)
+    def test_visual_editor_local_text_candidate(self):
+        import zipfile
+        from .models import Project
+        from .manual_edit import read_source, apply_changes, fingerprint, public_fields
+        with tempfile.TemporaryDirectory() as jobs, tempfile.TemporaryDirectory() as outputs, override_settings(STUDIO_JOB_ROOT=jobs, STUDIO_OUTPUT_ROOT=outputs):
+            root=Path(outputs)/"original"
+            (root/"dist").mkdir(parents=True)
+            (root/"dist"/"index.html").write_text("<html><body>Original</body></html>")
+            archive=root/"tracknode-agent-site.zip"
+            source=b'<template><section data-tn-section="home"><h1>Original &amp; text</h1><p>{{ dynamic }}</p><p v-for="x in list">Repeated</p></section></template><script setup>const dynamic="x"</script>'
+            with zipfile.ZipFile(archive,"w") as z:
+                z.writestr("tracknode-agent.json",json.dumps({"engine":"openhands-sdk"}))
+                z.writestr("src/App.vue",source)
+                z.writestr("src/style.css","body{color:red}")
+            p=Project.objects.create(owner=self.a,name="Visual",prompt="Test",engine="cinematic",run_directory="original")
+            url=f"/api/studio/projects/{p.id}/"
+            response=self.client.get(url+"visual-fields/")
+            self.assertEqual(response.status_code,200)
+            data=response.data
+            self.assertEqual(len(data["fields"]),1)
+            field=data["fields"][0]
+            self.assertEqual(field["text"],"Original & text")
+            payload={"expected_version":data["expected_version"],"source_fingerprint":data["source_fingerprint"],"changes":[{"id":field["id"],"text":"New <script> & text"}]}
+            files=read_source(archive)
+            result=apply_changes(files,fingerprint(files),payload["changes"])
+            self.assertIn(b"New &lt;script&gt; &amp; text",result["src/App.vue"])
+            self.assertEqual(result["src/style.css"],files["src/style.css"])
+            self.assertIn(b"{{ dynamic }}",result["src/App.vue"])
+            self.assertEqual(read_source(archive)["src/App.vue"],source)
+            self.client.force_authenticate(self.b)
+            self.assertEqual(self.client.get(url+"visual-fields/").status_code,404)
+            self.assertEqual(self.client.post(url+"visual-save/",payload,format="json").status_code,404)
+            self.client.force_authenticate(self.a)
+            invalid={**payload,"changes":[{"id":field["id"],"text":"{{ unsafe }}"}]}
+            self.assertEqual(self.client.post(url+"visual-save/",invalid,format="json").status_code,400)
+            invalid={**payload,"source_fingerprint":"0"*64}
+            self.assertEqual(self.client.post(url+"visual-save/",invalid,format="json").status_code,400)
+            with self.captureOnCommitCallbacks(execute=True):
+                queued=self.client.post(url+"visual-save/",payload,format="json")
+            self.assertEqual(queued.status_code,202)
+            edit=p.block_edits.get()
+            envelope=json.loads((Path(jobs)/"pending"/f"{edit.id}.json").read_text())
+            self.assertTrue(envelope["manual_edit"])
+            self.assertEqual(envelope["changes"],payload["changes"])
+            self.assertEqual(p.run_directory,"original")
+            self.assertEqual(self.client.post(url+"visual-save/",payload,format="json").status_code,409)
+            preview=self.client.get(f"/studio-preview/{p.preview_token}/?tn_edit=1")
+            self.assertContains(preview,"tn-visual-select")
+            normal=self.client.get(f"/studio-preview/{p.preview_token}/")
+            self.assertNotIn(b"tn-visual-select",b"".join(normal.streaming_content))
