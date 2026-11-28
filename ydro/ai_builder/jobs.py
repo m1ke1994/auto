@@ -42,7 +42,15 @@ def queue_project(project, *, profile, asset_style, hero_mode, require_model):
         "require_model": bool(require_model),
         "created_at": timezone.now().isoformat(),
     }
-    _atomic_json(job_root() / "pending" / f"{project.id}.json", payload)
+    try:
+        _atomic_json(job_root() / "pending" / f"{project.id}.json", payload)
+    except OSError:
+        # on_commit failures must not leave a permanent queued DB record.
+        Project.objects.filter(pk=project.pk, generation_status="queued").update(
+            generation_status="failed", generation_stage="failed",
+            generation_error="Не удалось записать задание в локальную очередь.",
+            updated_at=timezone.now())
+
 
 
 @transaction.atomic

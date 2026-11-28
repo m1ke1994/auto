@@ -335,3 +335,34 @@ class StudioTests(APITestCase):
             (root/"dist"/"index.html").write_text("modified")
             self.assertEqual(self.client.get(url+f'versions/{version["id"]}/export/').status_code,409)
             self.assertEqual((saved/"dist"/"index.html").read_text(),"original")
+
+
+    @override_settings(STUDIO_CINEMATIC_ENABLED=True, STUDIO_WORKER_REQUIRED=True)
+    def test_worker_health_prevents_new_jobs_when_offline(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import Project
+        with tempfile.TemporaryDirectory() as jobs, override_settings(STUDIO_JOB_ROOT=jobs):
+            url="/api/studio/projects/"
+            payload={"name":"Test","prompt":"Test"}
+            before=Project.objects.count()
+            self.assertEqual(self.client.post(url,payload,format="json").status_code,503)
+            self.assertEqual(Project.objects.count(),before)
+            heartbeat=Path(jobs)/"worker-health.json"
+            heartbeat.write_text(json.dumps({"protocol":1,"state":"ready","updated_at":(timezone.now()-timedelta(minutes=1)).isoformat()}))
+            self.assertEqual(self.client.post(url,payload,format="json").status_code,503)
+            heartbeat.write_text(json.dumps({"protocol":1,"state":"ready","updated_at":timezone.now().isoformat()}))
+            with self.captureOnCommitCallbacks(execute=True):
+                result=self.client.post(url,payload,format="json")
+            self.assertEqual(result.status_code,202)
+            self.assertTrue((Path(jobs)/"pending"/f'{result.data["id"]}.json').exists())
+
+    def test_project_queue_write_error_does_not_leave_queued_project(self):
+        from unittest.mock import patch
+        from .models import Project
+        from .jobs import queue_project
+        p=Project.objects.create(owner=self.a,name="Test",prompt="Test",engine="cinematic",generation_status="queued")
+        with patch("ai_builder.jobs._atomic_json",side_effect=OSError("test")):
+            queue_project(p,profile="standard",asset_style="realistic",hero_mode="auto",require_model=False)
+        p.refresh_from_db()
+        self.assertEqual(p.generation_status,"failed")

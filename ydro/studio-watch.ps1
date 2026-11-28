@@ -9,15 +9,15 @@ $pending=Join-Path $root 'pending'
 $running=Join-Path $root 'running'
 $status=Join-Path $root 'status'
 $logs=Join-Path $root 'logs'
+. (Join-Path $PSScriptRoot 'studio-worker-io.ps1')
+$readyFile=Join-Path $root 'watcher-ready.json'
 foreach($path in @($pending,$running,$status,$logs)){ $null=New-Item -ItemType Directory -Force -Path $path }
 
 function Write-State([string]$Id,[hashtable]$State){
     $State.project_id=$Id
     $State.updated_at=[DateTimeOffset]::Now.ToString('o')
     $target=Join-Path $status ($Id+'.json')
-    $temp=$target+'.tmp'
-    [IO.File]::WriteAllText($temp,($State|ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))
-    Move-Item -LiteralPath $temp -Destination $target -Force
+    Write-StudioJson $target $State
 }
 
 function Recover-InterruptedJobs {
@@ -128,9 +128,20 @@ try {
     throw 'Another Studio watcher owns this workspace lock.'
 }
 try {
+    [IO.File]::WriteAllText((Join-Path $root 'watcher.pid'),[string]$PID,[Text.UTF8Encoding]::new($false))
     Recover-InterruptedJobs
     do{
-        Get-ChildItem -LiteralPath $pending -Filter '*.json' -File | Sort-Object CreationTime | ForEach-Object { Process-Job $_ }
+        Write-StudioJson $readyFile @{protocol=1;pid=$PID;updated_at=[DateTimeOffset]::UtcNow.ToString('o')}
+        $next=@(Get-ChildItem -LiteralPath $pending -Filter '*.json' -File | Sort-Object CreationTime)
+        foreach($file in $next){
+            # Docker unavailable is not a failed generation. Leave unclaimed work
+            # in pending for the supervisor to resume when Docker is back.
+            & docker info --format '{{.ServerVersion}}' 2>$null | Out-Null
+            if($LASTEXITCODE -ne 0){throw 'Docker unavailable before claiming job'}
+            Write-Host "STUDIO_JOB_START: $($file.BaseName)"
+            Process-Job $file
+            Write-StudioJson $readyFile @{protocol=1;pid=$PID;updated_at=[DateTimeOffset]::UtcNow.ToString('o')}
+        }
         if(!$Once){Start-Sleep -Seconds $PollSeconds}
     }while(!$Once)
 } finally {

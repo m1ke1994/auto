@@ -15,6 +15,7 @@ from .block_jobs import BLOCKS, state as edit_state, block_edit_data, active_for
 from .design import STYLES, preview, source_files
 from .jobs import project_dist, queue_project, refresh_project, visual_result, progress_event
 from .provider import generate, mode, GenerationError
+from .worker_health import worker_health
 from .versions import archive_for, ensure_history, history_data, verify_version, record as record_version
 
 class ContactInput(serializers.Serializer):
@@ -100,6 +101,7 @@ class Config(StudioView):
         return Response({
             "provider":provider,"configured":configured,"styles":STYLES,
             "cinematic_enabled":bool(getattr(settings,"STUDIO_CINEMATIC_ENABLED",False)),
+            "worker":worker_health(),
             "cinematic_max_cost_usd":float(getattr(settings,"STUDIO_CINEMATIC_MAX_COST_USD",2.50)),
         })
 
@@ -119,6 +121,8 @@ class Projects(StudioView):
         if engine=="cinematic":
             if not getattr(settings,"STUDIO_CINEMATIC_ENABLED",False):
                 return Response({"detail":"Кинематографический движок не запущен локально."},status=503)
+            if not worker_health()["available"]:
+                return Response({"detail":"Обработчик Studio недоступен. Новое задание не создано."},status=503)
             with transaction.atomic():
                 get_user_model().objects.select_for_update().get(pk=request.user.pk)
                 for active in Project.objects.filter(owner=request.user,engine="cinematic",generation_status__in=("queued","running")):
@@ -238,6 +242,8 @@ class RegenerateBlock(StudioView):
         p=refresh_project(get_object_or_404(Project.objects.select_for_update(),pk=pk,owner=request.user))
         if not getattr(settings,"STUDIO_CINEMATIC_ENABLED",False):
             return Response({"detail":"Cinematic Engine недоступен."},status=503)
+        if not worker_health()["available"]:
+            return Response({"detail":"Обработчик Studio недоступен. Новое задание не создано."},status=503)
         if block not in BLOCKS:
             raise Http404
         dist=project_dist(p)

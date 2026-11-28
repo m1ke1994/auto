@@ -10,7 +10,8 @@ const emptyContacts=()=>({phone:'',email:'',address:'',telegram:'',vk:'',whatsap
 const contacts=ref(emptyContacts()), noContacts=ref(false)
 const contactFields=[['phone','Телефон','tel','+7 (___) ___-__-__'],['email','Email','email','info@example.com'],['address','Адрес','text','Город, улица, дом'],['telegram','Telegram','url','https://t.me/...'],['vk','ВКонтакте','url','https://vk.com/...'],['whatsapp','WhatsApp','url','https://wa.me/...'],['website','Сайт','url','https://example.com']]
 const hasContacts=computed(()=>Object.values(contacts.value).some(v=>v.trim()))
-const config=ref({provider:null,configured:false,cinematic_enabled:false,cinematic_max_cost_usd:2.5})
+const config=ref({provider:null,configured:false,cinematic_enabled:false,cinematic_max_cost_usd:2.5,worker:null})
+const workerUnavailable=computed(()=>config.value.worker?.required&&!config.value.worker?.available)
 const styles=[['auto','Автоматический'],['business','Современный'],['cinema','Кинематографический']]
 const heroModes=[['auto','Автовыбор композиции'],['immersive','Крупный объект на фоне'],['product','Предметная сцена'],['split','Разделённый Hero'],['cinematic','Полноэкранная сцена'],['editorial','Editorial-фотография'],['environment','Иммерсивное пространство']]
 const revision=computed(()=>current.value?.revisions?.find(r=>r.id===selected.value))
@@ -120,6 +121,7 @@ async function refresh(){
   if(polling||disposed)return
   polling=true
   try{
+    config.value=(await http.get('/api/studio/config/')).data
     const list=(await http.get(base)).data
     if(disposed)return
     projects.value=list
@@ -133,7 +135,7 @@ async function refresh(){
   finally{polling=false}
 }
 onMounted(()=>run(async()=>{config.value=(await http.get('/api/studio/config/')).data;await refresh()}))
-const poll=setInterval(()=>{if(!busy.value&&(activeJob.value||generating.value||editingBlock.value||pollError.value))refresh().catch(()=>{})},3000)
+const poll=setInterval(()=>{if(!busy.value)refresh().catch(()=>{})},3000)
 const clock=setInterval(()=>{now.value=Date.now()},1000)
 onBeforeUnmount(()=>{disposed=true;clearInterval(poll);clearInterval(clock)})
 
@@ -164,6 +166,7 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
 <section class="studio">
   <header class="studio-head"><h1>Studio</h1><button class="primary compact" :disabled="busy" @click="newProject()">+ Новый проект</button></header>
   <div v-if="error" role="alert" class="notice error">{{error}}</div>
+  <div v-if="workerUnavailable" role="status" class="notice error">Обработчик Studio недоступен. Новые задания временно отключены. Уже поставленные задания сохранены; проверяем восстановление.</div>
   <div class="project-strip">
     <div class="section-heading"><span>Мои проекты <small>{{projects.length}}</small></span></div>
     <div v-if="projects.length" class="projects">
@@ -193,7 +196,7 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
     </template>
     <p v-if="engine==='quick'" class="cost-note">Быстрый макет без фотографий и 3D.</p>
     <p v-if="engine==='cinematic'&&!config.cinematic_enabled" class="notice error">Создание полноценных сайтов временно недоступно.</p>
-    <button class="primary launch" :disabled="busy||(engine==='cinematic'?(!config.cinematic_enabled||activeJob):!config.configured)">{{busy?'Отправляем запрос…':engine==='cinematic'?'Создать сайт':'Создать быструю концепцию'}}</button>
+    <button class="primary launch" :disabled="busy||(engine==='cinematic'?(!config.cinematic_enabled||workerUnavailable||activeJob):!config.configured)">{{busy?'Отправляем запрос…':engine==='cinematic'?'Создать сайт':'Создать быструю концепцию'}}</button>
   </form>
 
   <div v-else class="workspace">
@@ -204,7 +207,7 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
         <button type="button" :class="{active:inspectorTab==='info'}" :aria-pressed="inspectorTab==='info'" @click="inspectorTab='info'">О проекте</button>
         <button type="button" :class="{active:inspectorTab==='versions'}" :aria-pressed="inspectorTab==='versions'" :disabled="busy||editingBlock||candidateReady||generating" @click="inspectorTab='versions'">Версии</button>
       </div>
-      <p v-if="current.generation_status==='failed'" class="notice error">Не удалось создать сайт.</p>
+      <p v-if="current.generation_status==='failed'" class="notice error">Не удалось создать сайт. {{current.generation_error}}</p>
       <div v-if="!cinematic||inspectorTab==='info'" class="project-details">
         <details class="brief"><summary>Описание проекта</summary><p class="project-description">{{current.prompt}}</p></details>
         <details v-if="cinematic&&Object.keys(current.contacts||{}).length" class="brief"><summary>Контакты</summary><p v-for="field in contactFields.filter(f=>current.contacts?.[f[0]])" :key="field[0]" class="contact-summary"><strong>{{field[1]}}</strong><br>{{current.contacts[field[0]]}}</p></details>
@@ -236,11 +239,11 @@ function openPreview(){if(previewSrc.value)window.open(previewSrc.value,'_blank'
                 <select v-model="heroOptions[key]" :aria-label="label"><option value="">Текущее</option><option v-for="(text,value) in options" :key="value" :value="value">{{ text }}</option></select>
               </label>
               <label>Титры, по одному на строке<textarea v-model="heroCaptionInput" rows="3" maxlength="729" placeholder="Текущие титры"></textarea></label>
-              <button type="button" :disabled="busy||activeJob||!config.cinematic_enabled" @click="applyHeroFilm">Обновить киносцену</button>
+              <button type="button" :disabled="busy||activeJob||workerUnavailable||!config.cinematic_enabled" @click="applyHeroFilm">Обновить киносцену</button>
               <label class="check"><input v-model="upgradeMotion" type="checkbox"> Обновить анимацию при правке блока</label>
             </details>
             <p class="request-note">Используется один платный запрос.</p>
-            <button type="submit" class="primary" :disabled="busy||activeJob||!config.cinematic_enabled||!blockInstruction.trim()">Применить изменения</button>
+            <button type="submit" class="primary" :disabled="busy||activeJob||workerUnavailable||!config.cinematic_enabled||!blockInstruction.trim()">Применить изменения</button>
           </form>
           <div v-if="editingBlock" role="status" class="notice block-live-status"><div class="block-live-heading"><strong>{{blockPhaseNames[blockEdit.stage]||'Выполняется правка'}}</strong><span>{{blockProgress}}%</span></div><div class="progress-track"><span :style="{width:blockProgress+'%'}"/></div><small>Последнее подтверждение движка: {{blockEventAge}} назад. Статус обновляется автоматически.</small><p v-if="blockEventStale" class="block-stale">Движок пока не сообщил новый этап. Проверяем выполнение — не запускайте повторную правку.</p></div>
           <div v-if="blockEdit?.status==='failed'" class="notice error">Правка не завершилась. Исходный сайт сохранён.</div>
